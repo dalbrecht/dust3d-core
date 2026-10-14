@@ -5,7 +5,7 @@ let package = Package(
     name: "Dust3DCore",
     platforms: [.macOS(.v14)],
     products: [
-        .library(name: "Dust3DEngine", type: .static, targets: ["Dust3DEngine"]),
+        .library(name: "Dust3DEngine", type: .static, targets: ["Dust3DEngine"])
     ],
     targets: [
         .target(
