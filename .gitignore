@@ -53,3 +53,5 @@ application/obj
 application/qrc_QtAwesome.cpp
 application/qrc_resources.cpp
 build/
+# Local CMake builds
+/build-*/

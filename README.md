@@ -1,3 +1,57 @@
+# Dust3D Core — maintained downstream
+
+Public C++17 modeling engine and validated C API for the native Apple apps.
+Preserves full history from [huxingyi/dust3d](https://github.com/huxingyi/dust3d)
+and regularly integrates upstream through reviewed synchronization PRs.
+The original MIT license and third-party notices remain intact; new project code is MIT.
+This repository is a history-preserving duplicate, not a second GitHub network fork.
+
+## Build and test without Qt
+
+Requires CMake 3.20+, a C/C++17 compiler and platform thread support. No Swift,
+Qt, display server or external geometry download is needed.
+
+```bash
+git clone --recurse-submodules https://github.com/dalbrecht/dust3d-core.git
+cd dust3d-core
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build --parallel 4
+ctest --test-dir build --output-on-failure
+```
+
+For ASan/UBSan, configure a separate build with `-DDUST3D_ENABLE_SANITIZERS=ON`.
+The `dust3d_engine` CMake target links the required core/remesher dependencies;
+its public header is `native/Engine/include/Dust3DBridge.h`. Direct static-library
+consumers must link those transitive archives too. No installable SDK or stable
+binary ABI release is promised by this initial source setup.
+
+The current API generates procedural geometry and colors from existing `.ds3`
+archives. Textures are untextured previews with warnings; embedded GLB geometry
+is explicitly unsupported. Editing/encoding, texture baking, export and animation
+APIs are planned. Input validation does not impose hard resource limits inside
+legacy geometry algorithms; generation is serialized and not interruptible.
+
+## Maintenance and quality
+
+- [Upstream synchronization and provenance](docs/upstream-maintenance.md)
+- [Editor, repository and testing roadmap](docs/editor-port-plan.md)
+- [C++ conventions](docs/cpp-standards.md): retain C++17 and the inherited `.clang-format`.
+- `.standards` pins the shared coding standards; `AGENTS.md` supplies core-specific rules.
+- CI builds on Linux/macOS and runs a separate Linux ASan/UBSan configuration.
+- Initial CTest coverage is seven contract scenarios, not full engine coverage.
+  Existing C++ warnings and broad algorithm coverage remain adoption work.
+
+`upstream-sync` is untouched upstream history; `master` contains downstream additions.
+The Qt application and original tools remain as reference source, excluded from the
+portable build. Legacy Qt release workflows are replaced by core CI on the maintained
+branch. The Apple [viewer/editor repository](https://github.com/dalbrecht/dust3d-swiftui)
+remains separate; its current viewer PR is not coupled to this repository's migration.
+
+---
+
+The original upstream README follows for provenance and Qt reference workflows.
+It does not describe the native core build above.
+
 # Dust3D
 
 Dust3D is a cross-platform 3D modeling software that makes it easy to create 3D models for video games, 3D printing, and more. It features built-in rigging, procedural animation and UV unwrapping, with export to GLB and FBX formats.

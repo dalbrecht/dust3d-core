@@ -1,0 +1,57 @@
+# Explicit lists keep target membership reviewable.
+set(DUST3D_CORE_SOURCES
+    dust3d/base/axis_aligned_bounding_box_tree.cc
+    dust3d/base/combine_mode.cc
+    dust3d/base/cut_face.cc
+    dust3d/base/ds3_file.cc
+    dust3d/base/part_target.cc
+    dust3d/base/position_key.cc
+    dust3d/base/snapshot_xml.cc
+    dust3d/base/string.cc
+    dust3d/base/texture_type.cc
+    dust3d/base/uuid.cc
+    dust3d/base/vector3.cc
+    dust3d/mesh/base_normal.cc
+    dust3d/mesh/centripetal_catmull_rom_spline.cc
+    dust3d/mesh/hole_stitcher.cc
+    dust3d/mesh/hole_wrapper.cc
+    dust3d/mesh/mesh_combiner.cc
+    dust3d/mesh/mesh_generator.cc
+    dust3d/mesh/mesh_recombiner.cc
+    dust3d/mesh/mesh_state.cc
+    dust3d/mesh/re_triangulator.cc
+    dust3d/mesh/resolve_triangle_tangent.cc
+    dust3d/mesh/rope_mesh.cc
+    dust3d/mesh/section_remesher.cc
+    dust3d/mesh/smooth_normal.cc
+    dust3d/mesh/solid_mesh.cc
+    dust3d/mesh/solid_mesh_boolean_operation.cc
+    dust3d/mesh/stitch_loop_mesh_builder.cc
+    dust3d/mesh/stitch_mesh_builder.cc
+    dust3d/mesh/triangulate.cc
+    dust3d/mesh/trim_vertices.cc
+    dust3d/mesh/tube_mesh_builder.cc
+    dust3d/mesh/wrap_mesh_builder.cc
+    dust3d/rig/rig_generator.cc
+    dust3d/uv/chart_packer.cc
+    dust3d/uv/cloth_folds.cc
+    dust3d/uv/max_rectangles.cc
+    dust3d/uv/surface_pattern.cc
+    dust3d/uv/uv_map_packer.cc
+)
+set(DUST3D_REMESHER_SOURCES
+    third_party/autoremesher/src/AutoRemesher/constrainedleastsquares.cpp
+    third_party/autoremesher/src/AutoRemesher/framefield.cpp
+    third_party/autoremesher/src/AutoRemesher/isotropicremesher.cpp
+    third_party/autoremesher/src/AutoRemesher/meshseparator.cpp
+    third_party/autoremesher/src/AutoRemesher/mixedintegerleastsquares.cpp
+    third_party/autoremesher/src/AutoRemesher/parameterizer.cpp
+    third_party/autoremesher/src/AutoRemesher/positionkey.cpp
+    third_party/autoremesher/src/AutoRemesher/quadextractor.cpp
+    third_party/autoremesher/src/AutoRemesher/quadparameterizer.cpp
+    third_party/autoremesher/src/AutoRemesher/singularitysimplifier.cpp
+    third_party/autoremesher/src/AutoRemesher/surfacemesh.cpp
+    third_party/autoremesher/thirdparty/isotropicremesher/axisalignedboundingboxtree.cpp
+    third_party/autoremesher/thirdparty/isotropicremesher/isotropichalfedgemesh.cpp
+    third_party/autoremesher/thirdparty/isotropicremesher/isotropicremesher.cpp
+)

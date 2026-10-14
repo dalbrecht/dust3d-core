@@ -1,0 +1,42 @@
+name: Core
+on:
+  push:
+    branches: [master, 'codex/**']
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  contract:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            sanitizers: 'OFF'
+          - os: macos-latest
+            sanitizers: 'OFF'
+          - os: ubuntu-latest
+            sanitizers: 'ON'
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - name: Check new C++ formatting and Qt boundary
+        shell: bash
+        run: |
+          if [[ "$RUNNER_OS" == "macOS" ]]; then
+            if ! command -v clang-format >/dev/null; then brew install clang-format; fi
+          fi
+          clang-format --dry-run --Werror native/Engine/*.cc native/Engine/*.h native/Engine/include/*.h tests/core/*.cc tests/core/*.c
+          if grep -REn '#include[[:space:]]*[<"]Q[A-Z]|\b(QObject|QString|QImage|QWidget)\b' dust3d native/Engine tests/core --exclude='*.ds3'; then exit 1; fi
+      - name: Configure portable build
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DDUST3D_ENABLE_SANITIZERS=${{ matrix.sanitizers }}
+      - name: Build
+        run: cmake --build build --parallel 4
+      - name: Run headless contract tests
+        env:
+          ASAN_OPTIONS: detect_leaks=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: ctest --test-dir build --output-on-failure
