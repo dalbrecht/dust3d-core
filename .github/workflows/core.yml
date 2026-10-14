@@ -19,6 +19,8 @@ jobs:
           - os: ubuntu-latest
             sanitizers: 'ON'
     runs-on: ${{ matrix.os }}
+    env:
+      CTEST_OUTPUT_ON_FAILURE: '1'
     steps:
       - uses: actions/checkout@v4
         with:
