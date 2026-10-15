@@ -45,5 +45,5 @@ jobs:
       - name: Verify SwiftPM source product on macOS
         if: runner.os == 'macOS'
         run: |
-          swift-format lint --strict Package.swift
+          xcrun swift-format lint --strict Package.swift
           swift build --build-system native -j 4
