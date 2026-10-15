@@ -1,0 +1,4 @@
+// Implementation-only C++ module; no STL headers are exposed to Swift.
+module AutoRemesher {
+    export *
+}

@@ -42,3 +42,8 @@ jobs:
           ASAN_OPTIONS: detect_leaks=1
           UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
         run: ctest --test-dir build --output-on-failure
+      - name: Verify SwiftPM source product on macOS
+        if: runner.os == 'macOS'
+        run: |
+          xcrun swift-format lint --strict Package.swift
+          swift build --build-system native -j 4
