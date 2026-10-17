@@ -35,6 +35,7 @@ namespace {
     void validate(const Object& object, const UvAtlas& atlas, const TextureBakeInputs& inputs, const TextureBakeOptions& options)
     {
         checkCancellation(options);
+        size_t validated = 0;
         for (const auto dimension : { options.colorSize, options.normalSize, options.materialSize }) {
             if (dimension == 0 || dimension > maximumDimension)
                 invalid("Texture dimensions must be in 1..8192");
@@ -44,6 +45,8 @@ namespace {
         if (options.maximumPayloadBytes > maximumBudget)
             invalid("Texture output budget exceeds 256 MiB");
         for (const auto& vertex : object.vertices) {
+            if (validated++ % 256 == 0)
+                checkCancellation(options);
             for (size_t axis = 0; axis < 3; ++axis) {
                 const double scaled = vertex[axis] * 100000.0;
                 const double bound = std::ldexp(1.0, std::numeric_limits<long>::digits);
@@ -54,6 +57,8 @@ namespace {
         if (atlas.triangleUvs.size() != object.triangles.size() || atlas.triangleUvKnown.size() != object.triangles.size() || atlas.triangleComponentIds.size() != object.triangles.size())
             invalid("Texture UV records must align with original triangles");
         for (size_t index = 0; index < object.triangles.size(); ++index) {
+            if (index % 256 == 0)
+                checkCancellation(options);
             const auto& triangle = object.triangles[index];
             if (triangle.size() != 3)
                 invalid("Texture geometry must be triangulated");
@@ -69,19 +74,27 @@ namespace {
             }
         }
         for (const auto& layout : atlas.layouts) {
+            if (validated++ % 256 == 0)
+                checkCancellation(options);
             validateColor(layout.color);
             if (!unit(layout.left) || !unit(layout.top) || !unit(layout.width) || !unit(layout.height) || layout.left + layout.width > 1.0000000001 || layout.top + layout.height > 1.0000000001)
                 invalid("Texture chart bounds exceed the atlas");
         }
         std::set<size_t> gradientOrdinals;
         for (const auto& gradient : atlas.gradients) {
+            if (validated++ % 256 == 0)
+                checkCancellation(options);
             if (gradient.layoutIndex >= atlas.layouts.size() || !gradientOrdinals.insert(gradient.layoutIndex).second || gradient.resolution < 2 || gradient.resolution > maximumDimension)
                 invalid("Texture gradient has an invalid or duplicate layout ordinal or resolution");
             validateColor(gradient.largeColor);
             validateColor(gradient.smallColor);
         }
         for (const auto& layout : atlas.layouts) {
+            if (validated++ % 256 == 0)
+                checkCancellation(options);
             for (const auto& entry : layout.globalUv) {
+                if (validated++ % 256 == 0)
+                    checkCancellation(options);
                 for (const auto& uv : entry.second) {
                     if (!unit(uv.x()) || !unit(uv.y()))
                         invalid("Surface chart contains invalid UV coordinates");
@@ -89,6 +102,8 @@ namespace {
             }
         }
         for (const auto& entry : inputs.surfaces) {
+            if (validated++ % 256 == 0)
+                checkCancellation(options);
             const auto& surface = entry.second;
             if (!unit(surface.wrinkleStrength))
                 invalid("Wrinkle strength must be finite and normalized");
@@ -101,10 +116,14 @@ namespace {
                 validateColor(pattern.patternColor);
             }
             for (const auto& fold : surface.folds) {
+                if (validated++ % 256 == 0)
+                    checkCancellation(options);
                 const auto kind = static_cast<int>(fold.kind);
                 if (kind < 0 || kind > static_cast<int>(ClothFolds::Kind::Crease) || fold.points.size() < 2 || fold.normals.size() != fold.points.size() || !std::isfinite(fold.width) || fold.width <= 0 || !std::isfinite(fold.depth) || fold.depth < 0 || !unit(fold.crease) || !unit(fold.peak) || !unit(fold.endDepth) || !std::isfinite(fold.ridgeSide) || std::abs(fold.ridgeSide) != 1)
                     invalid("Cloth fold has invalid shape, dimensions or profile");
                 for (size_t index = 0; index < fold.points.size(); ++index) {
+                    if (index % 256 == 0)
+                        checkCancellation(options);
                     for (size_t axis = 0; axis < 3; ++axis) {
                         if (!std::isfinite(fold.points[index][axis]) || !std::isfinite(fold.normals[index][axis]))
                             invalid("Cloth fold contains nonfinite points or normals");
@@ -116,6 +135,8 @@ namespace {
             }
         }
         for (const auto& entry : inputs.images) {
+            if (validated++ % 256 == 0)
+                checkCancellation(options);
             const auto& image = entry.second;
             if (!image.pixels || !image.width || !image.height || image.width > maximumDimension || image.height > maximumDimension)
                 invalid("Source image requires pixels and dimensions in 1..8192");
@@ -126,6 +147,8 @@ namespace {
                 invalid("Source image byte span is truncated");
         }
         for (const auto& entry : inputs.materials) {
+            if (validated++ % 256 == 0)
+                checkCancellation(options);
             const auto& material = entry.second;
             if (!unit(material.metallic) || !unit(material.roughness) || !std::isfinite(material.emissive) || material.emissive < 0 || material.emissive > 2)
                 invalid("Material scalars exceed their finite supported ranges");
@@ -260,23 +283,42 @@ namespace {
         std::unique_ptr<SurfacePattern> pattern;
         std::unique_ptr<ClothFolds> folds;
     };
-    std::vector<SurfaceChart> surfaces(const Object& object, const UvAtlas& atlas, const TextureBakeInputs& inputs, const TextureBakeOptions& options)
+    std::vector<SurfaceChart> surfaces(const Object& object, const UvAtlas& atlas, const TextureBakeInputs& inputs, const TextureBakeOptions& options, size_t& indexedVertices)
     {
+        const auto needsDetails = [&](const UvMapPacker::Layout& layout) {
+            if (!layout.id.isNull() || layout.globalUv.empty())
+                return false;
+            const auto found = inputs.surfaces.find(layout.sourceId);
+            if (found == inputs.surfaces.end())
+                return false;
+            const auto& surface = found->second;
+            return (surface.pattern && surface.pattern->type != SurfacePattern::Type::None)
+                || (!surface.folds.empty() && surface.wrinkleStrength > 0);
+        };
+        if (inputs.surfaces.empty() || std::none_of(atlas.layouts.begin(), atlas.layouts.end(), needsDetails))
+            return {};
         size_t gridEntries = 0;
+        size_t prepared = 0;
         std::map<PositionKey, Vector3> positions;
-        for (const auto& vertex : object.vertices)
+        for (const auto& vertex : object.vertices) {
+            if (prepared++ % 256 == 0)
+                checkCancellation(options);
             positions.emplace(PositionKey(vertex), vertex);
+        }
+        indexedVertices = positions.size();
         std::vector<SurfaceChart> charts;
         for (size_t ordinal = 0; ordinal < atlas.layouts.size(); ++ordinal) {
             const auto& layout = atlas.layouts[ordinal];
             const auto found = inputs.surfaces.find(layout.sourceId);
-            if (!layout.id.isNull() || found == inputs.surfaces.end())
+            if (!needsDetails(layout))
                 continue;
             const auto& surface = found->second;
             SurfaceChart chart;
             chart.layoutIndex = ordinal;
             std::map<PositionKey, size_t> welded;
             for (const auto& entry : layout.globalUv) {
+                if (prepared++ % 256 == 0)
+                    checkCancellation(options);
                 SurfaceTriangle triangle;
                 triangle.uvs = entry.second;
                 for (size_t corner = 0; corner < 3; ++corner) {
@@ -524,7 +566,8 @@ TextureBakeResult TextureBaker::bake(const Object& object, const UvAtlas& atlas,
         hasEmissive = hasEmissive || found->second.emissive > 0;
     }
     hasRoughness = hasRoughness || hasMetallic;
-    auto charts = surfaces(object, atlas, inputs, options);
+    size_t indexedVertices = 0;
+    auto charts = surfaces(object, atlas, inputs, options, indexedVertices);
     const bool hasNormal = std::any_of(charts.begin(), charts.end(), [](const SurfaceChart& chart) { return bool(chart.folds); });
     const size_t budget = options.maximumPayloadBytes ? options.maximumPayloadBytes : maximumBudget;
     size_t payload = 0;
@@ -543,6 +586,7 @@ TextureBakeResult TextureBaker::bake(const Object& object, const UvAtlas& atlas,
     }
     TextureBakeResult result;
     result.payloadBytes = payload;
+    result.surfaceVertexIndexEntries = indexedVertices;
     result.tangents = detail::buildTextureTangents(object, atlas, options);
     result.color = image(options.colorSize);
     std::set<size_t> colorSkipped, normalSkipped;

@@ -364,6 +364,29 @@ void denseSurfaceWork()
         }
     }
 }
+void inactiveSurfaceIndexing()
+{
+    Fixture fixture;
+    require(fixture.bake().surfaceVertexIndexEntries == 0, "Ordinary solid baking must not index vertices for absent procedural details");
+    dust3d::TextureBakeInputs inputs;
+    inputs.materials[componentId] = { 0.5, 0.25, 0.1 };
+    require(fixture.bake(inputs).surfaceVertexIndexEntries == 0, "Material-only baking must skip procedural vertex indexing");
+    auto& surface = inputs.surfaces[componentId];
+    surface.pattern = dust3d::SurfacePattern::Settings {};
+    require(fixture.bake(inputs).surfaceVertexIndexEntries == 0, "Disabled pattern settings must not activate surface preparation");
+    surface.pattern->type = dust3d::SurfacePattern::Type::Spots;
+    require(fixture.bake(inputs).surfaceVertexIndexEntries == 4, "An active matching chart must retain its actual position index");
+    fixture.atlas.layouts[0].sourceId = imageId;
+    require(fixture.bake(inputs).surfaceVertexIndexEntries == 0, "Unmatched procedural inputs must not index geometry");
+    fixture.atlas.layouts[0].sourceId = componentId;
+    const std::vector<uint8_t> pixels(16, 255);
+    inputs.images[imageId] = { 2, 2, 8, pixels.size(), pixels.data() };
+    fixture.atlas.layouts[0].id = imageId;
+    require(fixture.bake(inputs).surfaceVertexIndexEntries == 0, "Image charts must not activate unrelated world-space procedural work");
+    fixture.atlas.layouts[0].id = {};
+    fixture.atlas.layouts[0].globalUv.clear();
+    require(fixture.bake(inputs).surfaceVertexIndexEntries == 0, "An empty procedural chart must not allocate a position index");
+}
 void serializedFoldNormals()
 {
     Fixture fixture;
@@ -468,6 +491,7 @@ int main(int argc, char* argv[])
         invalidFoldFamilies();
         cancellationAfterValidation();
         denseSurfaceWork();
+        inactiveSurfaceIndexing();
         serializedFoldNormals();
         require(argc == 2, "Expected fixture directory");
         generatedFixtures(argv[1]);

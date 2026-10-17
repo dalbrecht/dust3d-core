@@ -83,8 +83,8 @@ these focused contracts or by Swift smoke tests. See ADR 0014.
 
 An LLVM-instrumented `texture_baker.cc` object was linked ahead of the ordinary
 native archives into the real contract executable, which ran all its analytic
-and generated-fixture cases. LLVM reports 624/641 executable lines (97.35%),
-467/486 regions (96.09%) and 374/444 branches (84.23%). This measures this source
+and generated-fixture cases. LLVM reports 670/695 executable lines (96.40%),
+504/530 regions (95.09%) and 408/484 branches (84.30%). This measures this source
 file only, not inherited procedural kernels, all headers, the C ABI or the
 complete core. The domain's aspirational 100% target is not met by this report;
 remaining degenerate/fallback and numeric-failure paths stay visible rather than
@@ -148,3 +148,27 @@ After row scheduling, full Debug 33/33 passed in 28.13 seconds and ASan/UBSan
 33/33 passed in 86.25 seconds. Swift 6 consumers passed. All six full-resolution
 portable/reference comparisons passed in 24.23 seconds with unchanged measured
 errors (color at most one byte, image/scalar/normal samples exact).
+
+## Review regression: inactive surface preparation
+
+Ordinary solid, image and material-only bakes now return from procedural
+preparation before creating a vertex-position map. Preparation requires a
+matching image-free, nonempty chart with an active pattern or nonempty folds
+and positive wrinkle strength. The `surfaceVertexIndexEntries` diagnostic records
+zero for absent, disabled, unmatched, image and empty-chart inputs; an active
+analytic chart records its four unique positions. The regression first failed
+because the ordinary path indexed all four vertices despite having no details.
+Long owned validation and position-index loops also poll cancellation in batches.
+
+A related serializer compatibility regression exercises actual ClothFolds
+serialize/deserialize: normal components are written to three decimals and
+therefore valid saved unit normals no longer have exact unit length. Validation
+now accepts finite, nonzero normal lengths; the inherited fold constructor
+normalizes its owned copy. Zero/nonfinite/overflowing normals remain rejected,
+and caller inputs remain unchanged. The test first reproduced the exact-unit
+rejection with diagonal normals rounded to 0.707.
+
+After inactive-path and serialized-normal fixes, full Debug 33/33 passed in
+31.11 seconds, ASan/UBSan 33/33 in 84.35 seconds, and all six Qt comparisons in
+29.27 seconds. Swift 6 consumers, formatting, manifest lint, source/link Qt
+checks and diff checks passed. Timings remain observations rather than budgets.
