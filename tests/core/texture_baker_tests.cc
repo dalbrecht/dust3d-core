@@ -2,6 +2,7 @@
 #include <cmath>
 #include <dust3d/base/object.h>
 #include <dust3d/uv/texture_baker.h>
+#include <dust3d/uv/texture_baker_internal.h>
 #include <fstream>
 #include <iostream>
 #include <iterator>
@@ -294,6 +295,19 @@ void invalidFoldFamilies()
         rejects([&] { fixture.bake(inputs); }, dust3d::TextureBakeErrorCode::invalidInput);
     }
 }
+void cancellationAfterValidation()
+{
+    Fixture fixture;
+    std::atomic_bool cancelled(true);
+    fixture.options.cancellation = &cancelled;
+    rejects([&] { dust3d::detail::buildTextureTangents(fixture.object, fixture.atlas, fixture.options); }, dust3d::TextureBakeErrorCode::cancelled);
+    cancelled.store(false);
+    const auto result = dust3d::detail::buildTextureTangents(fixture.object, fixture.atlas, fixture.options);
+    require(result.size() == 2 && result[0].known && result[1].known, "Uncancelled tangent stage must preserve actual triangle frames");
+    cancelled.store(true);
+    fixture.object.triangles.clear();
+    rejects([&] { dust3d::detail::buildTextureTangents(fixture.object, fixture.atlas, fixture.options); }, dust3d::TextureBakeErrorCode::cancelled);
+}
 void generatedFixtures(const std::string& directory)
 {
     for (const std::string name : { "Capsule.ds3", "Sword.ds3", "RoundedCrossing.ds3" }) {
@@ -378,6 +392,7 @@ int main(int argc, char* argv[])
         unsafeFoldGrid();
         invalidInputFamilies();
         invalidFoldFamilies();
+        cancellationAfterValidation();
         require(argc == 2, "Expected fixture directory");
         generatedFixtures(argv[1]);
         std::cout << "Texture bake contracts passed\n";

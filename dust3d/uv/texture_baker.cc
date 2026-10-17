@@ -4,6 +4,7 @@
 #include <cmath>
 #include <dust3d/base/object.h>
 #include <dust3d/uv/texture_baker.h>
+#include <dust3d/uv/texture_baker_internal.h>
 #include <limits>
 #include <memory>
 
@@ -451,10 +452,15 @@ namespace {
             }
         }
     }
-    std::vector<TextureTangent> tangents(const Object& object, const UvAtlas& atlas)
+}
+namespace detail {
+    std::vector<TextureTangent> buildTextureTangents(const Object& object, const UvAtlas& atlas, const TextureBakeOptions& options)
     {
+        checkCancellation(options);
         std::vector<TextureTangent> result(object.triangles.size());
         for (size_t index = 0; index < result.size(); ++index) {
+            if (index % 256 == 0)
+                checkCancellation(options);
             if (!atlas.triangleUvKnown[index])
                 continue;
             const auto& triangle = object.triangles[index];
@@ -514,7 +520,7 @@ TextureBakeResult TextureBaker::bake(const Object& object, const UvAtlas& atlas,
     }
     TextureBakeResult result;
     result.payloadBytes = payload;
-    result.tangents = tangents(object, atlas);
+    result.tangents = detail::buildTextureTangents(object, atlas, options);
     result.color = image(options.colorSize);
     std::set<size_t> colorSkipped, normalSkipped;
     for (const auto& chart : charts) {

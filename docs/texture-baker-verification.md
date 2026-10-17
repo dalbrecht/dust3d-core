@@ -83,8 +83,8 @@ these focused contracts or by Swift smoke tests. See ADR 0014.
 
 An LLVM-instrumented `texture_baker.cc` object was linked ahead of the ordinary
 native archives into the real contract executable, which ran all its analytic
-and generated-fixture cases. LLVM reports 600/617 executable lines (97.24%),
-453/472 regions (95.97%) and 357/430 branches (83.02%). This measures this source
+and generated-fixture cases. LLVM reports 603/620 executable lines (97.26%),
+455/474 regions (95.99%) and 360/432 branches (83.33%). This measures this source
 file only, not inherited procedural kernels, all headers, the C ABI or the
 complete core. The domain's aspirational 100% target is not met by this report;
 remaining degenerate/fallback and numeric-failure paths stay visible rather than
@@ -110,3 +110,19 @@ reference harness README. No native UI changed in this C++ stage.
 The final complete optional reference suite passed 18/18 in 172.19 seconds,
 including the six portable comparisons, alpha observation, CLI rejection and
 actual native archive/executable incremental relink regression.
+
+## Review regression: tangent-stage cancellation
+
+Automated review identified a cancellation gap after input validation and during
+multi-million-triangle tangent generation. An internal, prevalidated stage is
+isolated for a deterministic contract, avoiding sleep/latency assumptions or
+production fault switches. The test first reproduced successful tangent
+completion despite a cancelled token. The stage now checks before allocating
+and every 256 triangles, preserving typed cancellation and owned output behavior.
+Uncancelled and empty-stage cases are also exercised. This is cooperative
+cancellation, not an operating-system scheduling or whole-call latency guarantee.
+
+After the review fix, full Debug 33/33 passed in 44.20 seconds and ASan/UBSan
+33/33 passed in 102.21 seconds. Swift 6 source/session/UV consumers and formatting
+passed again. The full-resolution portable/reference procedural comparison
+passed in 5.66 seconds, with unchanged color/normal samples.
