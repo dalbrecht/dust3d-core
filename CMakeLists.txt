@@ -95,7 +95,9 @@ if(BUILD_TESTING)
     add_executable(dust3d_generation_session_tests tests/core/generation_session_tests.cc)
     target_link_libraries(dust3d_generation_session_tests PRIVATE dust3d_engine dust3d_core)
     add_test(NAME contract_generation_sessions COMMAND dust3d_generation_session_tests ${CMAKE_CURRENT_SOURCE_DIR}/tests/core/fixtures)
-    set_tests_properties(contract_generation_sessions PROPERTIES TIMEOUT 60)
+    # The expanded wrapping/boolean corpus exceeds 60 seconds under Linux ASan
+    # on a contended hosted runner; retain the workload with a bounded test timeout.
+    set_tests_properties(contract_generation_sessions PROPERTIES TIMEOUT 180)
     # A C translation unit must consume the public ABI without C++/Qt headers.
     add_executable(dust3d_c_consumer tests/core/c_consumer.c)
     set_target_properties(dust3d_c_consumer PROPERTIES LINKER_LANGUAGE CXX)

@@ -45,7 +45,11 @@ constructs, loads, queries, resets and destroys the new opaque owner.
 The full gate is CMake Debug build/CTest, CMake ASan+UBSan build/CTest, SwiftPM
 build, new C/C++ and manifest formatting, whitespace and Qt-boundary checks.
 There is no `make ci` target in this portable repository; these are the hosted
-workflow's equivalent local commands. macOS leak detection is disabled because
+workflow's equivalent local commands. The session corpus has a 180-second
+CTest timeout: one hosted Linux sanitizer run hit the original 60-second limit
+while another completed successfully. This allows runner variance without
+removing assertions or weakening sanitizers; controlled performance budgets
+remain separate acceptance work. macOS leak detection is disabled because
 its sanitizer runtime does not support it; hosted Linux retains leak detection.
 
 The concurrent sanitizer test uses explicit 16 MiB POSIX worker stacks. On the
