@@ -90,6 +90,14 @@ int main()
         for (const auto* value : { "0,25junk", "0,25,0", "0.25junk", "0.25.0", "nan", "inf", "1e309", "1e-999", "5e-324", "1000001" }) {
             reject(replaceValue(model(), "cutRotation='0.25'", std::string("cutRotation='") + value + "'"));
         }
+        for (const auto* key : { "wrapSmoothness", "wrapDrape", "wrapDrapeLength", "wrapOpenTop", "wrapOpenBottom", "wrapThickness", "wrapWeightRadius", "wrapPatternScale", "wrapBelly", "wrapWrinkleSize" }) {
+            // These inert part-linked attributes test parsing independently of wrap generation.
+            // Finite legacy values remain accepted; the inherited generator owns clamping.
+            for (const auto* value : { "", "0", "0.25", "0,25", "-0.25", "1000000" })
+                load(replaceValue(model(), "smoothCutoffDegrees=", std::string(key) + "='" + value + "' smoothCutoffDegrees="));
+            for (const auto* value : { "nan", "inf", "-inf", "1e309", "1e-999", "5e-324", "1000001", "0.25junk", "0,25,0" })
+                reject(replaceValue(model(), "smoothCutoffDegrees=", std::string(key) + "='" + value + "' smoothCutoffDegrees="));
+        }
         reject(replaceValue(model(), "radius='0.1'", "radius='-0,1'"));
         return 0;
     } catch (const std::exception& error) {

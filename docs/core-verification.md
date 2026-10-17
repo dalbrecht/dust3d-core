@@ -81,3 +81,25 @@ SwiftPM and adapter/test formatting pass. Existing inherited UUID integer-conver
 warnings remain in SwiftPM; no warnings were suppressed. macOS sanitizer testing
 uses detect_leaks=0, so Linux leak-enabled hosted checks remain required before
 merge. Full inherited coverage and Qt GUI differential acceptance are not claimed.
+
+## Complete wrapping numeric boundary (core #11)
+
+The wrapping audit for Apple issue #98 found ten consumed numeric attributes
+missing from native validation: `wrapSmoothness`, `wrapDrape`, `wrapDrapeLength`,
+`wrapOpenTop`, `wrapOpenBottom`, `wrapThickness`, `wrapWeightRadius`,
+`wrapPatternScale`, `wrapBelly` and `wrapWrinkleSize`. The existing checks for
+`wrapOffset`, `wrapFaces` and `wrapWrinkles` remain unchanged.
+
+A new rejection case first failed with "Invalid numeric fixture was accepted".
+All ten fields now use the existing validator before generation. The numeric
+contract checks malformed, nonfinite, overflow, underflow and excessive-magnitude
+values for each key, and accepts empty/default, zero, dot/comma decimal, negative
+finite and magnitude-boundary values. Attributes are attached to an inert
+part-linked component so these cases isolate boundary parsing from wrapping
+algorithms; they do not claim wrapping geometry acceptance or impose UI ranges.
+Finite values retain the inherited generator's clamping and defaults.
+
+All fifteen Debug and fifteen ASan/UBSan contracts pass locally on 2026-10-17,
+along with SwiftPM source compilation and formatting. Local macOS sanitizers do
+not enable unsupported leak detection; Linux CI retains its existing leak gate.
+No API, dependency or inherited geometry algorithm changes.
