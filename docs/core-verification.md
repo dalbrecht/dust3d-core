@@ -62,3 +62,22 @@ from a valid thin box. Buckets now retain multiple distinct canonical indices an
 every candidate, including same-key candidates, must pass the coordinate-distance
 check. Three axis variants preserve all 24 triangles and signed union volume
 0.100018 within 1e-12. This raises the suite to ten CTest entries.
+
+## Legacy decimal-separator boundary regression
+
+Apple cut-face PR #84 exposed that inherited String numeric parsing accepts comma
+decimals while the native validator's raw std::stod/full-consumption check rejected
+them before generation. A failing-first C ABI fixture reproduced rejection at
+originX. Validation now normalizes both decimal separators to the active C locale
+before the existing strict parse. Snapshot values, C ABI layout/ownership and
+inherited algorithms are unchanged.
+
+The synthetic in-memory contract compares dot/comma actual mesh counts, positions,
+normals and colors across canvas, node, part and component numeric fields. It
+also rejects trailing junk, duplicate separators, nonfinite values, overflow/
+underflow, excessive magnitude and negative comma-decimal node radius. The final
+Debug CMake/CTest and separate ASan/UBSan builds each pass all eleven entries;
+SwiftPM and adapter/test formatting pass. Existing inherited UUID integer-conversion
+warnings remain in SwiftPM; no warnings were suppressed. macOS sanitizer testing
+uses detect_leaks=0, so Linux leak-enabled hosted checks remain required before
+merge. Full inherited coverage and Qt GUI differential acceptance are not claimed.

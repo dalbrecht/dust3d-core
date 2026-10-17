@@ -18,9 +18,19 @@ namespace native {
                     throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "A node is missing its " + key + " value.");
                 return 0;
             }
+            // Match inherited numeric locale support while still rejecting trailing or malformed input.
+            const std::string decimalPoint = String::localeDecimalPoint();
+            std::string normalized;
+            normalized.reserve(found->second.size());
+            for (char character : found->second) {
+                if (character == '.' || character == ',')
+                    normalized += decimalPoint;
+                else
+                    normalized += character;
+            }
             size_t consumed = 0;
-            double value = std::stod(found->second, &consumed);
-            if (consumed != found->second.size() || !std::isfinite(value) || std::abs(value) > 1000000)
+            double value = std::stod(normalized, &consumed);
+            if (consumed != normalized.size() || !std::isfinite(value) || std::abs(value) > 1000000)
                 throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Invalid or nonfinite geometry value: " + key + ".");
             return value;
         }
