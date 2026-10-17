@@ -178,6 +178,8 @@ namespace {
         // Coverage is independent of color and alpha, including transparent source texels.
         std::vector<uint32_t> queue;
         for (size_t index = 0; index < covered.size(); ++index) {
+            if (index % 4096 == 0)
+                checkCancellation(options);
             if (covered[index])
                 queue.push_back(static_cast<uint32_t>(index));
         }
@@ -257,14 +259,7 @@ namespace {
         }
         return covered;
     }
-    struct SurfaceTriangle {
-        std::array<Vector3, 3> positions;
-        std::array<Vector2, 3> uvs;
-        std::array<size_t, 3> vertices;
-        Vector3 tangent;
-        double handedness = 1;
-        double worldPerUv = 0;
-    };
+    using detail::SurfaceTriangle;
     bool resolveSurfaceFrame(SurfaceTriangle& triangle)
     {
         const auto edge1 = triangle.positions[1] - triangle.positions[0];
@@ -440,7 +435,10 @@ namespace {
     };
     std::vector<SurfaceChart> surfaces(const Object& object, const UvAtlas& atlas, const TextureBakeInputs& inputs, const TextureBakeOptions& options, size_t& indexedVertices)
     {
+        size_t eligibilityChecks = 0;
         const auto needsDetails = [&](const UvMapPacker::Layout& layout) {
+            if (eligibilityChecks++ % 256 == 0)
+                checkCancellation(options);
             if (!layout.id.isNull() || layout.globalUv.empty())
                 return false;
             const auto found = inputs.surfaces.find(layout.sourceId);
@@ -492,14 +490,7 @@ namespace {
             }
             if (chart.triangles.empty())
                 continue;
-            chart.normals.resize(chart.vertices.size());
-            for (const auto& triangle : chart.triangles) {
-                const auto normal = Vector3::crossProduct(triangle.positions[1] - triangle.positions[0], triangle.positions[2] - triangle.positions[0]);
-                for (const auto vertex : triangle.vertices)
-                    chart.normals[vertex] += normal;
-            }
-            for (auto& normal : chart.normals)
-                normal.normalize();
+            chart.normals = detail::computeTextureChartNormals(chart.vertices.size(), chart.triangles, options);
             if (surface.pattern && surface.pattern->type != SurfacePattern::Type::None)
                 chart.pattern = std::make_unique<SurfacePattern>(*surface.pattern, chart.vertices);
             if (hasEffectiveFolds(surface, options)) {
@@ -508,8 +499,11 @@ namespace {
                     if (foldLength(fold, options) <= 1e-9)
                         continue;
                     const auto reach = fold.width * 1.15 * 2.6;
-                    for (const auto& point : fold.points)
+                    for (const auto& point : fold.points) {
+                        if (prepared++ % 256 == 0)
+                            checkCancellation(options);
                         checkFoldCell(point, chart.foldScale, reach);
+                    }
                 }
                 for (const auto& fold : surface.folds) {
                     if (foldLength(fold, options) <= 1e-9)
@@ -560,10 +554,7 @@ namespace {
         std::set<size_t> candidates;
         for (int y = 0; y < size; ++y) {
             checkCancellation(options);
-            for (const auto index : ends[y])
-                candidates.erase(index);
-            for (const auto index : starts[y])
-                candidates.insert(index);
+            detail::applyTextureRowEvents(ends[y], starts[y], candidates, options);
             std::fill(distance.begin(), distance.end(), std::numeric_limits<float>::max());
             for (const auto index : candidates) {
                 if (visits == std::numeric_limits<size_t>::max())
@@ -656,6 +647,43 @@ namespace {
     }
 }
 namespace detail {
+    std::vector<Vector3> computeTextureChartNormals(size_t vertexCount, const std::vector<SurfaceTriangle>& triangles, const TextureBakeOptions& options)
+    {
+        checkCancellation(options);
+        std::vector<Vector3> normals(vertexCount);
+        for (size_t index = 0; index < triangles.size(); ++index) {
+            if (index % 256 == 0)
+                checkCancellation(options);
+            const auto& triangle = triangles[index];
+            const auto normal = Vector3::crossProduct(triangle.positions[1] - triangle.positions[0], triangle.positions[2] - triangle.positions[0]);
+            for (const auto vertex : triangle.vertices) {
+                if (vertex >= normals.size())
+                    invalid("Surface normal vertex index exceeds its chart");
+                normals[vertex] += normal;
+            }
+        }
+        for (size_t index = 0; index < normals.size(); ++index) {
+            if (index % 256 == 0)
+                checkCancellation(options);
+            normals[index].normalize();
+        }
+        return normals;
+    }
+    void applyTextureRowEvents(const std::vector<size_t>& ending, const std::vector<size_t>& starting, std::set<size_t>& active, const TextureBakeOptions& options)
+    {
+        checkCancellation(options);
+        size_t processed = 0;
+        for (const auto index : ending) {
+            if (processed++ % 256 == 0)
+                checkCancellation(options);
+            active.erase(index);
+        }
+        for (const auto index : starting) {
+            if (processed++ % 256 == 0)
+                checkCancellation(options);
+            active.insert(index);
+        }
+    }
     TextureMaterialActivation detectTextureMaterialMaps(const UvAtlas& atlas, const TextureBakeInputs& inputs, const TextureBakeOptions& options)
     {
         checkCancellation(options);
@@ -765,7 +793,12 @@ TextureBakeResult TextureBaker::bake(const Object& object, const UvAtlas& atlas,
     const auto colorSources = detail::resolveTextureChartSources(atlas, inputs, options);
     size_t indexedVertices = 0;
     auto charts = surfaces(object, atlas, inputs, options, indexedVertices);
-    const bool hasNormal = std::any_of(charts.begin(), charts.end(), [](const SurfaceChart& chart) { return bool(chart.folds); });
+    size_t inspectedCharts = 0;
+    const bool hasNormal = std::any_of(charts.begin(), charts.end(), [&](const SurfaceChart& chart) {
+        if (inspectedCharts++ % 256 == 0)
+            checkCancellation(options);
+        return bool(chart.folds);
+    });
     if (reservedNormal && !hasNormal)
         payload -= normalBytes;
     TextureBakeResult result;
@@ -774,7 +807,10 @@ TextureBakeResult TextureBaker::bake(const Object& object, const UvAtlas& atlas,
     result.tangents = detail::buildTextureTangents(object, atlas, options);
     result.color = image(options.colorSize);
     std::set<size_t> colorSkipped, normalSkipped;
+    size_t preparedCharts = 0;
     for (const auto& chart : charts) {
+        if (preparedCharts++ % 256 == 0)
+            checkCancellation(options);
         colorSkipped.insert(chart.layoutIndex);
         if (chart.folds)
             normalSkipped.insert(chart.layoutIndex);

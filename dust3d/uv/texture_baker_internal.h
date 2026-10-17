@@ -2,10 +2,24 @@
 #ifndef DUST3D_UV_TEXTURE_BAKER_INTERNAL_H_
 #define DUST3D_UV_TEXTURE_BAKER_INTERNAL_H_
 
+#include <array>
 #include <dust3d/uv/texture_baker.h>
+#include <set>
 
 namespace dust3d {
 namespace detail {
+    struct SurfaceTriangle {
+        std::array<Vector3, 3> positions;
+        std::array<Vector2, 3> uvs;
+        std::array<size_t, 3> vertices {};
+        Vector3 tangent;
+        double handedness = 1;
+        double worldPerUv = 0;
+    };
+    // Internal prevalidated stages, isolated for deterministic cancellation contracts.
+    std::vector<Vector3> computeTextureChartNormals(size_t vertexCount, const std::vector<SurfaceTriangle>& triangles, const TextureBakeOptions& options);
+    void applyTextureRowEvents(const std::vector<size_t>& ending, const std::vector<size_t>& starting, std::set<size_t>& active, const TextureBakeOptions& options);
+
     struct TextureMaterialActivation {
         bool hasMetallic = false;
         bool hasRoughness = false;

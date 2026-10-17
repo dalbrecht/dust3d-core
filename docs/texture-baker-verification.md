@@ -83,8 +83,8 @@ these focused contracts or by Swift smoke tests. See ADR 0014.
 
 An LLVM-instrumented `texture_baker.cc` object was linked ahead of the ordinary
 native archives into the real contract executable, which ran all its analytic
-and generated-fixture cases. LLVM reports 827/851 executable lines (97.18%),
-655/682 regions (96.04%) and 528/608 branches (86.84%). This measures this source
+and generated-fixture cases. LLVM reports 873/898 executable lines (97.22%),
+680/708 regions (96.05%) and 545/628 branches (86.78%). This measures this source
 file only, not inherited procedural kernels, all headers, the C ABI or the
 complete core. The domain's aspirational 100% target is not met by this report;
 remaining degenerate/fallback and numeric-failure paths stay visible rather than
@@ -252,3 +252,23 @@ After normal reservation and bounded witness classification, full Debug 33/33
 passed in 36.74 seconds, ASan/UBSan 33/33 in 98.44 seconds, and seven Qt
 comparison/alpha tests in 42.12 seconds. Swift 6 consumers, formatting, strict
 manifest lint and diff checks passed. Scoped coverage above includes this change.
+
+## Review regressions: normal passes and row-event batches
+
+Chart normal accumulation/normalization and row-event application now poll on
+entry and in batches of 256. Their prevalidated internal stages have deterministic
+contracts that first reproduced ignored cancelled tokens after the preceding
+stage boundary, then passed after the fixes. Tests retain analytical area-weighted
+normals, unused zero vertices, typed index bounds, sorted start/end transitions,
+cancelled empty stages, unchanged active state on entry cancellation and full
+4,096-entry end/start batches. No sleep or production fault injection is used.
+
+The adjacent-loop audit also adds polling while seeding dilation, selecting
+procedural eligibility, checking fold points, scanning prepared chart activation
+and building chart skip sets. Inherited kernel calls and allocation themselves
+still do not establish a whole-call latency guarantee.
+
+Final full Debug 33/33 passed in 21.69 seconds, ASan/UBSan 33/33 in 69.90 seconds,
+and seven Qt comparison/alpha tests in 21.91 seconds. Swift 6 consumers,
+formatting, strict manifest lint, native Qt source/link and diff checks passed.
+Scoped coverage above was remeasured after these changes.

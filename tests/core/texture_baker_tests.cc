@@ -615,6 +615,49 @@ void degenerateNormalWitnessRun()
     const auto inactive = fixture.bake(inputs);
     require(!inactive.normal && inactive.payloadBytes == mandatory, "A long world-degenerate witness run must preserve its exact normal-free budget");
 }
+void chartNormalCancellation()
+{
+    dust3d::detail::SurfaceTriangle triangle;
+    triangle.positions = { dust3d::Vector3(0, 0, 0), dust3d::Vector3(1, 0, 0), dust3d::Vector3(0, 1, 0) };
+    triangle.vertices = { 0, 1, 2 };
+    const auto normals = dust3d::detail::computeTextureChartNormals(3, { triangle }, {});
+    require(normals.size() == 3 && normals[0].z() == 1 && normals[1].z() == 1 && normals[2].z() == 1, "Chart normal stage must retain area-weighted unit normals");
+    std::atomic_bool cancelled(true);
+    dust3d::TextureBakeOptions options;
+    options.cancellation = &cancelled;
+    rejects([&] { dust3d::detail::computeTextureChartNormals(3, { triangle }, options); }, dust3d::TextureBakeErrorCode::cancelled);
+    rejects([&] { dust3d::detail::computeTextureChartNormals(0, {}, options); }, dust3d::TextureBakeErrorCode::cancelled);
+    options.cancellation = nullptr;
+    auto perpendicular = triangle;
+    perpendicular.positions = { dust3d::Vector3(0, 0, 0), dust3d::Vector3(0, 0, 3), dust3d::Vector3(1, 0, 0) };
+    perpendicular.vertices = { 0, 3, 1 };
+    const auto weighted = dust3d::detail::computeTextureChartNormals(5, { triangle, perpendicular }, options);
+    require(std::abs(weighted[0].y() - 3 / std::sqrt(10.0)) < 1e-12 && std::abs(weighted[0].z() - 1 / std::sqrt(10.0)) < 1e-12 && weighted[4].lengthSquared() == 0, "Chart normals must retain face-area weighting and unused zero vertices");
+    triangle.vertices[0] = 3;
+    rejects([&] { dust3d::detail::computeTextureChartNormals(3, { triangle }, options); }, dust3d::TextureBakeErrorCode::invalidInput);
+}
+void rowEventCancellation()
+{
+    std::set<size_t> active { 1, 3, 5 };
+    dust3d::detail::applyTextureRowEvents({ 1, 5 }, { 2, 4, 6 }, active, {});
+    require(active == std::set<size_t>({ 2, 3, 4, 6 }), "Row event application must preserve sorted paint priority");
+    const auto before = active;
+    std::atomic_bool cancelled(true);
+    dust3d::TextureBakeOptions options;
+    options.cancellation = &cancelled;
+    rejects([&] { dust3d::detail::applyTextureRowEvents({ 2, 3 }, { 7, 8 }, active, options); }, dust3d::TextureBakeErrorCode::cancelled);
+    require(active == before, "An already-cancelled row stage must not mutate its active set");
+    rejects([&] { dust3d::detail::applyTextureRowEvents({}, {}, active, options); }, dust3d::TextureBakeErrorCode::cancelled);
+    std::vector<size_t> ending, starting;
+    for (size_t index = 0; index < 4096; ++index) {
+        ending.push_back(index);
+        starting.push_back(index + 4096);
+    }
+    active.clear();
+    dust3d::detail::applyTextureRowEvents({}, ending, active, {});
+    dust3d::detail::applyTextureRowEvents(ending, starting, active, {});
+    require(active.size() == 4096 && *active.begin() == 4096 && *active.rbegin() == 8191, "Large start/end batches must retain every candidate in sorted order");
+}
 void generatedFixtures(const std::string& directory)
 {
     for (const std::string name : { "Capsule.ds3", "Sword.ds3", "RoundedCrossing.ds3" }) {
@@ -709,6 +752,8 @@ int main(int argc, char* argv[])
         materialActivationCancellation();
         normalBudgetBeforeSurfaceWorkspace();
         degenerateNormalWitnessRun();
+        chartNormalCancellation();
+        rowEventCancellation();
         require(argc == 2, "Expected fixture directory");
         generatedFixtures(argv[1]);
         std::cout << "Texture bake contracts passed\n";
