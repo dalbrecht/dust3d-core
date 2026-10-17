@@ -244,3 +244,13 @@ limits: [ADR 0008](adr/0008-generated-source-hints.md) and
 [verification](source-provenance-verification.md). It does not claim exact Boolean
 provenance. Cached source export and Swift/editor adoption follow after full core
 gates and review; M3 and broader differential acceptance remain incomplete.
+
+
+## Cached core source-hint stage (core #27)
+
+The sourced-session API reuses the existing bounded component caches while exporting
+current per-call original identities and weighted corner hints. Source and cache
+budgets/diagnostics remain independent, including cache-only fallback and primary
+source-failure recovery. See [ADR 0009](adr/0009-cached-source-generation.md) and
+[verification](cached-source-verification.md). Swift/editor pin and adoption follow
+after core review and gates; M3 and broader Qt acceptance remain incomplete.

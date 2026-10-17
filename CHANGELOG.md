@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add sourced generation-session loads with actual component cache reuse, current original identities, independent output budgets/lifetimes and preserved cache-only fallback diagnostics.
+
 - Add opt-in bounded per-corner source hints with original opaque document keys, complete wrapping weights, explicit unknown/ambiguous identities, independent geometry ownership and C/Swift consumers.
 
 - Add optional bounded generation-session C owners with semantic invalidation, exact asset revisions, actual cache reuse metrics, independent mesh lifetime, and fresh fallback for cache-only failures.

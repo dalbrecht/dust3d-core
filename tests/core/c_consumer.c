@@ -36,5 +36,13 @@ int main(void)
         || dust3d_sourced_mesh_corner_count(sourced) != 0)
         return 8;
     dust3d_sourced_mesh_destroy(sourced);
+    session = dust3d_generation_session_create(0, &error);
+    if (session == NULL)
+        return 9;
+    sourced = dust3d_generation_session_load_sourced(session, NULL, 0, &source_options, &error);
+    if (sourced != NULL || error.status != DUST3D_STATUS_INVALID_DOCUMENT)
+        return 10;
+    dust3d_sourced_mesh_destroy(sourced);
+    dust3d_generation_session_destroy(session);
     return 0;
 }
