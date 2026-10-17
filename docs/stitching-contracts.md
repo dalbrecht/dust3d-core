@@ -6,11 +6,18 @@ containers, invoke dust3d_mesh_load, copy borrowed vertices before releasing the
 owner, and validate source counts, nonempty triangles, finite positions/colors,
 bounded colors and unit normals. No Swift, Qt or display server is involved.
 
-The fixture geometry is the synthetic project test data represented by
-StitchingFixture.swift, ComponentStitchingStoreTests.swift and
-PartLoopInteriorStoreTests.swift in dalbrecht/dust3d-swiftui. It is reimplemented
-as C++ builders in tests/core/stitching_tests.cc under this repository's MIT
-license, without user documents, external assets or generated binary fixtures.
+The source is `dalbrecht/dust3d-swiftui` at immutable commit
+`789b789626869503d64c2d14f87259b57db693b6` (Apple PR #97 merge):
+
+- [StitchingFixture.swift](https://github.com/dalbrecht/dust3d-swiftui/blob/789b789626869503d64c2d14f87259b57db693b6/Tests/Dust3DEditorTests/Support/StitchingFixture.swift)
+- [ComponentStitchingStoreTests.swift](https://github.com/dalbrecht/dust3d-swiftui/blob/789b789626869503d64c2d14f87259b57db693b6/Tests/Dust3DEditorTests/ComponentStitchingStoreTests.swift)
+- [PartLoopInteriorStoreTests.swift](https://github.com/dalbrecht/dust3d-swiftui/blob/789b789626869503d64c2d14f87259b57db693b6/Tests/Dust3DEditorTests/PartLoopInteriorStoreTests.swift)
+
+The synthetic fixture geometry is independently reimplemented as C++ builders in
+`tests/core/stitching_tests.cc` under this repository's MIT license, without user
+documents, external assets or generated binary fixtures. Intentional parity
+updates must identify the replacement immutable source revision and record any
+changes to the expected behaviors and tolerances below.
 
 - Lines: three curved semicircular profiles at different depths. Front/back/side
   closure and segment count must change output; segment endpoints 0, 1 and 100
