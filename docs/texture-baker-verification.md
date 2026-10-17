@@ -83,8 +83,8 @@ these focused contracts or by Swift smoke tests. See ADR 0014.
 
 An LLVM-instrumented `texture_baker.cc` object was linked ahead of the ordinary
 native archives into the real contract executable, which ran all its analytic
-and generated-fixture cases. LLVM reports 878/903 executable lines (97.23%),
-694/722 regions (96.12%) and 557/640 branches (87.03%). This measures this source
+and generated-fixture cases. LLVM reports 889/913 executable lines (97.37%),
+703/730 regions (96.30%) and 564/646 branches (87.31%). This measures this source
 file only, not inherited procedural kernels, all headers, the C ABI or the
 complete core. The domain's aspirational 100% target is not met by this report;
 remaining degenerate/fallback and numeric-failure paths stay visible rather than
@@ -327,4 +327,18 @@ retain default scalar values even when maps already exist.
 
 Full Debug passed 33/33 (27.93 s), ASan/UBSan passed 33/33 (83.11 s), strict Swift
 consumers passed, and seven relevant Qt comparisons passed (30.20 s). Formatting,
+manifest lint and diff checks passed. Scoped coverage above was refreshed.
+
+
+## Review regression: fractional sub-texel gradients
+
+Seam gradients narrower than one output texel now use the same fractional-origin
+coordinate correction as image charts, selecting top/height when transposed.
+The failing-first case uses origin 0.4 px and extent 0.6 px: the covered pixel's
+chart-local coordinate is 1/6, not 1/2. Both orientations assert the independently
+expected red/blue bytes (212/42) and compare the entire output against an equivalent
+512-pixel RGBA image. Existing full-size quantized gradient behavior is retained.
+
+Full Debug passed 33/33 (20.93 s), ASan/UBSan passed 33/33 (78.02 s), strict Swift
+consumers passed, and seven relevant Qt comparisons passed (30.32 s). Formatting,
 manifest lint and diff checks passed. Scoped coverage above was refreshed.

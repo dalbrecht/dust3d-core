@@ -265,6 +265,35 @@ void sourceLessSeamsIgnoreMaterials()
     require(mixed.metallic && mixed.roughness && mixed.emissive, "Real component materials must still activate output maps");
     require(mixed.metallic->pixels == expected.metallic->pixels && mixed.roughness->pixels == expected.roughness->pixels && mixed.emissive->pixels == expected.emissive->pixels, "Source-less charts must retain default scalar values when other components activate maps");
 }
+void fractionalSubTexelGradients()
+{
+    for (const bool flipped : { false, true }) {
+        Fixture fixture;
+        auto& layout = fixture.atlas.layouts[0];
+        layout.left = layout.top = 0.4 / fixture.options.colorSize;
+        layout.width = layout.height = 0.6 / fixture.options.colorSize;
+        layout.flipped = flipped;
+        dust3d::UvAtlasGradient gradient;
+        gradient.layoutIndex = 0;
+        gradient.largeColor = dust3d::Color(1, 0, 0);
+        gradient.smallColor = dust3d::Color(0, 0, 1);
+        fixture.atlas.gradients = { gradient };
+        const auto result = fixture.bake();
+        require(result.color.pixels[0] == 212 && result.color.pixels[2] == 42, "Fractional sub-texel gradients must sample the chart-local pixel center");
+        std::vector<uint8_t> pixels(512 * 4);
+        for (size_t index = 0; index < 512; ++index) {
+            const double amount = static_cast<double>(index) / 511;
+            pixels[index * 4] = static_cast<uint8_t>(255 * (1 - amount));
+            pixels[index * 4 + 2] = static_cast<uint8_t>(255 * amount);
+            pixels[index * 4 + 3] = 255;
+        }
+        fixture.atlas.gradients.clear();
+        layout.id = imageId;
+        dust3d::TextureBakeInputs inputs;
+        inputs.images[imageId] = { 512, 1, 2048, pixels.size(), pixels.data() };
+        require(fixture.bake(inputs).color.pixels == result.color.pixels, "Sub-texel gradients and equivalent images must agree in both orientations");
+    }
+}
 void invalidInputFamilies()
 {
     for (int variant = 0; variant < 15; ++variant) {
@@ -889,6 +918,7 @@ int main(int argc, char* argv[])
         surfaceDetails();
         malformedSurfaceInputs();
         gradientQuantization();
+        fractionalSubTexelGradients();
         sourceLessSeamsIgnoreSurfaceDetails();
         sourceLessSeamsIgnoreMaterials();
         unsafeProceduralCoordinates();

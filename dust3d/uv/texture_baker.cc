@@ -820,7 +820,12 @@ TextureBakeResult TextureBaker::bake(const Object& object, const UvAtlas& atlas,
     }
     auto colorCoverage = rectangles(result.color, atlas, 32.0 / 4096, options, [&](size_t ordinal, const UvMapPacker::Layout& layout, double u, double v) {
         if (const auto* gradient = colorSources[ordinal].gradient) {
-            const auto coordinate = layout.flipped ? v : u;
+            auto coordinate = layout.flipped ? v : u;
+            const auto extent = (layout.flipped ? layout.height : layout.width) * options.colorSize;
+            if (extent < 1) {
+                const auto origin = (layout.flipped ? layout.top : layout.left) * options.colorSize;
+                coordinate = chartImageCoordinate(coordinate, origin, extent, layout.flipped);
+            }
             const auto sample = std::min(gradient->resolution - 1, static_cast<size_t>(coordinate * gradient->resolution));
             const auto amount = static_cast<double>(sample) / (gradient->resolution - 1);
             Pixel pixel;
