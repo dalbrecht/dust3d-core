@@ -7,6 +7,8 @@
 
 namespace dust3d {
 namespace native {
+    Color normalizedUvColor(const std::string& text);
+    void validateUvVisuals(const Snapshot& snapshot, const std::map<Uuid, UvAtlasImage>& images);
     // Original identity membership is captured before generator preprocessing.
     class UvMetadata {
     public:
@@ -17,6 +19,7 @@ namespace native {
         const std::vector<Dust3DUvChart>& charts() const { return m_charts; }
         const std::vector<Dust3DUvGradient>& gradients() const { return m_gradients; }
         const std::vector<std::string>& components() const { return m_components; }
+        const UvAtlas& atlas() const { return m_atlas; }
         size_t payloadBytes() const { return m_payloadBytes; }
         double textureSize() const { return m_atlas.packedTextureSize; }
 

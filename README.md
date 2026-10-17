@@ -252,3 +252,22 @@ independently owned maps. Inputs remain unchanged; unknown UVs stay explicit.
 See [contracts, measured Qt comparisons and alpha policy](docs/texture-baker-verification.md)
 and ADR 0014. C/Swift pixel ownership, decoding and Apple rendering follow in
 separate dependency stages; this API alone does not complete editor M4.
+
+
+### Opt-in native baked output
+
+`dust3d_baked_mesh_load` accepts sized `Dust3DBakeOptions` and optional borrowed
+straight-alpha RGBA8 `Dust3DBakeImage` descriptors. The returned independent owner
+exposes borrowed geometry/UV metadata, map views and one tangent record per
+exported triangle. Copy views before `dust3d_baked_mesh_destroy`; never separately
+destroy the borrowed UV/geometry owner. Absent optional maps return zero views.
+
+Zero dimensions select the portable baker defaults; small explicit dimensions are
+useful for contract tests. UV and bake quotas are independent. Final bake quota
+counts pixels and exported tangent records, with a separate temporary C++ baker
+ceiling. Workspace and allocator capacity are excluded. Cancellation is cooperative;
+retain its token until loading and all concurrent token operations finish, then
+destroy it. Cancel/query do not acquire the engine mutex. Inherited generation
+only observes phase boundaries. See `Dust3DBridge.h` and ADR 0015 for precise
+options, status, lifetime and unfinished acceptance gates. A strict Swift 6 smoke
+copies actual Capsule/Sword output; this does not establish renderer parity.

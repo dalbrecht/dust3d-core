@@ -27,13 +27,36 @@ typedef enum Dust3DStatus {
     DUST3D_STATUS_GENERATION_FAILED = 3,
     DUST3D_STATUS_LIMIT_EXCEEDED = 4,
     /** Generation succeeded but produced no triangles, such as an unfilled isolated loop. */
-    DUST3D_STATUS_NO_GEOMETRY = 5
+    DUST3D_STATUS_NO_GEOMETRY = 5,
+    /** An opt-in operation observed its cooperative cancellation token. */
+    DUST3D_STATUS_CANCELLED = 6
 } Dust3DStatus;
 
 typedef struct Dust3DError {
     Dust3DStatus status;
     char message[512];
 } Dust3DError;
+
+/** One-shot cooperative cancellation state, independent of the engine lock.
+ * The caller must retain the token until the operation and all concurrent cancel/query
+ * calls finish. Destruction must never race any use. Tokens cannot be reset/reused
+ * for a new operation once cancelled. No hard cancellation latency is promised.
+ */
+typedef struct Dust3DCancellationToken Dust3DCancellationToken;
+
+/** Create an initially uncancelled token. NULL on allocation failure; optional error
+ * is initialized and receives LIMIT_EXCEEDED with its cause. Never throws.
+ * Example: Dust3DCancellationToken* token = dust3d_cancellation_token_create(&error);
+ */
+Dust3DCancellationToken* dust3d_cancellation_token_create(Dust3DError* error);
+/** Atomically request cancellation; repeat calls and NULL are accepted. Does not
+ * acquire the engine lock. Safe concurrently with operations and queries on token.
+ */
+void dust3d_cancellation_token_cancel(Dust3DCancellationToken* token);
+/** Read cancellation state (0 or 1); NULL returns 0. Does not acquire the engine lock. */
+int dust3d_cancellation_token_is_cancelled(const Dust3DCancellationToken* token);
+/** Release a quiescent token after all operations/cancel/query calls finish. NULL accepted. */
+void dust3d_cancellation_token_destroy(Dust3DCancellationToken* token);
 
 /** Optional per-expanded-corner source hints; not exact surface ownership. */
 typedef enum Dust3DSourceKind {
@@ -414,6 +437,105 @@ size_t dust3d_indexed_mesh_part_count(const Dust3DIndexedMesh* mesh);
 
 /** Borrowed copied compatibility warning, valid until indexed destruction; empty for NULL owner. */
 const char* dust3d_indexed_mesh_warning(const Dust3DIndexedMesh* mesh);
+
+/** Independently owned baked output; release only with dust3d_baked_mesh_destroy. */
+typedef struct Dust3DBakedMesh Dust3DBakedMesh;
+
+/** Borrowed decoded straight-alpha RGBA8 image, valid throughout the synchronous
+ * load. image_id must terminate within 39 bytes and resolve to a non-null UUID.
+ * Dimensions are 1..8192; row_stride includes padding and byte_count bounds every
+ * readable row. No decoding, color conversion or ownership transfer occurs.
+ */
+typedef struct Dust3DBakeImage {
+    char image_id[39];
+    size_t width;
+    size_t height;
+    size_t row_stride;
+    size_t byte_count;
+    const uint8_t* pixels;
+} Dust3DBakeImage;
+
+/** Sized opt-in bake options. Zero dimensions select atlas/color 4096, normal 2048,
+ * material 1024. Explicit dimensions are 1..8192. Zero UV quota selects the existing
+ * UV default; zero bake quota selects 256 MiB. Both quotas have a 256 MiB hard maximum.
+ * Bake quota counts final map bytes and exported tangent records; temporary C++
+ * tangent storage has an additional independent 256 MiB baker output ceiling.
+ * Workspace, input buffers, allocator overhead and geometry are excluded.
+ * maximum_spatial_grid_entries defaults to 1000000; hard maximum 16000000.
+ * At most 10000 image descriptors may be borrowed. Cancellation token lifetime
+ * follows its API contract. Generation only observes phase boundaries; there is
+ * no whole-call cancellation latency guarantee.
+ */
+typedef struct Dust3DBakeOptions {
+    size_t struct_size;
+    size_t maximum_uv_payload_bytes;
+    size_t maximum_bake_payload_bytes;
+    size_t atlas_texture_size;
+    size_t color_size;
+    size_t normal_size;
+    size_t material_size;
+    size_t maximum_spatial_grid_entries;
+    const Dust3DBakeImage* images;
+    size_t image_count;
+    const Dust3DCancellationToken* cancellation;
+} Dust3DBakeOptions;
+
+typedef enum Dust3DTextureMap {
+    DUST3D_TEXTURE_COLOR = 0,
+    DUST3D_TEXTURE_NORMAL = 1,
+    DUST3D_TEXTURE_METALLIC = 2,
+    DUST3D_TEXTURE_ROUGHNESS = 3,
+    DUST3D_TEXTURE_EMISSIVE = 4
+} Dust3DTextureMap;
+
+/** Borrowed tightly packed straight-alpha RGBA8 bytes. Color/emission retain
+ * source encoding; normal/metallic/roughness are linear data. Valid until baked
+ * owner destruction. Absent maps and invalid requests return an all-zero value.
+ */
+typedef struct Dust3DTextureView {
+    size_t width;
+    size_t height;
+    size_t row_stride;
+    size_t byte_count;
+    const uint8_t* pixels;
+} Dust3DTextureView;
+
+/** One tangent frame per exported triangle, aligned with the borrowed UV mesh.
+ * known=0 marks unavailable/degenerate UVs; never infer validity from zero values.
+ */
+typedef struct Dust3DTextureTangent {
+    float direction[3];
+    float handedness;
+    uint8_t known;
+} Dust3DTextureTangent;
+
+/** Generate and bake without retaining generated Object/Snapshot state.
+ * @param bytes Complete archive, borrowed during this serialized call.
+ * @param size Archive size; ordinary input and geometry limits apply.
+ * @param options Required correctly sized options; all referenced inputs borrowed.
+ * @param error Optional diagnostic initialized on entry; original causes preserved.
+ * @return Independent owner or NULL. INVALID_DOCUMENT for invalid options/views,
+ * UNSUPPORTED_ASSET for unresolved/conflicting visual inputs, LIMIT_EXCEEDED for
+ * quotas/allocation, CANCELLED for observed cancellation, normal load errors otherwise.
+ * Never throws. No partial owner escapes; input pixels are never retained.
+ * Example: Dust3DBakeOptions options = {0}; options.struct_size = sizeof(options);
+ * Dust3DBakedMesh* result = dust3d_baked_mesh_load(bytes, size, &options, &error);
+ */
+Dust3DBakedMesh* dust3d_baked_mesh_load(const uint8_t* bytes, size_t size, const Dust3DBakeOptions* options, Dust3DError* error);
+/** Release baked output and all borrowed views. NULL accepted. */
+void dust3d_baked_mesh_destroy(Dust3DBakedMesh* mesh);
+/** Borrowed UV/geometry owner; never destroy separately. NULL for NULL owner. */
+const Dust3DUvMesh* dust3d_baked_mesh_uvs(const Dust3DBakedMesh* mesh);
+/** Borrowed map view; zero for NULL owner, invalid map or absent optional map. */
+Dust3DTextureView dust3d_baked_mesh_texture(const Dust3DBakedMesh* mesh, Dust3DTextureMap map);
+/** Borrowed aligned tangents, valid until owner destruction; NULL for NULL owner. */
+const Dust3DTextureTangent* dust3d_baked_mesh_tangents(const Dust3DBakedMesh* mesh);
+/** Number of exported triangle tangent records; zero for NULL owner. */
+size_t dust3d_baked_mesh_tangent_count(const Dust3DBakedMesh* mesh);
+/** Final map/tangent logical bytes, excluding independent UV and geometry storage;
+ * zero for NULL owner. Does not establish a process memory cap.
+ */
+size_t dust3d_baked_mesh_payload_bytes(const Dust3DBakedMesh* mesh);
 
 #ifdef __cplusplus
 }

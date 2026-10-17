@@ -32,6 +32,8 @@ target_include_directories(dust3d_core PUBLIC
     third_party/earcut.hpp/include)
 target_link_libraries(dust3d_core PUBLIC dust3d_remesher dust3d_triangle Threads::Threads)
 add_library(dust3d_engine STATIC
+    native/Engine/BakedMesh.cc
+    native/Engine/Cancellation.cc
     native/Engine/UvMetadata.cc
     native/Engine/GenerationSession.cc
     native/Engine/Dust3DBridge.cc
@@ -46,6 +48,10 @@ target_link_libraries(dust3d_engine PRIVATE dust3d_core)
 
 include(CTest)
 if(BUILD_TESTING)
+    add_executable(dust3d_baked_mesh_tests tests/core/baked_mesh_tests.cc)
+    target_link_libraries(dust3d_baked_mesh_tests PRIVATE dust3d_engine dust3d_core)
+    add_test(NAME baked_mesh_contracts COMMAND dust3d_baked_mesh_tests ${CMAKE_CURRENT_SOURCE_DIR}/tests/core/fixtures)
+    set_tests_properties(baked_mesh_contracts PROPERTIES TIMEOUT 60)
     add_executable(dust3d_texture_baker_tests tests/core/texture_baker_tests.cc)
     target_link_libraries(dust3d_texture_baker_tests PRIVATE dust3d_engine dust3d_core)
     add_test(NAME texture_baker_contracts COMMAND dust3d_texture_baker_tests ${CMAKE_CURRENT_SOURCE_DIR}/tests/core/fixtures)

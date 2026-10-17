@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add an opt-in owned C baked-mesh boundary with borrowed RGBA8 views, float-aligned tangent records, independent UV/bake quotas and one-shot cooperative cancellation; Apple renderer adoption remains separate.
+
 - Add borrowed fold-evaluation checkpoints so dense overlapping segment queries and all normal derivative samples can cooperate with cancellation while preserving original evaluation APIs.
 
 - Add opt-in synchronous construction checkpoints to fold and surface-pattern kernels; portable baking can cancel preparation, grid insertion/sorting and covariance work while legacy constructors remain available.
