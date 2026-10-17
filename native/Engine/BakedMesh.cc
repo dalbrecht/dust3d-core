@@ -87,9 +87,16 @@ namespace native {
             const Uuid identity(key);
             if (identity.isNull())
                 continue;
-            // Aliased identities cannot silently choose a different visual definition.
-            const auto [found, inserted] = definitions.emplace(identity, attributes);
-            if (!inserted && found->second != attributes)
+            // Editing labels and dirty flags do not affect generated pixels. Keep
+            // conflicting source definitions explicit instead of picking an alias.
+            std::map<std::string, std::string> visual;
+            for (const auto* field : { "linkDataType", "linkData", "wrap", "wrapPattern", "wrapPatternColor", "wrapPatternScale", "wrapBelly", "wrapWrinkles", "__wrapFolds" }) {
+                const auto value = String::valueOrEmpty(attributes, field);
+                if (!value.empty())
+                    visual[field] = value;
+            }
+            const auto [found, inserted] = definitions.emplace(identity, visual);
+            if (!inserted && found->second != visual)
                 throw DocumentError(DUST3D_STATUS_UNSUPPORTED_ASSET, "Aliased bake components contain conflicting definitions.");
             const auto part = snapshot.parts.find(String::valueOrEmpty(attributes, "linkData"));
             if (String::valueOrEmpty(attributes, "linkDataType") == "partId" && part != snapshot.parts.end())
@@ -97,14 +104,17 @@ namespace native {
             if (String::valueOrEmpty(attributes, "wrap").empty())
                 continue;
             auto& surface = result.surfaces[identity];
-            const auto type = SurfacePattern::typeFromString(String::valueOrEmpty(attributes, "wrapPattern"));
+            const auto patternName = String::valueOrEmpty(attributes, "wrapPattern");
+            const auto type = SurfacePattern::typeFromString(patternName);
+            if (type == SurfacePattern::Type::None && !patternName.empty() && patternName != "None")
+                throw DocumentError(DUST3D_STATUS_UNSUPPORTED_ASSET, "The bake surface pattern is not supported.");
             if (type != SurfacePattern::Type::None) {
                 SurfacePattern::Settings pattern;
                 pattern.type = type;
                 pattern.baseColor = normalizedUvColor(String::valueOrEmpty(attributes, "color"));
                 const auto ink = String::valueOrEmpty(attributes, "wrapPatternColor");
                 pattern.patternColor = ink.empty() ? SurfacePattern::defaultPatternColor(pattern.baseColor) : normalizedUvColor(ink);
-                pattern.scale = scalar(attributes, "wrapPatternScale", 0.06, 1e-4, 1e6);
+                pattern.scale = std::max(0.005, scalar(attributes, "wrapPatternScale", 0.06, 0, std::numeric_limits<float>::max()));
                 pattern.belly = scalar(attributes, "wrapBelly", 0, 0, 1);
                 pattern.seed = SurfacePattern::seedFromString(key);
                 surface.pattern = pattern;
@@ -179,6 +189,8 @@ Dust3DBakedMesh* dust3d_baked_mesh_load(const uint8_t* bytes, size_t size, const
     try {
         if (!options)
             throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Baking requires explicit options.");
+        if (options->struct_size != sizeof(Dust3DBakeOptions))
+            throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Baking requires correctly sized options.");
         auto owner = std::make_unique<Dust3DBakedMesh>();
         owner->data = std::make_unique<BakedMeshData>(*options);
         std::lock_guard<std::mutex> lock(engineMutex());
@@ -214,10 +226,10 @@ Dust3DBakedMesh* dust3d_baked_mesh_load(const uint8_t* bytes, size_t size, const
 }
 void dust3d_baked_mesh_destroy(Dust3DBakedMesh* mesh) { delete mesh; }
 const Dust3DUvMesh* dust3d_baked_mesh_uvs(const Dust3DBakedMesh* mesh) { return mesh ? mesh->uvs.get() : nullptr; }
-Dust3DTextureView dust3d_baked_mesh_texture(const Dust3DBakedMesh* mesh, Dust3DTextureMap map)
+Dust3DTextureView dust3d_baked_mesh_texture(const Dust3DBakedMesh* mesh, uint32_t map)
 {
-    const auto index = static_cast<int>(map);
-    if (!mesh || index < 0 || index >= 5 || !mesh->data->maps[index])
+    const auto index = map;
+    if (!mesh || index >= 5 || !mesh->data->maps[index])
         return {};
     const auto& image = *mesh->data->maps[index];
     return { image.width, image.height, image.width * 4, image.pixels.size(), image.pixels.data() };

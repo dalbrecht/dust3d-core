@@ -28,7 +28,7 @@ private func copiedBake(_ data: Data) throws -> CopiedBake {
         let vertices = dust3d_mesh_vertices(geometry), let triangles = dust3d_uv_mesh_triangles(uvs),
         let tangents = dust3d_baked_mesh_tangents(owner)
     else { throw BakeSmokeError.invalidOutput }
-    let view = dust3d_baked_mesh_texture(owner, DUST3D_TEXTURE_COLOR)
+    let view = dust3d_baked_mesh_texture(owner, DUST3D_TEXTURE_COLOR.rawValue)
     guard let pixels = view.pixels else { throw BakeSmokeError.invalidOutput }
     let count = dust3d_baked_mesh_tangent_count(owner)
     precondition(count == dust3d_uv_mesh_triangle_count(uvs) && count * 3 == dust3d_mesh_vertex_count(geometry))

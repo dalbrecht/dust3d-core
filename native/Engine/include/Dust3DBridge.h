@@ -526,8 +526,10 @@ Dust3DBakedMesh* dust3d_baked_mesh_load(const uint8_t* bytes, size_t size, const
 void dust3d_baked_mesh_destroy(Dust3DBakedMesh* mesh);
 /** Borrowed UV/geometry owner; never destroy separately. NULL for NULL owner. */
 const Dust3DUvMesh* dust3d_baked_mesh_uvs(const Dust3DBakedMesh* mesh);
-/** Borrowed map view; zero for NULL owner, invalid map or absent optional map. */
-Dust3DTextureView dust3d_baked_mesh_texture(const Dust3DBakedMesh* mesh, Dust3DTextureMap map);
+/** Borrowed map view; map is a Dust3DTextureMap constant transported as uint32_t
+ * so unknown foreign selector values can be rejected without C++ enum undefined
+ * behavior. Zero for NULL owner, unknown selector or absent optional map. */
+Dust3DTextureView dust3d_baked_mesh_texture(const Dust3DBakedMesh* mesh, uint32_t map);
 /** Borrowed aligned tangents, valid until owner destruction; NULL for NULL owner. */
 const Dust3DTextureTangent* dust3d_baked_mesh_tangents(const Dust3DBakedMesh* mesh);
 /** Number of exported triangle tangent records; zero for NULL owner. */

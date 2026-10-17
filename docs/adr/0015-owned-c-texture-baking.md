@@ -45,8 +45,10 @@ Apple exact-pin adoption and PBR rendering follow in separately reviewed stages.
 Current local evidence includes actual Capsule owner lifetime/exact-quota tests,
 malformed option/image span tests, cancelled calls, cancellation independent of
 the engine lock, and strict Swift 6 copies of Capsule/Sword buffers. Full Debug
-passed 34/34. Image/material corpus and float-filter alignment coverage, measured
-adapter coverage and the complete review/release gates remain unfinished.
+passed 34/34. Additional image/material, procedural-input and actual float-filter
+contracts now pass. Scoped adapter coverage and its limitations are recorded in
+[baked-mesh-verification.md](../baked-mesh-verification.md). Automated review and
+CI on the published commit remain mandatory before landing.
 
 The C quota counts final pixel bytes plus float-aligned C tangent records. The
 C++ baker temporarily produces original-triangle double tangent records; its
@@ -55,3 +57,7 @@ records, with its own 256 MiB ceiling. Mandatory C color/tangent capacity is
 checked before baking. Temporary original indices and borrowed input pixel views
 are discarded before returning the owner. Container capacity/allocator overhead
 and concurrent construction workspace remain outside logical output accounting.
+
+Unknown texture selectors cross C as uint32_t values, rather than potentially
+invalid C++ enum values. Named constants remain available to C/Swift callers.
+Sized options are checked before copying the complete foreign struct.
