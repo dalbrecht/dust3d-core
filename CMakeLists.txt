@@ -32,6 +32,7 @@ target_include_directories(dust3d_core PUBLIC
     third_party/earcut.hpp/include)
 target_link_libraries(dust3d_core PUBLIC dust3d_remesher dust3d_triangle Threads::Threads)
 add_library(dust3d_engine STATIC
+    native/Engine/UvMetadata.cc
     native/Engine/GenerationSession.cc
     native/Engine/Dust3DBridge.cc
     native/Engine/SourceProvenance.cc
@@ -45,6 +46,10 @@ target_link_libraries(dust3d_engine PRIVATE dust3d_core)
 
 include(CTest)
 if(BUILD_TESTING)
+    add_executable(dust3d_uv_metadata_tests tests/core/uv_metadata_tests.cc)
+    target_link_libraries(dust3d_uv_metadata_tests PRIVATE dust3d_engine dust3d_core)
+    add_test(NAME uv_metadata_contracts COMMAND dust3d_uv_metadata_tests ${CMAKE_CURRENT_SOURCE_DIR}/tests/core/fixtures)
+    set_tests_properties(uv_metadata_contracts PROPERTIES TIMEOUT 60)
     add_executable(dust3d_uv_packer_numeric_tests tests/core/uv_packer_numeric_tests.cc)
     target_link_libraries(dust3d_uv_packer_numeric_tests PRIVATE dust3d_core)
     add_test(NAME uv_packer_numeric_contracts COMMAND dust3d_uv_packer_numeric_tests)

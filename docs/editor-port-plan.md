@@ -275,3 +275,15 @@ This stage depends on reviewed numeric packer safety. C ABI original-key and
 triangle-ordinal mapping, Apple pin/adoption, baking, PBR/transparency, asset
 imports and full M4/Qt acceptance remain incomplete. M3 native acceptance also
 remains required; this extraction does not waive it.
+
+
+## Owned UV C boundary (core #33)
+
+Opt-in C owners expose retained atlas/C metadata and original component keys
+without changing ordinary preview loads. UV publication follows the actual float
+triangle filter; aliases/generated identities and missing charts stay explicit.
+Caller-resolved image dimensions and strict source colors avoid Qt registries.
+See [verification](uv-metadata-verification.md) and ADR 0012. Apple exact-pin/SDK
+and editor adoption, pixel baking/PBR/transparency and full M3/M4/Qt acceptance
+remain separate gates. Existing indexed geometry sharing does not include UVs;
+textured indexed output must incorporate seams/materials before rendering.

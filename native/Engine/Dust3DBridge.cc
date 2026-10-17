@@ -1,5 +1,6 @@
 #include "GenerationPipeline.h"
 #include "SourceProvenance.h"
+#include "UvMetadata.h"
 #include <array>
 #include <cmath>
 #include <cstdio>
@@ -27,14 +28,16 @@ namespace native {
     }
 
     std::unique_ptr<Dust3DMesh> generateMesh(std::unique_ptr<dust3d::Snapshot> snapshot, const std::string& warning,
-        MeshGenerator::GeneratedCacheContext* cache, MeshGenerator::GenerationMetrics* metrics, SourceProvenance* sources)
+        MeshGenerator::GeneratedCacheContext* cache, MeshGenerator::GenerationMetrics* metrics, SourceProvenance* sources,
+        UvMetadata* uvs, const std::map<Uuid, UvAtlasImage>& images, size_t textureSize)
     {
         auto mesh = std::make_unique<Dust3DMesh>();
         mesh->nodeCount = snapshot->nodes.size();
         mesh->partCount = snapshot->parts.size();
         mesh->warning = warning;
         // MeshGenerator owns the raw Snapshot constructor argument.
-        dust3d::MeshGenerator generator(snapshot.release());
+        dust3d::MeshGenerator generator(snapshot.get());
+        snapshot.release();
         if (cache)
             generator.setGeneratedCacheContext(cache);
         generator.generate();
@@ -47,6 +50,12 @@ namespace native {
             throw dust3d::native::DocumentError(DUST3D_STATUS_NO_GEOMETRY, "Generation completed with no mesh-producing geometry.");
         if (object->triangles.size() > 5000000)
             throw dust3d::native::DocumentError(DUST3D_STATUS_LIMIT_EXCEEDED, "The generated mesh exceeds the five million triangle limit.");
+        if (uvs) {
+            std::unique_ptr<Snapshot> generated(generator.takeSnapshot());
+            if (!generated)
+                throw DocumentError(DUST3D_STATUS_GENERATION_FAILED, "The generator returned no UV material snapshot.");
+            uvs->prepare(*object, *generated, images, textureSize);
+        }
         mesh->vertices.reserve(object->triangles.size() * 3);
         const auto* normals = object->triangleVertexNormals();
         for (size_t triangleIndex = 0; triangleIndex < object->triangles.size(); ++triangleIndex) {
@@ -91,6 +100,8 @@ namespace native {
             // ABI's float coordinates. Validate first so invalid geometry is never hidden.
             if (dust3d::Vector3::crossProduct(second - first, third - first).lengthSquared() == 0)
                 continue;
+            if (uvs)
+                uvs->appendTriangle(triangleIndex);
             if (sources) {
                 for (const auto vertexIndex : triangle)
                     sources->appendCorner(*object, object->vertices[vertexIndex]);
