@@ -28,3 +28,11 @@ retains its existing leak-enabled sanitizer configuration. New C++ formatting,
 Qt-boundary checks and the SwiftPM source build also passed.
 This proves the adapter distinction and regression cases, not full inherited
 engine coverage or all possible empty boolean results.
+
+
+Correction after core #13: the straight-profile rejection above relied on an
+unclamped `acos` rounding error and is not retained as a genuine failure fixture.
+It now has finite-output coverage. The failure-status contract uses a Cloth wrap
+with a finite negative legacy offset that removes its entire surface; generation
+still reports GENERATION_FAILED, not NO_GEOMETRY. Malformed input and successful
+empty ownership checks remain unchanged. See [angle verification](angle-normal-verification.md).

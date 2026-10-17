@@ -22,7 +22,9 @@ changes to the expected behaviors and tolerances below.
 - Lines: three curved semicircular profiles at different depths. Front/back/side
   closure and segment count must change output; segment endpoints 0, 1 and 100
   must remain finite. Side closure joins each spline's own endpoints, so
-  degenerate straight closed splines remain in the existing rejection contract.
+  straight-profile finite output is now covered by the angle regression correction
+  described in [bounded angles](angle-normal-verification.md); zero-area triangle
+  quality remains separately tracked in core #14.
 - Loops: concentric closed diamond loops. Back closure, depth and sharpness must
   change output, and supported scalar endpoints remain finite.
 - Fill: isolated loop fill adds surface triangles beside a separate uncombined
