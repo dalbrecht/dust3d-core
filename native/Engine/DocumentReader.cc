@@ -117,7 +117,7 @@ namespace native {
         }
     }
 
-    std::unique_ptr<Snapshot> readDocument(const uint8_t* bytes, size_t size, std::string& warning)
+    std::unique_ptr<Snapshot> readDocument(const uint8_t* bytes, size_t size, std::string& warning, DocumentAssetObserver* observer)
     {
         if (!bytes || !size)
             throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Choose a nonempty .ds3 document.");
@@ -165,6 +165,14 @@ namespace native {
                 throw DocumentError(DUST3D_STATUS_UNSUPPORTED_ASSET, "This document contains imported GLB geometry. The native viewer does not yet support it.");
             } else if (type == "asset" && name.compare(0, 7, "images/") == 0) {
                 warning = "Untextured preview: image textures are not yet displayed.";
+            }
+            if (observer && type != "model") {
+                observer->item(type, name, bytes + binaryOffset + offset, itemSize);
+                for (auto* attribute = item->first_attribute(); attribute; attribute = attribute->next_attribute()) {
+                    const std::string_view key(attribute->name(), attribute->name_size());
+                    if (key != "name" && key != "offset" && key != "size")
+                        observer->attribute(key, std::string_view(attribute->value(), attribute->value_size()));
+                }
             }
         }
         if (modelCount != 1)

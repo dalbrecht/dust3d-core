@@ -45,6 +45,14 @@ class MeshGenerator {
 public:
     static double m_minimalRadius;
 
+    /// Actual work performed by the most recent generate() call.
+    struct GenerationMetrics {
+        size_t reusedComponents = 0;
+        size_t rebuiltComponents = 0;
+        size_t rebuiltParts = 0;
+    };
+    const GenerationMetrics& generationMetrics() const noexcept { return m_generationMetrics; }
+
     struct GeneratedPart {
         /// Account owned dynamic payload; borrowed views are excluded.
         void accountDynamicPayload(RetainedPayloadBudget& budget) const noexcept;
@@ -170,6 +178,7 @@ protected:
     Object* m_object = nullptr;
 
 private:
+    GenerationMetrics m_generationMetrics;
     Color m_defaultPartColor = Color::createWhite();
     Snapshot* m_snapshot = nullptr;
     GeneratedCacheContext* m_cacheContext = nullptr;

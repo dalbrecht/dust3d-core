@@ -222,3 +222,14 @@ borrowed geometry. See [verification](retained-payload-verification.md) and ADR 
 Allocator bookkeeping and transient/process memory are outside this metric.
 Persistent sessions, eviction/failure recovery and actual cached-versus-fresh
 acceptance remain pending; this does not complete component caching or M3.
+
+
+### Native generation session checkpoint (core #23)
+
+An optional C session integrates semantic invalidation, owned asset revisions and
+retained-payload accounting with actual inherited component reuse. Mesh owners
+remain independent, cache-only failures degrade to fresh generation with their
+original diagnostic, and primary failures release partial cache state. See ADR
+0007. Swift actor integration, obsolete-work scheduling, source provenance,
+controlled benchmarks and the Qt differential acceptance corpus remain pending.
+This does not complete M3 or establish full editor feature parity.

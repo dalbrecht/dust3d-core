@@ -6,6 +6,7 @@
 #include <memory>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace dust3d {
@@ -48,7 +49,16 @@ namespace native {
     void setError(Dust3DError* error, Dust3DStatus status, const char* message) noexcept;
     std::unique_ptr<Dust3DIndexedMesh> buildIndexedMesh(const Dust3DMesh& source, size_t maximumBytes);
 
-    std::unique_ptr<Snapshot> readDocument(const uint8_t* bytes, size_t size, std::string& warning);
+    // Callbacks borrow validated archive spans only for the current read; implementations
+    // must isolate their own allocation failures from primary document decoding.
+    class DocumentAssetObserver {
+    public:
+        virtual ~DocumentAssetObserver() = default;
+        virtual void item(std::string_view type, std::string_view name, const uint8_t* data, size_t size) noexcept = 0;
+        virtual void attribute(std::string_view name, std::string_view value) noexcept = 0;
+    };
+    std::unique_ptr<Snapshot> readDocument(const uint8_t* bytes, size_t size, std::string& warning,
+        DocumentAssetObserver* observer = nullptr);
     void validateSnapshot(Snapshot& snapshot);
 
 }

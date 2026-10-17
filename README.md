@@ -9,12 +9,18 @@ This repository is a history-preserving duplicate, not a second GitHub network f
 Internal `SnapshotInvalidation` derives conservative component/part invalidation
 from immutable snapshot differences, ignoring persisted dirty flags and following
 profile, inheritance and wrapping dependencies. See [verification](docs/snapshot-invalidation-verification.md).
-Persistent cache ownership, budgets and generation-session integration remain pending.
+Optional generation sessions now integrate this invalidation with owned bounded caches;
+see [session design](docs/adr/0007-bounded-generation-sessions.md).
 
 Retained cache/output owners also support checked, allocation-free payload
 accounting, including reserved capacities and borrowed geometry boundaries. See
 [verification](docs/retained-payload-verification.md). This is a conservative data
-payload estimate, not a process-memory ceiling; persistent sessions remain pending.
+payload estimate, not a process-memory ceiling. Session budgets default to 64 MiB;
+zero disables retention and the supported maximum is 256 MiB. Cache-only failures
+fall back to fresh generation with a separate diagnostic; returned mesh owners
+survive later session loads, reset and destruction. All native generation shares
+one engine lock. The stateless API remains available. See
+[session verification and limits](docs/generation-session-verification.md).
 
 ## Build and test without Qt
 
