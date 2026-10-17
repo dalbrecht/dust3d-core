@@ -84,7 +84,7 @@ these focused contracts or by Swift smoke tests. See ADR 0014.
 An LLVM-instrumented `texture_baker.cc` object was linked ahead of the ordinary
 native archives into the real contract executable, which ran all its analytic
 and generated-fixture cases. LLVM reports 876/901 executable lines (97.23%),
-685/713 regions (96.07%) and 547/630 branches (86.83%). This measures this source
+689/717 regions (96.09%) and 551/634 branches (86.91%). This measures this source
 file only, not inherited procedural kernels, all headers, the C ABI or the
 complete core. The domain's aspirational 100% target is not met by this report;
 remaining degenerate/fallback and numeric-failure paths stay visible rather than
@@ -299,3 +299,18 @@ measured the checkpoint-enabled fold constructor at 93/95 lines (97.89%) and the
 pattern constructor at 38/40 lines (95%). These individual constructor figures
 exclude duplicate constructor entry symbols; they do not establish whole-kernel
 coverage. Cancellation remains cooperative, with no whole-call latency bound.
+
+
+## Review regression: source-less seam isolation
+
+A valid null-key surface input previously matched source-less seam layouts and
+replaced their gradient pixels with procedural detail. Both procedural eligibility
+and potential-normal budgeting now require a non-null component source identity,
+as in the reference path. A failing-first regression supplies a null-key pattern
+and fold, verifies byte-identical seam gradients, no normal map or indexed vertex
+workspace, and successful baking at the exact normal-free payload budget.
+
+After this fix, full Debug passed 33/33 (22.53 s), ASan/UBSan passed 33/33
+(73.89 s), strict Swift consumers passed, and all seven relevant Qt comparisons
+passed (24.88 s). Formatting, manifest lint and diff checks passed. Scoped baker
+coverage above was refreshed; broader parity remains unproven.

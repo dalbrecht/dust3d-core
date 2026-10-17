@@ -212,6 +212,34 @@ void gradientQuantization()
     const auto transposed = fixture.bake();
     require(transposed.color.pixels[0] == transposed.color.pixels[12] && transposed.color.pixels[0] != transposed.color.pixels[48], "Flipped seam gradient transposes its source axis");
 }
+void sourceLessSeamsIgnoreSurfaceDetails()
+{
+    Fixture fixture;
+    fixture.atlas.layouts[0].sourceId = dust3d::Uuid();
+    dust3d::UvAtlasGradient gradient;
+    gradient.layoutIndex = 0;
+    gradient.largeColor = dust3d::Color(1, 0, 0);
+    gradient.smallColor = dust3d::Color(0, 0, 1);
+    fixture.atlas.gradients = { gradient };
+    const auto baseline = fixture.bake();
+    dust3d::TextureBakeInputs inputs;
+    auto& surface = inputs.surfaces[dust3d::Uuid()];
+    dust3d::SurfacePattern::Settings pattern;
+    pattern.type = dust3d::SurfacePattern::Type::Spots;
+    surface.pattern = pattern;
+    dust3d::ClothFolds::Fold fold;
+    fold.points = { { 0.5, 0, 0 }, { 0.5, 1, 0 } };
+    fold.normals = { { 0, 0, 1 }, { 0, 0, 1 } };
+    fold.width = 0.2;
+    fold.depth = 0.04;
+    surface.folds = { fold };
+    surface.wrinkleStrength = 1;
+    const auto result = fixture.bake(inputs);
+    require(result.color.pixels == baseline.color.pixels, "Source-less seams must retain gradient colors despite null-key surface inputs");
+    require(!result.normal && result.surfaceVertexIndexEntries == 0, "Source-less seams must not create procedural normals or vertex workspace");
+    fixture.options.maximumPayloadBytes = baseline.payloadBytes;
+    require(fixture.bake(inputs).payloadBytes == baseline.payloadBytes, "Source-less seams must not reserve normal output capacity");
+}
 void invalidInputFamilies()
 {
     for (int variant = 0; variant < 15; ++variant) {
@@ -836,6 +864,7 @@ int main(int argc, char* argv[])
         surfaceDetails();
         malformedSurfaceInputs();
         gradientQuantization();
+        sourceLessSeamsIgnoreSurfaceDetails();
         unsafeProceduralCoordinates();
         unsafeFoldGrid();
         invalidInputFamilies();

@@ -312,7 +312,7 @@ namespace {
     }
     bool isFoldLayout(const UvMapPacker::Layout& layout, const TextureBakeInputs& inputs, const TextureBakeOptions& options)
     {
-        if (!layout.id.isNull() || layout.globalUv.empty())
+        if (!layout.id.isNull() || layout.sourceId.isNull() || layout.globalUv.empty())
             return false;
         const auto found = inputs.surfaces.find(layout.sourceId);
         return found != inputs.surfaces.end() && hasEffectiveFolds(found->second, options);
@@ -439,7 +439,7 @@ namespace {
         const auto needsDetails = [&](const UvMapPacker::Layout& layout) {
             if (eligibilityChecks++ % 256 == 0)
                 checkCancellation(options);
-            if (!layout.id.isNull() || layout.globalUv.empty())
+            if (!layout.id.isNull() || layout.sourceId.isNull() || layout.globalUv.empty())
                 return false;
             const auto found = inputs.surfaces.find(layout.sourceId);
             if (found == inputs.surfaces.end())
