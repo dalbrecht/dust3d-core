@@ -89,6 +89,7 @@ struct TextureBakeResult {
     std::optional<TextureImage> roughness;
     std::optional<TextureImage> emissive;
     std::vector<TextureTangent> tangents;
+    size_t rasterTriangleVisits = 0; // Procedural triangle-row candidate evaluations, for work diagnostics.
     size_t payloadBytes = 0;
 };
 

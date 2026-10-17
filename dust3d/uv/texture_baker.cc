@@ -361,15 +361,38 @@ namespace {
         }
         return charts;
     }
-    void paintSurface(TextureImage& output, std::vector<uint8_t>& covered, const SurfaceChart& chart, const Color& baseColor, bool normalMap, const TextureBakeOptions& options)
+    void paintSurface(TextureImage& output, std::vector<uint8_t>& covered, const SurfaceChart& chart, const Color& baseColor, bool normalMap, const TextureBakeOptions& options, size_t& visits)
     {
         const auto size = static_cast<int>(output.width);
         const double margin = 2.0 * size / (normalMap ? 2048 : 4096);
         std::vector<float> distance(output.width);
+        std::vector<std::vector<size_t>> starts(output.height), ends(output.height + 1);
+        for (size_t index = 0; index < chart.triangles.size(); ++index) {
+            if (index % 256 == 0)
+                checkCancellation(options);
+            const auto& uvs = chart.triangles[index].uvs;
+            const auto first = std::max(0, static_cast<int>(std::floor(std::min({ uvs[0].y(), uvs[1].y(), uvs[2].y() }) * size - margin)));
+            const auto last = std::min(size - 1, static_cast<int>(std::ceil(std::max({ uvs[0].y(), uvs[1].y(), uvs[2].y() }) * size + margin)));
+            starts[first].push_back(index);
+            ends[last + 1].push_back(index);
+        }
+        // Each triangle owns only two row events. Sorted active ordinals preserve
+        // first-triangle priority without expanding every triangle across all rows.
+        std::set<size_t> candidates;
         for (int y = 0; y < size; ++y) {
             checkCancellation(options);
+            for (const auto index : ends[y])
+                candidates.erase(index);
+            for (const auto index : starts[y])
+                candidates.insert(index);
             std::fill(distance.begin(), distance.end(), std::numeric_limits<float>::max());
-            for (const auto& triangle : chart.triangles) {
+            for (const auto index : candidates) {
+                if (visits == std::numeric_limits<size_t>::max())
+                    throw TextureBakeError(TextureBakeErrorCode::limitExceeded, "Procedural raster work counter overflowed");
+                if (visits % 256 == 0)
+                    checkCancellation(options);
+                ++visits;
+                const auto& triangle = chart.triangles[index];
                 double x[3], py[3];
                 for (size_t corner = 0; corner < 3; ++corner) {
                     x[corner] = triangle.uvs[corner].x() * size;
@@ -567,14 +590,14 @@ TextureBakeResult TextureBaker::bake(const Object& object, const UvAtlas& atlas,
         std::copy_n(source.pixels + y * source.rowStride + x * 4, 4, pixel.begin());
         return pixel; }, colorSkipped);
     for (const auto& chart : charts)
-        paintSurface(result.color, colorCoverage, chart, atlas.layouts[chart.layoutIndex].color, false, options);
+        paintSurface(result.color, colorCoverage, chart, atlas.layouts[chart.layoutIndex].color, false, options, result.rasterTriangleVisits);
     dilate(result.color, colorCoverage, options);
     if (hasNormal) {
         result.normal = image(options.normalSize);
         auto normalCoverage = rectangles(*result.normal, atlas, 8.0 / 2048, options, [](size_t, const UvMapPacker::Layout&, double, double) -> Pixel { return { 128, 128, 255, 255 }; }, normalSkipped);
         for (const auto& chart : charts) {
             if (chart.folds)
-                paintSurface(*result.normal, normalCoverage, chart, atlas.layouts[chart.layoutIndex].color, true, options);
+                paintSurface(*result.normal, normalCoverage, chart, atlas.layouts[chart.layoutIndex].color, true, options, result.rasterTriangleVisits);
         }
         dilate(*result.normal, normalCoverage, options);
     }

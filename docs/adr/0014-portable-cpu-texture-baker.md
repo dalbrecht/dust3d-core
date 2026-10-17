@@ -27,7 +27,10 @@ World-space surface details use the inherited SurfacePattern/ClothFolds kernels
 with welded chart normals and increasing-U/decreasing-V tangent frames. Raster
 rows execute sequentially, preserving triangle priority and propagating errors
 without worker-thread exception or partial-launch hazards. Row distance scratch
-is proportional to output width. Deterministic four-neighbor dilation uses an
+is proportional to output width. A start/end row-event sweep maintains active
+triangle ordinals in priority order, avoiding a complete triangle rescan per
+row; events require two records per triangle. Candidate visits are exposed as
+a diagnostic count rather than asserted to bound whole-call work. Deterministic four-neighbor dilation uses an
 explicit coverage mask, so transparent texels are valid coverage.
 
 Validate inputs before unsafe arithmetic, pointer reads or inherited numeric

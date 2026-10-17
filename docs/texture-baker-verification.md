@@ -83,8 +83,8 @@ these focused contracts or by Swift smoke tests. See ADR 0014.
 
 An LLVM-instrumented `texture_baker.cc` object was linked ahead of the ordinary
 native archives into the real contract executable, which ran all its analytic
-and generated-fixture cases. LLVM reports 603/620 executable lines (97.26%),
-455/474 regions (95.99%) and 360/432 branches (83.33%). This measures this source
+and generated-fixture cases. LLVM reports 624/641 executable lines (97.35%),
+467/486 regions (96.09%) and 374/444 branches (84.23%). This measures this source
 file only, not inherited procedural kernels, all headers, the C ABI or the
 complete core. The domain's aspirational 100% target is not met by this report;
 remaining degenerate/fallback and numeric-failure paths stay visible rather than
@@ -126,3 +126,25 @@ After the review fix, full Debug 33/33 passed in 44.20 seconds and ASan/UBSan
 33/33 passed in 102.21 seconds. Swift 6 source/session/UV consumers and formatting
 passed again. The full-resolution portable/reference procedural comparison
 passed in 5.66 seconds, with unchanged color/normal samples.
+
+## Review regression: dense procedural row candidates
+
+A second automated-review finding identified a full triangle-list scan for each
+image row. A deterministic 32x32-cell planar chart (2,048 triangles, 256-square
+color map) first recorded 524,288 triangle-row visits. The row-event sweep now
+records 22,336, while independent world-space color samples still agree across
+the dense triangle boundaries. `rasterTriangleVisits` exposes that operation
+count for diagnostics; it is not a whole-call work or latency limit.
+
+Each triangle contributes a start/end event, with conservative bounds retaining
+the original exact pixel-center predicate. Active triangle ordinals stay sorted,
+preserving first-triangle precedence and gutter-distance comparisons. Workspace
+is proportional to triangles, rows and the active set rather than duplicating
+triangles into every row. Scheduling and candidate loops check cancellation in
+batches. Triangles that actually span every row still require that work; no
+universal linear-time or peak-memory guarantee is claimed.
+
+After row scheduling, full Debug 33/33 passed in 28.13 seconds and ASan/UBSan
+33/33 passed in 86.25 seconds. Swift 6 consumers passed. All six full-resolution
+portable/reference comparisons passed in 24.23 seconds with unchanged measured
+errors (color at most one byte, image/scalar/normal samples exact).

@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: MIT
+#include <algorithm>
 #include <cmath>
 #include <dust3d/base/object.h>
 #include <dust3d/uv/texture_baker.h>
@@ -308,6 +309,61 @@ void cancellationAfterValidation()
     fixture.object.triangles.clear();
     rejects([&] { dust3d::detail::buildTextureTangents(fixture.object, fixture.atlas, fixture.options); }, dust3d::TextureBakeErrorCode::cancelled);
 }
+void denseSurfaceWork()
+{
+    Fixture fixture;
+    fixture.options.colorSize = 256;
+    fixture.object.vertices.clear();
+    fixture.object.triangles.clear();
+    fixture.atlas.triangleUvs.clear();
+    fixture.atlas.triangleUvKnown.clear();
+    fixture.atlas.triangleComponentIds.clear();
+    auto& layout = fixture.atlas.layouts[0];
+    layout.globalUv.clear();
+    constexpr size_t divisions = 32;
+    for (size_t y = 0; y <= divisions; ++y) {
+        for (size_t x = 0; x <= divisions; ++x)
+            fixture.object.vertices.push_back({ double(x) / divisions, double(y) / divisions, 0 });
+    }
+    auto append = [&](size_t a, size_t b, size_t c) {
+        fixture.object.triangles.push_back({ a, b, c });
+        std::array<dust3d::Vector2, 3> uvs;
+        const std::array<size_t, 3> indices { a, b, c };
+        for (size_t corner = 0; corner < 3; ++corner) {
+            const auto& position = fixture.object.vertices[indices[corner]];
+            uvs[corner] = { position.x(), position.y() };
+        }
+        fixture.atlas.triangleUvs.push_back(uvs);
+        fixture.atlas.triangleUvKnown.push_back(1);
+        fixture.atlas.triangleComponentIds.push_back(componentId);
+        layout.globalUv[{ dust3d::PositionKey(fixture.object.vertices[a]), dust3d::PositionKey(fixture.object.vertices[b]), dust3d::PositionKey(fixture.object.vertices[c]) }] = uvs;
+    };
+    for (size_t y = 0; y < divisions; ++y) {
+        for (size_t x = 0; x < divisions; ++x) {
+            const auto a = y * (divisions + 1) + x;
+            append(a, a + 1, a + divisions + 2);
+            append(a, a + divisions + 2, a + divisions + 1);
+        }
+    }
+    dust3d::TextureBakeInputs inputs;
+    dust3d::SurfacePattern::Settings pattern;
+    pattern.type = dust3d::SurfacePattern::Type::Spots;
+    pattern.scale = 0.1;
+    inputs.surfaces[componentId].pattern = pattern;
+    const auto result = fixture.bake(inputs);
+    const auto fullScan = fixture.object.triangles.size() * fixture.options.colorSize;
+    std::cout << "Dense chart candidate visits: " << result.rasterTriangleVisits << " versus " << fullScan << " full-scan visits\n";
+    require(result.rasterTriangleVisits > 0 && result.rasterTriangleVisits < fullScan / 8, "Dense procedural charts must visit row candidates rather than rescan every triangle");
+    const dust3d::SurfacePattern expected(pattern, fixture.object.vertices);
+    for (size_t y = 0; y < fixture.options.colorSize; y += 16) {
+        for (size_t x = 0; x < fixture.options.colorSize; x += 16) {
+            const auto color = expected.colorAt({ (x + 0.5) / fixture.options.colorSize, (y + 0.5) / fixture.options.colorSize, 0 }, { 0, 0, 1 }, 1.0 / fixture.options.colorSize);
+            const auto offset = (y * fixture.options.colorSize + x) * 4;
+            for (size_t channel = 0; channel < 3; ++channel)
+                require(result.color.pixels[offset + channel] == static_cast<uint8_t>(std::lround(std::clamp(color[channel], 0.0, 1.0) * 255)), "Row scheduling must preserve world-space procedural pixels across dense triangle boundaries");
+        }
+    }
+}
 void generatedFixtures(const std::string& directory)
 {
     for (const std::string name : { "Capsule.ds3", "Sword.ds3", "RoundedCrossing.ds3" }) {
@@ -393,6 +449,7 @@ int main(int argc, char* argv[])
         invalidInputFamilies();
         invalidFoldFamilies();
         cancellationAfterValidation();
+        denseSurfaceWork();
         require(argc == 2, "Expected fixture directory");
         generatedFixtures(argv[1]);
         std::cout << "Texture bake contracts passed\n";
