@@ -39,6 +39,7 @@ set(DUST3D_CORE_SOURCES
     dust3d/uv/cloth_folds.cc
     dust3d/uv/max_rectangles.cc
     dust3d/uv/surface_pattern.cc
+    dust3d/uv/uv_atlas_builder.cc
     dust3d/uv/uv_map_packer.cc
 )
 set(DUST3D_REMESHER_SOURCES
