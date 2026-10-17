@@ -45,7 +45,7 @@ let package = Package(
             path: "native/Engine",
             sources: [
                 "Dust3DBridge.cc", "GenerationSession.cc", "IndexedMesh.cc", "RetainedPayload.cc",
-                "SnapshotInvalidation.cc",
+                "SnapshotInvalidation.cc", "SourceProvenance.cc",
                 "DocumentReader.cc",
                 "SnapshotValidator.cc",
             ],

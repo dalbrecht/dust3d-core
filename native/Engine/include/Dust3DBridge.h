@@ -35,6 +35,96 @@ typedef struct Dust3DError {
     char message[512];
 } Dust3DError;
 
+/** Optional per-expanded-corner source hints; not exact surface ownership. */
+typedef enum Dust3DSourceKind {
+    DUST3D_SOURCE_UNKNOWN = 0,
+    DUST3D_SOURCE_NODE_HINT = 1,
+    DUST3D_SOURCE_WEIGHTED_HINT = 2,
+    DUST3D_SOURCE_AMBIGUOUS = 3
+} Dust3DSourceKind;
+
+/** A corner's range in the independent influence buffer. */
+typedef struct Dust3DSourceCorner {
+    Dust3DSourceKind kind;
+    size_t first_influence;
+    size_t influence_count;
+} Dust3DSourceCorner;
+
+/** Original document identity index, or SIZE_MAX for unknown/ambiguous identity.
+ * Weights are inherited finite nonnegative values, not renormalized by export.
+ */
+typedef struct Dust3DSourceInfluence {
+    Dust3DSourceKind kind;
+    size_t source_index;
+    float weight;
+} Dust3DSourceInfluence;
+
+/** Opt-in source output owner. Release only with dust3d_sourced_mesh_destroy. */
+typedef struct Dust3DSourcedMesh Dust3DSourcedMesh;
+
+/** Source payload defaults and hard maximum, in bytes. */
+#define DUST3D_DEFAULT_SOURCE_PAYLOAD_BYTES 67108864
+#define DUST3D_MAX_SOURCE_PAYLOAD_BYTES 268435456
+
+/** Source-matched options. struct_size must equal sizeof(Dust3DSourceOptions).
+ * maximum_payload_bytes bounds source identity records/strings, corners and influences;
+ * zero selects 64 MiB, values above 256 MiB are rejected. Geometry, lookup workspace,
+ * allocator overhead and container capacity growth are outside this logical payload budget.
+ */
+typedef struct Dust3DSourceOptions {
+    size_t struct_size;
+    size_t maximum_payload_bytes;
+} Dust3DSourceOptions;
+
+/** Generate independent geometry and optional quantized node association hints.
+ * Sources use original opaque document keys, including non-hex legacy identifiers.
+ * Generated/mirrored/interpolated identities absent from original membership remain
+ * UNKNOWN; multiple original keys sharing one engine identity are AMBIGUOUS.
+ * Position associations use inherited 1e-5 truncation buckets: hints can collide,
+ * and Boolean-generated surfaces may have no association. No exact ownership claim.
+ * Weighted hints preserve every entry, including individually unknown/ambiguous ones.
+ * @param bytes Complete archive bytes, borrowed during this serialized call.
+ * @param size Archive size; ordinary 256 MiB input limit applies.
+ * @param options Required correctly sized options, borrowed during the call.
+ * @param error Optional diagnostic, initialized on entry. Never throws.
+ * @return Independent owner or NULL; INVALID_DOCUMENT for missing/invalid options,
+ * LIMIT_EXCEEDED for source budget/allocation limits, normal load errors otherwise.
+ * Source payload failures fail this opt-in call only; legacy load remains unchanged.
+ * @code
+ * Dust3DSourceOptions options = { sizeof(Dust3DSourceOptions), 0 };
+ * Dust3DSourcedMesh* owner = dust3d_sourced_mesh_load(bytes, size, &options, &error);
+ * if (owner != NULL) {
+ *     const Dust3DMesh* geometry = dust3d_sourced_mesh_geometry(owner);
+ *     Dust3DIndexedMesh* indexed = dust3d_mesh_create_indexed(geometry, 0, &error);
+ *     // Copy corner records and identity strings before releasing owner.
+ *     dust3d_sourced_mesh_destroy(owner); // Also releases borrowed geometry.
+ *     dust3d_indexed_mesh_destroy(indexed); // Independent copy, or NULL on error.
+ * }
+ * @endcode
+ */
+Dust3DSourcedMesh* dust3d_sourced_mesh_load(const uint8_t* bytes, size_t size, const Dust3DSourceOptions* options, Dust3DError* error);
+/** Release source and geometry ownership. NULL accepted. */
+void dust3d_sourced_mesh_destroy(Dust3DSourcedMesh* mesh);
+/** Borrowed geometry, valid until sourced owner destruction. Never destroy this view.
+ * May be passed to dust3d_mesh_create_indexed to obtain an independent indexed owner.
+ * NULL for NULL owner. Corner i corresponds to expanded vertex i and indexed index i.
+ */
+const Dust3DMesh* dust3d_sourced_mesh_geometry(const Dust3DSourcedMesh* mesh);
+/** Borrowed arrays; valid until owner destruction. NULL for NULL/empty owner. */
+const Dust3DSourceCorner* dust3d_sourced_mesh_corners(const Dust3DSourcedMesh* mesh);
+const Dust3DSourceInfluence* dust3d_sourced_mesh_influences(const Dust3DSourcedMesh* mesh);
+/** Array/identity counts; zero for NULL. */
+size_t dust3d_sourced_mesh_corner_count(const Dust3DSourcedMesh* mesh);
+size_t dust3d_sourced_mesh_influence_count(const Dust3DSourcedMesh* mesh);
+size_t dust3d_sourced_mesh_identity_count(const Dust3DSourcedMesh* mesh);
+/** Borrowed original node/part key; empty string for NULL/out-of-range. Never free.
+ * All original nodes are listed; aliases are retained but never chosen arbitrarily.
+ */
+const char* dust3d_sourced_mesh_node_id(const Dust3DSourcedMesh* mesh, size_t identity_index);
+const char* dust3d_sourced_mesh_part_id(const Dust3DSourcedMesh* mesh, size_t identity_index);
+/** Logical source payload bytes charged to the configured budget; zero for NULL. */
+size_t dust3d_sourced_mesh_payload_bytes(const Dust3DSourcedMesh* mesh);
+
 /** Mutable generation cache owner. Destroy only when no calls are using it. */
 typedef struct Dust3DGenerationSession Dust3DGenerationSession;
 

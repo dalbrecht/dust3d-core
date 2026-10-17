@@ -7,10 +7,11 @@
 
 namespace dust3d {
 namespace native {
+    class SourceProvenance;
     // Every native entry point shares this lock because inherited globals are not thread-safe.
     std::mutex& engineMutex();
     std::unique_ptr<Dust3DMesh> generateMesh(std::unique_ptr<Snapshot> snapshot, const std::string& warning,
-        MeshGenerator::GeneratedCacheContext* cache = nullptr, MeshGenerator::GenerationMetrics* metrics = nullptr);
+        MeshGenerator::GeneratedCacheContext* cache = nullptr, MeshGenerator::GenerationMetrics* metrics = nullptr, SourceProvenance* sources = nullptr);
 }
 }
 #endif

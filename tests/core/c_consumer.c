@@ -27,5 +27,14 @@ int main(void)
     if (dust3d_generation_session_reset(session, &error) != DUST3D_STATUS_OK)
         return 7;
     dust3d_generation_session_destroy(session);
+    Dust3DSourceOptions source_options = { sizeof(Dust3DSourceOptions), 1024 };
+    Dust3DSourcedMesh* sourced = dust3d_sourced_mesh_load(NULL, 0, &source_options, &error);
+    if (sourced != NULL || error.status != DUST3D_STATUS_INVALID_DOCUMENT
+        || dust3d_sourced_mesh_geometry(sourced) != NULL
+        || dust3d_sourced_mesh_corners(sourced) != NULL
+        || dust3d_sourced_mesh_influences(sourced) != NULL
+        || dust3d_sourced_mesh_corner_count(sourced) != 0)
+        return 8;
+    dust3d_sourced_mesh_destroy(sourced);
     return 0;
 }

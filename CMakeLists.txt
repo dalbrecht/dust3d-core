@@ -34,6 +34,7 @@ target_link_libraries(dust3d_core PUBLIC dust3d_remesher dust3d_triangle Threads
 add_library(dust3d_engine STATIC
     native/Engine/GenerationSession.cc
     native/Engine/Dust3DBridge.cc
+    native/Engine/SourceProvenance.cc
     native/Engine/IndexedMesh.cc
     native/Engine/RetainedPayload.cc
     native/Engine/SnapshotInvalidation.cc
@@ -98,6 +99,11 @@ if(BUILD_TESTING)
     # The expanded wrapping/boolean corpus exceeds 60 seconds under Linux ASan
     # on a contended hosted runner; retain the workload with a bounded test timeout.
     set_tests_properties(contract_generation_sessions PROPERTIES TIMEOUT 180)
+    add_executable(dust3d_source_provenance_tests tests/core/source_provenance_tests.cc)
+    target_include_directories(dust3d_source_provenance_tests PRIVATE native/Engine)
+    target_link_libraries(dust3d_source_provenance_tests PRIVATE dust3d_engine dust3d_core)
+    add_test(NAME contract_source_provenance COMMAND dust3d_source_provenance_tests ${CMAKE_CURRENT_SOURCE_DIR}/tests/core/fixtures)
+    set_tests_properties(contract_source_provenance PROPERTIES TIMEOUT 60)
     # A C translation unit must consume the public ABI without C++/Qt headers.
     add_executable(dust3d_c_consumer tests/core/c_consumer.c)
     set_target_properties(dust3d_c_consumer PROPERTIES LINKER_LANGUAGE CXX)

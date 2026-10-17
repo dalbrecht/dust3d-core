@@ -16,3 +16,9 @@ xcrun swiftc -parse-as-library -swift-version 6 -strict-concurrency=complete -wa
     -I native/Engine/include tests/swift/GenerationSessionSmoke.swift \
     -L "$binary_directory" -lDust3DEngine -lc++ -o "$scratch_directory/session-smoke"
 "$scratch_directory/session-smoke" tests/core/fixtures/Capsule.ds3
+
+xcrun swiftc -parse-as-library -swift-version 6 -strict-concurrency=complete -warnings-as-errors \
+    -Xcc "-fmodule-map-file=$binary_directory/Dust3DEngine.build/module.modulemap" \
+    -I native/Engine/include tests/swift/SourceProvenanceSmoke.swift \
+    -L "$binary_directory" -lDust3DEngine -lc++ -o "$scratch_directory/source-smoke"
+"$scratch_directory/source-smoke" tests/core/fixtures/Capsule.ds3
