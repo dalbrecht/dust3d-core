@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add owned portable C++ UV atlas metadata with explicit missing mappings, seam-gradient descriptors, cyclic corner ordering and checked logical output budgets; pixel baking and C/Swift adoption follow separately.
+
 - Fix UV rectangle area/contact-score overflow, validate quantized chart dimensions before conversion, reject charts lost to padding precision, and clear stale layouts after packing failure.
 
 - Add sourced generation-session loads with actual component cache reuse, current original identities, independent output budgets/lifetimes and preserved cache-only fallback diagnostics.

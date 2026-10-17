@@ -34,7 +34,14 @@ same independent source owner while reusing bounded component caches; see
 The inherited UV packer now uses wide score/area arithmetic and rejects invalid
 quantized dimensions or charts erased by padding precision. Failed `tryPack`
 attempts clear prior layouts; see [regression and limits](docs/uv-packer-numeric-verification.md).
-The portable atlas API remains a separate stage; existing C/Swift ABI is unchanged.
+`dust3d/uv/uv_atlas_builder.h` now provides owned portable atlas metadata from a
+const generated Object plus resolved component colors/image dimensions. Outputs
+include corner UVs, explicit missing-chart markers, component UUIDs and ordinal
+seam-gradient descriptors. The default logical output budget is 64 MiB (maximum
+256 MiB); workspace and allocator overhead are excluded. See
+[contracts and remaining limits](docs/uv-atlas-verification.md) and
+[ADR 0011](docs/adr/0011-portable-uv-atlas.md). Baking, C/Swift adoption and full
+texture rendering remain separate stages; existing C/Swift ABI is unchanged.
 
 ## Build and test without Qt
 

@@ -263,3 +263,15 @@ The focused generic fix widens scores/products, checks quantized dimensions and
 rejects precision-erased charts; see [verification](uv-packer-numeric-verification.md)
 and ADR 0010. Atlas construction (core #29), texture baking, Apple adoption and
 full M4/native/Qt acceptance remain incomplete.
+
+
+## Portable UV atlas metadata (core #29)
+
+The C++ atlas builder now replaces Qt/global-image orchestration with explicit
+resolved component inputs and owned layouts, corner UVs, mapping masks and
+ordinal gradient descriptors. Cyclic corner order retains seam priority; missing
+charts stay explicit. See [verification](uv-atlas-verification.md) and ADR 0011.
+This stage depends on reviewed numeric packer safety. C ABI original-key and
+triangle-ordinal mapping, Apple pin/adoption, baking, PBR/transparency, asset
+imports and full M4/Qt acceptance remain incomplete. M3 native acceptance also
+remains required; this extraction does not waive it.
