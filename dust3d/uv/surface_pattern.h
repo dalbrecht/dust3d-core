@@ -26,6 +26,7 @@
 #include <cstdint>
 #include <dust3d/base/color.h>
 #include <dust3d/base/vector3.h>
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -76,6 +77,18 @@ public:
     // `surfacePoints`: points spread over the surface (its vertices), for the body's long
     // axis that stripes run across.
     SurfacePattern(const Settings& settings, const std::vector<Vector3>& surfacePoints);
+
+    enum class ConstructionStage {
+        centering,
+        covariance
+    };
+    /// Construct with a synchronous checkpoint for long point scans; never retained.
+    /// @param settings Pattern settings, as in the legacy constructor.
+    /// @param surfacePoints Surface vertices, as in the legacy constructor.
+    /// @param checkpoint Periodic phase callback; exceptions propagate unchanged.
+    /// @throws std::bad_alloc Or the caller's checkpoint exception; RAII discards partial state.
+    /// Example: `SurfacePattern(settings, points, [](ConstructionStage) { checkCancellation(); });`
+    SurfacePattern(const Settings& settings, const std::vector<Vector3>& surfacePoints, const std::function<void(ConstructionStage)>& checkpoint);
 
     // `normal` is the unit surface normal; `footprint` is the world-space size of the texel
     // (the pattern is filtered to it, so small features fade instead of aliasing).

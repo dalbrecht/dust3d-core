@@ -243,3 +243,12 @@ default CI remain Qt-free. Probes measure image transposition, alpha rounding,
 seam gradients, material maps, procedural color/fold normals and narrow numerical
 UV agreement. See [observations and limits](docs/qt-bake-reference-verification.md).
 This is test tooling, not portable pixel baking or full editor parity.
+
+## Portable CPU texture baking
+
+The C++ `dust3d/uv/texture_baker.h` API bakes explicit RGBA8 source images,
+solid/seam colors, material scalars and world-space pattern/fold details into
+independently owned maps. Inputs remain unchanged; unknown UVs stay explicit.
+See [contracts, measured Qt comparisons and alpha policy](docs/texture-baker-verification.md)
+and ADR 0014. C/Swift pixel ownership, decoding and Apple rendering follow in
+separate dependency stages; this API alone does not complete editor M4.

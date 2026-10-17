@@ -25,6 +25,7 @@
 
 #include <cstdint>
 #include <dust3d/base/vector3.h>
+#include <functional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -108,6 +109,19 @@ public:
     // `strength` 0..1 scales the depth of every fold.
     ClothFolds(const std::vector<Fold>& folds, double strength);
 
+    enum class ConstructionStage {
+        preparingFolds,
+        buildingGrid,
+        sortingGrid
+    };
+    /// Construct using a synchronous, borrowed phase checkpoint; never retained.
+    /// @param folds Fold records with the same preconditions as the legacy constructor.
+    /// @param strength Depth scale, clamped to 0..1.
+    /// @param checkpoint Periodic phase callback; exceptions propagate unchanged.
+    /// @throws std::bad_alloc Or the caller's checkpoint exception; RAII discards partial state.
+    /// Example: `ClothFolds(folds, 1, [](ConstructionStage) { checkCancellation(); });`
+    ClothFolds(const std::vector<Fold>& folds, double strength, const std::function<void(ConstructionStage)>& checkpoint);
+
     // The fold height (world units) at a surface point with unit normal `normal`; `crease`
     // (optional) gets how deep in a crease the point is, 0..1.
     double heightAt(const Vector3& position, const Vector3& normal, double* crease = nullptr) const;
@@ -116,6 +130,15 @@ public:
     // surface point; `footprint` is the texel size in world units.
     void evaluate(const Vector3& position, const Vector3& normal, const Vector3& tangent, const Vector3& bitangent,
         double footprint, Vector3* tangentSpaceNormal, double* cavity) const;
+
+    /// Evaluate with a synchronous borrowed checkpoint, polled during segment visits.
+    /// Parameters match the legacy overloads. The callback is never retained;
+    /// its original exception propagates and output pointers may be partially written.
+    /// Example: `folds.heightAt(position, normal, nullptr, [] { checkCancellation(); });`
+    double heightAt(const Vector3& position, const Vector3& normal, double* crease, const std::function<void()>& checkpoint) const;
+    /// Checkpoints also apply to every neighbouring height sample used for normals.
+    void evaluate(const Vector3& position, const Vector3& normal, const Vector3& tangent, const Vector3& bitangent,
+        double footprint, Vector3* tangentSpaceNormal, double* cavity, const std::function<void()>& checkpoint) const;
 
     bool empty() const { return m_folds.empty(); }
     size_t foldCount() const { return m_folds.size(); }

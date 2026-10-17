@@ -140,18 +140,34 @@ uint32_t SurfacePattern::seedFromString(const std::string& text)
 }
 
 SurfacePattern::SurfacePattern(const Settings& settings, const std::vector<Vector3>& surfacePoints)
+    : SurfacePattern(settings, surfacePoints, {})
+{
+}
+
+SurfacePattern::SurfacePattern(const Settings& settings, const std::vector<Vector3>& surfacePoints, const std::function<void(ConstructionStage)>& checkpoint)
     : m_settings(settings)
 {
+    if (checkpoint)
+        checkpoint(ConstructionStage::centering);
     m_settings.scale = std::max(1e-4, m_settings.scale);
     m_settings.belly = std::max(0.0, std::min(1.0, m_settings.belly));
     if (surfacePoints.empty())
         return;
-    for (const auto& p : surfacePoints)
+    size_t processed = 0;
+    for (const auto& p : surfacePoints) {
+        if (processed++ % 256 == 0 && checkpoint)
+            checkpoint(ConstructionStage::centering);
         m_center += p;
+    }
     m_center = m_center / (double)surfacePoints.size();
     // the long axis: the principal direction of the points (power iteration on the covariance)
     double c[3][3] = { { 0 } };
+    if (checkpoint)
+        checkpoint(ConstructionStage::covariance);
+    processed = 0;
     for (const auto& p : surfacePoints) {
+        if (processed++ % 256 == 0 && checkpoint)
+            checkpoint(ConstructionStage::covariance);
         Vector3 d = p - m_center;
         for (int i = 0; i < 3; ++i)
             for (int j = 0; j < 3; ++j)
@@ -167,6 +183,8 @@ SurfacePattern::SurfacePattern(const Settings& settings, const std::vector<Vecto
         axis = next.normalized();
     }
     m_longAxis = axis;
+    if (checkpoint)
+        checkpoint(ConstructionStage::covariance);
 }
 
 Color SurfacePattern::colorAt(const Vector3& position, const Vector3& normal, double footprint) const
