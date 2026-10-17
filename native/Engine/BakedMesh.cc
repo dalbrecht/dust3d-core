@@ -25,7 +25,9 @@ namespace native {
             const auto& text = String::valueOrEmpty(attributes, key);
             if (text.empty())
                 return fallback;
-            std::istringstream input(text);
+            auto normalized = text;
+            std::replace(normalized.begin(), normalized.end(), ',', '.');
+            std::istringstream input(normalized);
             input.imbue(std::locale::classic());
             double value = 0;
             input >> value;

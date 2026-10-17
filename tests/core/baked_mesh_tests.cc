@@ -226,6 +226,13 @@ void proceduralSnapshotInputs()
     options.materialSize = 8;
     const auto expected = dust3d::TextureBaker::bake(fixture.object, fixture.atlas, inputs, options);
     require(data.maps[0] && data.maps[1] && expected.normal && data.maps[0]->pixels == expected.color.pixels && data.maps[1]->pixels == expected.normal->pixels, "Snapshot pattern/ink/scale/belly/seed/folds must match independently constructed resolved inputs");
+    attributes["wrapPatternScale"] = "0,100000";
+    attributes["wrapBelly"] = "0,400000";
+    attributes["wrapWrinkles"] = "1,000000";
+    dust3d::native::BakedMeshData legacy(fixture.options);
+    legacy.appendTriangle(0);
+    legacy.prepare(fixture.object, fixture.snapshot, fixture.atlas);
+    require(legacy.maps[0]->pixels == data.maps[0]->pixels && legacy.maps[1]->pixels == data.maps[1]->pixels, "Legacy comma-decimal wrapping settings must retain their pattern, belly and fold outputs");
     fixture.options.maximum_bake_payload_bytes = data.payloadBytes;
     dust3d::native::BakedMeshData exact(fixture.options);
     exact.appendTriangle(0);
@@ -348,7 +355,12 @@ void publicImagesAndMaterials()
     require(!dust3d_baked_mesh_load(reinterpret_cast<const uint8_t*>(bytes.data()), bytes.size(), &options, &error) && error.status == DUST3D_STATUS_UNSUPPORTED_ASSET && std::strstr(error.message, "image"), "Missing decoded assets must fail explicitly rather than baking a fallback color");
     options.images = &image;
     options.image_count = 1;
-    for (const auto* value : { "-1", "2", "nan", ".5junk" }) {
+    const auto legacyBytes = model("metallic='0,500000' roughness='0,250000' emissive='2,000000'");
+    std::unique_ptr<Dust3DMesh, decltype(&dust3d_mesh_destroy)> legacyPreview(dust3d_mesh_load(reinterpret_cast<const uint8_t*>(legacyBytes.data()), legacyBytes.size(), &error), dust3d_mesh_destroy);
+    require(legacyPreview != nullptr, "Legacy comma-decimal archive must remain accepted by ordinary generation");
+    Owner legacy(dust3d_baked_mesh_load(reinterpret_cast<const uint8_t*>(legacyBytes.data()), legacyBytes.size(), &options, &error), dust3d_baked_mesh_destroy);
+    require(legacy && dust3d_baked_mesh_texture(legacy.get(), DUST3D_TEXTURE_METALLIC).pixels[0] == 128 && dust3d_baked_mesh_texture(legacy.get(), DUST3D_TEXTURE_ROUGHNESS).pixels[0] == 64, "Baking must preserve legacy comma-decimal material values accepted by normal generation");
+    for (const auto* value : { "-1", "2", "nan", ".5junk", "0,5junk", "0,5.2" }) {
         const auto malformed = model(std::string("metallic='") + value + "'");
         require(!dust3d_baked_mesh_load(reinterpret_cast<const uint8_t*>(malformed.data()), malformed.size(), &options, &error) && error.status == DUST3D_STATUS_UNSUPPORTED_ASSET && std::strstr(error.message, "metallic"), "Unsupported material scalars must preserve their specific cause at the C boundary");
     }

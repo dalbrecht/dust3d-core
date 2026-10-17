@@ -50,8 +50,8 @@ switch or an artificial coverage branch.
 
 ## Gate and scope
 
-The full CMake Debug suite passed 34/34 (23.75 s). Strict Swift 6 consumers passed,
-including both baked fixtures. The full ASan/UBSan suite passed 34/34 (70.44 s).
+The full CMake Debug suite passed 34/34 (24.94 s). Strict Swift 6 consumers passed,
+including both baked fixtures. The full ASan/UBSan suite passed 34/34 (70.34 s).
 Seven relevant optional Qt comparisons passed (21.27 s); the underlying baker and
 reference paths are unchanged by this adapter stage. Native linkage inspection of
 the new contract executable lists only libc++ and libSystem, with no Qt/Apple UI
@@ -59,8 +59,8 @@ framework. New source formatting, strict Swift lint and diff checks passed.
 
 LLVM instrumentation of BakedMesh.cc and Cancellation.cc was linked into the
 actual boundary contract executable. All 19 functions ran. BakedMesh.cc measured
-192/205 executable lines (93.66%), Cancellation.cc 16/17 (94.12%): aggregate 208/222
-lines (93.69%), 182/204 regions (89.22%) and 120/148 branches (81.08%). This scope
+194/207 executable lines (93.72%), Cancellation.cc 16/17 (94.12%): aggregate 210/224
+lines (93.75%), 182/204 regions (89.22%) and 120/148 branches (81.08%). This scope
 excludes headers, the generation bridge, inherited kernels and the complete core.
 Allocation/catch-all recovery and defensive invariant branches remain uncovered;
 no unreachable behavior was added to improve the report. The standards' coverage
@@ -74,3 +74,18 @@ this is not a process-memory or cancellation-latency guarantee. Inherited docume
 generation and UV work observe phase boundaries rather than arbitrary preemption.
 Apple exact-pin adoption, asset decoding, PBR/transparency/AO, textured export,
 UI/GPU checks and broader M3/M4 acceptance remain separate reviewed stages.
+
+
+## Review regression: legacy decimal separators
+
+Automated review found that classic-locale full-consumption parsing rejected
+legacy comma-decimal scalars accepted by normal generation. A failing-first real
+archive test confirms ordinary preview accepts comma-decimal metallic/roughness/
+emission before requiring the same baked values. The scalar boundary now
+normalizes comma to period before strict parsing, retaining finite/range checks
+and rejecting trailing junk or mixed separators. Pattern scale, belly and wrinkle
+strength have pixel-equivalence checks between comma and period spellings.
+
+After this fix, Debug passed 34/34 (24.94 s), ASan/UBSan passed 34/34 (70.34 s),
+strict Swift consumers passed, and scoped coverage above was refreshed. Formatting,
+manifest lint and diff checks passed. No inherited kernel/reference path changed.
