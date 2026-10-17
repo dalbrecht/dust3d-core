@@ -205,6 +205,24 @@ namespace {
                 spread(index + image.width);
         }
     }
+    int chartPixelSpan(double origin, double extent)
+    {
+        return std::max(1, static_cast<int>(std::ceil(origin + extent)) - static_cast<int>(std::floor(origin)));
+    }
+    double chartImageCoordinate(double normalized, double origin, double extent, bool flipped)
+    {
+        if (extent < 1) {
+            const auto offset = std::floor(origin) + normalized * chartPixelSpan(origin, extent) - origin;
+            if (offset <= 0)
+                return 0;
+            if (offset >= extent)
+                return 1;
+            return offset / extent;
+        }
+        if (!flipped)
+            return std::clamp(normalized - (0.5 + origin - std::floor(origin)) / static_cast<int>(extent), 0.0, 1.0);
+        return normalized;
+    }
     template <typename Paint>
     std::vector<uint8_t> rectangles(TextureImage& output, const UvAtlas& atlas, double bleedFraction, const TextureBakeOptions& options, Paint paint, const std::set<size_t>& skipped = {})
     {
@@ -218,16 +236,20 @@ namespace {
             const auto& layout = atlas.layouts[ordinal];
             const auto left = static_cast<int>(layout.left * size);
             const auto top = static_cast<int>(layout.top * size);
-            const auto width = static_cast<int>(layout.width * size);
-            const auto height = static_cast<int>(layout.height * size);
-            if (!width || !height)
+            const auto extentX = layout.width * size;
+            const auto extentY = layout.height * size;
+            if (extentX == 0 || extentY == 0)
                 continue;
+            const auto width = chartPixelSpan(layout.left * size, extentX);
+            const auto height = chartPixelSpan(layout.top * size, extentY);
+            const auto sampleWidth = extentX < 1 ? width : static_cast<int>(extentX);
+            const auto sampleHeight = extentY < 1 ? height : static_cast<int>(extentY);
             for (int y = std::max(0, top - bleed); y < std::min(size, top + height + bleed); ++y) {
                 checkCancellation(options);
                 for (int x = std::max(0, left - bleed); x < std::min(size, left + width + bleed); ++x) {
                     const auto index = static_cast<size_t>(y) * output.width + x;
-                    const double u = std::clamp((x - left + 0.5) / width, 0.0, 1.0);
-                    const double v = std::clamp((y - top + 0.5) / height, 0.0, 1.0);
+                    const double u = std::clamp((x - left + 0.5) / sampleWidth, 0.0, 1.0);
+                    const double v = std::clamp((y - top + 0.5) / sampleHeight, 0.0, 1.0);
                     put(output, index, paint(ordinal, layout, u, v));
                     covered[index] = 1;
                 }
@@ -645,12 +667,8 @@ TextureBakeResult TextureBaker::bake(const Object& object, const UvAtlas& atlas,
         // Sample that translated pixel lattice rather than snapping the origin down.
         const auto left = layout.left * options.colorSize;
         const auto top = layout.top * options.colorSize;
-        const auto width = static_cast<size_t>(layout.width * options.colorSize);
-        const auto height = static_cast<size_t>(layout.height * options.colorSize);
-        if (!layout.flipped) {
-            u = std::clamp(u - (0.5 + left - std::floor(left)) / width, 0.0, 1.0);
-            v = std::clamp(v - (0.5 + top - std::floor(top)) / height, 0.0, 1.0);
-        }
+        u = chartImageCoordinate(u, left, layout.width * options.colorSize, layout.flipped);
+        v = chartImageCoordinate(v, top, layout.height * options.colorSize, layout.flipped);
         if (layout.flipped)
             std::swap(u, v);
         const auto x = std::min(source.width - 1, static_cast<size_t>(u * source.width));

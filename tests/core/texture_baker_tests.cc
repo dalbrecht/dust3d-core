@@ -458,6 +458,52 @@ void resolvedChartSources()
     inputs.images.clear();
     rejects([&] { dust3d::detail::resolveTextureChartSources(atlas, inputs, options); }, dust3d::TextureBakeErrorCode::invalidInput);
 }
+void subTexelCharts()
+{
+    Fixture fixture;
+    fixture.options.colorSize = fixture.options.materialSize = 64;
+    fixture.atlas.layouts[0].color = dust3d::Color(0, 0, 1);
+    auto tiny = fixture.atlas.layouts[0];
+    tiny.sourceId = imageId;
+    tiny.color = dust3d::Color(1, 0, 0);
+    tiny.left = tiny.top = 0.4;
+    tiny.width = tiny.height = 0.001;
+    tiny.globalUv.clear();
+    fixture.atlas.triangleUvs[0] = { dust3d::Vector2(0.4, 0.4), dust3d::Vector2(0.401, 0.4), dust3d::Vector2(0.401, 0.401) };
+    fixture.atlas.triangleComponentIds[0] = imageId;
+    const auto& triangle = fixture.object.triangles[0];
+    const std::array<dust3d::PositionKey, 3> key { dust3d::PositionKey(fixture.object.vertices[triangle[0]]), dust3d::PositionKey(fixture.object.vertices[triangle[1]]), dust3d::PositionKey(fixture.object.vertices[triangle[2]]) };
+    fixture.atlas.layouts[0].globalUv.erase(key);
+    tiny.globalUv[key] = fixture.atlas.triangleUvs[0];
+    fixture.atlas.layouts.push_back(tiny);
+    dust3d::TextureBakeInputs inputs;
+    inputs.materials[imageId] = { 0.5, 0.25, 2 };
+    const auto result = fixture.bake(inputs);
+    const size_t offset = (25 * 64 + 25) * 4;
+    require(result.color.pixels[offset] == 255 && result.color.pixels[offset + 2] == 0, "A positive sub-texel chart must retain its own color instead of neighbour dilation");
+    require(result.metallic && result.roughness && result.emissive, "Sub-texel material charts must activate their maps");
+    require(result.metallic->pixels[offset] == 128 && result.roughness->pixels[offset] == 64 && result.emissive->pixels[offset] == 255, "Sub-texel charts must retain scalar and emission samples");
+    const std::vector<uint8_t> pixel { 0, 255, 0, 255 };
+    fixture.atlas.layouts[1].id = imageId;
+    inputs.images[imageId] = { 1, 1, 4, pixel.size(), pixel.data() };
+    const auto image = fixture.bake(inputs);
+    require(image.color.pixels[offset] == 0 && image.color.pixels[offset + 1] == 255, "Sub-texel image charts must sample valid source pixels without zero dimensions");
+    auto& crossing = fixture.atlas.layouts[1];
+    crossing.left = 25.8 / 64;
+    crossing.width = 0.4 / 64;
+    fixture.atlas.triangleUvs[0] = { dust3d::Vector2(crossing.left, crossing.top), dust3d::Vector2(crossing.left + crossing.width, crossing.top), dust3d::Vector2(crossing.left + crossing.width, crossing.top + crossing.height) };
+    crossing.globalUv[key] = fixture.atlas.triangleUvs[0];
+    const auto boundary = fixture.bake(inputs);
+    require(boundary.color.pixels[offset + 1] == 255 && boundary.color.pixels[offset + 5] == 255, "A sub-texel chart crossing a pixel boundary must cover both intersecting texels");
+    crossing.width = 1.2 / 64;
+    fixture.atlas.triangleUvs[0][1][0] = crossing.left + crossing.width;
+    fixture.atlas.triangleUvs[0][2][0] = crossing.left + crossing.width;
+    crossing.globalUv[key] = fixture.atlas.triangleUvs[0];
+    const auto fractional = fixture.bake(inputs);
+    require(fractional.color.pixels[offset + 1] == 255 && fractional.color.pixels[offset + 5] == 255 && fractional.color.pixels[offset + 10] == 255, "A fractional chart span must cover its intersecting texels without erasing the next pixel");
+    fixture.atlas.layouts[1].width = 0;
+    require(fixture.bake(inputs).color.pixels[offset + 2] == 255, "A zero-area chart must remain empty");
+}
 void generatedFixtures(const std::string& directory)
 {
     for (const std::string name : { "Capsule.ds3", "Sword.ds3", "RoundedCrossing.ds3" }) {
@@ -548,6 +594,7 @@ int main(int argc, char* argv[])
         serializedFoldNormals();
         mandatoryBudgetBeforeSurfacePreparation();
         resolvedChartSources();
+        subTexelCharts();
         require(argc == 2, "Expected fixture directory");
         generatedFixtures(argv[1]);
         std::cout << "Texture bake contracts passed\n";
