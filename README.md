@@ -44,7 +44,7 @@ legacy geometry algorithms; generation is serialized and not interruptible.
 - [C++ conventions](docs/cpp-standards.md): retain C++17 and the inherited `.clang-format`.
 - `.standards` pins the shared coding standards; `AGENTS.md` supplies core-specific rules.
 - CI builds on Linux/macOS and runs a separate Linux ASan/UBSan configuration.
-- CTest now includes twelve contracts/scenarios, including successful empty output, numeric locales and boolean boundaries; this is not full engine coverage.
+- CTest now includes fifteen contracts/scenarios, including configured stitching lines/loops/fill, successful empty output, numeric locales and boolean boundaries; this is not full engine coverage.
   Existing C++ warnings and broad algorithm coverage remain adoption work.
 
 `upstream-sync` is untouched upstream history; `master` contains downstream additions.
