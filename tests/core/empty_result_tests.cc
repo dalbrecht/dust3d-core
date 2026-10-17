@@ -42,8 +42,8 @@ std::string loopModel(bool filled)
     return stream.str();
 }
 
-// Side-closing straight splines folds each onto itself, a degenerate generation case.
-std::string failedStitchModel()
+// This straight-profile surface previously failed due to the unclamped angle calculation.
+std::string straightStitchModel()
 {
     std::ostringstream nodes;
     std::ostringstream edges;
@@ -64,6 +64,12 @@ std::string failedStitchModel()
     return "<canvas originX='.5' originY='.5' originZ='.5'><nodes>" + nodes.str() + "</nodes><edges>" + edges.str()
         + "</edges><parts>" + parts.str() + "</parts><components><component id='" + identity(300) + "' sideClosed='true'>"
         + components.str() + "</component></components></canvas>";
+}
+
+// A negative legacy offset removes the complete wrapping surface, so generation genuinely fails.
+std::string failedWrapModel()
+{
+    return "<canvas originX='.5' originY='.5' originZ='.5'><nodes><node id='{00001000-0000-4000-8000-000000001000}' partId='{00000100-0000-4000-8000-000000000100}' x='.5' y='.5' z='.5' radius='.2'/></nodes><edges/><parts><part id='{00000100-0000-4000-8000-000000000100}'/></parts><components><component id='{00000300-0000-4000-8000-000000000300}' wrap='Cloth' wrapFaces='64' wrapOffset='-1'><component id='{00000200-0000-4000-8000-000000000200}' linkDataType='partId' linkData='{00000100-0000-4000-8000-000000000100}'/></component></components></canvas>";
 }
 
 std::string archive(const std::string& xml)
@@ -103,8 +109,17 @@ int main()
         require(dust3d_mesh_node_count(filled.get()) == 4 && dust3d_mesh_part_count(filled.get()) == 1, "Filled owner source counts must survive empty loads");
         auto invalid = load("not a ds3 archive", &error);
         require(!invalid && error.status == DUST3D_STATUS_INVALID_DOCUMENT, "Malformed input must not become no-geometry");
-        auto failed = load(archive(failedStitchModel()), &error);
-        require(!failed && error.status == DUST3D_STATUS_GENERATION_FAILED, "A degenerate nonfinite result must remain a genuine generation failure");
+        auto straight = load(archive(straightStitchModel()), &error);
+        require(straight && error.status == DUST3D_STATUS_OK, "Straight-profile generation must not fail through rounded angle input");
+        const auto* straightVertices = dust3d_mesh_vertices(straight.get());
+        const auto straightCount = dust3d_mesh_vertex_count(straight.get());
+        require(straightVertices && straightCount > 0 && straightCount % 3 == 0, "Straight profiles must retain triangle output");
+        for (size_t index = 0; index < straightCount; ++index) {
+            for (size_t axis = 0; axis < 3; ++axis)
+                require(std::isfinite(straightVertices[index].position[axis]) && std::isfinite(straightVertices[index].normal[axis]), "Repaired straight-profile output must remain finite");
+        }
+        auto failed = load(archive(failedWrapModel()), &error);
+        require(!failed && error.status == DUST3D_STATUS_GENERATION_FAILED, "A failed wrap must remain a genuine generation failure");
         require(error.message[0] != '\0', "Generation failure must retain its original diagnostic");
         auto restored = load(filledBytes, &error);
         require(restored && error.status == DUST3D_STATUS_OK && error.message[0] == '\0', "A later success must reset the diagnostic and generate again");

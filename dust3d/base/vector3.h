@@ -320,7 +320,7 @@ public:
 
     inline static double angleBetween(const Vector3& first, const Vector3& second)
     {
-        return std::acos(dotProduct(first.normalized(), second.normalized()));
+        return angle(first, second);
     }
 
     Vector3 rotated(const Vector3& unitAxis, double angle) const;
