@@ -1,12 +1,16 @@
 import Dust3DEngine
 import Foundation
 
-private func copiedSources(_ data: Data) throws -> (count: Int, identifiers: [String]) {
+private func copiedSources(_ data: Data, session: OpaquePointer? = nil) throws -> (count: Int, identifiers: [String]) {
     var error = Dust3DError()
     var options = Dust3DSourceOptions(
         struct_size: MemoryLayout<Dust3DSourceOptions>.size, maximum_payload_bytes: 0)
     let owner = data.withUnsafeBytes {
-        dust3d_sourced_mesh_load($0.bindMemory(to: UInt8.self).baseAddress, $0.count, &options, &error)
+        if let session {
+            return dust3d_generation_session_load_sourced(
+                session, $0.bindMemory(to: UInt8.self).baseAddress, $0.count, &options, &error)
+        }
+        return dust3d_sourced_mesh_load($0.bindMemory(to: UInt8.self).baseAddress, $0.count, &options, &error)
     }
     guard let owner else { throw CocoaError(.coderInvalidValue) }
     defer { dust3d_sourced_mesh_destroy(owner) }
@@ -31,6 +35,19 @@ private func copiedSources(_ data: Data) throws -> (count: Int, identifiers: [St
         let first = try copiedSources(data)
         let second = try copiedSources(data)
         precondition(first.count == second.count && first.identifiers == second.identifiers)
+        var error = Dust3DError()
+        guard let session = dust3d_generation_session_create(Int(DUST3D_DEFAULT_CACHE_PAYLOAD_BYTES), &error) else {
+            throw CocoaError(.coderInvalidValue)
+        }
+        defer { dust3d_generation_session_destroy(session) }
+        let cachedFirst = try copiedSources(data, session: session)
+        let cachedSecond = try copiedSources(data, session: session)
+        var stats = Dust3DGenerationStats()
+        precondition(
+            dust3d_generation_session_get_stats(session, &stats, MemoryLayout.size(ofValue: stats), &error)
+                == DUST3D_STATUS_OK)
+        precondition(stats.reused_components > 0 && cachedFirst.count == cachedSecond.count)
+        precondition(cachedSecond.identifiers == first.identifiers)
         print(
             "Swift 6 source smoke passed: \(first.count) copied corners; \(first.identifiers.count) original identities"
         )

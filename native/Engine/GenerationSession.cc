@@ -1,5 +1,6 @@
 #include "GenerationPipeline.h"
 #include "SnapshotInvalidation.h"
+#include "SourceProvenance.h"
 #include <algorithm>
 #include <cstdio>
 #include <cstring>
@@ -116,13 +117,15 @@ struct Dust3DGenerationSession {
         stats.cache_outcome = DUST3D_CACHE_RESET_AFTER_FAILURE;
     }
 
-    Dust3DMesh* load(const uint8_t* bytes, size_t size)
+    Dust3DMesh* load(const uint8_t* bytes, size_t size, std::unique_ptr<dust3d::native::SourceProvenance>* sources = nullptr, size_t maximumSourceBytes = 0)
     {
         clearStats();
         AssetCollector collector;
         std::string warning;
         auto source = dust3d::native::readDocument(bytes, size, warning,
             stats.maximum_cache_payload_bytes ? &collector : nullptr);
+        if (sources)
+            *sources = std::make_unique<dust3d::native::SourceProvenance>(*source, maximumSourceBytes);
         std::unique_ptr<dust3d::Snapshot> transient;
         if (!stats.maximum_cache_payload_bytes) {
             cache.reset();
@@ -175,7 +178,7 @@ struct Dust3DGenerationSession {
         bool isEmpty = false;
         try {
             mesh = dust3d::native::generateMesh(cache ? std::move(transient) : std::move(source), warning,
-                cache ? &cache->context : nullptr, &metrics);
+                cache ? &cache->context : nullptr, &metrics, sources ? sources->get() : nullptr);
         } catch (const dust3d::native::DocumentError& exception) {
             if (exception.status() != DUST3D_STATUS_NO_GEOMETRY)
                 throw;
@@ -220,7 +223,9 @@ Dust3DGenerationSession* dust3d_generation_session_create(size_t maximumBytes, D
 
 void dust3d_generation_session_destroy(Dust3DGenerationSession* session) { delete session; }
 
-Dust3DMesh* dust3d_generation_session_load(Dust3DGenerationSession* session, const uint8_t* bytes, size_t size, Dust3DError* error)
+namespace {
+template <typename Output, typename Operation>
+Output* loadSession(Dust3DGenerationSession* session, Dust3DError* error, Operation&& operation)
 {
     dust3d::native::setError(error, DUST3D_STATUS_OK, "");
     if (!session) {
@@ -230,7 +235,7 @@ Dust3DMesh* dust3d_generation_session_load(Dust3DGenerationSession* session, con
     try {
         std::lock_guard<std::mutex> lock(dust3d::native::engineMutex());
         try {
-            return session->load(bytes, size);
+            return operation();
         } catch (const dust3d::native::DocumentError& exception) {
             if (exception.status() != DUST3D_STATUS_NO_GEOMETRY)
                 session->fail();
@@ -249,6 +254,28 @@ Dust3DMesh* dust3d_generation_session_load(Dust3DGenerationSession* session, con
         dust3d::native::setError(error, DUST3D_STATUS_GENERATION_FAILED, "Cannot lock the modeling engine.");
     }
     return nullptr;
+}
+
+}
+
+Dust3DMesh* dust3d_generation_session_load(Dust3DGenerationSession* session, const uint8_t* bytes, size_t size, Dust3DError* error)
+{
+    return loadSession<Dust3DMesh>(session, error, [&] { return session->load(bytes, size); });
+}
+
+Dust3DSourcedMesh* dust3d_generation_session_load_sourced(Dust3DGenerationSession* session, const uint8_t* bytes, size_t size, const Dust3DSourceOptions* options, Dust3DError* error)
+{
+    const auto maximumBytes = dust3d::native::sourcePayloadLimit(options, error);
+    if (!maximumBytes)
+        return nullptr;
+    return loadSession<Dust3DSourcedMesh>(session, error, [&] {
+        std::unique_ptr<dust3d::native::SourceProvenance> sources;
+        std::unique_ptr<Dust3DMesh> geometry(session->load(bytes, size, &sources, maximumBytes));
+        auto owner = std::make_unique<Dust3DSourcedMesh>();
+        owner->geometry = std::move(geometry);
+        owner->sources = std::move(sources);
+        return owner.release();
+    });
 }
 
 Dust3DStatus dust3d_generation_session_reset(Dust3DGenerationSession* session, Dust3DError* error)

@@ -6,6 +6,20 @@
 
 namespace dust3d {
 namespace native {
+    size_t sourcePayloadLimit(const Dust3DSourceOptions* options, Dust3DError* error) noexcept
+    {
+        setError(error, DUST3D_STATUS_OK, "");
+        if (!options || options->struct_size != sizeof(Dust3DSourceOptions)) {
+            setError(error, DUST3D_STATUS_INVALID_DOCUMENT, "Source generation requires correctly sized options.");
+            return 0;
+        }
+        if (options->maximum_payload_bytes > DUST3D_MAX_SOURCE_PAYLOAD_BYTES) {
+            setError(error, DUST3D_STATUS_LIMIT_EXCEEDED, "The source payload budget exceeds 256 MiB.");
+            return 0;
+        }
+        return options->maximum_payload_bytes == 0 ? DUST3D_DEFAULT_SOURCE_PAYLOAD_BYTES : options->maximum_payload_bytes;
+    }
+
     SourceProvenance::SourceProvenance(const Snapshot& snapshot, size_t maximumBytes)
         : m_maximumBytes(maximumBytes)
     {
@@ -88,21 +102,13 @@ namespace native {
 }
 }
 
-struct Dust3DSourcedMesh {
-    std::unique_ptr<Dust3DMesh> geometry;
-    std::unique_ptr<dust3d::native::SourceProvenance> sources;
-};
-
 Dust3DSourcedMesh* dust3d_sourced_mesh_load(const uint8_t* bytes, size_t size, const Dust3DSourceOptions* options, Dust3DError* error)
 {
     using namespace dust3d::native;
-    setError(error, DUST3D_STATUS_OK, "");
+    const auto maximumBytes = sourcePayloadLimit(options, error);
+    if (!maximumBytes)
+        return nullptr;
     try {
-        if (!options || options->struct_size != sizeof(Dust3DSourceOptions))
-            throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Source generation requires correctly sized options.");
-        if (options->maximum_payload_bytes > DUST3D_MAX_SOURCE_PAYLOAD_BYTES)
-            throw DocumentError(DUST3D_STATUS_LIMIT_EXCEEDED, "The source payload budget exceeds 256 MiB.");
-        const size_t maximumBytes = options->maximum_payload_bytes == 0 ? DUST3D_DEFAULT_SOURCE_PAYLOAD_BYTES : options->maximum_payload_bytes;
         std::lock_guard<std::mutex> lock(engineMutex());
         std::string warning;
         auto snapshot = readDocument(bytes, size, warning);

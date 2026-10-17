@@ -9,6 +9,9 @@ namespace dust3d {
 class Object;
 class Vector3;
 namespace native {
+    // Zero means validation failed; a configured zero selects the nonzero default.
+    size_t sourcePayloadLimit(const Dust3DSourceOptions* options, Dust3DError* error) noexcept;
+
     struct SourceIdentity {
         std::string node;
         std::string part;
@@ -36,4 +39,8 @@ namespace native {
     };
 }
 }
+struct Dust3DSourcedMesh {
+    std::unique_ptr<Dust3DMesh> geometry;
+    std::unique_ptr<dust3d::native::SourceProvenance> sources;
+};
 #endif

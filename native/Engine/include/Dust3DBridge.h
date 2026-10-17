@@ -174,6 +174,27 @@ void dust3d_generation_session_destroy(Dust3DGenerationSession* session);
  * and preserve their cause in stats. Never throws across the C boundary.
  */
 Dust3DMesh* dust3d_generation_session_load(Dust3DGenerationSession* session, const uint8_t* bytes, size_t size, Dust3DError* error);
+/** Generate source hints using the session's bounded component caches.
+ * @param session Valid cache owner; NULL reports INVALID_DOCUMENT.
+ * @param bytes Complete archive bytes, borrowed only during the serialized call.
+ * @param size Archive size; the ordinary input limit applies.
+ * @param options Required source options; source/cache budgets are independent.
+ * @param error Optional primary diagnostic, initialized on entry.
+ * @return Independent sourced owner or NULL with the ordinary source-load status.
+ * Invalid options preserve prior session cache/statistics. After valid options,
+ * source allocation/budget failures fail this request and clear partial cache;
+ * cache-only failures still return valid sourced geometry with separate stats.
+ * NO_GEOMETRY remains successful emptiness and may retain cache. All source arrays
+ * describe current original document keys, not retained previous output metadata.
+ * Never throws. Ownership/accessor rules match dust3d_sourced_mesh_load.
+ * @code
+ * Dust3DSourceOptions options = { sizeof(Dust3DSourceOptions), 0 };
+ * Dust3DSourcedMesh* owner = dust3d_generation_session_load_sourced(session, bytes, size, &options, &error);
+ * dust3d_sourced_mesh_destroy(owner); // NULL accepted; independent of session.
+ * @endcode
+ */
+Dust3DSourcedMesh* dust3d_generation_session_load_sourced(Dust3DGenerationSession* session, const uint8_t* bytes, size_t size, const Dust3DSourceOptions* options, Dust3DError* error);
+
 /** Release retained state and clear per-call metrics; keep the configured limit.
  * @param session Valid session owner.
  * @param error Optional diagnostic output.

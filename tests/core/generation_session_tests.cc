@@ -485,9 +485,17 @@ void concurrentCalls(const std::string& directory)
                     MeshOwner mesh(dust3d_mesh_load(bytes.data(), bytes.size(), &error), dust3d_mesh_destroy);
                     require(mesh && error.status == DUST3D_STATUS_OK, "Concurrent legacy generation failed");
                     requireFreshEquivalent(mesh.get(), bytes);
-                } else {
-                    const auto mesh = load(index % 3 == 1 ? shared.get() : independent.get(), bytes);
+                } else if (index % 3 == 1) {
+                    const auto mesh = load(shared.get(), bytes);
                     requireFreshEquivalent(mesh.get(), bytes);
+                } else {
+                    Dust3DError error {};
+                    Dust3DSourceOptions options { sizeof(options), 0 };
+                    std::unique_ptr<Dust3DSourcedMesh, decltype(&dust3d_sourced_mesh_destroy)> mesh(
+                        dust3d_generation_session_load_sourced(index % 2 ? shared.get() : independent.get(), bytes.data(), bytes.size(), &options, &error), dust3d_sourced_mesh_destroy);
+                    require(mesh && error.status == DUST3D_STATUS_OK, "Concurrent cached source generation failed");
+                    requireFreshEquivalent(dust3d_sourced_mesh_geometry(mesh.get()), bytes);
+                    require(dust3d_sourced_mesh_corner_count(mesh.get()) == dust3d_mesh_vertex_count(dust3d_sourced_mesh_geometry(mesh.get())), "Concurrent source hints stay aligned");
                 }
             }
         }));
@@ -525,12 +533,109 @@ void limitsAndFailureRecovery(const std::string& directory)
     requireFreshEquivalent(recovered.get(), bytes);
     requireFreshEquivalent(previous.get(), bytes);
 }
+
+void sourcedSessions(const std::string& directory)
+{
+    using SourceOwner = std::unique_ptr<Dust3DSourcedMesh, decltype(&dust3d_sourced_mesh_destroy)>;
+    const auto bytes = fixture(directory, "Capsule");
+    Dust3DError error {};
+    Dust3DSourceOptions options { sizeof(options), 0 };
+    auto owner = session();
+    auto sourced = [&](const std::vector<uint8_t>& input, size_t budget = 0) {
+        Dust3DSourceOptions request { sizeof(request), budget };
+        return SourceOwner(dust3d_generation_session_load_sourced(owner.get(), input.data(), input.size(), &request, &error), dust3d_sourced_mesh_destroy);
+    };
+    auto first = sourced(bytes);
+    require(first && stats(owner.get()).reused_components == 0, "First sourced session must generate fresh");
+    auto second = sourced(bytes);
+    require(second && stats(owner.get()).reused_components > 0, "Source output must retain actual component reuse");
+    const auto* geometry = dust3d_sourced_mesh_geometry(first.get());
+    const auto count = dust3d_mesh_vertex_count(geometry);
+    require(count > 0 && count == dust3d_sourced_mesh_corner_count(first.get()), "Sourced cached geometry aligns with copied corners");
+    const std::string originalKey = dust3d_sourced_mesh_node_id(first.get(), 0);
+    const auto retained = stats(owner.get()).retained_payload_bytes;
+    Dust3DSourceOptions invalid { 0, 0 };
+    require(!dust3d_generation_session_load_sourced(owner.get(), bytes.data(), bytes.size(), &invalid, &error)
+            && error.status == DUST3D_STATUS_INVALID_DOCUMENT,
+        "Invalid source options reject before changing session state");
+    require(stats(owner.get()).retained_payload_bytes == retained, "Invalid options preserve prior cache/statistics");
+    require(sourced(bytes) && stats(owner.get()).reused_components > 0, "Rejected options cannot flush a valid cache");
+    require(!sourced(bytes, 1) && error.status == DUST3D_STATUS_LIMIT_EXCEEDED && error.message[0], "Source budget failure preserves its primary cause");
+    require(stats(owner.get()).cache_outcome == DUST3D_CACHE_RESET_AFTER_FAILURE && stats(owner.get()).retained_payload_bytes == 0, "Failed source export cannot retain partial cache");
+    require(sourced(bytes) && stats(owner.get()).reused_components == 0, "Source budget recovery starts fresh");
+    const auto xml = model(bytes);
+    for (const auto& input : { archive(change(xml, "node", "radius", ".12")), bytes, archive(xml, "opaque"), archive(xml, "OPAQUE") }) {
+        const auto current = sourced(input);
+        require(current != nullptr, "Edited/restored/asset-revised source generation must succeed");
+        requireFreshEquivalent(dust3d_sourced_mesh_geometry(current.get()), input);
+        require(dust3d_sourced_mesh_corner_count(current.get()) == dust3d_mesh_vertex_count(dust3d_sourced_mesh_geometry(current.get())), "Edits cannot misalign source corners");
+    }
+    std::string unbraced = originalKey.substr(1, originalKey.size() - 2);
+    auto renamed = xml;
+    size_t start = 0;
+    while ((start = renamed.find(originalKey, start)) != std::string::npos) {
+        renamed.replace(start, originalKey.size(), unbraced);
+        start += unbraced.size();
+    }
+    const auto aliased = sourced(archive(renamed));
+    bool foundCurrentKey = false;
+    for (size_t index = 0; index < dust3d_sourced_mesh_identity_count(aliased.get()); ++index)
+        foundCurrentKey = foundCurrentKey || unbraced == dust3d_sourced_mesh_node_id(aliased.get(), index);
+    require(aliased && foundCurrentKey, "Original identity export must use current document spelling, never retained output identities");
+    const auto hidden = archive(change(xml, "part", "disabled", "true"));
+    require(!sourced(hidden) && error.status == DUST3D_STATUS_NO_GEOMETRY && stats(owner.get()).cache_outcome == DUST3D_CACHE_RETAINED, "Sourced session preserves successful empty generation");
+    require(dust3d_generation_session_reset(owner.get(), &error) == DUST3D_STATUS_OK, "Session reset must succeed");
+    owner.reset();
+    require(originalKey == dust3d_sourced_mesh_node_id(first.get(), 0) && count == dust3d_sourced_mesh_corner_count(first.get()), "Source owner survives session changes/reset/destruction");
+    requireFreshEquivalent(geometry, bytes);
+
+    for (const auto budget : { size_t { 0 }, size_t { 1 } }) {
+        auto limited = session(budget);
+        SourceOwner result(dust3d_generation_session_load_sourced(limited.get(), bytes.data(), bytes.size(), &options, &error), dust3d_sourced_mesh_destroy);
+        require(result != nullptr, "Disabled/insufficient cache still returns source output");
+        const auto state = stats(limited.get());
+        require(state.retained_payload_bytes == 0 && state.cache_outcome == (budget ? DUST3D_CACHE_BYPASSED : DUST3D_CACHE_DISABLED), "Source budget and cache budget remain independent");
+    }
+    owner = session();
+    auto grouped = xml;
+    grouped.insert(grouped.find("<components>") + std::string("<components>").size(),
+        "<component id='{cccccccc-cccc-4ccc-8ccc-cccccccccccc}' wrap='Cloth' wrapFaces='64'>");
+    grouped.insert(grouped.find("</components>"), "</component>");
+    const auto wrappedBytes = archive(grouped);
+    const auto wrapped = sourced(wrappedBytes);
+    const auto cachedWrap = sourced(wrappedBytes);
+    require(wrapped && cachedWrap && stats(owner.get()).reused_components > 0, "Weighted wrapping source output must reuse component geometry");
+    const auto* wrappedCorners = dust3d_sourced_mesh_corners(cachedWrap.get());
+    bool hasMultipleWeights = false;
+    for (size_t index = 0; index < dust3d_sourced_mesh_corner_count(cachedWrap.get()); ++index)
+        hasMultipleWeights = hasMultipleWeights || (wrappedCorners[index].kind == DUST3D_SOURCE_WEIGHTED_HINT && wrappedCorners[index].influence_count > 1);
+    require(hasMultipleWeights, "Cache hits preserve complete multi-node wrapping influences");
+    requireFreshEquivalent(dust3d_sourced_mesh_geometry(cachedWrap.get()), wrappedBytes);
+    auto allocationSession = session();
+    failSnapshotAllocation = 1;
+    SourceOwner failedSource(dust3d_generation_session_load_sourced(allocationSession.get(), bytes.data(), bytes.size(), &options, &error), dust3d_sourced_mesh_destroy);
+    const auto remainingFailure = failSnapshotAllocation;
+    failSnapshotAllocation = 0;
+    require(remainingFailure == 0 && !failedSource && error.status == DUST3D_STATUS_LIMIT_EXCEEDED, "Decoded-source allocation failure stays inside the sourced C boundary");
+    require(stats(allocationSession.get()).cache_outcome == DUST3D_CACHE_RESET_AFTER_FAILURE, "Source primary allocation failure resets partial cache state");
+    failSnapshotAllocation = 2;
+    observedSnapshotAllocations = 0;
+    SourceOwner fallback(dust3d_generation_session_load_sourced(allocationSession.get(), bytes.data(), bytes.size(), &options, &error), dust3d_sourced_mesh_destroy);
+    const auto observations = observedSnapshotAllocations;
+    failSnapshotAllocation = 0;
+    require(observations == 2 && fallback && error.status == DUST3D_STATUS_OK, "Real cache clone allocation failure must preserve sourced generation");
+    require(stats(allocationSession.get()).cache_outcome == DUST3D_CACHE_BYPASSED && stats(allocationSession.get()).cache_status == DUST3D_STATUS_LIMIT_EXCEEDED, "Cache-only failure remains separate from successful source export");
+    requireFreshEquivalent(dust3d_sourced_mesh_geometry(fallback.get()), bytes);
+    require(!sourced(archive(change(xml, "node", "x", "abc"))) && error.status == DUST3D_STATUS_INVALID_DOCUMENT && error.message[0], "Cached source parser failures preserve invalid-document classification and cause");
+    require(!dust3d_generation_session_load_sourced(nullptr, nullptr, 0, &options, nullptr), "Null session/diagnostic must be safe");
+}
 }
 
 int main(int argc, char** argv)
 {
     try {
         require(argc == 2, "A fixture directory is required");
+        sourcedSessions(argv[1]);
         boundaries();
         reuseAndIndependentOwnership(argv[1]);
         limitsAndFailureRecovery(argv[1]);

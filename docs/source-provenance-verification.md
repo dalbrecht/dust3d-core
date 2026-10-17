@@ -4,7 +4,9 @@ Tracking: core #25; design: [ADR 0008](adr/0008-generated-source-hints.md).
 
 ## Contract
 
-`dust3d_sourced_mesh_load` is opt-in and stateless. Its independent owner lends
+`dust3d_sourced_mesh_load` is opt-in and stateless. The optional
+`dust3d_generation_session_load_sourced` variant preserves bounded cache reuse;
+see [cached-source verification](cached-source-verification.md). Its independent owner lends
 geometry, corner/influence arrays, and original node/part strings until destruction.
 A copied indexed mesh survives that destruction. Corner i corresponds to expanded
 vertex i and indexed triangle index i, including after float-degenerate triangles
@@ -58,7 +60,7 @@ warnings as errors. Swift source arrays and strings are copied during ownership.
 Run the ordinary CMake build/CTest suite and repeat with
 `-DDUST3D_ENABLE_SANITIZERS=ON`, plus the Swift script, `clang-format` on native/test
 files, `swift-format` on the package/new smoke, and the existing Qt boundary check.
-Measured local results:
+Measured local results for the reviewed stateless stage, PR #26 (`dfccc21`):
 
 - Debug build and all **29 CTest contracts passed** (48.50 s).
 - ASan/UBSan build and all **29 contracts passed** (125.29 s). The initial
@@ -78,6 +80,6 @@ Measured local results:
 No UI changed;
 no native GPU, VoiceOver or Qt GUI parity result is claimed here.
 
-Remaining work includes cached source export, Swift/editor adoption, broader
+Remaining work includes Swift/editor adoption, broader
 modifier differential corpora, exact surface provenance if future consumers need
 it, and the inherited engine's coverage/resource-limit adoption gaps.
