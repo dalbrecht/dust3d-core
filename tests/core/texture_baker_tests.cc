@@ -405,6 +405,21 @@ void serializedFoldNormals()
     require(result.normal.has_value(), "Inherited serialized folds must bake after safe normal normalization");
     require(inputs.surfaces.at(componentId).folds[0].normals[0].x() == decoded[0].normals[0].x(), "Normal normalization must not mutate caller-owned fold inputs");
 }
+void mandatoryBudgetBeforeSurfacePreparation()
+{
+    Fixture fixture;
+    fixture.options.maximumPayloadBytes = 1;
+    dust3d::TextureBakeInputs inputs;
+    auto& surface = inputs.surfaces[componentId];
+    surface.wrinkleStrength = 1;
+    dust3d::ClothFolds::Fold fold;
+    fold.points = { { 1e12, 0, 0 }, { 1e12, 1, 0 } };
+    fold.normals = { { 0, 0, 1 }, { 0, 0, 1 } };
+    fold.width = 0.1;
+    fold.depth = 0.01;
+    surface.folds = { fold };
+    rejects([&] { fixture.bake(inputs); }, dust3d::TextureBakeErrorCode::limitExceeded);
+}
 void generatedFixtures(const std::string& directory)
 {
     for (const std::string name : { "Capsule.ds3", "Sword.ds3", "RoundedCrossing.ds3" }) {
@@ -493,6 +508,7 @@ int main(int argc, char* argv[])
         denseSurfaceWork();
         inactiveSurfaceIndexing();
         serializedFoldNormals();
+        mandatoryBudgetBeforeSurfacePreparation();
         require(argc == 2, "Expected fixture directory");
         generatedFixtures(argv[1]);
         std::cout << "Texture bake contracts passed\n";

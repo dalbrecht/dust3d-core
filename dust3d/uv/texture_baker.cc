@@ -566,9 +566,6 @@ TextureBakeResult TextureBaker::bake(const Object& object, const UvAtlas& atlas,
         hasEmissive = hasEmissive || found->second.emissive > 0;
     }
     hasRoughness = hasRoughness || hasMetallic;
-    size_t indexedVertices = 0;
-    auto charts = surfaces(object, atlas, inputs, options, indexedVertices);
-    const bool hasNormal = std::any_of(charts.begin(), charts.end(), [](const SurfaceChart& chart) { return bool(chart.folds); });
     const size_t budget = options.maximumPayloadBytes ? options.maximumPayloadBytes : maximumBudget;
     size_t payload = 0;
     auto account = [&](size_t count, size_t elementSize) {
@@ -578,12 +575,15 @@ TextureBakeResult TextureBaker::bake(const Object& object, const UvAtlas& atlas,
     };
     account(object.triangles.size(), sizeof(TextureTangent));
     account(options.colorSize * options.colorSize, 4);
-    if (hasNormal)
-        account(options.normalSize * options.normalSize, 4);
     for (bool enabled : { hasMetallic, hasRoughness, hasEmissive }) {
         if (enabled)
             account(options.materialSize * options.materialSize, 4);
     }
+    size_t indexedVertices = 0;
+    auto charts = surfaces(object, atlas, inputs, options, indexedVertices);
+    const bool hasNormal = std::any_of(charts.begin(), charts.end(), [](const SurfaceChart& chart) { return bool(chart.folds); });
+    if (hasNormal)
+        account(options.normalSize * options.normalSize, 4);
     TextureBakeResult result;
     result.payloadBytes = payload;
     result.surfaceVertexIndexEntries = indexedVertices;
