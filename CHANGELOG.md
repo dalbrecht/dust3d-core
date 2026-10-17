@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Reject malformed and nonfinite values for every wrapping scalar at the native archive boundary, preserving finite legacy values and inherited generator clamping.
+
 - Extend portable C ABI contracts for configured stitching closures, segment counts, loop caps and isolated/connected fill behavior across the existing Linux/macOS sanitizer matrix.
 
 - Distinguish successful generation with no geometry from genuine generation failures through an explicit C API status and portable ownership/error regression tests.

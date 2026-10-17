@@ -145,7 +145,7 @@ namespace native {
             if (String::valueOrEmpty(component.second, "linkDataType") == "partId"
                 && !snapshot.parts.count(String::valueOrEmpty(component.second, "linkData")))
                 throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "A component references a missing part.");
-            for (const auto* key : { "targetSegments", "smoothCutoffDegrees", "backCloseDepthRatio", "backCloseSharpness", "wrapOffset", "wrapFaces", "wrapWrinkles" })
+            for (const auto* key : { "targetSegments", "smoothCutoffDegrees", "backCloseDepthRatio", "backCloseSharpness", "wrapOffset", "wrapFaces", "wrapWrinkles", "wrapSmoothness", "wrapDrape", "wrapDrapeLength", "wrapOpenTop", "wrapOpenBottom", "wrapThickness", "wrapWeightRadius", "wrapPatternScale", "wrapBelly", "wrapWrinkleSize" })
                 validateNumber(component.second, key);
         }
         orientEdges(snapshot);
