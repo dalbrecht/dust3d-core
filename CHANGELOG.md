@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add checked retained-payload accounting for actual geometry/cache owners, reserved buffers, nested metadata and wrapping results, with explicit borrowed-view handling before persistent sessions are enabled.
+
 - Add a portable semantic snapshot-invalidation foundation for native component caches, deriving old/new ownership and dependency changes without trusting saved dirty flags. Persistent cache activation follows separately.
 
 - Add optional independently owned indexed C ABI buffers with full-attribute sharing, copied source metadata, explicit payload budgets and portable lifetime/seam/concurrency contracts.

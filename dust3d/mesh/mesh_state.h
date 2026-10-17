@@ -31,8 +31,12 @@
 
 namespace dust3d {
 
+class RetainedPayloadBudget;
+
 class MeshState {
 public:
+    /// Account owned dynamic payload; borrowed views are excluded.
+    void accountDynamicPayload(RetainedPayloadBudget& budget) const noexcept;
     std::unique_ptr<MeshCombiner::Mesh> mesh;
     std::vector<std::pair<std::set<std::array<PositionKey, 3>>, std::set<std::array<PositionKey, 3>>>> seamTriangleUvs;
     std::vector<std::array<PositionKey, 3>> brokenTriangles;

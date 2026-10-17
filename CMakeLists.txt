@@ -34,6 +34,7 @@ target_link_libraries(dust3d_core PUBLIC dust3d_remesher dust3d_triangle Threads
 add_library(dust3d_engine STATIC
     native/Engine/Dust3DBridge.cc
     native/Engine/IndexedMesh.cc
+    native/Engine/RetainedPayload.cc
     native/Engine/SnapshotInvalidation.cc
     native/Engine/DocumentReader.cc
     native/Engine/SnapshotValidator.cc)
@@ -85,6 +86,11 @@ if(BUILD_TESTING)
     target_link_libraries(dust3d_snapshot_invalidation_tests PRIVATE dust3d_engine dust3d_core)
     add_test(NAME contract_snapshot_invalidation COMMAND dust3d_snapshot_invalidation_tests)
     set_tests_properties(contract_snapshot_invalidation PROPERTIES TIMEOUT 60)
+    add_executable(dust3d_retained_payload_tests tests/core/retained_payload_tests.cc)
+    target_include_directories(dust3d_retained_payload_tests PRIVATE native/Engine)
+    target_link_libraries(dust3d_retained_payload_tests PRIVATE dust3d_engine dust3d_core)
+    add_test(NAME contract_retained_payload COMMAND dust3d_retained_payload_tests ${CMAKE_CURRENT_SOURCE_DIR}/tests/core/fixtures)
+    set_tests_properties(contract_retained_payload PROPERTIES TIMEOUT 60)
     # A C translation unit must consume the public ABI without C++/Qt headers.
     add_executable(dust3d_c_consumer tests/core/c_consumer.c)
     set_target_properties(dust3d_c_consumer PROPERTIES LINKER_LANGUAGE CXX)

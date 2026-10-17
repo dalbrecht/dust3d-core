@@ -28,8 +28,12 @@
 
 namespace dust3d {
 
+class RetainedPayloadBudget;
+
 class AxisAlignedBoudingBoxTree {
 public:
+    /// Account owned dynamic payload; borrowed views are excluded.
+    void accountDynamicPayload(RetainedPayloadBudget& budget) const noexcept;
     struct Node {
         AxisAlignedBoudingBox boundingBox;
         Vector3 center;

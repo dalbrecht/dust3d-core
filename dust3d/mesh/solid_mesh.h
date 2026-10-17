@@ -29,8 +29,12 @@
 
 namespace dust3d {
 
+class RetainedPayloadBudget;
+
 class SolidMesh {
 public:
+    /// Account owned dynamic payload; borrowed views are excluded.
+    void accountDynamicPayload(RetainedPayloadBudget& budget) const noexcept;
     ~SolidMesh();
     void setVertices(const std::vector<Vector3>* vertices);
     void setTriangles(const std::vector<std::vector<size_t>>* triangles);
