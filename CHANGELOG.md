@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add a portable C++ CPU texture-bake API with owned RGBA8 maps, explicit image views, material scalars, world-space patterns/fold normals and triangle tangents; C/Swift adoption and renderer integration remain separate.
+
 - Add optional isolated offscreen Qt bake reference probes, including numerical portable UV comparison, procedural maps and explicit alpha/material observations; native targets remain Qt-free.
 
 - Add opt-in owned C UV metadata with float-retained triangle alignment, original component identities, explicit ambiguity, bounded resolved image descriptors and strict Swift 6 copy consumers; baking and Apple app adoption remain separate.
