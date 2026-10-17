@@ -16,8 +16,13 @@ archives plus developer-installed Qt Core/Gui and compiles preserved application
 UV/image/model data sources without editing them. It forces the offscreen platform,
 uses public APIs, and emits JSON plus optional explicitly requested diagnostics.
 Configuration verifies matching native checkout/sanitizer modes and the reference
-build refreshes native engine archives before linking, preventing stale-code
-comparisons. The native CMake/SwiftPM dependency graph and standard CI configuration stay
+build refreshes native engine archives before linking. A generated reference-owned
+completion stamp is an explicit linker dependency: ordering alone is insufficient
+for Ninja's pre-build archive timestamp decisions. This intentionally relinks each
+successful reference build without giving reference cleaning ownership of native
+archives. A real incremental regression touches only an unchanged source timestamp
+and verifies archive/executable freshness, preventing stale-code comparisons.
+The native CMake/SwiftPM dependency graph and standard CI configuration stay
 unchanged; native products never depend on the reference target or Qt.
 
 Probe solid/image/seam/material/procedural/alpha cases and compare original-object

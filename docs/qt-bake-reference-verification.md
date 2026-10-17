@@ -15,6 +15,19 @@ also reject. Source-directory and sanitizer-mode mismatch configurations fail
 with their specific diagnostics. The optional build refreshes matching native
 archives before linking, avoiding stale-code numerical comparisons.
 
+## Automated review regression
+
+Review finding 4303997971 identified that ordering the nested build did not force
+Ninja to relink after imported archives changed. A real Ninja regression first
+fails with "Reference executable stayed stale after its native archive refreshed".
+It builds the actual project, touches only the existing atlas source timestamp,
+and checks archive/executable times and unchanged source content. A generated
+reference-owned completion stamp is now an explicit linker dependency, forcing
+relink after a successful refresh without giving reference cleaning ownership of
+native archives. The targeted Ninja regression passes. Full Makefiles, Ninja and
+sanitizer runs include this serial case; do not run the source-timestamp probes
+concurrently from different build directories sharing the checkout.
+
 ## Measured observations
 
 | Probe | Actual observed result |
@@ -48,10 +61,11 @@ explicit; no root default or interpolated coordinates are invented.
 
 ## Final local gates
 
-- Optional reference Debug build/CTest: 10/10 (32.99 seconds).
-- Optional reference ASan/UBSan build/CTest: 10/10 (138.03 seconds), halt-on-UB.
-- Default native Debug build/CTest: 32/32 (23.31 seconds).
-- Default native ASan/UBSan build/CTest: 32/32 (69.34 seconds), halt-on-UB.
+- Optional reference Makefiles Debug build/CTest: 11/11 (12.42 seconds).
+- Optional reference Ninja Debug build/CTest: 11/11 (12.10 seconds).
+- Optional reference ASan/UBSan build/CTest: 11/11 (38.52 seconds), halt-on-UB.
+- Default native Debug build/CTest: 32/32 (30.00 seconds).
+- Default native ASan/UBSan build/CTest: 32/32 (88.27 seconds), halt-on-UB.
 - SwiftPM source build and strict Swift 6/warnings-as-errors session/source/UV
   consumers pass; UV Capsule 80/1 chart and Sword 320/18 charts.
 - New reference/native test formatting, native adapter formatting, manifest lint,

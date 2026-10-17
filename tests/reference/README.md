@@ -33,11 +33,15 @@ On other systems, point `CMAKE_PREFIX_PATH` to the installed Qt prefix as needed
 static archives from this checkout, compiler, configuration and architecture.
 Use the shown single-configuration Makefiles/Ninja layout, with the cache and
 archives in the same build directory. Multi-configuration archive layouts are not
-supported by this optional helper; native builds themselves remain unaffected. Configuration checks the native source directory and sanitizer mode; the optional
-build rebuilds the matching native engine target before linking imported archives,
-so stale libraries cannot silently pass a comparison. Do not simultaneously run
-another build in that same native build directory. This never changes native link
-dependencies. The source Qt application files are compiled unmodified.
+supported by this optional helper; native builds themselves remain unaffected.
+
+Configuration checks the source directory and sanitizer mode. Before linking,
+the helper rebuilds the matching native engine target. A reference-owned completion
+stamp is an explicit linker dependency, so Ninja relinks after that nested build.
+This intentionally relinks each successful reference build; native archives remain
+owned by the native build and are not deleted when cleaning the reference target.
+Do not simultaneously run another build in that same native build directory.
+Native link dependencies and preserved Qt application sources remain unchanged.
 
 Run one probe to print JSON. An optional third argument saves diagnostic PNGs to
 an explicit output directory; no files or images are written there by default.
@@ -77,7 +81,14 @@ reference-design approval or evidence of full GPU/display parity.
 - `input-bounds`: rejects a sparse oversized input before allocating archive bytes.
 
 Two additional negative startup tests reject extra Qt platform options and unknown
-scenarios.
+scenarios. `qt_reference_incremental_relink` builds the real target, touches only
+`uv_atlas_builder.cc`'s timestamp (not its contents), then checks the native archive
+refreshes and the executable relinks afterward. It verifies the source hash stays
+unchanged. CTest runs this case serially; do not run it concurrently from multiple
+reference build directories sharing one checkout. Ninja users should run the full
+suite with Ninja installed as their selected CMake generator, not assume Makefiles
+exercise Ninja scheduling. The helper leaves the source timestamp refreshed, which
+may cause other native build directories to recompile that unchanged file.
 
 The reference remains fixed at 4096 color / 2048 fold-normal / 1024 material maps.
 Probes do not change private fields or add production fault switches. Qt-internal

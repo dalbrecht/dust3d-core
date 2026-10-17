@@ -34,9 +34,13 @@ if((native_sanitizers AND NOT DUST3D_REFERENCE_ENABLE_SANITIZERS) OR
    (DUST3D_REFERENCE_ENABLE_SANITIZERS AND NOT native_sanitizers))
     message(FATAL_ERROR "Native and reference sanitizer options must match")
 endif()
-# Imported archives alone could leave comparisons using stale implementation code.
+# A generated reference-owned stamp forces relinking after the nested build.
+# Native archives are not byproducts here: cleaning the probe must not delete them.
+set(reference_native_stamp "${CMAKE_CURRENT_BINARY_DIR}/native-refresh.stamp")
 add_custom_target(reference_native_build
     COMMAND "${CMAKE_COMMAND}" --build "${DUST3D_CORE_BUILD_DIR}" --target dust3d_engine --parallel 4
+    COMMAND "${CMAKE_COMMAND}" -E touch "${reference_native_stamp}"
+    BYPRODUCTS "${reference_native_stamp}"
     VERBATIM)
 foreach(component engine core remesher triangle)
     set(archive "${DUST3D_CORE_BUILD_DIR}/${CMAKE_STATIC_LIBRARY_PREFIX}dust3d_${component}${CMAKE_STATIC_LIBRARY_SUFFIX}")
@@ -54,6 +58,7 @@ add_executable(dust3d_qt_bake_reference
     "${DUST3D_SOURCE_ROOT}/application/sources/model_mesh.cc"
     "${DUST3D_SOURCE_ROOT}/application/sources/image_forever.cc")
 add_dependencies(dust3d_qt_bake_reference reference_native_build)
+set_property(TARGET dust3d_qt_bake_reference APPEND PROPERTY LINK_DEPENDS "${reference_native_stamp}")
 target_include_directories(dust3d_qt_bake_reference PRIVATE
     "${DUST3D_SOURCE_ROOT}" "${DUST3D_SOURCE_ROOT}/native/Engine/include"
     "${DUST3D_SOURCE_ROOT}/application/sources"
@@ -86,3 +91,9 @@ add_test(NAME qt_reference_rejects_unknown_scenario
     COMMAND dust3d_qt_bake_reference unknown "${DUST3D_SOURCE_ROOT}/tests/core/fixtures")
 set_tests_properties(qt_reference_rejects_platform_option qt_reference_rejects_unknown_scenario
     PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen" WILL_FAIL TRUE TIMEOUT 30)
+
+add_test(NAME qt_reference_incremental_relink
+    COMMAND "${CMAKE_COMMAND}" -DREFERENCE_BUILD_DIR=${CMAKE_CURRENT_BINARY_DIR}
+        -DNATIVE_CORE_ARCHIVE=$<TARGET_FILE:reference_core>
+        -P "${CMAKE_CURRENT_LIST_DIR}/check_incremental_relink.cmake")
+set_tests_properties(qt_reference_incremental_relink PROPERTIES RUN_SERIAL TRUE TIMEOUT 180)
