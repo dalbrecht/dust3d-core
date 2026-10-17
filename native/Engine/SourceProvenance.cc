@@ -115,7 +115,7 @@ Dust3DSourcedMesh* dust3d_sourced_mesh_load(const uint8_t* bytes, size_t size, c
     } catch (const std::bad_alloc&) {
         setError(error, DUST3D_STATUS_LIMIT_EXCEEDED, "Not enough memory to export mesh source associations.");
     } catch (const std::exception& exception) {
-        setError(error, DUST3D_STATUS_GENERATION_FAILED, exception.what());
+        setError(error, DUST3D_STATUS_INVALID_DOCUMENT, exception.what());
     } catch (...) {
         setError(error, DUST3D_STATUS_GENERATION_FAILED, "An unknown error occurred while exporting mesh source associations.");
     }

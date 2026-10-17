@@ -227,6 +227,22 @@ void concurrentLoads(const std::vector<uint8_t>& bytes)
     require(expected > 0 && jobs[1].get() == expected && jobs[2].get() == expected, "All generation APIs share serialization and preserve output counts");
 }
 
+void malformedGeometry()
+{
+    for (const auto* value : { "abc", "1e9999" }) {
+        const auto bytes = archive("<canvas originX='.5' originY='.5' originZ='.5'><nodes><node id='" + node + "' partId='" + part
+            + "' x='" + value + "' y='.5' z='.5' radius='.1'/></nodes><edges/><parts><part id='" + part
+            + "'/></parts><components><component id='{00000200-0000-4000-8000-000000000200}' linkDataType='partId' linkData='" + part + "'/></components></canvas>");
+        Dust3DError legacyError {};
+        std::unique_ptr<Dust3DMesh, decltype(&dust3d_mesh_destroy)> legacy(dust3d_mesh_load(reinterpret_cast<const uint8_t*>(bytes.data()), bytes.size(), &legacyError), dust3d_mesh_destroy);
+        require(!legacy && legacyError.status == DUST3D_STATUS_INVALID_DOCUMENT, "Legacy loader must classify malformed/overflowing numbers as invalid input");
+        Dust3DError sourceError {};
+        Dust3DSourceOptions options { sizeof(options), 0 };
+        std::unique_ptr<Dust3DSourcedMesh, decltype(&dust3d_sourced_mesh_destroy)> owner(dust3d_sourced_mesh_load(reinterpret_cast<const uint8_t*>(bytes.data()), bytes.size(), &options, &sourceError), dust3d_sourced_mesh_destroy);
+        require(!owner && sourceError.status == legacyError.status && sourceError.message[0] != 0, "Source loader must preserve malformed/overflowing numeric input status and cause");
+    }
+}
+
 void publicContract(const std::string& fixtures)
 {
     Dust3DError error {};
@@ -310,6 +326,7 @@ int main(int argc, char** argv)
         publicContract(argv[1]);
         generatedCorpus();
         filteredPrecision();
+        malformedGeometry();
         std::cout << "Source provenance contracts passed\n";
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';

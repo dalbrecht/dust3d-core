@@ -46,6 +46,9 @@ production implementation. The resulting `contract_source_provenance` exercises:
   double triangles at exported float precision while preserving source alignment.
 - Concurrent legacy/session/source generation through the same native lock;
   missing/short options, oversized budgets, null owners and invalid identity indices.
+- Review regression: nonnumeric and overflowing numeric attributes produce the same
+  INVALID_DOCUMENT status and preserved parser diagnostic as the legacy loader.
+  The regression failed before the error-mapping fix.
 
 `contract_c_consumer` imports and calls the new API in a C translation unit.
 `tests/swift/verify-session.sh` builds the package cleanly and runs both the
@@ -57,17 +60,17 @@ Run the ordinary CMake build/CTest suite and repeat with
 files, `swift-format` on the package/new smoke, and the existing Qt boundary check.
 Measured local results:
 
-- Debug build and all **29 CTest contracts passed** (19.11 s).
-- ASan/UBSan build and all **29 contracts passed** (62.36 s). The initial
+- Debug build and all **29 CTest contracts passed** (48.50 s).
+- ASan/UBSan build and all **29 contracts passed** (125.29 s). The initial
   invocation incorrectly forced `detect_leaks=1`, which Apple's runtime rejects
   before executing any test. The successful rerun used macOS defaults; Linux
   hosted CI retains its existing leak-detection configuration.
 - Clean SwiftPM build and both Swift 6 strict-concurrency consumers passed;
   Capsule copied 240 corners and 3 original identity keys after source destruction.
 - C++/Swift formatting, shell syntax, diff and Qt-boundary checks passed.
-- Scoped instrumented `SourceProvenance.cc`: **101/107 lines (94.39%)**, 15/15
-  functions, 69/74 branches (93.24%). The six uncovered lines are allocation and
-  unexpected standard/nonstandard exception catch fallbacks at the C boundary.
+- Scoped instrumented `SourceProvenance.cc`: **104/107 lines (97.20%)**, 15/15
+  functions, 69/74 branches (93.24%). The three uncovered lines are allocation and
+  unexpected nonstandard exception catch fallbacks at the C boundary.
   No production fault switches were added to manufacture coverage. This is an
   adoption gap, not a claim of 100% core coverage; unrelated inherited engine
   code was not instrumented by this scoped measurement.
