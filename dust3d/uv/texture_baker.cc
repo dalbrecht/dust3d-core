@@ -519,6 +519,35 @@ namespace {
     }
 }
 namespace detail {
+    std::vector<TextureChartSource> resolveTextureChartSources(const UvAtlas& atlas, const TextureBakeInputs& inputs, const TextureBakeOptions& options)
+    {
+        checkCancellation(options);
+        std::vector<TextureChartSource> result(atlas.layouts.size());
+        for (size_t index = 0; index < atlas.gradients.size(); ++index) {
+            if (index % 256 == 0)
+                checkCancellation(options);
+            const auto& gradient = atlas.gradients[index];
+            if (gradient.layoutIndex >= result.size() || result[gradient.layoutIndex].gradient)
+                invalid("Texture gradient source has an invalid or duplicate layout ordinal");
+            result[gradient.layoutIndex].gradient = &gradient;
+        }
+        for (size_t index = 0; index < atlas.layouts.size(); ++index) {
+            if (index % 256 == 0)
+                checkCancellation(options);
+            const auto& layout = atlas.layouts[index];
+            auto& source = result[index];
+            if (!layout.id.isNull() && !source.gradient) {
+                const auto image = inputs.images.find(layout.id);
+                if (image == inputs.images.end())
+                    invalid("Texture chart image has no resolved pixels");
+                source.image = &image->second;
+            }
+            const auto material = inputs.materials.find(layout.sourceId);
+            if (material != inputs.materials.end())
+                source.material = material->second;
+        }
+        return result;
+    }
     std::vector<TextureTangent> buildTextureTangents(const Object& object, const UvAtlas& atlas, const TextureBakeOptions& options)
     {
         checkCancellation(options);
@@ -579,6 +608,7 @@ TextureBakeResult TextureBaker::bake(const Object& object, const UvAtlas& atlas,
         if (enabled)
             account(options.materialSize * options.materialSize, 4);
     }
+    const auto colorSources = detail::resolveTextureChartSources(atlas, inputs, options);
     size_t indexedVertices = 0;
     auto charts = surfaces(object, atlas, inputs, options, indexedVertices);
     const bool hasNormal = std::any_of(charts.begin(), charts.end(), [](const SurfaceChart& chart) { return bool(chart.folds); });
@@ -596,26 +626,21 @@ TextureBakeResult TextureBaker::bake(const Object& object, const UvAtlas& atlas,
             normalSkipped.insert(chart.layoutIndex);
     }
     auto colorCoverage = rectangles(result.color, atlas, 32.0 / 4096, options, [&](size_t ordinal, const UvMapPacker::Layout& layout, double u, double v) {
-        for (const auto& gradient : atlas.gradients) {
-            if (gradient.layoutIndex != ordinal)
-                continue;
+        if (const auto* gradient = colorSources[ordinal].gradient) {
             const auto coordinate = layout.flipped ? v : u;
-            const auto sample = std::min(gradient.resolution - 1, static_cast<size_t>(coordinate * gradient.resolution));
-            const auto amount = static_cast<double>(sample) / (gradient.resolution - 1);
+            const auto sample = std::min(gradient->resolution - 1, static_cast<size_t>(coordinate * gradient->resolution));
+            const auto amount = static_cast<double>(sample) / (gradient->resolution - 1);
             Pixel pixel;
             for (size_t channel = 0; channel < 4; ++channel) {
-                const auto large = static_cast<uint8_t>(gradient.largeColor[channel] * 255);
-                const auto small = static_cast<uint8_t>(gradient.smallColor[channel] * 255);
+                const auto large = static_cast<uint8_t>(gradient->largeColor[channel] * 255);
+                const auto small = static_cast<uint8_t>(gradient->smallColor[channel] * 255);
                 pixel[channel] = static_cast<uint8_t>(large * (1 - amount) + small * amount);
             }
             return pixel;
         }
         if (layout.id.isNull())
             return colorPixel(layout.color);
-        const auto found = inputs.images.find(layout.id);
-        if (found == inputs.images.end())
-            invalid("Texture chart image has no resolved pixels");
-        const auto& source = found->second;
+        const auto& source = *colorSources[ordinal].image;
         // The reference draws its integer-sized pixmap at the fractional chart origin.
         // Sample that translated pixel lattice rather than snapping the origin down.
         const auto left = layout.left * options.colorSize;
@@ -647,9 +672,8 @@ TextureBakeResult TextureBaker::bake(const Object& object, const UvAtlas& atlas,
     }
     auto materialImage = [&](int kind) {
         auto output = image(options.materialSize);
-        auto coverage = rectangles(output, atlas, 8.0 / 1024, options, [&](size_t, const UvMapPacker::Layout& layout, double, double) -> Pixel {
-            const auto found = inputs.materials.find(layout.sourceId);
-            const auto material = found == inputs.materials.end() ? TextureMaterial {} : found->second;
+        auto coverage = rectangles(output, atlas, 8.0 / 1024, options, [&](size_t ordinal, const UvMapPacker::Layout& layout, double, double) -> Pixel {
+            const auto& material = colorSources[ordinal].material;
             if (kind == 2) {
                 const auto strength = std::min(1.0, material.emissive);
                 return { byte(layout.color.r() * strength), byte(layout.color.g() * strength), byte(layout.color.b() * strength), 255 };

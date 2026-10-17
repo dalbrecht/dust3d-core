@@ -420,6 +420,44 @@ void mandatoryBudgetBeforeSurfacePreparation()
     surface.folds = { fold };
     rejects([&] { fixture.bake(inputs); }, dust3d::TextureBakeErrorCode::limitExceeded);
 }
+void resolvedChartSources()
+{
+    dust3d::UvAtlas atlas;
+    atlas.layouts.resize(2049);
+    for (size_t index = 0; index < 1024; ++index) {
+        dust3d::UvAtlasGradient gradient;
+        gradient.layoutIndex = (1023 - index) * 2;
+        atlas.gradients.push_back(gradient);
+    }
+    const std::vector<uint8_t> pixels(16, 255);
+    dust3d::TextureBakeInputs inputs;
+    atlas.layouts.back().id = imageId;
+    atlas.layouts.back().sourceId = componentId;
+    inputs.images[imageId] = { 2, 2, 8, pixels.size(), pixels.data() };
+    inputs.materials[componentId] = { 0.5, 0.25, 0.1 };
+    const auto sources = dust3d::detail::resolveTextureChartSources(atlas, inputs, {});
+    require(sources.size() == atlas.layouts.size(), "Resolved source table must align with layout ordinals");
+    for (size_t index = 0; index < 2048; ++index) {
+        if (index % 2 == 0)
+            require(sources[index].gradient && sources[index].gradient->layoutIndex == index, "Unsorted seam gradients must resolve directly to their layout");
+        else
+            require(!sources[index].gradient && !sources[index].image, "Ordinary charts must have explicit absent gradient/image pointers");
+    }
+    require(sources.back().image == &inputs.images.at(imageId) && sources.back().material.metallic == 0.5, "Image and material sources must resolve once to the correct chart");
+    std::atomic_bool cancelled(true);
+    dust3d::TextureBakeOptions options;
+    options.cancellation = &cancelled;
+    rejects([&] { dust3d::detail::resolveTextureChartSources(atlas, inputs, options); }, dust3d::TextureBakeErrorCode::cancelled);
+    options.cancellation = nullptr;
+    atlas.gradients.push_back(atlas.gradients.front());
+    rejects([&] { dust3d::detail::resolveTextureChartSources(atlas, inputs, options); }, dust3d::TextureBakeErrorCode::invalidInput);
+    atlas.gradients.pop_back();
+    atlas.gradients[0].layoutIndex = atlas.layouts.size();
+    rejects([&] { dust3d::detail::resolveTextureChartSources(atlas, inputs, options); }, dust3d::TextureBakeErrorCode::invalidInput);
+    atlas.gradients[0].layoutIndex = 2046;
+    inputs.images.clear();
+    rejects([&] { dust3d::detail::resolveTextureChartSources(atlas, inputs, options); }, dust3d::TextureBakeErrorCode::invalidInput);
+}
 void generatedFixtures(const std::string& directory)
 {
     for (const std::string name : { "Capsule.ds3", "Sword.ds3", "RoundedCrossing.ds3" }) {
@@ -509,6 +547,7 @@ int main(int argc, char* argv[])
         inactiveSurfaceIndexing();
         serializedFoldNormals();
         mandatoryBudgetBeforeSurfacePreparation();
+        resolvedChartSources();
         require(argc == 2, "Expected fixture directory");
         generatedFixtures(argv[1]);
         std::cout << "Texture bake contracts passed\n";

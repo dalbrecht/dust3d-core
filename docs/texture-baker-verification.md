@@ -83,8 +83,8 @@ these focused contracts or by Swift smoke tests. See ADR 0014.
 
 An LLVM-instrumented `texture_baker.cc` object was linked ahead of the ordinary
 native archives into the real contract executable, which ran all its analytic
-and generated-fixture cases. LLVM reports 670/695 executable lines (96.40%),
-504/530 regions (95.09%) and 408/484 branches (84.30%). This measures this source
+and generated-fixture cases. LLVM reports 686/711 executable lines (96.48%),
+520/546 regions (95.24%) and 421/498 branches (84.54%). This measures this source
 file only, not inherited procedural kernels, all headers, the C ABI or the
 complete core. The domain's aspirational 100% target is not met by this report;
 remaining degenerate/fallback and numeric-failure paths stay visible rather than
@@ -172,3 +172,25 @@ After inactive-path and serialized-normal fixes, full Debug 33/33 passed in
 31.11 seconds, ASan/UBSan 33/33 in 84.35 seconds, and all six Qt comparisons in
 29.27 seconds. Swift 6 consumers, formatting, manifest lint, source/link Qt
 checks and diff checks passed. Timings remain observations rather than budgets.
+
+## Review regressions: palette lookup and mandatory quota ordering
+
+Gradient, image and material sources now resolve once into a layout-aligned
+internal table. Pixel callbacks access an ordinal directly; they no longer scan
+all gradients or search source maps. A contract indexes 1,024 gradients supplied
+in reverse layout order among 2,049 layouts, checks ordinary/image/material
+bindings, cancellation, duplicate/out-of-range gradients and missing images.
+The table borrows immutable input records only for the synchronous call.
+
+Known mandatory color/tangent bytes and enabled scalar-map bytes are charged
+before source-table or procedural preparation. Optional normal bytes are charged
+after actual fold activation is known. A failing-first priority regression uses
+an insufficient mandatory quota and a fold grid that would otherwise fail its
+spatial preflight; the request now returns the output-limit error first. This
+prevents avoidable preparation for an already rejected output request, while
+retaining the documented distinction between logical output quota and workspace.
+
+After palette resolution and quota ordering, full Debug 33/33 passed in 21.66
+seconds, ASan/UBSan 33/33 in 84.77 seconds, and all six Qt comparisons in 21.46
+seconds. Swift 6 consumers, formatting, strict manifest lint and diff checks
+passed. Current scoped coverage above includes these source changes.
