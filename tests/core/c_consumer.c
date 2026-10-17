@@ -44,5 +44,13 @@ int main(void)
         return 10;
     dust3d_sourced_mesh_destroy(sourced);
     dust3d_generation_session_destroy(session);
+    Dust3DUvOptions uv_options = { sizeof(Dust3DUvOptions), 0, 0, NULL, 0 };
+    Dust3DUvMesh* uv_mesh = dust3d_uv_mesh_load(NULL, 0, &uv_options, &error);
+    if (uv_mesh != NULL || error.status != DUST3D_STATUS_INVALID_DOCUMENT
+        || dust3d_uv_mesh_geometry(NULL) != NULL || dust3d_uv_mesh_triangles(NULL) != NULL
+        || dust3d_uv_mesh_charts(NULL) != NULL || dust3d_uv_mesh_gradients(NULL) != NULL
+        || dust3d_uv_mesh_triangle_count(NULL) != 0 || dust3d_uv_mesh_payload_bytes(NULL) != 0)
+        return 11;
+    dust3d_uv_mesh_destroy(uv_mesh);
     return 0;
 }

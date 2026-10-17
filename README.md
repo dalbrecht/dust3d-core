@@ -40,8 +40,19 @@ include corner UVs, explicit missing-chart markers, component UUIDs and ordinal
 seam-gradient descriptors. The default logical output budget is 64 MiB (maximum
 256 MiB); workspace and allocator overhead are excluded. See
 [contracts and remaining limits](docs/uv-atlas-verification.md) and
-[ADR 0011](docs/adr/0011-portable-uv-atlas.md). Baking, C/Swift adoption and full
-texture rendering remain separate stages; existing C/Swift ABI is unchanged.
+[ADR 0011](docs/adr/0011-portable-uv-atlas.md). Baking, Apple app adoption and full
+texture rendering remain separate stages. Existing geometry APIs remain compatible.
+
+Opt-in `dust3d_uv_mesh_load` now returns an independent C owner with triangle-aligned
+UVs, explicit known/unknown mappings, chart/gradient descriptors and original
+component strings. Only float-retained geometry triangles gain published UV
+records. Caller-resolved bounded image dimensions avoid Qt/global image lookup;
+strict source color parsing preserves alpha-first notation. Aliases and generated
+identities remain explicit. The default 64 MiB logical quota charges retained
+atlas/C metadata and identity records (maximum 256 MiB), excluding geometry and
+workspace/allocator overhead. See [C/Swift contracts and limits](docs/uv-metadata-verification.md)
+and [ADR 0012](docs/adr/0012-owned-uv-metadata-boundary.md). These are metadata,
+not baked texture pixels or new renderer functionality.
 
 ## Build and test without Qt
 
