@@ -44,7 +44,7 @@ legacy geometry algorithms; generation is serialized and not interruptible.
 - [C++ conventions](docs/cpp-standards.md): retain C++17 and the inherited `.clang-format`.
 - `.standards` pins the shared coding standards; `AGENTS.md` supplies core-specific rules.
 - CI builds on Linux/macOS and runs a separate Linux ASan/UBSan configuration.
-- CTest now includes seventeen contracts/scenarios, including bounded angles, cloth openings, configured stitching lines/loops/fill, successful empty output, numeric locales and boolean boundaries; this is not full engine coverage.
+- CTest now includes eighteen contracts/scenarios, including exported precision, bounded angles, cloth openings, configured stitching lines/loops/fill, successful empty output, numeric locales and boolean boundaries; this is not full engine coverage.
   Existing C++ warnings and broad algorithm coverage remain adoption work.
 
 `upstream-sync` is untouched upstream history; `master` contains downstream additions.
@@ -154,3 +154,14 @@ is local to validation; the archive/snapshot data is not rewritten. Full input
 consumption, finite values, the existing magnitude limit, numeric underflow and
 negative node-radius rejection remain enforced. The `contract_numeric_decimals`
 CTest entry verifies actual C ABI mesh equivalence and malformed-input rejection.
+
+
+### Exported triangle precision
+
+The validated C ABI emits triangles with positive area at its float coordinate
+precision. Fully validated triangles that collapse during conversion are omitted;
+if all generated triangles collapse, loading fails with GENERATION_FAILED and a
+precision-specific diagnostic. Successful engine output with no triangles retains
+its distinct NO_GEOMETRY result. Source node/part counts and owning-buffer
+lifetimes are preserved. See [verification](docs/exported-triangle-precision.md)
+and ADR 0003 for the policy and its limits.

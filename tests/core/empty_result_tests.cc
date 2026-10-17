@@ -118,6 +118,20 @@ int main()
             for (size_t axis = 0; axis < 3; ++axis)
                 require(std::isfinite(straightVertices[index].position[axis]) && std::isfinite(straightVertices[index].normal[axis]), "Repaired straight-profile output must remain finite");
         }
+        require(dust3d_mesh_node_count(straight.get()) == 9 && dust3d_mesh_part_count(straight.get()) == 3, "Triangle cleanup must preserve straight-profile source counts");
+        for (size_t index = 0; index < straightCount; index += 3) {
+            double firstEdge[3], secondEdge[3];
+            for (size_t axis = 0; axis < 3; ++axis) {
+                firstEdge[axis] = static_cast<double>(straightVertices[index + 1].position[axis]) - straightVertices[index].position[axis];
+                secondEdge[axis] = static_cast<double>(straightVertices[index + 2].position[axis]) - straightVertices[index].position[axis];
+            }
+            const double cross[3] = {
+                firstEdge[1] * secondEdge[2] - firstEdge[2] * secondEdge[1],
+                firstEdge[2] * secondEdge[0] - firstEdge[0] * secondEdge[2],
+                firstEdge[0] * secondEdge[1] - firstEdge[1] * secondEdge[0]
+            };
+            require(cross[0] * cross[0] + cross[1] * cross[1] + cross[2] * cross[2] > 0, "Exported straight-profile triangles must have positive area");
+        }
         auto failed = load(archive(failedWrapModel()), &error);
         require(!failed && error.status == DUST3D_STATUS_GENERATION_FAILED, "A failed wrap must remain a genuine generation failure");
         require(error.message[0] != '\0', "Generation failure must retain its original diagnostic");

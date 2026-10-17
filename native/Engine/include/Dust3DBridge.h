@@ -36,6 +36,8 @@ typedef struct Dust3DError {
  * Generate a mesh from a complete .ds3 container. Bytes are borrowed only during this call.
  * Calls are internally serialized. Never throws across the C boundary.
  * Returns an owning handle for nonempty geometry, or NULL and a descriptive diagnostic.
+ * Zero-area triangles at exported float precision are omitted after validation.
+ * If all generated triangles collapse at that precision, DUST3D_STATUS_GENERATION_FAILED is returned.
  * DUST3D_STATUS_NO_GEOMETRY means generation succeeded without triangles; other non-OK statuses are failures.
  * Maximum input size: 256 MiB. Imported GLB geometry is not supported by this viewer.
  */
@@ -44,7 +46,9 @@ Dust3DMesh* dust3d_mesh_load(const uint8_t* bytes, size_t size, Dust3DError* err
 /** Release an owning handle. NULL is accepted. */
 void dust3d_mesh_destroy(Dust3DMesh* mesh);
 
-/** Borrowed expanded triangle vertices; valid until mesh destruction. NULL for a NULL handle. */
+/** Borrowed expanded triangle vertices with positive area at exported float precision.
+ * Valid until mesh destruction. NULL for a NULL handle.
+ */
 const Dust3DVertex* dust3d_mesh_vertices(const Dust3DMesh* mesh);
 
 /** Number of expanded vertices (a multiple of three). Zero for a NULL handle. */
