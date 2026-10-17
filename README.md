@@ -28,7 +28,13 @@ binary ABI release is promised by this initial source setup.
 The current API generates procedural geometry and colors from existing `.ds3`
 archives. Textures are untextured previews with warnings; embedded GLB geometry
 is explicitly unsupported. Editing/encoding, texture baking, export and animation
-APIs are planned. Input validation does not impose hard resource limits inside
+APIs are planned. `dust3d_mesh_load` returns an owning handle for nonempty output. A NULL handle
+with `DUST3D_STATUS_NO_GEOMETRY` means generation succeeded without triangles
+(for example an isolated closed loop with its fill disabled). Other non-OK
+statuses remain failures. Callers can clear a preview for this distinct result
+without treating malformed input or failed geometry as successful emptiness.
+
+Input validation does not impose hard resource limits inside
 legacy geometry algorithms; generation is serialized and not interruptible.
 
 ## Maintenance and quality
@@ -38,7 +44,7 @@ legacy geometry algorithms; generation is serialized and not interruptible.
 - [C++ conventions](docs/cpp-standards.md): retain C++17 and the inherited `.clang-format`.
 - `.standards` pins the shared coding standards; `AGENTS.md` supplies core-specific rules.
 - CI builds on Linux/macOS and runs a separate Linux ASan/UBSan configuration.
-- Initial CTest coverage is seven contract scenarios, not full engine coverage.
+- CTest now includes twelve contracts/scenarios, including successful empty output, numeric locales and boolean boundaries; this is not full engine coverage.
   Existing C++ warnings and broad algorithm coverage remain adoption work.
 
 `upstream-sync` is untouched upstream history; `master` contains downstream additions.
