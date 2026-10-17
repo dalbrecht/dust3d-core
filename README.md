@@ -6,6 +6,11 @@ and regularly integrates upstream through reviewed synchronization PRs.
 The original MIT license and third-party notices remain intact; new project code is MIT.
 This repository is a history-preserving duplicate, not a second GitHub network fork.
 
+Internal `SnapshotInvalidation` derives conservative component/part invalidation
+from immutable snapshot differences, ignoring persisted dirty flags and following
+profile, inheritance and wrapping dependencies. See [verification](docs/snapshot-invalidation-verification.md).
+Persistent cache ownership, budgets and generation-session integration remain pending.
+
 ## Build and test without Qt
 
 Requires CMake 3.20+, a C/C++17 compiler and platform thread support. No Swift,
