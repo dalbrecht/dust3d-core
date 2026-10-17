@@ -31,8 +31,9 @@ ctest --test-dir /tmp/dust3d-qt-reference --output-on-failure
 On other systems, point `CMAKE_PREFIX_PATH` to the installed Qt prefix as needed.
 `DUST3D_CORE_BUILD_DIR` must contain matching native engine/core/remesher/triangle
 static archives from this checkout, compiler, configuration and architecture.
-For multi-configuration generators, use the directory containing the actual
-archives. Configuration checks the native source directory and sanitizer mode; the optional
+Use the shown single-configuration Makefiles/Ninja layout, with the cache and
+archives in the same build directory. Multi-configuration archive layouts are not
+supported by this optional helper; native builds themselves remain unaffected. Configuration checks the native source directory and sanitizer mode; the optional
 build rebuilds the matching native engine target before linking imported archives,
 so stale libraries cannot silently pass a comparison. Do not simultaneously run
 another build in that same native build directory. This never changes native link
