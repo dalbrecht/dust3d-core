@@ -256,10 +256,6 @@ void SolidMeshBooleanOperation::buildFaceGroups(const std::vector<std::vector<si
 size_t SolidMeshBooleanOperation::addNewPoint(const Vector3& position)
 {
     PositionKey key(position);
-    auto existing = m_newPositionMap.find(key);
-    if (existing != m_newPositionMap.end())
-        return existing->second;
-
     // Truncated PositionKey buckets can split numerically identical cut/original vertices at a grid boundary.
     constexpr double tolerance = 0.00001;
     size_t closestIndex = m_newVertices.size();
@@ -270,16 +266,19 @@ size_t SolidMeshBooleanOperation::addNewPoint(const Vector3& position)
                 auto candidate = m_newPositionMap.find(PositionKey(position + Vector3(x * tolerance, y * tolerance, z * tolerance)));
                 if (candidate == m_newPositionMap.end())
                     continue;
-                const auto& point = m_newVertices.at(candidate->second);
-                double dx = point.x() - position.x();
-                double dy = point.y() - position.y();
-                double dz = point.z() - position.z();
-                if (std::abs(dx) > tolerance || std::abs(dy) > tolerance || std::abs(dz) > tolerance)
-                    continue;
-                double distanceSquared = dx * dx + dy * dy + dz * dz;
-                if (distanceSquared < closestDistanceSquared) {
-                    closestDistanceSquared = distanceSquared;
-                    closestIndex = candidate->second;
+                // A zero-centered truncated bucket spans twice the resolution; every candidate still needs a distance check.
+                for (size_t index : candidate->second) {
+                    const auto& point = m_newVertices.at(index);
+                    double dx = point.x() - position.x();
+                    double dy = point.y() - position.y();
+                    double dz = point.z() - position.z();
+                    if (std::abs(dx) > tolerance || std::abs(dy) > tolerance || std::abs(dz) > tolerance)
+                        continue;
+                    double distanceSquared = dx * dx + dy * dy + dz * dz;
+                    if (distanceSquared < closestDistanceSquared) {
+                        closestDistanceSquared = distanceSquared;
+                        closestIndex = index;
+                    }
                 }
             }
         }
@@ -288,7 +287,7 @@ size_t SolidMeshBooleanOperation::addNewPoint(const Vector3& position)
         return closestIndex;
     }
     size_t index = m_newVertices.size();
-    m_newPositionMap.insert({ key, index });
+    m_newPositionMap[key].push_back(index);
     m_newVertices.push_back(position);
     return index;
 }

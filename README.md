@@ -135,3 +135,7 @@ counts at an explicit 1e-5 position tolerance. See the
 [boolean traversal decision](docs/adr/0001-boolean-intersection-loops.md).
 This is targeted regression evidence, not full inherited geometry coverage or Qt
 feature parity.
+
+A direct low-level boolean test also checks thin solids across zero on each axis,
+retaining their triangles and signed volume when same-key points exceed the weld
+tolerance.

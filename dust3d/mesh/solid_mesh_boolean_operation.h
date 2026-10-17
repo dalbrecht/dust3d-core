@@ -51,7 +51,7 @@ private:
     std::vector<std::pair<size_t, size_t>> m_potentialIntersectedPairs;
     std::vector<Vector3> m_newVertices;
     std::vector<std::vector<size_t>> m_newTriangles;
-    std::map<PositionKey, size_t> m_newPositionMap;
+    std::map<PositionKey, std::vector<size_t>> m_newPositionMap;
     std::vector<std::vector<size_t>> m_firstTriangleGroups;
     std::vector<std::vector<size_t>> m_secondTriangleGroups;
     std::vector<bool> m_firstGroupSides;

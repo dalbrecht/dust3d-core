@@ -14,7 +14,9 @@ vertex about 2.2e-8 units apart. Original vertices bypassed the cut-vertex weld 
 and near-equal coordinates could straddle truncated PositionKey cells. Map original
 and intersection vertices through the same indices. Within this boolean operation,
 look in neighboring cells and compare actual coordinate distances at the existing
-1e-5 grid resolution. Do not add alias cells for neighboring matches, preventing
+1e-5 grid resolution. A truncated zero bucket can contain points more than 1e-5 apart, so retain
+multiple canonical indices per bucket and distance-check every candidate, even
+when its key matches exactly. Do not add alias cells for neighboring matches, preventing
 transitive growth of the weld tolerance. Remove triangles and cut edges collapsed
 by this mapping. The global PositionKey implementation remains unchanged.
 

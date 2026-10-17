@@ -37,8 +37,8 @@ engine fix, not an Apple-specific fork of the algorithm.
 
 Final local checks passed with Apple Clang 21.0.0 and CMake 4.4.4:
 
-- Complete Debug CMake build and all nine CTest contracts.
-- Separate full ASan/UBSan build and all nine contracts with halt-on-error enabled.
+- Complete Debug CMake build and all ten CTest contracts.
+- Separate full ASan/UBSan build and all ten contracts with halt-on-error enabled.
 - SwiftPM static source product build.
 - Formatting for the modified inherited C++ files and all adapter/contract sources.
 - Whitespace verification using `core.whitespace=cr-at-eol`, preserving inherited CRLF files.
@@ -54,3 +54,11 @@ macOS ASan ran with leak detection disabled; no leak-free claim is made. Hosted
 Linux/macOS and Linux leak-enabled sanitizer results must pass before merge.
 Qt GUI differential verification, complete vertex-manifold guarantees, broad
 performance budgets and full inherited C++ coverage remain unproven.
+
+Automated review identified a zero-bucket boundary case: truncated PositionKey
+maps -9e-6 and +9e-6 to the same key despite their 1.8e-5 separation. A new direct
+SolidMesh boolean test failed before the correction because triangles disappeared
+from a valid thin box. Buckets now retain multiple distinct canonical indices and
+every candidate, including same-key candidates, must pass the coordinate-distance
+check. Three axis variants preserve all 24 triangles and signed union volume
+0.100018 within 1e-12. This raises the suite to ten CTest entries.
