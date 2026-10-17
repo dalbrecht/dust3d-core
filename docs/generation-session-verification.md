@@ -31,7 +31,10 @@ transient cache snapshot clone. Metadata/clone failures preserve valid primary
 output, release retained state and report the original cache allocation cause.
 The injection derives string allocation sizes from actual standard-library
 capacity and asserts the targeted failure occurred. No production test hooks are
-added. Aligned/platform/C allocator failure paths are not comprehensively injected.
+added. The harness routes ordinary throwing/nothrow new and matching deletes
+through the same malloc/free family: libstdc++ stable_sort's nothrow temporary
+allocation otherwise mismatches the test override's sized delete under Linux ASan.
+Aligned/platform/C allocator failure paths are not comprehensively injected.
 
 Concurrent legacy, same-session and independent-session callers execute real
 Capsule/Sword generation with independent output owners. A C translation unit

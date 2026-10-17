@@ -41,6 +41,19 @@ void* operator new(std::size_t bytes)
     throw std::bad_alloc();
 }
 void* operator new[](std::size_t bytes) { return ::operator new(bytes); }
+// libstdc++ stable_sort uses nothrow allocation but sized delete. Keep both
+// allocation forms in the same test-owned malloc/free family under ASan.
+void* operator new(std::size_t bytes, const std::nothrow_t&) noexcept
+{
+    try {
+        return ::operator new(bytes);
+    } catch (...) {
+        return nullptr;
+    }
+}
+void* operator new[](std::size_t bytes, const std::nothrow_t& tag) noexcept { return ::operator new(bytes, tag); }
+void operator delete(void* value, const std::nothrow_t&) noexcept { std::free(value); }
+void operator delete[](void* value, const std::nothrow_t&) noexcept { std::free(value); }
 void operator delete(void* value) noexcept { std::free(value); }
 void operator delete[](void* value) noexcept { std::free(value); }
 void operator delete(void* value, std::size_t) noexcept { std::free(value); }
