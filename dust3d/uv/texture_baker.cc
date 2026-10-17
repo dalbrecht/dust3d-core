@@ -693,6 +693,8 @@ namespace detail {
             if (index % 256 == 0)
                 checkCancellation(options);
             const auto& layout = atlas.layouts[index];
+            if (layout.sourceId.isNull())
+                continue;
             const auto found = inputs.materials.find(layout.sourceId);
             if (found == inputs.materials.end())
                 continue;
@@ -727,7 +729,7 @@ namespace detail {
                 source.image = &image->second;
             }
             const auto material = inputs.materials.find(layout.sourceId);
-            if (material != inputs.materials.end())
+            if (!layout.sourceId.isNull() && material != inputs.materials.end())
                 source.material = material->second;
         }
         return result;

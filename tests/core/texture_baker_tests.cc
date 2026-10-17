@@ -240,6 +240,31 @@ void sourceLessSeamsIgnoreSurfaceDetails()
     fixture.options.maximumPayloadBytes = baseline.payloadBytes;
     require(fixture.bake(inputs).payloadBytes == baseline.payloadBytes, "Source-less seams must not reserve normal output capacity");
 }
+void sourceLessSeamsIgnoreMaterials()
+{
+    Fixture fixture;
+    fixture.atlas.layouts[0].sourceId = dust3d::Uuid();
+    const auto baseline = fixture.bake();
+    dust3d::TextureBakeInputs inputs;
+    inputs.materials[dust3d::Uuid()] = { 0.75, 0.25, 1 };
+    const auto ignored = fixture.bake(inputs);
+    require(!ignored.metallic && !ignored.roughness && !ignored.emissive, "Null-key materials must not activate maps for source-less charts");
+    fixture.options.maximumPayloadBytes = baseline.payloadBytes;
+    require(fixture.bake(inputs).payloadBytes == baseline.payloadBytes, "Source-less charts must retain their exact material-free budget");
+    fixture.options.maximumPayloadBytes = 0;
+    auto component = fixture.atlas.layouts[0];
+    component.sourceId = componentId;
+    component.left = 0.5;
+    component.width = 0.5;
+    fixture.atlas.layouts[0].width = 0.5;
+    fixture.atlas.layouts.push_back(component);
+    inputs.materials[componentId] = { 0.5, 0.5, 0.5 };
+    const auto mixed = fixture.bake(inputs);
+    inputs.materials.erase(dust3d::Uuid());
+    const auto expected = fixture.bake(inputs);
+    require(mixed.metallic && mixed.roughness && mixed.emissive, "Real component materials must still activate output maps");
+    require(mixed.metallic->pixels == expected.metallic->pixels && mixed.roughness->pixels == expected.roughness->pixels && mixed.emissive->pixels == expected.emissive->pixels, "Source-less charts must retain default scalar values when other components activate maps");
+}
 void invalidInputFamilies()
 {
     for (int variant = 0; variant < 15; ++variant) {
@@ -865,6 +890,7 @@ int main(int argc, char* argv[])
         malformedSurfaceInputs();
         gradientQuantization();
         sourceLessSeamsIgnoreSurfaceDetails();
+        sourceLessSeamsIgnoreMaterials();
         unsafeProceduralCoordinates();
         unsafeFoldGrid();
         invalidInputFamilies();

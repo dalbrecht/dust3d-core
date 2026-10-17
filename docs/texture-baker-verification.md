@@ -83,8 +83,8 @@ these focused contracts or by Swift smoke tests. See ADR 0014.
 
 An LLVM-instrumented `texture_baker.cc` object was linked ahead of the ordinary
 native archives into the real contract executable, which ran all its analytic
-and generated-fixture cases. LLVM reports 876/901 executable lines (97.23%),
-689/717 regions (96.09%) and 551/634 branches (86.91%). This measures this source
+and generated-fixture cases. LLVM reports 878/903 executable lines (97.23%),
+694/722 regions (96.12%) and 557/640 branches (87.03%). This measures this source
 file only, not inherited procedural kernels, all headers, the C ABI or the
 complete core. The domain's aspirational 100% target is not met by this report;
 remaining degenerate/fallback and numeric-failure paths stay visible rather than
@@ -314,3 +314,17 @@ After this fix, full Debug passed 33/33 (22.53 s), ASan/UBSan passed 33/33
 (73.89 s), strict Swift consumers passed, and all seven relevant Qt comparisons
 passed (24.88 s). Formatting, manifest lint and diff checks passed. Scoped baker
 coverage above was refreshed; broader parity remains unproven.
+
+
+## Review regression: source-less material isolation
+
+Null-key materials now remain unmatched for source-less seam charts in both map
+activation and per-layout material resolution. The failing-first regression
+verifies absent scalar/emission maps and exact material-free payload capacity.
+A mixed chart case activates all three maps through a real component and compares
+complete map bytes with/without the null-key material, proving source-less charts
+retain default scalar values even when maps already exist.
+
+Full Debug passed 33/33 (27.93 s), ASan/UBSan passed 33/33 (83.11 s), strict Swift
+consumers passed, and seven relevant Qt comparisons passed (30.20 s). Formatting,
+manifest lint and diff checks passed. Scoped coverage above was refreshed.
