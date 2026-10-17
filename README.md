@@ -44,7 +44,7 @@ legacy geometry algorithms; generation is serialized and not interruptible.
 - [C++ conventions](docs/cpp-standards.md): retain C++17 and the inherited `.clang-format`.
 - `.standards` pins the shared coding standards; `AGENTS.md` supplies core-specific rules.
 - CI builds on Linux/macOS and runs a separate Linux ASan/UBSan configuration.
-- CTest now includes eighteen contracts/scenarios, including exported precision, bounded angles, cloth openings, configured stitching lines/loops/fill, successful empty output, numeric locales and boolean boundaries; this is not full engine coverage.
+- CTest now includes twenty-five contracts/scenarios, including indexed ownership/reconstruction/budgets/seams, exported precision, bounded angles, cloth openings, configured stitching lines/loops/fill, successful empty output, numeric locales and boolean boundaries; this is not full engine coverage.
   Existing C++ warnings and broad algorithm coverage remain adoption work.
 
 `upstream-sync` is untouched upstream history; `master` contains downstream additions.
@@ -165,3 +165,21 @@ precision-specific diagnostic. Successful engine output with no triangles retain
 its distinct NO_GEOMETRY result. Source node/part counts and owning-buffer
 lifetimes are preserved. See [verification](docs/exported-triangle-precision.md)
 and ADR 0003 for the policy and its limits.
+
+
+### Optional indexed buffers
+
+Given a valid expanded owner, `dust3d_mesh_create_indexed(source, maximum_bytes,
+&error)` returns an independent owner. Destroy the source after conversion if it
+is no longer needed. Read unique `Dust3DVertex` values and UInt32 triangle indices
+with `dust3d_indexed_mesh_vertices` / `dust3d_indexed_mesh_indices` and their count
+functions; release with `dust3d_indexed_mesh_destroy`. Source counts and warning
+text are copied. Full position, normal and color values define sharing, so hard
+normal and color seams survive reconstruction.
+
+The maximum-byte argument limits exported vertex/index payload, with zero meaning
+256 MiB. It excludes the expanded input, temporary lookup storage and allocator
+overhead. Conversion errors never publish partial ownership and preserve their
+cause. The expanded API remains available. See [verification](docs/indexed-mesh-verification.md)
+and ADR 0004. Renderer adoption, source identities, UV/material attributes and
+high-density/peak-memory acceptance remain later stages.
