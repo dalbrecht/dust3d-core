@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Distinguish successful generation with no geometry from genuine generation failures through an explicit C API status and portable ownership/error regression tests.
+
 - Accept legacy comma-decimal numeric attributes at the C boundary while retaining strict input and geometry validation.
 
 - Fix procedural boolean generation where intersection loops share a vertex, including rounded crossing parts.

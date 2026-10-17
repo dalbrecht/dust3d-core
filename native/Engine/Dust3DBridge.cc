@@ -23,8 +23,10 @@ std::unique_ptr<Dust3DMesh> generateMesh(std::unique_ptr<dust3d::Snapshot> snaps
     dust3d::MeshGenerator generator(snapshot.release());
     generator.generate();
     std::unique_ptr<dust3d::Object> object(generator.takeObject());
-    if (!generator.isSuccessful() || !object || object->triangles.empty())
+    if (!generator.isSuccessful() || !object)
         throw dust3d::native::DocumentError(DUST3D_STATUS_GENERATION_FAILED, "Dust3D could not generate a complete mesh from this document.");
+    if (object->triangles.empty())
+        throw dust3d::native::DocumentError(DUST3D_STATUS_NO_GEOMETRY, "Generation completed with no mesh-producing geometry.");
     if (object->triangles.size() > 5000000)
         throw dust3d::native::DocumentError(DUST3D_STATUS_LIMIT_EXCEEDED, "The generated mesh exceeds the five million triangle limit.");
     mesh->vertices.reserve(object->triangles.size() * 3);
