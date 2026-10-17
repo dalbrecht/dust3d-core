@@ -51,7 +51,7 @@ private:
     std::vector<std::pair<size_t, size_t>> m_potentialIntersectedPairs;
     std::vector<Vector3> m_newVertices;
     std::vector<std::vector<size_t>> m_newTriangles;
-    std::map<PositionKey, size_t> m_newPositionMap;
+    std::map<PositionKey, std::vector<size_t>> m_newPositionMap;
     std::vector<std::vector<size_t>> m_firstTriangleGroups;
     std::vector<std::vector<size_t>> m_secondTriangleGroups;
     std::vector<bool> m_firstGroupSides;
@@ -89,6 +89,7 @@ private:
     size_t addNewPoint(const Vector3& position);
     bool addUnintersectedTriangles(const SolidMesh* mesh,
         const std::set<size_t>& usedFaces,
+        std::vector<size_t>& vertexIndices,
         std::map<std::uint64_t, size_t>* halfEdges);
     void decideGroupSide(const std::vector<std::vector<size_t>>& groups,
         const SolidMesh* mesh,

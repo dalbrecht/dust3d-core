@@ -124,3 +124,18 @@ git clone https://github.com/huxingyi/dust3d.git
 Dust3D is licensed under the MIT License - see the [LICENSE](https://github.com/huxingyi/dust3d/blob/master/LICENSE) file for details.
 
 <!-- Sponsors begin --><!-- Sponsors end -->
+
+## Boolean regression corpus
+
+The portable suite includes rounded crossing, translated, hard-join, difference
+and near-separated procedural fixtures. In addition to finite geometry, colors and
+unit normals, these cases check closed oriented surface edges and connected-piece
+counts at an explicit 1e-5 position tolerance. See the
+[fixture provenance](tests/core/fixtures/README.md) and
+[boolean traversal decision](docs/adr/0001-boolean-intersection-loops.md).
+This is targeted regression evidence, not full inherited geometry coverage or Qt
+feature parity.
+
+A direct low-level boolean test also checks thin solids across zero on each axis,
+retaining their triangles and signed volume when same-key points exceed the weld
+tolerance.
