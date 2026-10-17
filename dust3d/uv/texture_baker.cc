@@ -541,6 +541,24 @@ namespace {
     }
 }
 namespace detail {
+    TextureMaterialActivation detectTextureMaterialMaps(const UvAtlas& atlas, const TextureBakeInputs& inputs, const TextureBakeOptions& options)
+    {
+        checkCancellation(options);
+        TextureMaterialActivation result;
+        for (size_t index = 0; index < atlas.layouts.size(); ++index) {
+            if (index % 256 == 0)
+                checkCancellation(options);
+            const auto& layout = atlas.layouts[index];
+            const auto found = inputs.materials.find(layout.sourceId);
+            if (found == inputs.materials.end())
+                continue;
+            result.hasMetallic = result.hasMetallic || found->second.metallic > 0;
+            result.hasRoughness = result.hasRoughness || found->second.roughness < 1;
+            result.hasEmissive = result.hasEmissive || found->second.emissive > 0;
+        }
+        result.hasRoughness = result.hasRoughness || result.hasMetallic;
+        return result;
+    }
     std::vector<TextureChartSource> resolveTextureChartSources(const UvAtlas& atlas, const TextureBakeInputs& inputs, const TextureBakeOptions& options)
     {
         checkCancellation(options);
@@ -605,18 +623,7 @@ namespace detail {
 TextureBakeResult TextureBaker::bake(const Object& object, const UvAtlas& atlas, const TextureBakeInputs& inputs, const TextureBakeOptions& options)
 {
     validate(object, atlas, inputs, options);
-    bool hasMetallic = false;
-    bool hasRoughness = false;
-    bool hasEmissive = false;
-    for (const auto& layout : atlas.layouts) {
-        const auto found = inputs.materials.find(layout.sourceId);
-        if (found == inputs.materials.end())
-            continue;
-        hasMetallic = hasMetallic || found->second.metallic > 0;
-        hasRoughness = hasRoughness || found->second.roughness < 1;
-        hasEmissive = hasEmissive || found->second.emissive > 0;
-    }
-    hasRoughness = hasRoughness || hasMetallic;
+    const auto materialMaps = detail::detectTextureMaterialMaps(atlas, inputs, options);
     const size_t budget = options.maximumPayloadBytes ? options.maximumPayloadBytes : maximumBudget;
     size_t payload = 0;
     auto account = [&](size_t count, size_t elementSize) {
@@ -626,7 +633,7 @@ TextureBakeResult TextureBaker::bake(const Object& object, const UvAtlas& atlas,
     };
     account(object.triangles.size(), sizeof(TextureTangent));
     account(options.colorSize * options.colorSize, 4);
-    for (bool enabled : { hasMetallic, hasRoughness, hasEmissive }) {
+    for (bool enabled : { materialMaps.hasMetallic, materialMaps.hasRoughness, materialMaps.hasEmissive }) {
         if (enabled)
             account(options.materialSize * options.materialSize, 4);
     }
@@ -702,11 +709,11 @@ TextureBakeResult TextureBaker::bake(const Object& object, const UvAtlas& atlas,
         dilate(output, coverage, options);
         return output;
     };
-    if (hasMetallic)
+    if (materialMaps.hasMetallic)
         result.metallic = materialImage(0);
-    if (hasRoughness)
+    if (materialMaps.hasRoughness)
         result.roughness = materialImage(1);
-    if (hasEmissive)
+    if (materialMaps.hasEmissive)
         result.emissive = materialImage(2);
     checkCancellation(options);
     return result;

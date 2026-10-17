@@ -83,8 +83,8 @@ these focused contracts or by Swift smoke tests. See ADR 0014.
 
 An LLVM-instrumented `texture_baker.cc` object was linked ahead of the ordinary
 native archives into the real contract executable, which ran all its analytic
-and generated-fixture cases. LLVM reports 686/711 executable lines (96.48%),
-520/546 regions (95.24%) and 421/498 branches (84.54%). This measures this source
+and generated-fixture cases. LLVM reports 704/729 executable lines (96.57%),
+543/569 regions (95.43%) and 438/510 branches (85.88%). This measures this source
 file only, not inherited procedural kernels, all headers, the C ABI or the
 complete core. The domain's aspirational 100% target is not met by this report;
 remaining degenerate/fallback and numeric-failure paths stay visible rather than
@@ -194,3 +194,28 @@ After palette resolution and quota ordering, full Debug 33/33 passed in 21.66
 seconds, ASan/UBSan 33/33 in 84.77 seconds, and all six Qt comparisons in 21.46
 seconds. Swift 6 consumers, formatting, strict manifest lint and diff checks
 passed. Current scoped coverage above includes these source changes.
+
+## Review regressions: fractional chart coverage and activation cancellation
+
+Positive chart extents now paint all intersecting texels using floor/ceil bounds,
+including extents below one output texel and spans crossing a pixel boundary.
+Coverage is separate from the reference-compatible integer content scale, so
+existing full-size image sampling is retained. Sub-texel image sampling clamps
+to the chart and never divides by a zero integer extent. Zero-area charts remain
+empty. Regressions first reproduced neighbour color replacing a tiny chart and
+a missing fractional tail; they now verify solid/image/scalar/emission samples,
+intersected boundary pixels and the next untouched pixel. Sub-texel overlapping
+charts still obey deterministic layout paint order; this cannot provide more
+spatial detail than the chosen output resolution.
+
+The allocation-free material activation stage is directly contract-tested after
+validation without timing sleeps. It now polls cancellation on entry and every
+256 layouts, before output accounting. Cases cover absent maps, metallic's
+companion roughness, independent roughness/emission, and cancelled populated and
+empty stages. The initial regression completed despite the cancelled token.
+
+After fractional coverage and material cancellation fixes, full Debug 33/33
+passed in 37.88 seconds, ASan/UBSan 33/33 in 107.11 seconds, and the six Qt
+comparisons plus semitransparent-image observation passed 7/7 in 36.32 seconds.
+The comparison errors remain unchanged. Swift 6 consumers, formatting, strict
+manifest lint and diff checks passed. Scoped coverage above was remeasured.

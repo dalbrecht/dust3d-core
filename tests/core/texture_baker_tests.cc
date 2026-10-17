@@ -504,6 +504,24 @@ void subTexelCharts()
     fixture.atlas.layouts[1].width = 0;
     require(fixture.bake(inputs).color.pixels[offset + 2] == 255, "A zero-area chart must remain empty");
 }
+void materialActivationCancellation()
+{
+    Fixture fixture;
+    dust3d::TextureBakeInputs inputs;
+    const auto absent = dust3d::detail::detectTextureMaterialMaps(fixture.atlas, inputs, fixture.options);
+    require(!absent.hasMetallic && !absent.hasRoughness && !absent.hasEmissive, "Absent material records must not activate output maps");
+    inputs.materials[componentId] = { 0.5, 1, 0 };
+    const auto metal = dust3d::detail::detectTextureMaterialMaps(fixture.atlas, inputs, fixture.options);
+    require(metal.hasMetallic && metal.hasRoughness && !metal.hasEmissive, "Metallic activation must include its companion roughness map");
+    inputs.materials[componentId] = { 0, 0.25, 0.1 };
+    const auto glowing = dust3d::detail::detectTextureMaterialMaps(fixture.atlas, inputs, fixture.options);
+    require(!glowing.hasMetallic && glowing.hasRoughness && glowing.hasEmissive, "Roughness and emission must activate independently");
+    std::atomic_bool cancelled(true);
+    fixture.options.cancellation = &cancelled;
+    rejects([&] { dust3d::detail::detectTextureMaterialMaps(fixture.atlas, inputs, fixture.options); }, dust3d::TextureBakeErrorCode::cancelled);
+    fixture.atlas.layouts.clear();
+    rejects([&] { dust3d::detail::detectTextureMaterialMaps(fixture.atlas, inputs, fixture.options); }, dust3d::TextureBakeErrorCode::cancelled);
+}
 void generatedFixtures(const std::string& directory)
 {
     for (const std::string name : { "Capsule.ds3", "Sword.ds3", "RoundedCrossing.ds3" }) {
@@ -595,6 +613,7 @@ int main(int argc, char* argv[])
         mandatoryBudgetBeforeSurfacePreparation();
         resolvedChartSources();
         subTexelCharts();
+        materialActivationCancellation();
         require(argc == 2, "Expected fixture directory");
         generatedFixtures(argv[1]);
         std::cout << "Texture bake contracts passed\n";

@@ -6,6 +6,14 @@
 
 namespace dust3d {
 namespace detail {
+    struct TextureMaterialActivation {
+        bool hasMetallic = false;
+        bool hasRoughness = false;
+        bool hasEmissive = false;
+    };
+    // Prevalidated, allocation-free activation stage before output accounting.
+    TextureMaterialActivation detectTextureMaterialMaps(const UvAtlas& atlas, const TextureBakeInputs& inputs, const TextureBakeOptions& options);
+
     struct TextureChartSource {
         const UvAtlasGradient* gradient = nullptr;
         const TextureImageView* image = nullptr;
