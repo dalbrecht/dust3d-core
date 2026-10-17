@@ -223,7 +223,7 @@ namespace {
         }
         if (!flipped)
             return std::clamp(normalized - (0.5 + origin - std::floor(origin)) / static_cast<int>(extent), 0.0, 1.0);
-        return normalized;
+        return std::clamp(normalized, 0.0, 1.0);
     }
     template <typename Paint>
     std::vector<uint8_t> rectangles(TextureImage& output, const UvAtlas& atlas, double bleedFraction, const TextureBakeOptions& options, Paint paint, const std::set<size_t>& skipped = {})
@@ -250,8 +250,8 @@ namespace {
                 checkCancellation(options);
                 for (int x = std::max(0, left - bleed); x < std::min(size, left + width + bleed); ++x) {
                     const auto index = static_cast<size_t>(y) * output.width + x;
-                    const double u = std::clamp((x - left + 0.5) / sampleWidth, 0.0, 1.0);
-                    const double v = std::clamp((y - top + 0.5) / sampleHeight, 0.0, 1.0);
+                    const double u = (x - left + 0.5) / sampleWidth;
+                    const double v = (y - top + 0.5) / sampleHeight;
                     put(output, index, paint(ordinal, layout, u, v));
                     covered[index] = 1;
                 }
@@ -820,12 +820,9 @@ TextureBakeResult TextureBaker::bake(const Object& object, const UvAtlas& atlas,
     }
     auto colorCoverage = rectangles(result.color, atlas, 32.0 / 4096, options, [&](size_t ordinal, const UvMapPacker::Layout& layout, double u, double v) {
         if (const auto* gradient = colorSources[ordinal].gradient) {
-            auto coordinate = layout.flipped ? v : u;
             const auto extent = (layout.flipped ? layout.height : layout.width) * options.colorSize;
-            if (extent < 1) {
-                const auto origin = (layout.flipped ? layout.top : layout.left) * options.colorSize;
-                coordinate = chartImageCoordinate(coordinate, origin, extent, layout.flipped);
-            }
+            const auto origin = (layout.flipped ? layout.top : layout.left) * options.colorSize;
+            const auto coordinate = chartImageCoordinate(layout.flipped ? v : u, origin, extent, layout.flipped);
             const auto sample = std::min(gradient->resolution - 1, static_cast<size_t>(coordinate * gradient->resolution));
             const auto amount = static_cast<double>(sample) / (gradient->resolution - 1);
             Pixel pixel;

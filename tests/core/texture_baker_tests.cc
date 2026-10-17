@@ -207,7 +207,7 @@ void gradientQuantization()
     gradient.smallColor = dust3d::Color(0, 0, 1);
     fixture.atlas.gradients = { gradient };
     const auto result = fixture.bake();
-    require(result.color.pixels[0] == 223 && result.color.pixels[2] == 31, "Seam gradient samples a quantized 512-wide source with truncated channel interpolation");
+    require(result.color.pixels[4] == 191 && result.color.pixels[6] == 63, "Seam gradient samples a quantized 512-wide source with truncated channel interpolation");
     fixture.atlas.layouts[0].flipped = true;
     const auto transposed = fixture.bake();
     require(transposed.color.pixels[0] == transposed.color.pixels[12] && transposed.color.pixels[0] != transposed.color.pixels[48], "Flipped seam gradient transposes its source axis");
@@ -292,6 +292,38 @@ void fractionalSubTexelGradients()
         dust3d::TextureBakeInputs inputs;
         inputs.images[imageId] = { 512, 1, 2048, pixels.size(), pixels.data() };
         require(fixture.bake(inputs).color.pixels == result.color.pixels, "Sub-texel gradients and equivalent images must agree in both orientations");
+    }
+}
+void fractionalMultiTexelSources()
+{
+    std::vector<uint8_t> pixels(512 * 4);
+    for (size_t index = 0; index < 512; ++index) {
+        const double amount = static_cast<double>(index) / 511;
+        pixels[index * 4] = static_cast<uint8_t>(255 * (1 - amount));
+        pixels[index * 4 + 2] = static_cast<uint8_t>(255 * amount);
+        pixels[index * 4 + 3] = 255;
+    }
+    for (const bool flipped : { false, true }) {
+        Fixture fixture;
+        fixture.options.colorSize = 128;
+        auto& layout = fixture.atlas.layouts[0];
+        layout.left = layout.top = 10.4 / 128;
+        layout.width = layout.height = 2.4 / 128;
+        layout.flipped = flipped;
+        dust3d::UvAtlasGradient gradient;
+        gradient.layoutIndex = 0;
+        gradient.largeColor = dust3d::Color(1, 0, 0);
+        gradient.smallColor = dust3d::Color(0, 0, 1);
+        fixture.atlas.gradients = { gradient };
+        const auto result = fixture.bake();
+        fixture.atlas.gradients.clear();
+        layout.id = imageId;
+        dust3d::TextureBakeInputs inputs;
+        inputs.images[imageId] = { 512, 1, 2048, pixels.size(), pixels.data() };
+        const auto image = fixture.bake(inputs);
+        const size_t edge = (13 * 128 + 13) * 4;
+        require(image.color.pixels[edge] == 0 && image.color.pixels[edge + 2] == 255, "Image bleed must clamp after fractional-origin correction to retain the final source texel");
+        require(result.color.pixels == image.color.pixels, "Multi-texel fractional gradients must match equivalent image charts including gutters");
     }
 }
 void invalidInputFamilies()
@@ -919,6 +951,7 @@ int main(int argc, char* argv[])
         malformedSurfaceInputs();
         gradientQuantization();
         fractionalSubTexelGradients();
+        fractionalMultiTexelSources();
         sourceLessSeamsIgnoreSurfaceDetails();
         sourceLessSeamsIgnoreMaterials();
         unsafeProceduralCoordinates();

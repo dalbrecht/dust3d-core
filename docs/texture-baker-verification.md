@@ -83,8 +83,8 @@ these focused contracts or by Swift smoke tests. See ADR 0014.
 
 An LLVM-instrumented `texture_baker.cc` object was linked ahead of the ordinary
 native archives into the real contract executable, which ran all its analytic
-and generated-fixture cases. LLVM reports 889/913 executable lines (97.37%),
-703/730 regions (96.30%) and 564/646 branches (87.31%). This measures this source
+and generated-fixture cases. LLVM reports 883/907 executable lines (97.35%),
+701/728 regions (96.29%) and 562/644 branches (87.27%). This measures this source
 file only, not inherited procedural kernels, all headers, the C ABI or the
 complete core. The domain's aspirational 100% target is not met by this report;
 remaining degenerate/fallback and numeric-failure paths stay visible rather than
@@ -341,4 +341,24 @@ expected red/blue bytes (212/42) and compare the entire output against an equiva
 
 Full Debug passed 33/33 (20.93 s), ASan/UBSan passed 33/33 (78.02 s), strict Swift
 consumers passed, and seven relevant Qt comparisons passed (30.32 s). Formatting,
+manifest lint and diff checks passed. Scoped coverage above was refreshed.
+
+
+## Review regressions: multi-texel origin and post-correction clamp
+
+All gradient extents now share image-chart coordinate correction. Rectangle
+iteration preserves unbounded coordinates until translation is applied, then
+clamps the corrected sample. This keeps right/bottom partial pixels and bleed
+from becoming interior source samples. The flipped path clamps before indexing
+as well. The earlier full-size gradient sample expectation is updated to the
+translated pixmap lattice, rather than preserving the incorrect floor alignment.
+
+Separate failing-first observations reproduced incorrect edge texels and then
+incorrect gradient/image equivalence. The regression uses a 128-pixel output,
+10.4-pixel origins, 2.4-pixel extents and a 512-pixel source. Both orientations
+assert the final source texel in the bleed and compare complete image/gradient
+outputs, including gutters.
+
+Full Debug passed 33/33 (26.31 s), ASan/UBSan passed 33/33 (73.28 s), strict Swift
+consumers passed, and seven relevant Qt comparisons passed (27.84 s). Formatting,
 manifest lint and diff checks passed. Scoped coverage above was refreshed.
