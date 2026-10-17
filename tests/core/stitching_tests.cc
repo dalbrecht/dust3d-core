@@ -139,8 +139,7 @@ bool samePositions(const Vertices& first, const Vertices& second)
         bool matched = false;
         // Tolerance can reorder almost-equal corners; test permutations rather than
         // treating their lexicographic order as a geometric distinction.
-        for (auto candidate = remaining.lower_bound(sum - 3 * tolerance);
-            candidate != remaining.end() && candidate->first <= sum + 3 * tolerance; ++candidate) {
+        for (auto candidate = remaining.lower_bound(sum - 3 * tolerance); candidate != remaining.end() && candidate->first <= sum + 3 * tolerance; ++candidate) {
             std::array<size_t, 3> permutation { 0, 1, 2 };
             do {
                 bool equal = true;
