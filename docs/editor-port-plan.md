@@ -202,3 +202,13 @@ Expand in this order:
 9. **ABI/release compatibility:** compile a pure-C consumer, verify symbols/header layout and ownership against supported released clients, test clean installs, no Qt linkage, required license notices, and both Apple apps against each candidate engine release.
 
 All core dependency upgrades and upstream-sync PRs use the same tests. Keep fixture metadata (source, license, upstream revision, expected behavior, tolerance) next to fixtures. Review intentional baseline changes; do not automatically bless newly generated output. Core release readiness requires documented sanitizer, compatibility and ownership results, not just a successful build.
+
+
+### Native invalidation foundation checkpoint (core #19)
+
+An internal portable snapshot comparator now derives changed part/component
+identities and dependency closure without trusting saved dirty flags. See
+[verification](snapshot-invalidation-verification.md) and ADR 0005. It preserves
+input snapshots and unrelated component caches conservatively; persistent cache
+ownership/budgets, assets, mirror eviction and actual session integration remain
+pending. This does not complete semantic component caching or M3 acceptance.
