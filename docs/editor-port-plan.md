@@ -287,3 +287,17 @@ See [verification](uv-metadata-verification.md) and ADR 0012. Apple exact-pin/SD
 and editor adoption, pixel baking/PBR/transparency and full M3/M4/Qt acceptance
 remain separate gates. Existing indexed geometry sharing does not include UVs;
 textured indexed output must incorporate seams/materials before rendering.
+
+
+## Offscreen bake reference probes (core #35)
+
+An optional standalone Qt Core/Gui harness compiles the preserved application bake
+sources unmodified, with matching/fresh native archives. Analytic probes cover
+image transposition, seam/material/color/alpha and actual Spots/fold-normal work.
+On Capsule/Sword/RoundedCrossing the original-object portable corner UVs match
+reference orchestration with maximum observed error zero; RoundedCrossing's 128
+zero-UV records remain shared limitations. See
+[verification and scope](qt-bake-reference-verification.md) and ADR 0013.
+Native dependencies/default CI stay Qt-free. This does not waive missing mapping,
+portable CPU pixels, Apple image decoding/renderer, full Qt file/generator or
+broader M3/M4 acceptance. No local PNG snapshot baseline is committed.

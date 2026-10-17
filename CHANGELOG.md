@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add optional isolated offscreen Qt bake reference probes, including numerical portable UV comparison, procedural maps and explicit alpha/material observations; native targets remain Qt-free.
+
 - Add opt-in owned C UV metadata with float-retained triangle alignment, original component identities, explicit ambiguity, bounded resolved image descriptors and strict Swift 6 copy consumers; baking and Apple app adoption remain separate.
 
 - Add owned portable C++ UV atlas metadata with explicit missing mappings, seam-gradient descriptors, cyclic corner ordering and checked logical output budgets; pixel baking and C/Swift adoption follow separately.

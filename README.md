@@ -231,3 +231,15 @@ overhead. Conversion errors never publish partial ownership and preserve their
 cause. The expanded API remains available. See [verification](docs/indexed-mesh-verification.md)
 and ADR 0004. Renderer adoption, source identities, UV/material attributes and
 high-density/peak-memory acceptance remain later stages.
+
+
+## Optional offscreen bake reference
+
+A separate [developer harness](tests/reference/README.md) runs the preserved Qt
+UV/bake sources against analytic charts and the image-free fixture corpus. It
+uses development-only Qt Core/Gui, verifies matching native build configuration
+and refreshes native archives before linking. Native CMake/SwiftPM products and
+default CI remain Qt-free. Probes measure image transposition, alpha rounding,
+seam gradients, material maps, procedural color/fold normals and narrow numerical
+UV agreement. See [observations and limits](docs/qt-bake-reference-verification.md).
+This is test tooling, not portable pixel baking or full editor parity.
