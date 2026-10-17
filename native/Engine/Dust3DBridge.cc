@@ -1,4 +1,5 @@
 #include "EngineInternal.h"
+#include <array>
 #include <cmath>
 #include <cstdio>
 #include <dust3d/mesh/mesh_generator.h>
@@ -35,6 +36,7 @@ std::unique_ptr<Dust3DMesh> generateMesh(std::unique_ptr<dust3d::Snapshot> snaps
         const auto& triangle = object->triangles[triangleIndex];
         if (triangle.size() != 3)
             throw dust3d::native::DocumentError(DUST3D_STATUS_GENERATION_FAILED, "The engine returned an invalid triangle.");
+        std::array<Dust3DVertex, 3> exportedTriangle {};
         for (size_t corner = 0; corner < 3; ++corner) {
             const auto vertexIndex = triangle[corner];
             if (vertexIndex >= object->vertices.size())
@@ -60,9 +62,22 @@ std::unique_ptr<Dust3DMesh> generateMesh(std::unique_ptr<dust3d::Snapshot> snaps
             vertex.color[1] = static_cast<float>(color.g());
             vertex.color[2] = static_cast<float>(color.b());
             vertex.color[3] = 1.0f; // Opaque preview; material transparency is a later feature.
-            mesh->vertices.push_back(vertex);
+            exportedTriangle[corner] = vertex;
         }
+        auto exportedPosition = [](const Dust3DVertex& vertex) {
+            return dust3d::Vector3(vertex.position[0], vertex.position[1], vertex.position[2]);
+        };
+        const auto first = exportedPosition(exportedTriangle[0]);
+        const auto second = exportedPosition(exportedTriangle[1]);
+        const auto third = exportedPosition(exportedTriangle[2]);
+        // Double-precision surface slivers can collapse only when converted to the
+        // ABI's float coordinates. Validate first so invalid geometry is never hidden.
+        if (dust3d::Vector3::crossProduct(second - first, third - first).lengthSquared() == 0)
+            continue;
+        mesh->vertices.insert(mesh->vertices.end(), exportedTriangle.begin(), exportedTriangle.end());
     }
+    if (mesh->vertices.empty())
+        throw dust3d::native::DocumentError(DUST3D_STATUS_GENERATION_FAILED, "All generated triangles collapse at the exported coordinate precision.");
     return mesh;
 }
 }
