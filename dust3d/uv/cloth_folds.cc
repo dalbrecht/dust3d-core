@@ -354,6 +354,13 @@ double ClothFolds::foldHeight(const FoldData& data, double s, double t, double* 
 
 double ClothFolds::heightAt(const Vector3& position, const Vector3& normal, double* crease) const
 {
+    return heightAt(position, normal, crease, {});
+}
+
+double ClothFolds::heightAt(const Vector3& position, const Vector3& normal, double* crease, const std::function<void()>& checkpoint) const
+{
+    if (checkpoint)
+        checkpoint();
     if (m_folds.empty())
         return 0.0;
     uint64_t key = cellKey((int)std::floor(position.x() / m_cellSize), (int)std::floor(position.y() / m_cellSize),
@@ -422,7 +429,10 @@ double ClothFolds::heightAt(const Vector3& position, const Vector3& normal, doub
         height += weight * foldHeight(data, s, t, &foldCrease);
         creaseSum += weight * foldCrease;
     };
+    size_t visited = 0;
     for (auto it = range.first; it != range.second; ++it) {
+        if (visited++ % 256 == 0 && checkpoint)
+            checkpoint();
         const Segment& segment = m_segments[it->second];
         if (segment.fold != currentFold) {
             flush();
@@ -472,15 +482,21 @@ double ClothFolds::heightAt(const Vector3& position, const Vector3& normal, doub
 void ClothFolds::evaluate(const Vector3& position, const Vector3& normal, const Vector3& tangent, const Vector3& bitangent,
     double footprint, Vector3* tangentSpaceNormal, double* cavity) const
 {
+    evaluate(position, normal, tangent, bitangent, footprint, tangentSpaceNormal, cavity, {});
+}
+
+void ClothFolds::evaluate(const Vector3& position, const Vector3& normal, const Vector3& tangent, const Vector3& bitangent,
+    double footprint, Vector3* tangentSpaceNormal, double* cavity, const std::function<void()>& checkpoint) const
+{
     double crease = 0.0;
-    heightAt(position, normal, &crease);
+    heightAt(position, normal, &crease, checkpoint);
     if (nullptr != cavity)
         *cavity = crease * m_strength;
     if (nullptr == tangentSpaceNormal)
         return;
     double step = std::max(footprint * 0.75, 1e-5);
-    double du = (heightAt(position + tangent * step, normal) - heightAt(position - tangent * step, normal)) / (2.0 * step);
-    double dv = (heightAt(position + bitangent * step, normal) - heightAt(position - bitangent * step, normal)) / (2.0 * step);
+    double du = (heightAt(position + tangent * step, normal, nullptr, checkpoint) - heightAt(position - tangent * step, normal, nullptr, checkpoint)) / (2.0 * step);
+    double dv = (heightAt(position + bitangent * step, normal, nullptr, checkpoint) - heightAt(position - bitangent * step, normal, nullptr, checkpoint)) / (2.0 * step);
     *tangentSpaceNormal = Vector3(-du, -dv, 1.0).normalized();
 }
 

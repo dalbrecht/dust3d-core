@@ -83,8 +83,8 @@ these focused contracts or by Swift smoke tests. See ADR 0014.
 
 An LLVM-instrumented `texture_baker.cc` object was linked ahead of the ordinary
 native archives into the real contract executable, which ran all its analytic
-and generated-fixture cases. LLVM reports 883/907 executable lines (97.35%),
-701/728 regions (96.29%) and 562/644 branches (87.27%). This measures this source
+and generated-fixture cases. LLVM reports 884/908 executable lines (97.36%),
+702/729 regions (96.30%) and 562/644 branches (87.27%). This measures this source
 file only, not inherited procedural kernels, all headers, the C ABI or the
 complete core. The domain's aspirational 100% target is not met by this report;
 remaining degenerate/fallback and numeric-failure paths stay visible rather than
@@ -362,3 +362,29 @@ outputs, including gutters.
 Full Debug passed 33/33 (26.31 s), ASan/UBSan passed 33/33 (73.28 s), strict Swift
 consumers passed, and seven relevant Qt comparisons passed (27.84 s). Formatting,
 manifest lint and diff checks passed. Scoped coverage above was refreshed.
+
+
+## Review follow-up: fold evaluation and rotated sample phase
+
+Opt-in borrowed checkpoints now apply to height evaluation on entry and every
+256 nearby segment visits. Normal evaluation passes the callback through all
+five height samples. Original overloads remain and delegate without checkpoints;
+callbacks are never retained and original exceptions propagate. A 1024-overlapping-
+fold regression first reproduced ignored cancellation, then interrupted the third
+checkpoint inside segment visits. A completed evaluation verifies all five samples
+poll and preserves exact legacy cavity/normal results.
+
+The proposed flipped-origin change was tested and rejected by independent Qt
+evidence: it caused the full reference image comparison to fail with 255 bytes of
+error. The inherited call uses QPainter's two-scalar drawPixmap(int, int, ...)
+overload, truncating the fractional position after scaling/rotation. An isolated
+Qt oracle now checks a 512-pixel source scaled to 2 pixels, rotated/mirrored and
+drawn at 10.4: destination (11,11) is red/blue 63/191. The native regression asserts
+these independent values; the proposed translation instead produced 178/76.
+The rotated pixel-center phase is preserved and documented, rather than treating
+two native paths agreeing with each other as independent evidence.
+
+Final full Debug passed 33/33 (28.10 s), ASan/UBSan passed 33/33 (77.34 s), strict
+Swift consumers passed, and all seven relevant Qt comparisons including the new
+oracle passed (28.29 s). Formatting, manifest lint and diff checks passed. Scoped
+baker coverage above was refreshed; this is not full inherited-kernel coverage.

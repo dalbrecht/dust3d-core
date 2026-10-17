@@ -321,6 +321,8 @@ void fractionalMultiTexelSources()
         dust3d::TextureBakeInputs inputs;
         inputs.images[imageId] = { 512, 1, 2048, pixels.size(), pixels.data() };
         const auto image = fixture.bake(inputs);
+        const size_t interior = (11 * 128 + 11) * 4;
+        require(image.color.pixels[interior] == (flipped ? 63 : 178) && image.color.pixels[interior + 2] == (flipped ? 191 : 76), "Flipped charts must retain the independently observed Qt rotated pixel-center phase");
         const size_t edge = (13 * 128 + 13) * 4;
         require(image.color.pixels[edge] == 0 && image.color.pixels[edge + 2] == 255, "Image bleed must clamp after fractional-origin correction to retain the final source texel");
         require(result.color.pixels == image.color.pixels, "Multi-texel fractional gradients must match equivalent image charts including gutters");
@@ -870,6 +872,40 @@ void constructionCheckpointCompatibility()
     rejects([&] { dust3d::ClothFolds value(folds, 1, [](dust3d::ClothFolds::ConstructionStage) { throw dust3d::TextureBakeError(dust3d::TextureBakeErrorCode::cancelled, "original fold checkpoint cause"); }); }, dust3d::TextureBakeErrorCode::cancelled, "original fold checkpoint cause");
     rejects([&] { dust3d::SurfacePattern value(settings, points, [](dust3d::SurfacePattern::ConstructionStage) { throw dust3d::TextureBakeError(dust3d::TextureBakeErrorCode::cancelled, "original pattern checkpoint cause"); }); }, dust3d::TextureBakeErrorCode::cancelled, "original pattern checkpoint cause");
 }
+void foldEvaluationCancellation()
+{
+    dust3d::ClothFolds::Fold fold;
+    fold.points = { { 0.5, 0, 0 }, { 0.5, 1, 0 } };
+    fold.normals = { { 0, 0, 1 }, { 0, 0, 1 } };
+    fold.width = 0.2;
+    fold.depth = 0.04;
+    const dust3d::ClothFolds folds(std::vector<dust3d::ClothFolds::Fold>(1024, fold), 1);
+    const dust3d::Vector3 position(0.5, 0.5, 0), normal(0, 0, 1), tangent(1, 0, 0), bitangent(0, 1, 0);
+    for (const bool normals : { false, true }) {
+        size_t calls = 0;
+        const auto checkpoint = [&] {
+            if (++calls == 3)
+                throw dust3d::TextureBakeError(dust3d::TextureBakeErrorCode::cancelled, "Fold evaluation cancelled during segment visits");
+        };
+        rejects([&] {
+            if (normals) {
+                dust3d::Vector3 result;
+                folds.evaluate(position, normal, tangent, bitangent, 0.01, &result, nullptr, checkpoint);
+            } else {
+                folds.heightAt(position, normal, nullptr, checkpoint);
+            }
+        },
+            dust3d::TextureBakeErrorCode::cancelled, "Fold evaluation cancelled during segment visits");
+        require(calls == 3, "Cancellation must reach the dense segment loop");
+    }
+    size_t calls = 0;
+    const auto checkpoint = [&] { ++calls; };
+    double oldCavity = 0, newCavity = 0;
+    dust3d::Vector3 oldNormal, newNormal;
+    folds.evaluate(position, normal, tangent, bitangent, 0.01, &oldNormal, &oldCavity);
+    folds.evaluate(position, normal, tangent, bitangent, 0.01, &newNormal, &newCavity, checkpoint);
+    require(calls >= 25 && oldCavity == newCavity && (oldNormal - newNormal).lengthSquared() == 0, "All five normal samples must poll while preserving legacy evaluation output");
+}
 void generatedFixtures(const std::string& directory)
 {
     for (const std::string name : { "Capsule.ds3", "Sword.ds3", "RoundedCrossing.ds3" }) {
@@ -973,6 +1009,7 @@ int main(int argc, char* argv[])
         foldConstructionCancellation();
         patternConstructionCancellation();
         constructionCheckpointCompatibility();
+        foldEvaluationCancellation();
         require(argc == 2, "Expected fixture directory");
         generatedFixtures(argv[1]);
         std::cout << "Texture bake contracts passed\n";

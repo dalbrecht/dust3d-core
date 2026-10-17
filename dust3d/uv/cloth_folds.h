@@ -131,6 +131,15 @@ public:
     void evaluate(const Vector3& position, const Vector3& normal, const Vector3& tangent, const Vector3& bitangent,
         double footprint, Vector3* tangentSpaceNormal, double* cavity) const;
 
+    /// Evaluate with a synchronous borrowed checkpoint, polled during segment visits.
+    /// Parameters match the legacy overloads. The callback is never retained;
+    /// its original exception propagates and output pointers may be partially written.
+    /// Example: `folds.heightAt(position, normal, nullptr, [] { checkCancellation(); });`
+    double heightAt(const Vector3& position, const Vector3& normal, double* crease, const std::function<void()>& checkpoint) const;
+    /// Checkpoints also apply to every neighbouring height sample used for normals.
+    void evaluate(const Vector3& position, const Vector3& normal, const Vector3& tangent, const Vector3& bitangent,
+        double footprint, Vector3* tangentSpaceNormal, double* cavity, const std::function<void()>& checkpoint) const;
+
     bool empty() const { return m_folds.empty(); }
     size_t foldCount() const { return m_folds.size(); }
 

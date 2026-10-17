@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add borrowed fold-evaluation checkpoints so dense overlapping segment queries and all normal derivative samples can cooperate with cancellation while preserving original evaluation APIs.
+
 - Add opt-in synchronous construction checkpoints to fold and surface-pattern kernels; portable baking can cancel preparation, grid insertion/sorting and covariance work while legacy constructors remain available.
 
 - Add a portable C++ CPU texture-bake API with owned RGBA8 maps, explicit image views, material scalars, world-space patterns/fold normals and triangle tangents; C/Swift adoption and renderer integration remain separate.

@@ -221,9 +221,11 @@ namespace {
                 return 1;
             return offset / extent;
         }
-        if (!flipped)
-            return std::clamp(normalized - (0.5 + origin - std::floor(origin)) / static_cast<int>(extent), 0.0, 1.0);
-        return std::clamp(normalized, 0.0, 1.0);
+        // The reference rotates the scaled image, then draws through the integer
+        // QPainter overload. Preserve that transposed pixel-center phase.
+        if (flipped)
+            return std::clamp(normalized, 0.0, 1.0);
+        return std::clamp(normalized - (0.5 + origin - std::floor(origin)) / static_cast<int>(extent), 0.0, 1.0);
     }
     template <typename Paint>
     std::vector<uint8_t> rectangles(TextureImage& output, const UvAtlas& atlas, double bleedFraction, const TextureBakeOptions& options, Paint paint, const std::set<size_t>& skipped = {})
@@ -619,7 +621,7 @@ namespace {
                         // evaluate() samples neighbouring points along tangent/bitangent.
                         const auto epsilon = std::max(1e-5, footprint * 0.75);
                         checkFoldCell(position, chart.foldScale, epsilon);
-                        chart.folds->evaluate(position, normal, tangent, bitangent, footprint, normalMap ? &evaluatedNormal : nullptr, &cavity);
+                        chart.folds->evaluate(position, normal, tangent, bitangent, footprint, normalMap ? &evaluatedNormal : nullptr, &cavity, [&] { checkCancellation(options); });
                     }
                     Pixel pixel;
                     if (normalMap)

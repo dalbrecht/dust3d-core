@@ -41,7 +41,8 @@ Bound linear witness probes before using a compact vertex-ordinal lookup index
 for pathological degeneracy, without building full chart or fold workspace. Cancellation is cooperative. Procedural constructors expose optional synchronous
 borrowed checkpoints, including fold grid insertion/sorting and pattern covariance
 work; original constructors delegate without retaining callbacks. The baker checks
-before each procedural texel evaluation. Logical payload accounting includes
+before each procedural texel evaluation and during nearby fold segment visits
+inside every height sample used for normal evaluation. Logical payload accounting includes
 output pixels and tangent records, excluding input storage, allocator overhead
 and procedural/raster workspace. It does not establish a process memory or time
 limit. Dimensions are bounded to 8192 and the output budget to 256 MiB.

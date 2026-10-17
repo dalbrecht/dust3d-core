@@ -6,7 +6,10 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QPainter>
+#include <QPixmap>
 #include <QTemporaryDir>
+#include <QTransform>
 #include <algorithm>
 #include <cmath>
 #include <dust3d/uv/cloth_folds.h>
@@ -272,8 +275,34 @@ private:
     std::vector<dust3d::Uuid> m_identities;
 };
 
+void verifyFlippedPixmapPhase()
+{
+    QImage source(512, 1, QImage::Format_ARGB32);
+    for (int x = 0; x < 512; ++x) {
+        const double amount = static_cast<double>(x) / 511;
+        source.setPixelColor(x, 0, QColor(static_cast<int>(255 * (1 - amount)), 0, static_cast<int>(255 * amount), 255));
+    }
+    const auto scaled = source.scaled(QSize(2, 2));
+    const auto center = scaled.rect().center();
+    QTransform matrix;
+    matrix.translate(center.x(), center.y());
+    matrix.rotate(90);
+    const auto rotated = scaled.transformed(matrix).mirrored(true, false);
+    QImage output(32, 32, QImage::Format_ARGB32);
+    output.fill(Qt::white);
+    QPainter painter(&output);
+    // Preserve the inherited overload selection: two scalar coordinates select
+    // drawPixmap(int, int, ...), so fractional positions are truncated.
+    const double origin = 10.4;
+    painter.drawPixmap(origin, origin, QPixmap::fromImage(rotated));
+    painter.end();
+    const auto pixel = output.pixelColor(11, 11);
+    require(pixel.red() == 63 && pixel.blue() == 191, "Reference rotated pixmap must retain its independently measured pixel-center phase");
+}
+
 QJsonObject probeImageCharts(const QString& output, bool translucent = false)
 {
+    verifyFlippedPixmapPhase();
     auto input = makeSquareInput();
     const std::array<QColor, 6> palette { Qt::red, Qt::green, Qt::blue, Qt::cyan, Qt::yellow, Qt::magenta };
     const std::array<std::string, 2> imageIds { "{eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee}", "{ffffffff-ffff-4fff-8fff-ffffffffffff}" };
