@@ -34,6 +34,9 @@ public:
     void setCharts(const std::vector<std::pair<float, float>>& chartSizes);
     const std::vector<std::tuple<float, float, float, float, bool>>& getResult();
     float pack();
+    /// Try a positive finite scale whose quantized dimensions fit int.
+    /// Invalid/unrepresentable charts or packing failure return false and clear prior results.
+    /// Container allocation may throw std::bad_alloc; no coordinates are published on failure.
     bool tryPack(float textureSize);
 
 private:

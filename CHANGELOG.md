@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Fix UV rectangle area/contact-score overflow, validate quantized chart dimensions before conversion, reject charts lost to padding precision, and clear stale layouts after packing failure.
+
 - Add sourced generation-session loads with actual component cache reuse, current original identities, independent output budgets/lifetimes and preserved cache-only fallback diagnostics.
 
 - Add opt-in bounded per-corner source hints with original opaque document keys, complete wrapping weights, explicit unknown/ambiguous identities, independent geometry ownership and C/Swift consumers.

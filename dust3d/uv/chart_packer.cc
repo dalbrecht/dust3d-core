@@ -23,6 +23,7 @@
 #include <cmath>
 #include <dust3d/uv/chart_packer.h>
 #include <dust3d/uv/max_rectangles.h>
+#include <limits>
 
 namespace dust3d {
 
@@ -47,15 +48,32 @@ double ChartPacker::calculateTotalArea()
 
 bool ChartPacker::tryPack(float textureSize)
 {
+    m_result.clear();
+    const double exclusiveUpperBound = std::ldexp(1.0, std::numeric_limits<int>::digits);
+    const float scaledTextureSize = textureSize * m_floatToIntFactor;
+    if (!std::isfinite(scaledTextureSize) || scaledTextureSize < 1 || scaledTextureSize >= exclusiveUpperBound
+        || m_chartSizes.size() > static_cast<size_t>(std::numeric_limits<int>::max()))
+        return false;
     std::vector<uv::MaxRectanglesSize> rects;
-    int width = textureSize * m_floatToIntFactor;
+    int width = static_cast<int>(scaledTextureSize);
     int height = width;
     float paddingSize = m_paddingSize * width;
     float paddingSize2 = paddingSize + paddingSize;
     for (const auto& chartSize : m_chartSizes) {
+        const float scaledWidth = chartSize.first * m_floatToIntFactor;
+        const float scaledHeight = chartSize.second * m_floatToIntFactor;
+        const float paddedWidth = scaledWidth + paddingSize2;
+        const float paddedHeight = scaledHeight + paddingSize2;
+        if (!std::isfinite(scaledWidth) || !std::isfinite(scaledHeight) || scaledWidth < 1 || scaledHeight < 1
+            || !std::isfinite(paddedWidth) || !std::isfinite(paddedHeight)
+            || paddedWidth >= exclusiveUpperBound || paddedHeight >= exclusiveUpperBound)
+            return false;
         uv::MaxRectanglesSize r;
-        r.width = chartSize.first * m_floatToIntFactor + paddingSize2;
-        r.height = chartSize.second * m_floatToIntFactor + paddingSize2;
+        r.width = static_cast<int>(paddedWidth);
+        r.height = static_cast<int>(paddedHeight);
+        // Float padding can erase a small chart even when each integer conversion is in range.
+        if (static_cast<float>(r.width) <= paddingSize2 || static_cast<float>(r.height) <= paddingSize2)
+            return false;
         rects.push_back(r);
     }
     const uv::MaxRectanglesFreeRectChoiceHeuristic methods[] = {
@@ -70,7 +88,7 @@ bool ChartPacker::tryPack(float textureSize)
     std::vector<uv::MaxRectanglesPosition> bestResult;
     for (size_t i = 0; i < sizeof(methods) / sizeof(methods[0]); ++i) {
         std::vector<uv::MaxRectanglesPosition> result(rects.size());
-        if (0 != maxRectangles(width, height, rects.size(), rects.data(), methods[i], true, result.data(), &occupancy)) {
+        if (0 != maxRectangles(width, height, static_cast<int>(rects.size()), rects.data(), methods[i], true, result.data(), &occupancy)) {
             continue;
         }
         if (occupancy > bestOccupancy) {

@@ -53,6 +53,9 @@ namespace uv {
         kMaxRectanglesContactPointRule ///< -CP: Choosest the placement where the rectangle touches other rects as much as possible.
     };
 
+    /// Pack positive integer rectangles inside a positive bin; scores/areas use wide arithmetic.
+    /// Borrowed rects/layoutResults must each contain rectCount records (nullable only at zero count).
+    /// Returns zero on success or -1 for invalid dimensions/buffers or failure; occupancy is optional.
     int maxRectangles(int width, int height, int rectCount, MaxRectanglesSize* rects,
         enum MaxRectanglesFreeRectChoiceHeuristic method, int allowRotations,
         MaxRectanglesPosition* layoutResults, float* occupancy);
