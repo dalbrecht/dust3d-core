@@ -77,11 +77,11 @@ target_link_libraries(dust3d_qt_bake_reference PRIVATE
     Threads::Threads Qt6::Core Qt6::Gui)
 
 include(CTest)
-foreach(scenario solid image gradient material procedural transparent corpus input-bounds)
+foreach(scenario solid image image-alpha gradient material procedural transparent corpus input-bounds portable-solid portable-image portable-gradient portable-material portable-procedural portable-transparent)
     add_test(NAME qt_reference_${scenario}
         COMMAND dust3d_qt_bake_reference ${scenario} "${DUST3D_SOURCE_ROOT}/tests/core/fixtures")
     set_tests_properties(qt_reference_${scenario} PROPERTIES
-        ENVIRONMENT "QT_QPA_PLATFORM=offscreen" TIMEOUT 120)
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen" TIMEOUT 300)
 endforeach()
 
 # Qt consumes its own command-line flags unless the probe isolates GUI startup arguments.

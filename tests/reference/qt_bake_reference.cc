@@ -6,10 +6,14 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QPainter>
+#include <QPixmap>
 #include <QTemporaryDir>
+#include <QTransform>
 #include <algorithm>
 #include <cmath>
 #include <dust3d/uv/cloth_folds.h>
+#include <dust3d/uv/texture_baker.h>
 #include <fstream>
 #include <iostream>
 #include <iterator>
@@ -66,14 +70,139 @@ struct ReferenceBakeResult {
     std::unique_ptr<QImage> emissive;
 };
 
+bool comparePortableBakes = false;
+
+std::pair<dust3d::UvAtlas, dust3d::TextureBakeResult> portableBake(const ReferenceInput& input)
+{
+    std::map<dust3d::Uuid, dust3d::UvAtlasComponent> components;
+    dust3d::TextureBakeInputs resolved;
+    std::map<dust3d::Uuid, QImage> decoded;
+    auto value = [](const std::map<std::string, std::string>& fields, const std::string& key) {
+        const auto found = fields.find(key);
+        return found == fields.end() ? std::string() : found->second;
+    };
+    auto color = [](const std::string& text) {
+        const QColor parsed(QString::fromStdString(text));
+        require(parsed.isValid(), "Comparison fixture color must parse");
+        return dust3d::Color(parsed.red() / 255.0, parsed.green() / 255.0, parsed.blue() / 255.0, parsed.alpha() / 255.0);
+    };
+    for (const auto& entry : input.snapshot->components) {
+        const dust3d::Uuid id(entry.first);
+        auto& component = components[id];
+        const auto text = value(entry.second, "color");
+        if (!text.empty())
+            component.color = color(text);
+        const auto imageText = value(entry.second, "colorImageId");
+        if (!imageText.empty()) {
+            const dust3d::Uuid imageId(imageText);
+            const auto source = ImageForever::get(imageId);
+            require(source && !source->isNull(), "Comparison image must be registered");
+            decoded[imageId] = source->convertToFormat(QImage::Format_RGBA8888);
+            const auto& image = decoded.at(imageId);
+            component.image = dust3d::UvAtlasImage { imageId, static_cast<size_t>(image.width()), static_cast<size_t>(image.height()) };
+            resolved.images[imageId] = { static_cast<size_t>(image.width()), static_cast<size_t>(image.height()), static_cast<size_t>(image.bytesPerLine()), static_cast<size_t>(image.sizeInBytes()), image.constBits() };
+        }
+        const auto part = input.snapshot->parts.find(value(entry.second, "linkData"));
+        if (value(entry.second, "linkDataType") == "partId" && part != input.snapshot->parts.end()) {
+            auto scalar = [&](const char* key, double fallback) {
+                const auto text = value(part->second, key);
+                return text.empty() ? fallback : std::stod(text);
+            };
+            resolved.materials[id] = { scalar("metallic", 0), scalar("roughness", 1), scalar("emissive", 0) };
+        }
+        if (!value(entry.second, "wrap").empty()) {
+            auto& surface = resolved.surfaces[id];
+            const auto type = dust3d::SurfacePattern::typeFromString(value(entry.second, "wrapPattern"));
+            if (type != dust3d::SurfacePattern::Type::None) {
+                dust3d::SurfacePattern::Settings settings;
+                settings.type = type;
+                settings.baseColor = component.color;
+                const auto ink = value(entry.second, "wrapPatternColor");
+                settings.patternColor = ink.empty() ? dust3d::SurfacePattern::defaultPatternColor(component.color) : color(ink);
+                const auto scale = value(entry.second, "wrapPatternScale");
+                settings.scale = scale.empty() ? 0.06 : std::stod(scale);
+                const auto belly = value(entry.second, "wrapBelly");
+                settings.belly = belly.empty() ? 0 : std::stod(belly);
+                settings.seed = dust3d::SurfacePattern::seedFromString(entry.first);
+                surface.pattern = settings;
+            }
+            const auto strength = value(entry.second, "wrapWrinkles");
+            surface.wrinkleStrength = strength.empty() ? 0 : std::stod(strength);
+            surface.folds = dust3d::ClothFolds::deserialize(value(entry.second, "__wrapFolds"));
+        }
+    }
+    auto atlas = dust3d::UvAtlasBuilder::build(*input.object, components);
+    auto result = dust3d::TextureBaker::bake(*input.object, atlas, resolved);
+    return { std::move(atlas), std::move(result) };
+}
+
+void comparePortableMap(const ReferenceBakeResult& reference, const QImage& expected, const dust3d::TextureImage& actual, const char* label)
+{
+    require(actual.width == static_cast<size_t>(expected.width()) && actual.height == static_cast<size_t>(expected.height()), "Comparison map dimensions must match");
+    size_t samples = 0;
+    int maximumError = 0;
+    for (const auto& uvs : *reference.object->triangleVertexUvs()) {
+        for (int row = 1; row < 8; ++row) {
+            for (int column = 1; column < 8 - row; ++column) {
+                const double weights[3] { row / 8.0, column / 8.0, 1 - (row + column) / 8.0 };
+                double u = 0, v = 0;
+                for (size_t corner = 0; corner < 3; ++corner) {
+                    u += uvs[corner].x() * weights[corner];
+                    v += uvs[corner].y() * weights[corner];
+                }
+                const auto x = std::min(actual.width - 1, static_cast<size_t>(u * actual.width));
+                const auto y = std::min(actual.height - 1, static_cast<size_t>(v * actual.height));
+                const auto expectedPixel = expected.pixelColor(static_cast<int>(x), static_cast<int>(y));
+                const int channels[4] { expectedPixel.red(), expectedPixel.green(), expectedPixel.blue(), expectedPixel.alpha() };
+                for (size_t channel = 0; channel < 4; ++channel) {
+                    if (channel < 3 && channels[3] == 0)
+                        continue; // RGB beneath zero alpha is unobservable and differs by storage policy.
+                    const auto error = std::abs(channels[channel] - actual.pixels[(y * actual.width + x) * 4 + channel]);
+                    if (error > 2 && maximumError <= 2) {
+                        std::cerr << "first mismatch " << label << " xy " << x << "," << y << " uv " << u << "," << v << " channel " << channel << " reference " << channels[channel] << " portable " << int(actual.pixels[(y * actual.width + x) * 4 + channel]) << "\n";
+                    }
+                    maximumError = std::max(maximumError, error);
+                }
+                ++samples;
+            }
+        }
+    }
+    std::cerr << "portable " << label << ": " << samples << " interior probes, maximum byte error " << maximumError << "\n";
+    require(maximumError <= 2, std::string("Portable interior map differs beyond two-byte rounding tolerance: ") + label);
+}
+
 ReferenceBakeResult bake(ReferenceInput input)
 {
+    std::optional<std::pair<dust3d::UvAtlas, dust3d::TextureBakeResult>> portable;
+    if (comparePortableBakes)
+        portable = portableBake(input);
     UvMapGenerator generator(std::move(input.object), std::move(input.snapshot));
     generator.generate();
     ReferenceBakeResult result { generator.takeObject(), generator.takeResultTextureColorImage(), generator.takeResultTextureNormalImage(), generator.takeResultTextureMetalnessImage(), generator.takeResultTextureRoughnessImage(), generator.takeResultTextureEmissiveImage() };
     require(result.object && result.color && !result.color->isNull(), "Reference generation must produce an object and color image");
     require(result.color->width() == 4096 && result.color->height() == 4096, "Record the reference's fixed color atlas size explicitly");
     require(result.object->triangleVertexUvs() && result.object->triangleVertexUvs()->size() == result.object->triangles.size(), "Reference UV array must align with original object triangles");
+    if (portable) {
+        double maximumUvError = 0;
+        const auto& expectedUvs = *result.object->triangleVertexUvs();
+        require(portable->first.triangleUvs.size() == expectedUvs.size(), "Comparison triangle UV counts must agree");
+        for (size_t index = 0; index < expectedUvs.size(); ++index) {
+            for (size_t corner = 0; corner < 3; ++corner) {
+                for (size_t axis = 0; axis < 2; ++axis)
+                    maximumUvError = std::max(maximumUvError, std::abs(expectedUvs[index][corner][axis] - portable->first.triangleUvs[index][corner][axis]));
+            }
+        }
+        require(maximumUvError <= 1e-10, "Portable/reference comparison requires matching original corner UVs");
+        comparePortableMap(result, *result.color, portable->second.color, "color");
+        const std::array<const QImage*, 4> expected { result.normal.get(), result.metallic.get(), result.roughness.get(), result.emissive.get() };
+        const std::array<const std::optional<dust3d::TextureImage>*, 4> actual { &portable->second.normal, &portable->second.metallic, &portable->second.roughness, &portable->second.emissive };
+        const std::array<const char*, 4> names { "normal", "metallic", "roughness", "emissive" };
+        for (size_t index = 0; index < expected.size(); ++index) {
+            require(bool(expected[index]) == actual[index]->has_value(), "Reference and portable optional map activation must agree");
+            if (expected[index])
+                comparePortableMap(result, *expected[index], **actual[index], names[index]);
+        }
+    }
     return result;
 }
 
@@ -146,8 +275,34 @@ private:
     std::vector<dust3d::Uuid> m_identities;
 };
 
-QJsonObject probeImageCharts(const QString& output)
+void verifyFlippedPixmapPhase()
 {
+    QImage source(512, 1, QImage::Format_ARGB32);
+    for (int x = 0; x < 512; ++x) {
+        const double amount = static_cast<double>(x) / 511;
+        source.setPixelColor(x, 0, QColor(static_cast<int>(255 * (1 - amount)), 0, static_cast<int>(255 * amount), 255));
+    }
+    const auto scaled = source.scaled(QSize(2, 2));
+    const auto center = scaled.rect().center();
+    QTransform matrix;
+    matrix.translate(center.x(), center.y());
+    matrix.rotate(90);
+    const auto rotated = scaled.transformed(matrix).mirrored(true, false);
+    QImage output(32, 32, QImage::Format_ARGB32);
+    output.fill(Qt::white);
+    QPainter painter(&output);
+    // Preserve the inherited overload selection: two scalar coordinates select
+    // drawPixmap(int, int, ...), so fractional positions are truncated.
+    const double origin = 10.4;
+    painter.drawPixmap(origin, origin, QPixmap::fromImage(rotated));
+    painter.end();
+    const auto pixel = output.pixelColor(11, 11);
+    require(pixel.red() == 63 && pixel.blue() == 191, "Reference rotated pixmap must retain its independently measured pixel-center phase");
+}
+
+QJsonObject probeImageCharts(const QString& output, bool translucent = false)
+{
+    verifyFlippedPixmapPhase();
     auto input = makeSquareInput();
     const std::array<QColor, 6> palette { Qt::red, Qt::green, Qt::blue, Qt::cyan, Qt::yellow, Qt::magenta };
     const std::array<std::string, 2> imageIds { "{eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee}", "{ffffffff-ffff-4fff-8fff-ffffffffffff}" };
@@ -157,14 +312,21 @@ QJsonObject probeImageCharts(const QString& output)
         auto& source = sources[square];
         require(!source.isNull(), "Analytic reference source image must allocate");
         for (int y = 0; y < source.height(); ++y) {
-            for (int x = 0; x < source.width(); ++x)
-                source.setPixelColor(x, y, palette[static_cast<size_t>(y * source.width() + x)]);
+            for (int x = 0; x < source.width(); ++x) {
+                auto ink = palette[static_cast<size_t>(y * source.width() + x)];
+                if (translucent)
+                    ink.setAlpha(128);
+                source.setPixelColor(x, y, ink);
+            }
         }
         registry.add(source, dust3d::Uuid(imageIds[square]));
         auto& component = input.snapshot->components[square == 0 ? firstComponent : secondComponent];
         component["colorImageId"] = imageIds[square];
         component["color"] = "#101010";
     }
+    std::optional<std::pair<dust3d::UvAtlas, dust3d::TextureBakeResult>> portable;
+    if (translucent)
+        portable = portableBake(input);
     auto result = bake(std::move(input));
     QJsonArray samples;
     size_t flipped = 0;
@@ -175,13 +337,19 @@ QJsonObject probeImageCharts(const QString& output)
         for (int y = 0; y < source.height(); ++y) {
             for (int x = 0; x < source.width(); ++x) {
                 const auto actual = sampleSquare(result, *result.color, square, (x + .5) / source.width(), (y + .5) / source.height());
-                requireNearColor(actual, source.pixelColor(x, y), 0, "Image centers must preserve orientation and ignore solid color modulation");
+                if (!translucent)
+                    requireNearColor(actual, source.pixelColor(x, y), 0, "Image centers must preserve orientation and ignore solid color modulation");
                 samples.append(encodeColorChannels(actual));
             }
         }
     }
     require(flipped > 0, "Asymmetric image fixture must actually exercise reference UV-axis transposition");
     saveDiagnostics(result, output, "image");
+    if (portable) {
+        for (size_t offset = 3; offset < portable->second.color.pixels.size(); offset += 4)
+            require(portable->second.color.pixels[offset] == 128, "Portable image sampling must preserve source opacity without double compositing");
+        return { { "flipped_charts", static_cast<qint64>(flipped) }, { "source_alpha", 128 }, { "portable_alpha", 128 }, { "reference_centers", samples } };
+    }
     return { { "flipped_charts", static_cast<qint64>(flipped) }, { "source_pixel_centers", samples } };
 }
 
@@ -394,13 +562,19 @@ int main(int argc, char* argv[])
         int platformArgumentCount = 1;
         char* platformArguments[] { argv[0], nullptr };
         QGuiApplication application(platformArgumentCount, platformArguments);
-        const std::string scenario(argv[1]);
+        std::string scenario(argv[1]);
+        if (scenario.rfind("portable-", 0) == 0) {
+            comparePortableBakes = true;
+            scenario.erase(0, 9);
+        }
         const QString output = argc == 4 ? QString::fromUtf8(argv[3]) : QString();
         QJsonObject observations;
         if (scenario == "solid")
             observations = probeSolidCharts(output);
         else if (scenario == "image")
             observations = probeImageCharts(output);
+        else if (scenario == "image-alpha")
+            observations = probeImageCharts(output, true);
         else if (scenario == "gradient")
             observations = probeGradientChart(output);
         else if (scenario == "material")
