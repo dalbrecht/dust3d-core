@@ -364,6 +364,24 @@ void denseSurfaceWork()
         }
     }
 }
+void serializedFoldNormals()
+{
+    Fixture fixture;
+    dust3d::ClothFolds::Fold fold;
+    fold.points = { { 0.5, 0, 0 }, { 0.5, 1, 0 } };
+    const auto diagonal = 1.0 / std::sqrt(2.0);
+    fold.normals = { { diagonal, 0, diagonal }, { diagonal, 0, diagonal } };
+    fold.width = 0.2;
+    fold.depth = 0.04;
+    const auto decoded = dust3d::ClothFolds::deserialize(dust3d::ClothFolds::serialize({ fold }));
+    require(decoded.size() == 1 && std::abs(decoded[0].normals[0].lengthSquared() - 1) > 1e-6, "Actual fold serialization must exercise rounded, non-unit normals");
+    dust3d::TextureBakeInputs inputs;
+    inputs.surfaces[componentId].folds = decoded;
+    inputs.surfaces[componentId].wrinkleStrength = 1;
+    const auto result = fixture.bake(inputs);
+    require(result.normal.has_value(), "Inherited serialized folds must bake after safe normal normalization");
+    require(inputs.surfaces.at(componentId).folds[0].normals[0].x() == decoded[0].normals[0].x(), "Normal normalization must not mutate caller-owned fold inputs");
+}
 void generatedFixtures(const std::string& directory)
 {
     for (const std::string name : { "Capsule.ds3", "Sword.ds3", "RoundedCrossing.ds3" }) {
@@ -450,6 +468,7 @@ int main(int argc, char* argv[])
         invalidFoldFamilies();
         cancellationAfterValidation();
         denseSurfaceWork();
+        serializedFoldNormals();
         require(argc == 2, "Expected fixture directory");
         generatedFixtures(argv[1]);
         std::cout << "Texture bake contracts passed\n";

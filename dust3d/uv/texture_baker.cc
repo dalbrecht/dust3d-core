@@ -110,8 +110,8 @@ namespace {
                             invalid("Cloth fold contains nonfinite points or normals");
                     }
                     const auto length = fold.normals[index].lengthSquared();
-                    if (!std::isfinite(length) || std::abs(length - 1) > 1e-6)
-                        invalid("Cloth fold normals must be unit vectors");
+                    if (!std::isfinite(length) || length <= 1e-24)
+                        invalid("Cloth fold normals must have finite nonzero length");
                 }
             }
         }
