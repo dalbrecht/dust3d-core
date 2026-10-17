@@ -302,7 +302,7 @@ Native dependencies/default CI stay Qt-free. This does not waive missing mapping
 portable CPU pixels, Apple image decoding/renderer, full Qt file/generator or
 broader M3/M4 acceptance. No local PNG snapshot baseline is committed.
 
-## Portable CPU texture baker (core #37, in progress)
+## Portable CPU texture baker (core #37, merged in #38)
 
 The C++ baker now exercises actual color/image/seam/material outputs and inherited
 world-space pattern/fold kernels with independently owned pixels. The focused
@@ -310,5 +310,17 @@ contracts include generated Capsule, Sword and RoundedCrossing bakes, explicit
 unknown tangent markers, deterministic output, invalid input/quota/cancellation
 and lifetime checks. ADR 0014 records the ownership and raster design. Six optional Qt interior pixel comparisons pass within one byte, with exact
 image/scalar/normal samples; straight-alpha source opacity is an intentional
-difference from layered Qt painting. The full review/CI gate remains required before landing;
-this checkpoint does not count M4 as complete or imply Apple renderer adoption.
+difference from layered Qt painting. PR #38 landed after clean exact-commit automated review and all six CI checks.
+This checkpoint does not count M4 as complete or imply Apple renderer adoption.
+
+
+## Owned C/Swift bake output (core #39, in progress)
+
+The opt-in baked owner retains pixels and float-filtered tangent records with its
+borrowed UV/geometry owner. Sized input views, independent quotas and cooperative
+cancellation have actual C/C++ contracts and strict Swift copy consumers. See
+[verification](baked-mesh-verification.md) and ADR 0015. Publishing, automated
+review and CI remain required before landing. Subsequent Apple exact-pin/SDK
+integration must decode retained assets, preserve cancellation lifetime and feed
+UV/tangent/material seams into rendering. PBR/transparency/AO, textured exports,
+full M3/M4 and all later milestone acceptance remain open.

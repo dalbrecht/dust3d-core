@@ -89,6 +89,9 @@ namespace native {
         }
     }
 
+    Color normalizedUvColor(const std::string& text) { return normalizedColor(text); }
+    void validateUvVisuals(const Snapshot& snapshot, const std::map<Uuid, UvAtlasImage>& images) { (void)resolvedComponents(snapshot, images); }
+
     UvMetadata::UvMetadata(const Snapshot& original, size_t maximumBytes)
         : m_maximumBytes(maximumBytes)
     {

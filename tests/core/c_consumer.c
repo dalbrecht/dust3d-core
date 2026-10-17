@@ -52,5 +52,28 @@ int main(void)
         || dust3d_uv_mesh_triangle_count(NULL) != 0 || dust3d_uv_mesh_payload_bytes(NULL) != 0)
         return 11;
     dust3d_uv_mesh_destroy(uv_mesh);
+    dust3d_cancellation_token_cancel(NULL);
+    dust3d_cancellation_token_destroy(NULL);
+    if (dust3d_cancellation_token_is_cancelled(NULL))
+        return 12;
+    Dust3DCancellationToken* cancellation = dust3d_cancellation_token_create(&error);
+    if (cancellation == NULL || error.status != DUST3D_STATUS_OK
+        || dust3d_cancellation_token_is_cancelled(cancellation))
+        return 13;
+    dust3d_cancellation_token_cancel(cancellation);
+    dust3d_cancellation_token_cancel(cancellation);
+    if (!dust3d_cancellation_token_is_cancelled(cancellation))
+        return 14;
+    dust3d_cancellation_token_destroy(cancellation);
+    Dust3DBakeOptions bake_options = { 0 };
+    bake_options.struct_size = sizeof(bake_options);
+    Dust3DBakedMesh* baked = dust3d_baked_mesh_load(NULL, 0, &bake_options, &error);
+    Dust3DTextureView texture = dust3d_baked_mesh_texture(NULL, DUST3D_TEXTURE_COLOR);
+    if (baked != NULL || error.status != DUST3D_STATUS_INVALID_DOCUMENT
+        || texture.pixels != NULL || texture.byte_count != 0
+        || dust3d_baked_mesh_uvs(NULL) != NULL || dust3d_baked_mesh_tangents(NULL) != NULL
+        || dust3d_baked_mesh_tangent_count(NULL) != 0 || dust3d_baked_mesh_payload_bytes(NULL) != 0)
+        return 15;
+    dust3d_baked_mesh_destroy(baked);
     return 0;
 }

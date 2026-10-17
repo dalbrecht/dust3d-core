@@ -1,3 +1,4 @@
+#include "BakedMesh.h"
 #include "GenerationPipeline.h"
 #include "SourceProvenance.h"
 #include "UvMetadata.h"
@@ -29,7 +30,7 @@ namespace native {
 
     std::unique_ptr<Dust3DMesh> generateMesh(std::unique_ptr<dust3d::Snapshot> snapshot, const std::string& warning,
         MeshGenerator::GeneratedCacheContext* cache, MeshGenerator::GenerationMetrics* metrics, SourceProvenance* sources,
-        UvMetadata* uvs, const std::map<Uuid, UvAtlasImage>& images, size_t textureSize)
+        UvMetadata* uvs, const std::map<Uuid, UvAtlasImage>& images, size_t textureSize, BakedMeshData* baked)
     {
         auto mesh = std::make_unique<Dust3DMesh>();
         mesh->nodeCount = snapshot->nodes.size();
@@ -40,7 +41,11 @@ namespace native {
         snapshot.release();
         if (cache)
             generator.setGeneratedCacheContext(cache);
+        if (baked)
+            checkCancellation(baked->cancellation());
         generator.generate();
+        if (baked)
+            checkCancellation(baked->cancellation());
         if (metrics)
             *metrics = generator.generationMetrics();
         std::unique_ptr<dust3d::Object> object(generator.takeObject());
@@ -50,8 +55,9 @@ namespace native {
             throw dust3d::native::DocumentError(DUST3D_STATUS_NO_GEOMETRY, "Generation completed with no mesh-producing geometry.");
         if (object->triangles.size() > 5000000)
             throw dust3d::native::DocumentError(DUST3D_STATUS_LIMIT_EXCEEDED, "The generated mesh exceeds the five million triangle limit.");
+        std::unique_ptr<Snapshot> generated;
         if (uvs) {
-            std::unique_ptr<Snapshot> generated(generator.takeSnapshot());
+            generated.reset(generator.takeSnapshot());
             if (!generated)
                 throw DocumentError(DUST3D_STATUS_GENERATION_FAILED, "The generator returned no UV material snapshot.");
             uvs->prepare(*object, *generated, images, textureSize);
@@ -59,6 +65,8 @@ namespace native {
         mesh->vertices.reserve(object->triangles.size() * 3);
         const auto* normals = object->triangleVertexNormals();
         for (size_t triangleIndex = 0; triangleIndex < object->triangles.size(); ++triangleIndex) {
+            if (baked && triangleIndex % 256 == 0)
+                checkCancellation(baked->cancellation());
             const auto& triangle = object->triangles[triangleIndex];
             if (triangle.size() != 3)
                 throw dust3d::native::DocumentError(DUST3D_STATUS_GENERATION_FAILED, "The engine returned an invalid triangle.");
@@ -102,6 +110,8 @@ namespace native {
                 continue;
             if (uvs)
                 uvs->appendTriangle(triangleIndex);
+            if (baked)
+                baked->appendTriangle(triangleIndex);
             if (sources) {
                 for (const auto vertexIndex : triangle)
                     sources->appendCorner(*object, object->vertices[vertexIndex]);
@@ -110,6 +120,11 @@ namespace native {
         }
         if (mesh->vertices.empty())
             throw dust3d::native::DocumentError(DUST3D_STATUS_GENERATION_FAILED, "All generated triangles collapse at the exported coordinate precision.");
+        if (baked) {
+            if (!uvs || !generated)
+                throw DocumentError(DUST3D_STATUS_GENERATION_FAILED, "Baking requires locally retained UV generation metadata.");
+            baked->prepare(*object, *generated, uvs->atlas());
+        }
         return mesh;
     }
 }
