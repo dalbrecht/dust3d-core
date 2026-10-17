@@ -159,6 +159,12 @@ void seamCharts()
     object.componentTriangleUvs[componentId][triangleKey(object, 0)] = Uvs {};
     atlas = dust3d::UvAtlasBuilder::build(object, inputs);
     require(sameUvs(atlas.triangleUvs[0], atlas.layouts[0].globalUv.at(triangleKey(object, 0))), "Seam chart precedence must survive conflicting ordinary UV records");
+    const auto originalSeamKey = triangleKey(object, 0);
+    object.triangles[0] = { 1, 2, 0 };
+    object.componentTriangleUvs[componentId][triangleKey(object, 0)] = Uvs {};
+    atlas = dust3d::UvAtlasBuilder::build(object, inputs);
+    const auto& seamUvs = atlas.layouts[0].globalUv.at(originalSeamKey);
+    require(sameUvs(atlas.triangleUvs[0], Uvs { seamUvs[1], seamUvs[2], seamUvs[0] }), "Seam precedence must apply across cyclic keys, ahead of an exact ordinary-chart record");
     object.componentTriangleUvs.clear();
     atlas = dust3d::UvAtlasBuilder::build(object, {});
     require(atlas.layouts.size() == 1 && atlas.gradients[0].largeColor.r() == 200.0 / 255 && atlas.gradients[0].smallColor.b() == 200.0 / 255, "Missing seam color sources must retain the reference gray fallback");
@@ -176,10 +182,18 @@ void ownershipAndMissingCorners()
     object.triangleComponentIds = { secondId };
     atlas = dust3d::UvAtlasBuilder::build(object, components());
     require(atlas.triangleComponentIds == std::vector<dust3d::Uuid>({ secondId, secondId }), "Existing uncombined ownership takes precedence and propagates without rewriting the input");
+    const auto originalUvs = atlas.triangleUvs[0];
+    object.triangleComponentIds = { secondId, secondId, componentId };
+    atlas = dust3d::UvAtlasBuilder::build(object, components());
+    require(atlas.triangleComponentIds.size() == 2 && object.triangleComponentIds.size() == 3, "Only triangle-aligned ownership is copied without changing excess input records");
     object.triangleComponentIds.clear();
     object.triangles[0] = { 1, 2, 0 };
     atlas = dust3d::UvAtlasBuilder::build(object, components());
-    require(atlas.triangleComponentIds[0] == componentId && atlas.triangleUvKnown[0] == 0, "Reference cyclic ownership lookup must not falsely claim an exact ordered UV record");
+    require(atlas.triangleComponentIds[0] == componentId && atlas.triangleUvKnown[0] == 1, "Cyclic vertex order must retain valid source UVs");
+    require(sameUvs(atlas.triangleUvs[0], Uvs { originalUvs[1], originalUvs[2], originalUvs[0] }), "Corner UVs must rotate back to actual triangle order");
+    object.triangles[0] = { 0, 2, 1 };
+    atlas = dust3d::UvAtlasBuilder::build(object, components());
+    require(atlas.triangleUvKnown[0] == 0, "Opposite-winding records must not be conflated with a source chart");
     object.componentTriangleUvs.clear();
     object.brokenTrianglesToComponentIdMap[triangleKey(object, 0)] = componentId;
     atlas = dust3d::UvAtlasBuilder::build(object, components());
@@ -192,6 +206,25 @@ void ownershipAndMissingCorners()
     const auto empty = dust3d::UvAtlasBuilder::build(object, {});
     require(empty.layouts.empty() && empty.triangleUvs.empty() && empty.payloadBytes == 0, "A genuinely empty model has no UV payload");
     require(sameUvs(atlas.triangleUvs[0], retained[0]), "Owned UV buffers survive input destruction and subsequent builds");
+}
+
+void incompleteChartInputs()
+{
+    dust3d::Object object;
+    populate(object);
+    auto atlas = dust3d::UvAtlasBuilder::build(object, {});
+    require(atlas.layouts.empty() && atlas.triangleUvKnown == std::vector<uint8_t>({ 0, 0 }), "Missing resolved visual inputs must not fabricate charts");
+    require(atlas.triangleComponentIds[0] == componentId, "Missing visual metadata must not erase known geometric ownership");
+    object.componentTriangleUvs.clear();
+    object.componentTriangleUvs[componentId][{ dust3d::PositionKey(dust3d::Vector3(10, 10, 10)), dust3d::PositionKey(dust3d::Vector3(11, 10, 10)), dust3d::PositionKey(dust3d::Vector3(10, 11, 10)) }] = { dust3d::Vector2(0, 0), dust3d::Vector2(1, 0), dust3d::Vector2(0, 1) };
+    atlas = dust3d::UvAtlasBuilder::build(object, components());
+    require(atlas.layouts.size() == 1 && atlas.packedTextureSize > 0, "Unmatched retained chart records use the reference positive fallback size");
+    require(atlas.triangleUvKnown == std::vector<uint8_t>({ 0, 0 }), "An unused chart must not invent mappings for unrelated geometry");
+    const double minimum = -std::ldexp(1.0, std::numeric_limits<long>::digits) / 100000.0;
+    object.vertices[0][0] = minimum;
+    dust3d::UvAtlasBuilder::build(object, components());
+    object.vertices[0][0] = std::nextafter(minimum, -std::numeric_limits<double>::infinity());
+    rejects([&] { dust3d::UvAtlasBuilder::build(object, components()); }, dust3d::UvAtlasErrorCode::invalidInput);
 }
 
 void invalidMetadata()
@@ -299,6 +332,7 @@ int main(int argc, char* argv[])
         seamCharts();
         ownershipAndMissingCorners();
         invalidMetadata();
+        incompleteChartInputs();
         require(argc == 2, "Expected the independent fixture directory");
         generatedFixtures(argv[1]);
         std::cout << "Portable UV atlas contracts passed\n";

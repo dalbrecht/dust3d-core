@@ -12,9 +12,11 @@
 namespace dust3d {
 class Object;
 
-enum class UvAtlasErrorCode { invalidInput,
+enum class UvAtlasErrorCode {
+    invalidInput,
     limitExceeded,
-    packingFailed };
+    packingFailed
+};
 
 /// Typed input, quota or atlas failure. Allocation failures may also throw std::bad_alloc.
 class UvAtlasError : public std::runtime_error {
@@ -69,7 +71,7 @@ struct UvAtlas {
 
 class UvAtlasBuilder {
 public:
-    /// Build the reference atlas without changing the object or using a UI/image framework.
+    /// Build inherited atlas metadata without changing the object or using a UI/image framework.
     /// @param object Generated triangles, local charts and optional existing component assignments.
     /// @param components Resolved source colors and image metadata; absent components do not gain charts.
     /// @param options Texture scale (1..8192) and logical output budget (zero defaults to 64 MiB).
@@ -78,6 +80,10 @@ public:
     /// Output accounting includes array/map elements and layout/gradient records, not allocator
     /// overhead, capacity or packing workspace. It is not a hard working-memory/time limit.
     /// Gradient layouts have null image IDs: consumers use the gradient layout ordinal to bake them.
+    /// Same-winding cyclic triangle order is resolved and UVs return in actual corner order.
+    /// Unknown mappings remain marked zero; a known marker does not assert unique source ownership.
+    /// Example: `auto atlas = UvAtlasBuilder::build(object, components);` then inspect
+    /// `atlas.triangleUvKnown` before treating a generated surface as fully mapped.
     static UvAtlas build(const Object& object, const std::map<Uuid, UvAtlasComponent>& components, const UvAtlasOptions& options = {});
 };
 }

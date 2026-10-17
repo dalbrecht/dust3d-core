@@ -70,6 +70,20 @@ namespace {
         return { PositionKey(object.vertices[triangle[rotation % 3]]), PositionKey(object.vertices[triangle[(rotation + 1) % 3]]), PositionKey(object.vertices[triangle[(rotation + 2) % 3]]) };
     }
 
+    std::pair<TriangleKey, size_t> canonicalTriangle(const TriangleKey& triangle)
+    {
+        TriangleKey best = triangle;
+        size_t rotation = 0;
+        for (size_t candidate = 1; candidate < 3; ++candidate) {
+            TriangleKey rotated { triangle[candidate], triangle[(candidate + 1) % 3], triangle[(candidate + 2) % 3] };
+            if (rotated < best) {
+                best = rotated;
+                rotation = candidate;
+            }
+        }
+        return { best, rotation };
+    }
+
     void resolveComponents(const Object& object, UvAtlas& result)
     {
         std::map<TriangleKey, Uuid> owners;
@@ -79,7 +93,8 @@ namespace {
         }
         for (const auto& broken : object.brokenTrianglesToComponentIdMap)
             owners.insert({ broken.first, broken.second });
-        result.triangleComponentIds = object.triangleComponentIds;
+        const auto retainedCount = std::min(object.triangleComponentIds.size(), object.triangles.size());
+        result.triangleComponentIds.assign(object.triangleComponentIds.begin(), object.triangleComponentIds.begin() + retainedCount);
         result.triangleComponentIds.resize(object.triangles.size());
         if (owners.empty())
             return;
@@ -239,16 +254,23 @@ UvAtlas UvAtlasBuilder::build(const Object& object, const std::map<Uuid, UvAtlas
                 if (!std::isfinite(uv.x()) || !std::isfinite(uv.y()))
                     throw UvAtlasError(UvAtlasErrorCode::packingFailed, "The atlas packer returned a nonfinite UV coordinate.");
             }
-            merged.insert(triangle);
+            // Equivalent cyclic keys share chart priority, while winding remains distinct.
+            const auto [canonical, rotation] = canonicalTriangle(triangle.first);
+            Uvs uvs;
+            for (size_t corner = 0; corner < 3; ++corner)
+                uvs[corner] = triangle.second[(corner + rotation) % 3];
+            merged.insert({ canonical, uvs });
         }
     }
     result.layouts = layouts;
     result.triangleUvs.resize(object.triangles.size());
     result.triangleUvKnown.resize(object.triangles.size(), 0);
     for (size_t index = 0; index < object.triangles.size(); ++index) {
-        const auto found = merged.find(key(object, object.triangles[index]));
+        const auto [canonical, rotation] = canonicalTriangle(key(object, object.triangles[index]));
+        const auto found = merged.find(canonical);
         if (found != merged.end()) {
-            result.triangleUvs[index] = found->second;
+            for (size_t corner = 0; corner < 3; ++corner)
+                result.triangleUvs[index][(corner + rotation) % 3] = found->second[corner];
             result.triangleUvKnown[index] = 1;
         }
     }
