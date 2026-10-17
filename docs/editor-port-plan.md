@@ -233,3 +233,14 @@ original diagnostic, and primary failures release partial cache state. See ADR
 0007. Swift actor integration, obsolete-work scheduling, source provenance,
 controlled benchmarks and the Qt differential acceptance corpus remain pending.
 This does not complete M3 or establish full editor feature parity.
+
+
+## Core source-hint stage (core #25)
+
+The opt-in source-owner implementation captures original opaque node/part keys,
+retains all wrapping weights and explicit unknown/ambiguous outcomes, and aligns
+per-corner associations after float filtering and indexed conversion. Design and
+limits: [ADR 0008](adr/0008-generated-source-hints.md) and
+[verification](source-provenance-verification.md). It does not claim exact Boolean
+provenance. Cached source export and Swift/editor adoption follow after full core
+gates and review; M3 and broader differential acceptance remain incomplete.

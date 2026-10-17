@@ -22,6 +22,13 @@ survive later session loads, reset and destruction. All native generation shares
 one engine lock. The stateless API remains available. See
 [session verification and limits](docs/generation-session-verification.md).
 
+Optional `dust3d_sourced_mesh_load` now exports independently owned original-key
+source hints alongside geometry. Per-corner records preserve weighted associations,
+unknown/ambiguous identity states and indexed triangle alignment. These are
+quantized hints, not exact Boolean surface ownership. Source output has a separate
+64 MiB default logical payload budget (256 MiB maximum); legacy/session loads do
+not acquire source buffers. See [contract and verification](docs/source-provenance-verification.md).
+
 ## Build and test without Qt
 
 Requires CMake 3.20+, a C/C++17 compiler and platform thread support. No Swift,

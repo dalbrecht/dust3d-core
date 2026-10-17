@@ -1,4 +1,5 @@
 #include "GenerationPipeline.h"
+#include "SourceProvenance.h"
 #include <array>
 #include <cmath>
 #include <cstdio>
@@ -26,7 +27,7 @@ namespace native {
     }
 
     std::unique_ptr<Dust3DMesh> generateMesh(std::unique_ptr<dust3d::Snapshot> snapshot, const std::string& warning,
-        MeshGenerator::GeneratedCacheContext* cache, MeshGenerator::GenerationMetrics* metrics)
+        MeshGenerator::GeneratedCacheContext* cache, MeshGenerator::GenerationMetrics* metrics, SourceProvenance* sources)
     {
         auto mesh = std::make_unique<Dust3DMesh>();
         mesh->nodeCount = snapshot->nodes.size();
@@ -90,6 +91,10 @@ namespace native {
             // ABI's float coordinates. Validate first so invalid geometry is never hidden.
             if (dust3d::Vector3::crossProduct(second - first, third - first).lengthSquared() == 0)
                 continue;
+            if (sources) {
+                for (const auto vertexIndex : triangle)
+                    sources->appendCorner(*object, object->vertices[vertexIndex]);
+            }
             mesh->vertices.insert(mesh->vertices.end(), exportedTriangle.begin(), exportedTriangle.end());
         }
         if (mesh->vertices.empty())
