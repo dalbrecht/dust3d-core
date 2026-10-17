@@ -42,7 +42,7 @@ include(CTest)
 if(BUILD_TESTING)
     add_executable(dust3d_contract_tests tests/core/contract_tests.cc)
     target_link_libraries(dust3d_contract_tests PRIVATE dust3d_engine)
-    foreach(scenario null_handles invalid_archive input_limit capsule sword ownership)
+    foreach(scenario null_handles invalid_archive input_limit capsule sword ownership rounded_crossing boolean_boundaries)
         add_test(NAME contract_${scenario}
             COMMAND dust3d_contract_tests ${scenario} ${CMAKE_CURRENT_SOURCE_DIR}/tests/core/fixtures)
         set_tests_properties(contract_${scenario} PROPERTIES TIMEOUT 60)

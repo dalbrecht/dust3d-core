@@ -18,3 +18,39 @@ resource limits in geometry algorithms. Linux/macOS hosted CI is configured
 separately; its results must be checked before release.
 
 Follow-up: [core testing roadmap](https://github.com/dalbrecht/dust3d-core/issues/1).
+
+## Boolean-boundary regression verification — October 16, 2026
+
+Core issue #3 was reproduced in a new portable CTest before changing engine code:
+the rounded/subdivided crossing returned generation failure with repeated-halfedge
+and polygon-ring diagnostics. A degree-four intersection vertex belonged to two
+loops; vertex-only traversal prevented the second loop from closing. A stronger
+closed-edge check then exposed a sliver between original and cut coordinates
+about 2.2e-8 apart across a truncated position-grid boundary.
+
+The repair consumes boundary edges, splits repeated-vertex walks into closed loops,
+shares original/cut vertex indices and checks neighboring weld cells at the existing
+1e-5 resolution. Collapsed triangles/edges are removed after mapping. The global
+PositionKey and C ABI remain unchanged. The original affected file has the same
+Git blob in the maintained base and upstream-sync; this is a reusable inherited
+engine fix, not an Apple-specific fork of the algorithm.
+
+Final local checks passed with Apple Clang 21.0.0 and CMake 4.4.4:
+
+- Complete Debug CMake build and all nine CTest contracts.
+- Separate full ASan/UBSan build and all nine contracts with halt-on-error enabled.
+- SwiftPM static source product build.
+- Formatting for the modified inherited C++ files and all adapter/contract sources.
+- Whitespace verification using `core.whitespace=cr-at-eol`, preserving inherited CRLF files.
+
+Five synthetic MIT fixtures check complete finite colored meshes, normalized
+normals, noncollapsed edges paired with opposite winding at 1e-5 tolerance, and
+connected-surface counts. Union, translated union and hard union remain connected;
+a centered difference and a 4e-5 separated pair retain two surfaces. Fixture
+provenance/geometry is recorded in tests/core/fixtures/README.md; the design is in
+[ADR 0001](adr/0001-boolean-intersection-loops.md).
+
+macOS ASan ran with leak detection disabled; no leak-free claim is made. Hosted
+Linux/macOS and Linux leak-enabled sanitizer results must pass before merge.
+Qt GUI differential verification, complete vertex-manifold guarantees, broad
+performance budgets and full inherited C++ coverage remain unproven.

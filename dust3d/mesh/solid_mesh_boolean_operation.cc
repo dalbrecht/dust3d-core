@@ -126,43 +126,56 @@ bool SolidMeshBooleanOperation::intersectTwoFaces(size_t firstIndex, size_t seco
 bool SolidMeshBooleanOperation::buildPolygonsFromEdges(const std::map<size_t, std::set<size_t>>& edges,
     std::vector<std::vector<size_t>>& polygons)
 {
-    std::set<size_t> visited;
-    for (const auto& edge : edges) {
-        const auto& startEndpoint = edge.first;
-        if (visited.find(startEndpoint) != visited.end())
-            continue;
-        std::queue<size_t> q;
-        q.push(startEndpoint);
-        std::vector<size_t> polyline;
-        while (!q.empty()) {
-            size_t loop = q.front();
-            visited.insert(loop);
-            polyline.push_back(loop);
-            q.pop();
-            auto neighborIt = edges.find(loop);
-            if (neighborIt == edges.end())
-                break;
-            for (const auto& it : neighborIt->second) {
-                if (visited.find(it) == visited.end()) {
-                    q.push(it);
-                    break;
-                }
+    for (const auto& entry : edges) {
+        if (entry.second.size() % 2 != 0 || entry.second.count(entry.first) != 0) {
+            dust3dDebug << "Intersection boundary has an open or self edge";
+            return false;
+        }
+        for (size_t neighbor : entry.second) {
+            auto other = edges.find(neighbor);
+            if (other == edges.end() || other->second.count(entry.first) == 0) {
+                dust3dDebug << "Intersection boundary has asymmetric edges";
+                return false;
             }
         }
-        if (polyline.size() <= 2) {
-            dust3dDebug << "buildPolygonsFromEdges failed, too short";
-            return false;
-        }
-
-        auto neighborOfLast = edges.find(polyline.back());
-        if (neighborOfLast->second.find(startEndpoint) == neighborOfLast->second.end()) {
-            dust3dDebug << "buildPolygonsFromEdges failed, could not form a ring";
-            return false;
-        }
-
-        polygons.push_back(polyline);
     }
 
+    auto remainingEdges = edges;
+    std::vector<std::vector<size_t>> result;
+    for (const auto& entry : edges) {
+        while (!remainingEdges.at(entry.first).empty()) {
+            std::vector<size_t> path { entry.first };
+            std::map<size_t, size_t> pathIndices { { entry.first, 0 } };
+            size_t current = entry.first;
+            for (;;) {
+                auto& neighbors = remainingEdges.at(current);
+                if (neighbors.empty()) {
+                    if (path.size() != 1) {
+                        dust3dDebug << "Intersection boundary did not close";
+                        return false;
+                    }
+                    break;
+                }
+                size_t next = *neighbors.begin();
+                neighbors.erase(neighbors.begin());
+                remainingEdges.at(next).erase(current);
+                auto repeated = pathIndices.find(next);
+                if (repeated != pathIndices.end()) {
+                    // Touching intersection loops share vertices, but each boundary edge belongs to one loop.
+                    size_t loopStart = repeated->second;
+                    result.emplace_back(path.begin() + loopStart, path.end());
+                    for (size_t index = loopStart + 1; index < path.size(); ++index)
+                        pathIndices.erase(path[index]);
+                    path.resize(loopStart + 1);
+                } else {
+                    pathIndices.insert({ next, path.size() });
+                    path.push_back(next);
+                }
+                current = next;
+            }
+        }
+    }
+    polygons.insert(polygons.end(), result.begin(), result.end());
     return true;
 }
 
@@ -242,32 +255,66 @@ void SolidMeshBooleanOperation::buildFaceGroups(const std::vector<std::vector<si
 
 size_t SolidMeshBooleanOperation::addNewPoint(const Vector3& position)
 {
-    auto insertResult = m_newPositionMap.insert({ PositionKey(position), m_newVertices.size() });
-    if (insertResult.second) {
-        m_newVertices.push_back(position);
+    PositionKey key(position);
+    auto existing = m_newPositionMap.find(key);
+    if (existing != m_newPositionMap.end())
+        return existing->second;
+
+    // Truncated PositionKey buckets can split numerically identical cut/original vertices at a grid boundary.
+    constexpr double tolerance = 0.00001;
+    size_t closestIndex = m_newVertices.size();
+    double closestDistanceSquared = std::numeric_limits<double>::max();
+    for (int x = -1; x <= 1; ++x) {
+        for (int y = -1; y <= 1; ++y) {
+            for (int z = -1; z <= 1; ++z) {
+                auto candidate = m_newPositionMap.find(PositionKey(position + Vector3(x * tolerance, y * tolerance, z * tolerance)));
+                if (candidate == m_newPositionMap.end())
+                    continue;
+                const auto& point = m_newVertices.at(candidate->second);
+                double dx = point.x() - position.x();
+                double dy = point.y() - position.y();
+                double dz = point.z() - position.z();
+                if (std::abs(dx) > tolerance || std::abs(dy) > tolerance || std::abs(dz) > tolerance)
+                    continue;
+                double distanceSquared = dx * dx + dy * dy + dz * dz;
+                if (distanceSquared < closestDistanceSquared) {
+                    closestDistanceSquared = distanceSquared;
+                    closestIndex = candidate->second;
+                }
+            }
+        }
     }
-    return insertResult.first->second;
+    if (closestIndex != m_newVertices.size()) {
+        return closestIndex;
+    }
+    size_t index = m_newVertices.size();
+    m_newPositionMap.insert({ key, index });
+    m_newVertices.push_back(position);
+    return index;
 }
 
 bool SolidMeshBooleanOperation::addUnintersectedTriangles(const SolidMesh* mesh,
     const std::set<size_t>& usedFaces,
+    std::vector<size_t>& vertexIndices,
     std::map<std::uint64_t, size_t>* halfEdges)
 {
-    size_t oldVertexCount = m_newVertices.size();
     const auto& vertices = *mesh->vertices();
-    m_newVertices.reserve(m_newVertices.size() + vertices.size());
-    m_newVertices.insert(m_newVertices.end(),
-        vertices.begin(), vertices.end());
+    vertexIndices.reserve(vertices.size());
+    // Original and cut vertices must share the same weld map, or cuts at existing vertices create slivers.
+    for (const auto& vertex : vertices)
+        vertexIndices.push_back(addNewPoint(vertex));
     size_t triangleCount = mesh->triangles()->size();
     m_newTriangles.reserve(m_newTriangles.size() + triangleCount - usedFaces.size());
     for (size_t i = 0; i < triangleCount; ++i) {
         if (usedFaces.find(i) != usedFaces.end())
             continue;
         const auto& oldTriangle = (*mesh->triangles())[i];
+        const std::vector<size_t> mappedTriangle { vertexIndices.at(oldTriangle[0]),
+            vertexIndices.at(oldTriangle[1]), vertexIndices.at(oldTriangle[2]) };
+        if (mappedTriangle[0] == mappedTriangle[1] || mappedTriangle[1] == mappedTriangle[2] || mappedTriangle[2] == mappedTriangle[0])
+            continue;
         size_t newInsertedIndex = m_newTriangles.size();
-        m_newTriangles.push_back({ oldTriangle[0] + oldVertexCount,
-            oldTriangle[1] + oldVertexCount,
-            oldTriangle[2] + oldVertexCount });
+        m_newTriangles.push_back(mappedTriangle);
         const auto& newInsertedTriangle = m_newTriangles.back();
         if (!halfEdges->insert({ makeHalfEdgeKey(newInsertedTriangle[0], newInsertedTriangle[1]), newInsertedIndex }).second) {
             dust3dDebug << "Found repeated halfedge:" << newInsertedTriangle[0] << "," << newInsertedTriangle[1];
@@ -342,7 +389,7 @@ bool SolidMeshBooleanOperation::combine()
 
     auto reTriangulate = [&](const std::map<size_t, IntersectedContext>& context,
                              const SolidMesh* mesh,
-                             size_t startOldVertex,
+                             const std::vector<size_t>& vertexIndices,
                              std::map<size_t, std::set<size_t>>& edges,
                              std::map<std::uint64_t, size_t>& halfEdges) {
         for (const auto& [contextKey, it] : context) {
@@ -359,16 +406,18 @@ bool SolidMeshBooleanOperation::combine()
             }
             std::vector<size_t> newIndices;
             newIndices.reserve(3 + it.points.size());
-            newIndices.push_back(startOldVertex + triangle[0]);
-            newIndices.push_back(startOldVertex + triangle[1]);
-            newIndices.push_back(startOldVertex + triangle[2]);
+            newIndices.push_back(vertexIndices.at(triangle[0]));
+            newIndices.push_back(vertexIndices.at(triangle[1]));
+            newIndices.push_back(vertexIndices.at(triangle[2]));
             for (const auto& point : it.points)
                 newIndices.push_back(addNewPoint(point));
             for (const auto& triangle : reTriangulator.triangles()) {
+                const std::vector<size_t> mappedTriangle { newIndices.at(triangle[0]),
+                    newIndices.at(triangle[1]), newIndices.at(triangle[2]) };
+                if (mappedTriangle[0] == mappedTriangle[1] || mappedTriangle[1] == mappedTriangle[2] || mappedTriangle[2] == mappedTriangle[0])
+                    continue;
                 size_t newInsertedIndex = m_newTriangles.size();
-                m_newTriangles.push_back({ newIndices[triangle[0]],
-                    newIndices[triangle[1]],
-                    newIndices[triangle[2]] });
+                m_newTriangles.push_back(mappedTriangle);
                 const auto& newInsertedTriangle = m_newTriangles.back();
                 if (!halfEdges.insert({ makeHalfEdgeKey(newInsertedTriangle[0], newInsertedTriangle[1]), newInsertedIndex }).second) {
                     dust3dDebug << "Found repeated halfedge:" << newInsertedTriangle[0] << "," << newInsertedTriangle[1];
@@ -384,6 +433,8 @@ bool SolidMeshBooleanOperation::combine()
                 auto from = newIndices[neighborIt.first];
                 for (const auto& neighborIt2 : neighborIt.second) {
                     auto to = newIndices[neighborIt2];
+                    if (from == to)
+                        continue;
                     edges[from].insert(to);
                     edges[to].insert(from);
                 }
@@ -392,25 +443,27 @@ bool SolidMeshBooleanOperation::combine()
         return true;
     };
 
+    std::vector<size_t> firstVertexIndices;
+    std::vector<size_t> secondVertexIndices;
     size_t firstRemainingStartTriangleIndex = m_newTriangles.size();
-    if (!addUnintersectedTriangles(m_firstMesh, m_firstIntersectedFaces, &firstHalfEdges)) {
+    if (!addUnintersectedTriangles(m_firstMesh, m_firstIntersectedFaces, firstVertexIndices, &firstHalfEdges)) {
         dust3dDebug << "Add first mesh remaining triangles failed";
     }
     size_t firstRemainingTriangleCount = m_newTriangles.size() - firstRemainingStartTriangleIndex;
 
     size_t secondRemainingStartTriangleIndex = m_newTriangles.size();
-    if (!addUnintersectedTriangles(m_secondMesh, m_secondIntersectedFaces, &secondHalfEdges)) {
+    if (!addUnintersectedTriangles(m_secondMesh, m_secondIntersectedFaces, secondVertexIndices, &secondHalfEdges)) {
         dust3dDebug << "Add second mesh remaining triangles failed";
     }
     size_t secondRemainingTriangleCount = m_newTriangles.size() - secondRemainingStartTriangleIndex;
 
     if (!reTriangulate(firstTriangleIntersectedContext,
-            m_firstMesh, 0, firstEdges, firstHalfEdges)) {
+            m_firstMesh, firstVertexIndices, firstEdges, firstHalfEdges)) {
         dust3dDebug << "Retriangulate first mesh failed";
         return false;
     }
     if (!reTriangulate(secondTriangleIntersectedContext,
-            m_secondMesh, m_firstMesh->vertices()->size(), secondEdges, secondHalfEdges)) {
+            m_secondMesh, secondVertexIndices, secondEdges, secondHalfEdges)) {
         dust3dDebug << "Retriangulate second mesh failed";
         return false;
     }

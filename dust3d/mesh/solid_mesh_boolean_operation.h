@@ -89,6 +89,7 @@ private:
     size_t addNewPoint(const Vector3& position);
     bool addUnintersectedTriangles(const SolidMesh* mesh,
         const std::set<size_t>& usedFaces,
+        std::vector<size_t>& vertexIndices,
         std::map<std::uint64_t, size_t>* halfEdges);
     void decideGroupSide(const std::vector<std::vector<size_t>>& groups,
         const SolidMesh* mesh,
