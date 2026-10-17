@@ -31,6 +31,11 @@ not acquire source buffers. `dust3d_generation_session_load_sourced` obtains the
 same independent source owner while reusing bounded component caches; see
 [cached source verification](docs/cached-source-verification.md). See [contract and verification](docs/source-provenance-verification.md).
 
+The inherited UV packer now uses wide score/area arithmetic and rejects invalid
+quantized dimensions or charts erased by padding precision. Failed `tryPack`
+attempts clear prior layouts; see [regression and limits](docs/uv-packer-numeric-verification.md).
+The portable atlas API remains a separate stage; existing C/Swift ABI is unchanged.
+
 ## Build and test without Qt
 
 Requires CMake 3.20+, a C/C++17 compiler and platform thread support. No Swift,

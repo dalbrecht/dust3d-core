@@ -254,3 +254,12 @@ budgets/diagnostics remain independent, including cache-only fallback and primar
 source-failure recovery. See [ADR 0009](adr/0009-cached-source-generation.md) and
 [verification](cached-source-verification.md). Swift/editor pin and adoption follow
 after core review and gates; M3 and broader Qt acceptance remain incomplete.
+
+
+## UV packer safety prerequisite (core #30)
+
+Portable atlas extraction exposed inherited signed area overflow under UBSan.
+The focused generic fix widens scores/products, checks quantized dimensions and
+rejects precision-erased charts; see [verification](uv-packer-numeric-verification.md)
+and ADR 0010. Atlas construction (core #29), texture baking, Apple adoption and
+full M4/native/Qt acceptance remain incomplete.

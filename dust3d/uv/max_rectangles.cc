@@ -29,8 +29,10 @@
  */
 
 #include <assert.h>
+#include <cstdint>
 #include <dust3d/uv/max_rectangles.h>
 #include <limits.h>
+#include <limits>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -180,7 +182,7 @@ namespace uv {
 #define createRect(x, y, width, height, rectOrder) createRectOnLine((x), (y), (width), (height), (rectOrder), __LINE__)
 
     MaxRectanglesRect* findPositionForNewNodeBottomLeft(MaxRectanglesContext* ctx,
-        int width, int height, int* bestY, int* bestX)
+        int width, int height, std::int64_t* bestY, std::int64_t* bestX)
     {
         MaxRectanglesRect* loop;
         MaxRectanglesRect* bestNode = createRect(0, 0, 0, 0, 0);
@@ -188,7 +190,7 @@ namespace uv {
             return 0;
         }
 
-        *bestY = INT_MAX;
+        *bestY = std::numeric_limits<std::int64_t>::max();
 
         for (loop = ctx->freeRectLink; loop; loop = loop->next) {
             // Try to place the rectangle in upright (non-flipped) orientation.
@@ -219,7 +221,7 @@ namespace uv {
     }
 
     MaxRectanglesRect* findPositionForNewNodeBestShortSideFit(MaxRectanglesContext* ctx,
-        int width, int height, int* bestShortSideFit, int* bestLongSideFit)
+        int width, int height, std::int64_t* bestShortSideFit, std::int64_t* bestLongSideFit)
     {
         MaxRectanglesRect* loop;
         MaxRectanglesRect* bestNode = createRect(0, 0, 0, 0, 0);
@@ -227,7 +229,7 @@ namespace uv {
             return 0;
         }
 
-        *bestShortSideFit = INT_MAX;
+        *bestShortSideFit = std::numeric_limits<std::int64_t>::max();
 
         for (loop = ctx->freeRectLink; loop; loop = loop->next) {
             // Try to place the rectangle in upright (non-flipped) orientation.
@@ -267,7 +269,7 @@ namespace uv {
     }
 
     MaxRectanglesRect* findPositionForNewNodeBestLongSideFit(MaxRectanglesContext* ctx,
-        int width, int height, int* bestShortSideFit, int* bestLongSideFit)
+        int width, int height, std::int64_t* bestShortSideFit, std::int64_t* bestLongSideFit)
     {
         MaxRectanglesRect* loop;
         MaxRectanglesRect* bestNode = createRect(0, 0, 0, 0, 0);
@@ -275,7 +277,7 @@ namespace uv {
             return 0;
         }
 
-        *bestLongSideFit = INT_MAX;
+        *bestLongSideFit = std::numeric_limits<std::int64_t>::max();
 
         for (loop = ctx->freeRectLink; loop; loop = loop->next) {
             // Try to place the rectangle in upright (non-flipped) orientation.
@@ -315,7 +317,7 @@ namespace uv {
     }
 
     MaxRectanglesRect* findPositionForNewNodeBestAreaFit(MaxRectanglesContext* ctx,
-        int width, int height, int* bestAreaFit, int* bestShortSideFit)
+        int width, int height, std::int64_t* bestAreaFit, std::int64_t* bestShortSideFit)
     {
         MaxRectanglesRect* loop;
         MaxRectanglesRect* bestNode = createRect(0, 0, 0, 0, 0);
@@ -323,10 +325,10 @@ namespace uv {
             return 0;
         }
 
-        *bestAreaFit = INT_MAX;
+        *bestAreaFit = std::numeric_limits<std::int64_t>::max();
 
         for (loop = ctx->freeRectLink; loop; loop = loop->next) {
-            int areaFit = (int)loop->width * (int)loop->height - width * height;
+            std::int64_t areaFit = static_cast<std::int64_t>(loop->width) * loop->height - static_cast<std::int64_t>(width) * height;
 
             // Try to place the rectangle in upright (non-flipped) orientation.
             if (loop->width >= width && loop->height >= height) {
@@ -371,11 +373,11 @@ namespace uv {
         return MIN(i1end, i2end) - MAX(i1start, i2start);
     }
 
-    static int contactPointScoreNode(MaxRectanglesContext* ctx, int x, int y,
+    static std::int64_t contactPointScoreNode(MaxRectanglesContext* ctx, int x, int y,
         int width, int height)
     {
         MaxRectanglesRect* loop;
-        int score = 0;
+        std::int64_t score = 0;
 
         if (x == 0 || x + width == ctx->width)
             score += height;
@@ -395,7 +397,7 @@ namespace uv {
     }
 
     MaxRectanglesRect* findPositionForNewNodeContactPoint(MaxRectanglesContext* ctx,
-        int width, int height, int* bestContactScore)
+        int width, int height, std::int64_t* bestContactScore)
     {
         MaxRectanglesRect* loop;
         MaxRectanglesRect* bestNode = createRect(0, 0, 0, 0, 0);
@@ -408,7 +410,7 @@ namespace uv {
         for (loop = ctx->freeRectLink; loop; loop = loop->next) {
             // Try to place the rectangle in upright (non-flipped) orientation.
             if (loop->width >= width && loop->height >= height) {
-                int score = contactPointScoreNode(ctx, (int)loop->x, (int)loop->y,
+                std::int64_t score = contactPointScoreNode(ctx, (int)loop->x, (int)loop->y,
                     width, height);
                 if (score > *bestContactScore) {
                     bestNode->x = (int)loop->x;
@@ -419,7 +421,7 @@ namespace uv {
                 }
             }
             if (ctx->allowRotations && loop->width >= height && loop->height >= width) {
-                int score = contactPointScoreNode(ctx, (int)loop->x, (int)loop->y,
+                std::int64_t score = contactPointScoreNode(ctx, (int)loop->x, (int)loop->y,
                     height, width);
                 if (score > *bestContactScore) {
                     bestNode->x = (int)loop->x;
@@ -464,18 +466,18 @@ namespace uv {
         unsigned long long usedSurfaceArea = 0;
         MaxRectanglesRect* loop = ctx->usedRectLink;
         while (loop) {
-            usedSurfaceArea += loop->width * loop->height;
+            usedSurfaceArea += static_cast<std::uint64_t>(loop->width) * loop->height;
             loop = loop->next;
         }
-        return (float)usedSurfaceArea / (ctx->width * ctx->height);
+        return static_cast<float>(static_cast<double>(usedSurfaceArea) / (static_cast<std::uint64_t>(ctx->width) * ctx->height));
     }
 
     MaxRectanglesRect* scoreRect(MaxRectanglesContext* ctx, int width, int height,
-        enum MaxRectanglesFreeRectChoiceHeuristic method, int* score1, int* score2)
+        enum MaxRectanglesFreeRectChoiceHeuristic method, std::int64_t* score1, std::int64_t* score2)
     {
         MaxRectanglesRect* newNode = 0;
-        *score1 = INT_MAX;
-        *score2 = INT_MAX;
+        *score1 = std::numeric_limits<std::int64_t>::max();
+        *score2 = std::numeric_limits<std::int64_t>::max();
         switch (method) {
         case kMaxRectanglesBestShortSideFit:
             newNode = findPositionForNewNodeBestShortSideFit(ctx, width, height,
@@ -501,8 +503,8 @@ namespace uv {
 
         // Cannot fit the current rectangle.
         if (!newNode || 0 == newNode->height) {
-            *score1 = INT_MAX;
-            *score2 = INT_MAX;
+            *score1 = std::numeric_limits<std::int64_t>::max();
+            *score2 = std::numeric_limits<std::int64_t>::max();
         }
 
         return newNode;
@@ -621,14 +623,14 @@ namespace uv {
     static int startLayout(MaxRectanglesContext* ctx)
     {
         while (ctx->inputRectLink) {
-            int bestScore1 = INT_MAX;
-            int bestScore2 = INT_MAX;
+            std::int64_t bestScore1 = std::numeric_limits<std::int64_t>::max();
+            std::int64_t bestScore2 = std::numeric_limits<std::int64_t>::max();
             MaxRectanglesRect* bestNode = 0;
             MaxRectanglesRect* bestRect = 0;
             MaxRectanglesRect* loop = ctx->inputRectLink;
             while (loop) {
-                int score1 = 0;
-                int score2 = 0;
+                std::int64_t score1 = 0;
+                std::int64_t score2 = 0;
                 MaxRectanglesRect* newRect = 0;
                 newRect = scoreRect(ctx, loop->width, loop->height, ctx->method, &score1, &score2);
                 if (!newRect) {
@@ -680,6 +682,12 @@ namespace uv {
         enum MaxRectanglesFreeRectChoiceHeuristic method, int allowRotations,
         MaxRectanglesPosition* layoutResults, float* occupancy)
     {
+        if (width <= 0 || height <= 0 || rectCount < 0 || (rectCount > 0 && (!rects || !layoutResults)))
+            return -1;
+        for (int i = 0; i < rectCount; ++i) {
+            if (rects[i].width <= 0 || rects[i].height <= 0)
+                return -1;
+        }
         MaxRectanglesContext contextStruct;
         MaxRectanglesContext* ctx = &contextStruct;
         memset(ctx, 0, sizeof(MaxRectanglesContext));
