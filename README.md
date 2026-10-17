@@ -139,3 +139,12 @@ feature parity.
 A direct low-level boolean test also checks thin solids across zero on each axis,
 retaining their triangles and signed volume when same-key points exceed the weld
 tolerance.
+
+## Numeric archive compatibility
+
+The native validator accepts both dot and comma decimal separators, matching the
+inherited geometry parser and archives from older locale settings. Normalization
+is local to validation; the archive/snapshot data is not rewritten. Full input
+consumption, finite values, the existing magnitude limit, numeric underflow and
+negative node-radius rejection remain enforced. The `contract_numeric_decimals`
+CTest entry verifies actual C ABI mesh equivalence and malformed-input rejection.

@@ -34,3 +34,13 @@ reject collapsed edges, require each undirected edge twice with opposite winding
 and assert connected-surface counts. This verifies closed edge topology, not the
 stronger condition that every vertex neighborhood is manifold. The centered
 subtraction avoids using a tangential contact as an ambiguous component-count oracle.
+
+`tests/core/numeric_validation_tests.cc` independently constructs synthetic MIT
+archives in memory for core issue #5 (2026-10-17), based on maintained revision
+382fe0be977170812577ab400873c10fc6f575e5. Two nodes, one part and a colored
+component exercise canvas/node/part/component numeric attributes. Dot and comma
+forms must generate identical counts, positions, normals and colors, with finite
+unit normals (squared-length tolerance 0.001). Malformed suffixes, duplicate
+separators, nonfinite values, underflow, excessive magnitude and negative comma-
+decimal radii must reject with a typed diagnostic. These compare equivalent
+numeric spellings; they do not prescribe a general triangulation baseline.
