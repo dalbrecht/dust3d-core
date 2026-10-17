@@ -11,6 +11,9 @@ extern "C" {
 /** An owning, immutable mesh handle. Release with dust3d_mesh_destroy. */
 typedef struct Dust3DMesh Dust3DMesh;
 
+/** Independent owning indexed buffers. Release with dust3d_indexed_mesh_destroy. */
+typedef struct Dust3DIndexedMesh Dust3DIndexedMesh;
+
 typedef struct Dust3DVertex {
     float position[3];
     float normal[3];
@@ -60,6 +63,52 @@ size_t dust3d_mesh_part_count(const Dust3DMesh* mesh);
 
 /** Borrowed compatibility warning, or an empty string. Valid until mesh destruction. */
 const char* dust3d_mesh_warning(const Dust3DMesh* mesh);
+
+/**
+ * Create an independently owned indexed copy of a validated expanded mesh.
+ * The source is borrowed only during this call and may be destroyed afterward.
+ * Complete finite position/normal/color values define vertex sharing, preserving seams.
+ * maximum_bytes limits exported vertex/index payload bytes; zero selects 256 MiB.
+ * Source storage, temporary lookup memory and allocator overhead are outside this payload budget.
+ * Returns an owner or NULL with a diagnostic; NULL error is accepted. Never throws.
+ * INVALID_DOCUMENT rejects a NULL source; LIMIT_EXCEEDED reports insufficient budget.
+ * GENERATION_FAILED reports nonfinite source attributes or unexpected conversion failure.
+ * @param mesh Valid expanded owner, borrowed for this call.
+ * @param maximum_bytes Exported payload budget in bytes; zero uses 256 MiB.
+ * @param error Optional diagnostic output, reset on every call.
+ * @return An independent owner on success, otherwise NULL with a descriptive diagnostic.
+ * @code
+ * Dust3DIndexedMesh* indexed = dust3d_mesh_create_indexed(source, 0, &error);
+ * if (indexed != NULL) {
+ *     const uint32_t* indices = dust3d_indexed_mesh_indices(indexed);
+ *     // Read buffers while indexed remains alive.
+ *     dust3d_indexed_mesh_destroy(indexed);
+ * }
+ * @endcode
+ */
+Dust3DIndexedMesh* dust3d_mesh_create_indexed(const Dust3DMesh* mesh, size_t maximum_bytes, Dust3DError* error);
+
+/** Release independent indexed storage. NULL is accepted. */
+void dust3d_indexed_mesh_destroy(Dust3DIndexedMesh* mesh);
+
+/** Borrowed unique full-attribute vertices, valid until indexed owner destruction; NULL for NULL owner. */
+const Dust3DVertex* dust3d_indexed_mesh_vertices(const Dust3DIndexedMesh* mesh);
+
+/** Unique vertex count; zero for NULL owner. */
+size_t dust3d_indexed_mesh_vertex_count(const Dust3DIndexedMesh* mesh);
+
+/** Borrowed UInt32 triangle indices, valid until indexed owner destruction; NULL for NULL owner. */
+const uint32_t* dust3d_indexed_mesh_indices(const Dust3DIndexedMesh* mesh);
+
+/** Index count, a multiple of three equal to the source expanded count; zero for NULL owner. */
+size_t dust3d_indexed_mesh_index_count(const Dust3DIndexedMesh* mesh);
+
+/** Copied source node/part counts; zero for NULL owner. */
+size_t dust3d_indexed_mesh_node_count(const Dust3DIndexedMesh* mesh);
+size_t dust3d_indexed_mesh_part_count(const Dust3DIndexedMesh* mesh);
+
+/** Borrowed copied compatibility warning, valid until indexed destruction; empty for NULL owner. */
+const char* dust3d_indexed_mesh_warning(const Dust3DIndexedMesh* mesh);
 
 #ifdef __cplusplus
 }

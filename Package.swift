@@ -43,7 +43,7 @@ let package = Package(
             name: "Dust3DEngine",
             dependencies: ["Dust3DCore"],
             path: "native/Engine",
-            sources: ["Dust3DBridge.cc", "DocumentReader.cc", "SnapshotValidator.cc"],
+            sources: ["Dust3DBridge.cc", "IndexedMesh.cc", "DocumentReader.cc", "SnapshotValidator.cc"],
             publicHeadersPath: "include",
             cxxSettings: [
                 .headerSearchPath("../.."),

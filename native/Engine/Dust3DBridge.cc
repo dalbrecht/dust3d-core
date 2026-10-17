@@ -5,15 +5,19 @@
 #include <dust3d/mesh/mesh_generator.h>
 #include <mutex>
 
-namespace {
-void setError(Dust3DError* error, Dust3DStatus status, const char* message)
-{
-    if (!error)
-        return;
-    error->status = status;
-    std::snprintf(error->message, sizeof(error->message), "%s", message);
+namespace dust3d {
+namespace native {
+    void setError(Dust3DError* error, Dust3DStatus status, const char* message) noexcept
+    {
+        if (!error)
+            return;
+        error->status = status;
+        std::snprintf(error->message, sizeof(error->message), "%s", message);
+    }
+}
 }
 
+namespace {
 std::unique_ptr<Dust3DMesh> generateMesh(std::unique_ptr<dust3d::Snapshot> snapshot, const std::string& warning)
 {
     auto mesh = std::make_unique<Dust3DMesh>();
@@ -84,7 +88,7 @@ std::unique_ptr<Dust3DMesh> generateMesh(std::unique_ptr<dust3d::Snapshot> snaps
 
 Dust3DMesh* dust3d_mesh_load(const uint8_t* bytes, size_t size, Dust3DError* error)
 {
-    setError(error, DUST3D_STATUS_OK, "");
+    dust3d::native::setError(error, DUST3D_STATUS_OK, "");
     try {
         static std::mutex engineMutex;
         std::lock_guard<std::mutex> lock(engineMutex);
@@ -92,13 +96,13 @@ Dust3DMesh* dust3d_mesh_load(const uint8_t* bytes, size_t size, Dust3DError* err
         auto snapshot = dust3d::native::readDocument(bytes, size, warning);
         return generateMesh(std::move(snapshot), warning).release();
     } catch (const dust3d::native::DocumentError& exception) {
-        setError(error, exception.status(), exception.what());
+        dust3d::native::setError(error, exception.status(), exception.what());
     } catch (const std::bad_alloc&) {
-        setError(error, DUST3D_STATUS_LIMIT_EXCEEDED, "Not enough memory to open this document.");
+        dust3d::native::setError(error, DUST3D_STATUS_LIMIT_EXCEEDED, "Not enough memory to open this document.");
     } catch (const std::exception& exception) {
-        setError(error, DUST3D_STATUS_INVALID_DOCUMENT, exception.what());
+        dust3d::native::setError(error, DUST3D_STATUS_INVALID_DOCUMENT, exception.what());
     } catch (...) {
-        setError(error, DUST3D_STATUS_GENERATION_FAILED, "An unknown error occurred in the modeling engine.");
+        dust3d::native::setError(error, DUST3D_STATUS_GENERATION_FAILED, "An unknown error occurred in the modeling engine.");
     }
     return nullptr;
 }

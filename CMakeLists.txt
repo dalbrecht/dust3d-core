@@ -33,6 +33,7 @@ target_include_directories(dust3d_core PUBLIC
 target_link_libraries(dust3d_core PUBLIC dust3d_remesher dust3d_triangle Threads::Threads)
 add_library(dust3d_engine STATIC
     native/Engine/Dust3DBridge.cc
+    native/Engine/IndexedMesh.cc
     native/Engine/DocumentReader.cc
     native/Engine/SnapshotValidator.cc)
 target_include_directories(dust3d_engine PUBLIC native/Engine/include)
@@ -70,6 +71,13 @@ if(BUILD_TESTING)
     foreach(scenario angles openings precision)
         add_test(NAME contract_wrapping_${scenario} COMMAND dust3d_wrapping_normals_tests ${scenario})
         set_tests_properties(contract_wrapping_${scenario} PROPERTIES TIMEOUT 60)
+    endforeach()
+    add_executable(dust3d_indexed_mesh_tests tests/core/indexed_mesh_tests.cc)
+    target_include_directories(dust3d_indexed_mesh_tests PRIVATE native/Engine)
+    target_link_libraries(dust3d_indexed_mesh_tests PRIVATE dust3d_engine dust3d_core)
+    foreach(scenario null_handles reconstruction ownership budget attribute_seams invalid_attributes concurrent)
+        add_test(NAME contract_indexed_${scenario} COMMAND dust3d_indexed_mesh_tests ${scenario})
+        set_tests_properties(contract_indexed_${scenario} PROPERTIES TIMEOUT 60)
     endforeach()
     # A C translation unit must consume the public ABI without C++/Qt headers.
     add_executable(dust3d_c_consumer tests/core/c_consumer.c)
