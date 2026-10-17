@@ -522,6 +522,99 @@ void materialActivationCancellation()
     fixture.atlas.layouts.clear();
     rejects([&] { dust3d::detail::detectTextureMaterialMaps(fixture.atlas, inputs, fixture.options); }, dust3d::TextureBakeErrorCode::cancelled);
 }
+void normalBudgetBeforeSurfaceWorkspace()
+{
+    Fixture fixture;
+    const auto mandatory = fixture.bake().payloadBytes;
+    const auto normalBytes = fixture.options.normalSize * fixture.options.normalSize * 4;
+    fixture.options.maximumPayloadBytes = mandatory + normalBytes - 1;
+    dust3d::TextureBakeInputs inputs;
+    auto& surface = inputs.surfaces[componentId];
+    surface.wrinkleStrength = 1;
+    dust3d::ClothFolds::Fold fold;
+    fold.points = { { 1e12, 0, 0 }, { 1e12, 1, 0 } };
+    fold.normals = { { 0, 0, 1 }, { 0, 0, 1 } };
+    fold.width = 0.2;
+    fold.depth = 0.04;
+    surface.folds = { fold };
+    rejects([&] { fixture.bake(inputs); }, dust3d::TextureBakeErrorCode::limitExceeded);
+    surface.folds[0].points = { { 0.5, 0, 0 }, { 0.5, 1, 0 } };
+    fixture.options.maximumPayloadBytes = mandatory + normalBytes;
+    const auto active = fixture.bake(inputs);
+    require(active.normal && active.payloadBytes == mandatory + normalBytes, "An exact normal-map payload budget must succeed");
+    auto ignored = surface.folds[0];
+    ignored.points = { { 1e12, 1e12, 0 }, { 1e12, 1e12, 0 } };
+    surface.folds.push_back(ignored);
+    const auto mixed = fixture.bake(inputs);
+    require(mixed.normal && mixed.normal->pixels == active.normal->pixels && mixed.payloadBytes == active.payloadBytes, "Collapsed outlying folds must be ignored before spatial preflight as in the inherited constructor");
+    surface.folds.pop_back();
+    surface.folds[0].points = { { 0.5, 0.5, 0 }, { 0.5, 0.5, 0 } };
+    fixture.options.maximumPayloadBytes = mandatory;
+    const auto collapsed = fixture.bake(inputs);
+    require(!collapsed.normal && collapsed.payloadBytes == mandatory && collapsed.surfaceVertexIndexEntries == 0, "Collapsed folds must not reserve normal output or prepare a spatial index");
+    surface.folds[0].points = { { 0.5, 0, 0 }, { 0.5, 1, 0 } };
+    for (auto& triangle : fixture.atlas.triangleUvs)
+        triangle = {};
+    for (auto& entry : fixture.atlas.layouts[0].globalUv)
+        entry.second = {};
+    const auto degenerate = fixture.bake(inputs);
+    require(!degenerate.normal && degenerate.payloadBytes == mandatory, "Degenerate UV charts must preserve an exact normal-free budget");
+    fixture.options.maximumPayloadBytes = mandatory + normalBytes;
+    const auto spare = fixture.bake(inputs);
+    require(!spare.normal && spare.payloadBytes == mandatory, "Unused normal reservations must not inflate retained output accounting");
+    Fixture collinear;
+    collinear.options.maximumPayloadBytes = mandatory;
+    collinear.object.vertices = { { 0, 0, 0 }, { 1, 0, 0 }, { 2, 0, 0 }, { 3, 0, 0 } };
+    collinear.atlas.layouts[0].globalUv.clear();
+    for (size_t index = 0; index < collinear.object.triangles.size(); ++index) {
+        const auto& triangle = collinear.object.triangles[index];
+        collinear.atlas.layouts[0].globalUv[{ dust3d::PositionKey(collinear.object.vertices[triangle[0]]), dust3d::PositionKey(collinear.object.vertices[triangle[1]]), dust3d::PositionKey(collinear.object.vertices[triangle[2]]) }] = collinear.atlas.triangleUvs[index];
+    }
+    const auto noGeometry = collinear.bake(inputs);
+    require(!noGeometry.normal && noGeometry.payloadBytes == mandatory, "World-degenerate charts must not require normal-map capacity");
+}
+void degenerateNormalWitnessRun()
+{
+    Fixture fixture;
+    fixture.object.vertices.clear();
+    fixture.object.triangles.clear();
+    fixture.atlas.triangleUvs.clear();
+    fixture.atlas.triangleUvKnown.clear();
+    fixture.atlas.triangleComponentIds.clear();
+    fixture.atlas.layouts[0].globalUv.clear();
+    for (size_t index = 0; index < 97; ++index) {
+        const auto first = fixture.object.vertices.size();
+        const double x = index * 3;
+        fixture.object.vertices.push_back({ x, 0, 0 });
+        fixture.object.vertices.push_back({ x + 1, 0, 0 });
+        fixture.object.vertices.push_back({ x + 2, index == 96 ? 1.0 : 0.0, 0 });
+        fixture.object.triangles.push_back({ first, first + 1, first + 2 });
+        fixture.atlas.triangleUvs.push_back({ dust3d::Vector2(0, 0), dust3d::Vector2(1, 0), dust3d::Vector2(1, 1) });
+        fixture.atlas.triangleUvKnown.push_back(1);
+        fixture.atlas.triangleComponentIds.push_back(componentId);
+        fixture.atlas.layouts[0].globalUv[{ dust3d::PositionKey(fixture.object.vertices[first]), dust3d::PositionKey(fixture.object.vertices[first + 1]), dust3d::PositionKey(fixture.object.vertices[first + 2]) }] = fixture.atlas.triangleUvs.back();
+    }
+    const auto mandatory = fixture.bake().payloadBytes;
+    fixture.options.maximumPayloadBytes = mandatory;
+    dust3d::TextureBakeInputs inputs;
+    auto& surface = inputs.surfaces[componentId];
+    surface.wrinkleStrength = 1;
+    dust3d::ClothFolds::Fold fold;
+    fold.points = { { 0, 0, 0 }, { 1, 0, 0 } };
+    fold.normals = { { 0, 0, 1 }, { 0, 0, 1 } };
+    fold.width = 0.2;
+    fold.depth = 0.04;
+    surface.folds = { fold };
+    rejects([&] { fixture.bake(inputs); }, dust3d::TextureBakeErrorCode::limitExceeded);
+    fixture.object.vertices.back()[1] = 0;
+    fixture.atlas.layouts[0].globalUv.clear();
+    for (size_t index = 0; index < fixture.object.triangles.size(); ++index) {
+        const auto& triangle = fixture.object.triangles[index];
+        fixture.atlas.layouts[0].globalUv[{ dust3d::PositionKey(fixture.object.vertices[triangle[0]]), dust3d::PositionKey(fixture.object.vertices[triangle[1]]), dust3d::PositionKey(fixture.object.vertices[triangle[2]]) }] = fixture.atlas.triangleUvs[index];
+    }
+    const auto inactive = fixture.bake(inputs);
+    require(!inactive.normal && inactive.payloadBytes == mandatory, "A long world-degenerate witness run must preserve its exact normal-free budget");
+}
 void generatedFixtures(const std::string& directory)
 {
     for (const std::string name : { "Capsule.ds3", "Sword.ds3", "RoundedCrossing.ds3" }) {
@@ -614,6 +707,8 @@ int main(int argc, char* argv[])
         resolvedChartSources();
         subTexelCharts();
         materialActivationCancellation();
+        normalBudgetBeforeSurfaceWorkspace();
+        degenerateNormalWitnessRun();
         require(argc == 2, "Expected fixture directory");
         generatedFixtures(argv[1]);
         std::cout << "Texture bake contracts passed\n";

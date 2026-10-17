@@ -265,17 +265,150 @@ namespace {
         double handedness = 1;
         double worldPerUv = 0;
     };
-    double foldGridScale(const TextureSurface& surface)
+    bool resolveSurfaceFrame(SurfaceTriangle& triangle)
+    {
+        const auto edge1 = triangle.positions[1] - triangle.positions[0];
+        const auto edge2 = triangle.positions[2] - triangle.positions[0];
+        const auto du1 = triangle.uvs[1].x() - triangle.uvs[0].x();
+        const auto dv1 = triangle.uvs[1].y() - triangle.uvs[0].y();
+        const auto du2 = triangle.uvs[2].x() - triangle.uvs[0].x();
+        const auto dv2 = triangle.uvs[2].y() - triangle.uvs[0].y();
+        const auto determinant = du1 * dv2 - du2 * dv1;
+        const auto normal = Vector3::crossProduct(edge1, edge2);
+        if (std::abs(determinant) < 1e-18 || normal.lengthSquared() < 1e-30)
+            return false;
+        const auto alongU = (edge1 * dv2 - edge2 * dv1) / determinant;
+        const auto alongV = (edge2 * du1 - edge1 * du2) / determinant;
+        if (alongU.lengthSquared() < 1e-30)
+            return false;
+        triangle.tangent = alongU.normalized();
+        triangle.handedness = Vector3::dotProduct(Vector3::crossProduct(normal, triangle.tangent), -alongV) < 0 ? -1 : 1;
+        double worldLength = 0;
+        double uvLength = 0;
+        for (size_t corner = 0; corner < 3; ++corner) {
+            const auto next = (corner + 1) % 3;
+            worldLength += (triangle.positions[corner] - triangle.positions[next]).length();
+            uvLength += std::hypot(triangle.uvs[corner].x() - triangle.uvs[next].x(), triangle.uvs[corner].y() - triangle.uvs[next].y());
+        }
+        triangle.worldPerUv = worldLength / uvLength;
+        return true;
+    }
+    double foldLength(const ClothFolds::Fold& fold, const TextureBakeOptions& options)
+    {
+        double length = 0;
+        for (size_t index = 1; index < fold.points.size(); ++index) {
+            if (index % 256 == 1)
+                checkCancellation(options);
+            length += (fold.points[index] - fold.points[index - 1]).length();
+        }
+        if (!std::isfinite(length))
+            invalid("Cloth fold length overflows finite geometry");
+        return length;
+    }
+    bool hasEffectiveFolds(const TextureSurface& surface, const TextureBakeOptions& options)
+    {
+        if (surface.wrinkleStrength <= 0)
+            return false;
+        for (const auto& fold : surface.folds) {
+            if (foldLength(fold, options) > 1e-9)
+                return true;
+        }
+        return false;
+    }
+    bool isFoldLayout(const UvMapPacker::Layout& layout, const TextureBakeInputs& inputs, const TextureBakeOptions& options)
+    {
+        if (!layout.id.isNull() || layout.globalUv.empty())
+            return false;
+        const auto found = inputs.surfaces.find(layout.sourceId);
+        return found != inputs.surfaces.end() && hasEffectiveFolds(found->second, options);
+    }
+    bool mayProduceNormals(const UvAtlas& atlas, const TextureBakeInputs& inputs, const TextureBakeOptions& options)
+    {
+        if (inputs.surfaces.empty())
+            return false;
+        for (size_t index = 0; index < atlas.layouts.size(); ++index) {
+            if (index % 256 == 0)
+                checkCancellation(options);
+            if (isFoldLayout(atlas.layouts[index], inputs, options))
+                return true;
+        }
+        return false;
+    }
+    bool confirmsNormalGeometry(const Object& object, const UvAtlas& atlas, const TextureBakeInputs& inputs, const TextureBakeOptions& options)
+    {
+        size_t inspected = 0;
+        size_t probedTriangles = 0;
+        std::optional<std::vector<size_t>> positionIndex;
+        for (const auto& layout : atlas.layouts) {
+            if (inspected++ % 256 == 0)
+                checkCancellation(options);
+            if (!isFoldLayout(layout, inputs, options))
+                continue;
+            for (const auto& entry : layout.globalUv) {
+                if (inspected++ % 256 == 0)
+                    checkCancellation(options);
+                const auto& uv = entry.second;
+                const auto determinant = (uv[1].x() - uv[0].x()) * (uv[2].y() - uv[0].y()) - (uv[2].x() - uv[0].x()) * (uv[1].y() - uv[0].y());
+                if (std::abs(determinant) < 1e-18)
+                    continue;
+                SurfaceTriangle triangle;
+                triangle.uvs = uv;
+                // The common rejected call needs no allocation. Bound those linear
+                // probes before using a compact index for pathological degeneracy.
+                if (++probedTriangles > 64 && !positionIndex) {
+                    positionIndex.emplace(object.vertices.size());
+                    for (size_t index = 0; index < positionIndex->size(); ++index) {
+                        if (index % 256 == 0)
+                            checkCancellation(options);
+                        (*positionIndex)[index] = index;
+                    }
+                    std::sort(positionIndex->begin(), positionIndex->end(), [&](size_t left, size_t right) {
+                        if (inspected++ % 256 == 0)
+                            checkCancellation(options);
+                        const PositionKey a(object.vertices[left]), b(object.vertices[right]);
+                        return a < b || (a == b && left < right);
+                    });
+                }
+                if (positionIndex) {
+                    for (size_t corner = 0; corner < 3; ++corner) {
+                        const auto found = std::lower_bound(positionIndex->begin(), positionIndex->end(), entry.first[corner], [&](size_t index, const PositionKey& key) { return PositionKey(object.vertices[index]) < key; });
+                        if (found == positionIndex->end() || !(PositionKey(object.vertices[*found]) == entry.first[corner]))
+                            invalid("Surface chart references a missing geometry position");
+                        triangle.positions[corner] = object.vertices[*found];
+                    }
+                    if (resolveSurfaceFrame(triangle))
+                        return true;
+                    continue;
+                }
+                std::array<bool, 3> found {};
+                for (const auto& vertex : object.vertices) {
+                    if (inspected++ % 256 == 0)
+                        checkCancellation(options);
+                    const PositionKey key(vertex);
+                    for (size_t corner = 0; corner < 3; ++corner) {
+                        if (!found[corner] && key == entry.first[corner]) {
+                            triangle.positions[corner] = vertex;
+                            found[corner] = true;
+                        }
+                    }
+                    if (found[0] && found[1] && found[2])
+                        break;
+                }
+                if (!found[0] || !found[1] || !found[2])
+                    invalid("Surface chart references a missing geometry position");
+                if (resolveSurfaceFrame(triangle))
+                    return true;
+            }
+        }
+        return false;
+    }
+    double foldGridScale(const TextureSurface& surface, const TextureBakeOptions& options)
     {
         double maximumReach = 0;
         double segmentLength = 0;
         size_t segmentCount = 0;
         for (const auto& fold : surface.folds) {
-            double length = 0;
-            for (size_t index = 1; index < fold.points.size(); ++index)
-                length += (fold.points[index] - fold.points[index - 1]).length();
-            if (!std::isfinite(length))
-                invalid("Cloth fold length overflows finite geometry");
+            const auto length = foldLength(fold, options);
             if (length <= 1e-9)
                 continue;
             maximumReach = std::max(maximumReach, fold.width * 1.15 * 2.6);
@@ -315,7 +448,7 @@ namespace {
                 return false;
             const auto& surface = found->second;
             return (surface.pattern && surface.pattern->type != SurfacePattern::Type::None)
-                || (!surface.folds.empty() && surface.wrinkleStrength > 0);
+                || hasEffectiveFolds(surface, options);
         };
         if (inputs.surfaces.empty() || std::none_of(atlas.layouts.begin(), atlas.layouts.end(), needsDetails))
             return {};
@@ -353,30 +486,8 @@ namespace {
                         chart.vertices.push_back(position->second);
                     triangle.vertices[corner] = inserted.first->second;
                 }
-                const auto edge1 = triangle.positions[1] - triangle.positions[0];
-                const auto edge2 = triangle.positions[2] - triangle.positions[0];
-                const auto du1 = triangle.uvs[1].x() - triangle.uvs[0].x();
-                const auto dv1 = triangle.uvs[1].y() - triangle.uvs[0].y();
-                const auto du2 = triangle.uvs[2].x() - triangle.uvs[0].x();
-                const auto dv2 = triangle.uvs[2].y() - triangle.uvs[0].y();
-                const auto determinant = du1 * dv2 - du2 * dv1;
-                const auto normal = Vector3::crossProduct(edge1, edge2);
-                if (std::abs(determinant) < 1e-18 || normal.lengthSquared() < 1e-30)
+                if (!resolveSurfaceFrame(triangle))
                     continue;
-                const auto alongU = (edge1 * dv2 - edge2 * dv1) / determinant;
-                const auto alongV = (edge2 * du1 - edge1 * du2) / determinant;
-                if (alongU.lengthSquared() < 1e-30)
-                    continue;
-                triangle.tangent = alongU.normalized();
-                triangle.handedness = Vector3::dotProduct(Vector3::crossProduct(normal, triangle.tangent), -alongV) < 0 ? -1 : 1;
-                double worldLength = 0;
-                double uvLength = 0;
-                for (size_t corner = 0; corner < 3; ++corner) {
-                    const auto next = (corner + 1) % 3;
-                    worldLength += (triangle.positions[corner] - triangle.positions[next]).length();
-                    uvLength += std::hypot(triangle.uvs[corner].x() - triangle.uvs[next].x(), triangle.uvs[corner].y() - triangle.uvs[next].y());
-                }
-                triangle.worldPerUv = worldLength / uvLength;
                 chart.triangles.push_back(triangle);
             }
             if (chart.triangles.empty())
@@ -391,14 +502,18 @@ namespace {
                 normal.normalize();
             if (surface.pattern && surface.pattern->type != SurfacePattern::Type::None)
                 chart.pattern = std::make_unique<SurfacePattern>(*surface.pattern, chart.vertices);
-            if (!surface.folds.empty() && surface.wrinkleStrength > 0) {
-                chart.foldScale = foldGridScale(surface);
+            if (hasEffectiveFolds(surface, options)) {
+                chart.foldScale = foldGridScale(surface, options);
                 for (const auto& fold : surface.folds) {
+                    if (foldLength(fold, options) <= 1e-9)
+                        continue;
                     const auto reach = fold.width * 1.15 * 2.6;
                     for (const auto& point : fold.points)
                         checkFoldCell(point, chart.foldScale, reach);
                 }
                 for (const auto& fold : surface.folds) {
+                    if (foldLength(fold, options) <= 1e-9)
+                        continue;
                     const auto reach = fold.width * 1.15 * 2.6;
                     for (size_t index = 1; index < fold.points.size(); ++index) {
                         checkCancellation(options);
@@ -637,12 +752,22 @@ TextureBakeResult TextureBaker::bake(const Object& object, const UvAtlas& atlas,
         if (enabled)
             account(options.materialSize * options.materialSize, 4);
     }
+    const auto normalBytes = options.normalSize * options.normalSize * 4;
+    bool reservedNormal = false;
+    if (mayProduceNormals(atlas, inputs, options)) {
+        // Most calls can reserve immediately. Only an insufficient normal budget
+        // needs a lightweight geometry witness before rejecting the request.
+        if (normalBytes <= budget - payload || confirmsNormalGeometry(object, atlas, inputs, options)) {
+            account(options.normalSize * options.normalSize, 4);
+            reservedNormal = true;
+        }
+    }
     const auto colorSources = detail::resolveTextureChartSources(atlas, inputs, options);
     size_t indexedVertices = 0;
     auto charts = surfaces(object, atlas, inputs, options, indexedVertices);
     const bool hasNormal = std::any_of(charts.begin(), charts.end(), [](const SurfaceChart& chart) { return bool(chart.folds); });
-    if (hasNormal)
-        account(options.normalSize * options.normalSize, 4);
+    if (reservedNormal && !hasNormal)
+        payload -= normalBytes;
     TextureBakeResult result;
     result.payloadBytes = payload;
     result.surfaceVertexIndexEntries = indexedVertices;

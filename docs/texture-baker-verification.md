@@ -83,8 +83,8 @@ these focused contracts or by Swift smoke tests. See ADR 0014.
 
 An LLVM-instrumented `texture_baker.cc` object was linked ahead of the ordinary
 native archives into the real contract executable, which ran all its analytic
-and generated-fixture cases. LLVM reports 704/729 executable lines (96.57%),
-543/569 regions (95.43%) and 438/510 branches (85.88%). This measures this source
+and generated-fixture cases. LLVM reports 827/851 executable lines (97.18%),
+655/682 regions (96.04%) and 528/608 branches (86.84%). This measures this source
 file only, not inherited procedural kernels, all headers, the C ABI or the
 complete core. The domain's aspirational 100% target is not met by this report;
 remaining degenerate/fallback and numeric-failure paths stay visible rather than
@@ -183,8 +183,10 @@ bindings, cancellation, duplicate/out-of-range gradients and missing images.
 The table borrows immutable input records only for the synchronous call.
 
 Known mandatory color/tangent bytes and enabled scalar-map bytes are charged
-before source-table or procedural preparation. Optional normal bytes are charged
-after actual fold activation is known. A failing-first priority regression uses
+before source-table or procedural preparation. Potential normal bytes are reserved before source/surface workspace. An
+insufficient capacity uses a geometry witness to distinguish actual normal
+activation from degenerate data; unused reservations are removed from retained
+output accounting. A failing-first priority regression uses
 an insufficient mandatory quota and a fold grid that would otherwise fail its
 spatial preflight; the request now returns the output-limit error first. This
 prevents avoidable preparation for an already rejected output request, while
@@ -219,3 +221,34 @@ passed in 37.88 seconds, ASan/UBSan 33/33 in 107.11 seconds, and the six Qt
 comparisons plus semitransparent-image observation passed 7/7 in 36.32 seconds.
 The comparison errors remain unchanged. Swift 6 consumers, formatting, strict
 manifest lint and diff checks passed. Scoped coverage above was remeasured.
+
+## Review regression: normal output before surface workspace
+
+Fold-normal capacity is now reserved before the source table, vertex-position
+map, chart arrays or fold spatial grid are prepared. When capacity already fits,
+preparation proceeds directly and releases the reservation if no usable chart
+produces normals. An insufficient capacity first checks a lightweight geometry
+witness, using the same tangent-frame eligibility predicate and first-quantized-
+position semantics as actual chart preparation. A confirmed normal output then
+fails its quota before surface workspace is built. Collapsed folds and UV/world-
+degenerate charts continue to succeed with their exact normal-free payload.
+
+The usual witness needs no allocation and stops at the first usable triangle.
+To avoid quadratic searches through pathological degenerate runs, at most 64
+candidates use linear vertex searches; later candidates use a compact sorted
+vertex-ordinal preflight index. This exceptional classification scratch is not
+the full surface position/chart/grid workspace and remains excluded from logical
+output bytes. Filling, sorting and searching poll cancellation. No process-memory
+or whole-call time bound is claimed.
+
+Failing-first quota-priority tests reproduced spatial failure before an already
+insufficient normal budget. Additional contracts cover exact normal capacity,
+released unused reservations, collapsed and outlying ignored folds, UV and world
+degeneracy, and a 97-triangle degenerate run with a final valid witness or no
+valid witness. Collapsed folds are filtered from spatial preflight exactly as
+in the inherited constructor, while caller records remain untouched.
+
+After normal reservation and bounded witness classification, full Debug 33/33
+passed in 36.74 seconds, ASan/UBSan 33/33 in 98.44 seconds, and seven Qt
+comparison/alpha tests in 42.12 seconds. Swift 6 consumers, formatting, strict
+manifest lint and diff checks passed. Scoped coverage above includes this change.
