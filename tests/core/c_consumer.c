@@ -14,5 +14,18 @@ int main(void)
         || dust3d_indexed_mesh_vertex_count(indexed) != 0 || dust3d_indexed_mesh_index_count(indexed) != 0)
         return 3;
     dust3d_indexed_mesh_destroy(indexed);
+    Dust3DGenerationSession* session = dust3d_generation_session_create(DUST3D_DEFAULT_CACHE_PAYLOAD_BYTES, &error);
+    if (session == NULL || error.status != DUST3D_STATUS_OK)
+        return 4;
+    Dust3DGenerationStats stats = { 0 };
+    if (dust3d_generation_session_get_stats(session, &stats, sizeof(stats), &error) != DUST3D_STATUS_OK
+        || stats.maximum_cache_payload_bytes != DUST3D_DEFAULT_CACHE_PAYLOAD_BYTES)
+        return 5;
+    mesh = dust3d_generation_session_load(session, NULL, 0, &error);
+    if (mesh != NULL || error.status != DUST3D_STATUS_INVALID_DOCUMENT)
+        return 6;
+    if (dust3d_generation_session_reset(session, &error) != DUST3D_STATUS_OK)
+        return 7;
+    dust3d_generation_session_destroy(session);
     return 0;
 }

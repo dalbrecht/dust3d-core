@@ -906,6 +906,7 @@ std::unique_ptr<MeshState> MeshGenerator::combinePartMesh(const std::string& par
 
     auto& partCache = m_cacheContext->parts[partIdString];
     partCache.reset();
+    ++m_generationMetrics.rebuiltParts;
 
     partCache.color = color;
     partCache.metalness = metalness;
@@ -1200,12 +1201,14 @@ std::unique_ptr<MeshState> MeshGenerator::combineComponentMesh(const std::string
                 if (!componentCache.wrapFolds.empty())
                     m_snapshot->components[componentIdString]["__wrapFolds"] = componentCache.wrapFolds;
                 m_generatedComponentIds.insert(componentIdString);
+                ++m_generationMetrics.reusedComponents;
                 return std::make_unique<MeshState>(*componentCache.mesh);
             }
         }
     }
 
     componentCache.reset();
+    ++m_generationMetrics.rebuiltComponents;
 
     std::string linkDataType = String::valueOrEmpty(*component, "linkDataType");
     if ("partId" == linkDataType) {
@@ -2645,6 +2648,7 @@ void MeshGenerator::addComponentPreview(const Uuid& componentId, ComponentPrevie
 
 void MeshGenerator::generate()
 {
+    m_generationMetrics = {};
     if (nullptr == m_snapshot)
         return;
 

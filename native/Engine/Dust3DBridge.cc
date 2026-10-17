@@ -1,4 +1,4 @@
-#include "EngineInternal.h"
+#include "GenerationPipeline.h"
 #include <array>
 #include <cmath>
 #include <cstdio>
@@ -17,72 +17,85 @@ namespace native {
 }
 }
 
-namespace {
-std::unique_ptr<Dust3DMesh> generateMesh(std::unique_ptr<dust3d::Snapshot> snapshot, const std::string& warning)
-{
-    auto mesh = std::make_unique<Dust3DMesh>();
-    mesh->nodeCount = snapshot->nodes.size();
-    mesh->partCount = snapshot->parts.size();
-    mesh->warning = warning;
-    // MeshGenerator owns the raw Snapshot constructor argument.
-    dust3d::MeshGenerator generator(snapshot.release());
-    generator.generate();
-    std::unique_ptr<dust3d::Object> object(generator.takeObject());
-    if (!generator.isSuccessful() || !object)
-        throw dust3d::native::DocumentError(DUST3D_STATUS_GENERATION_FAILED, "Dust3D could not generate a complete mesh from this document.");
-    if (object->triangles.empty())
-        throw dust3d::native::DocumentError(DUST3D_STATUS_NO_GEOMETRY, "Generation completed with no mesh-producing geometry.");
-    if (object->triangles.size() > 5000000)
-        throw dust3d::native::DocumentError(DUST3D_STATUS_LIMIT_EXCEEDED, "The generated mesh exceeds the five million triangle limit.");
-    mesh->vertices.reserve(object->triangles.size() * 3);
-    const auto* normals = object->triangleVertexNormals();
-    for (size_t triangleIndex = 0; triangleIndex < object->triangles.size(); ++triangleIndex) {
-        const auto& triangle = object->triangles[triangleIndex];
-        if (triangle.size() != 3)
-            throw dust3d::native::DocumentError(DUST3D_STATUS_GENERATION_FAILED, "The engine returned an invalid triangle.");
-        std::array<Dust3DVertex, 3> exportedTriangle {};
-        for (size_t corner = 0; corner < 3; ++corner) {
-            const auto vertexIndex = triangle[corner];
-            if (vertexIndex >= object->vertices.size())
-                throw dust3d::native::DocumentError(DUST3D_STATUS_GENERATION_FAILED, "The engine returned an invalid vertex index.");
-            const auto& position = object->vertices[vertexIndex];
-            auto normal = normals && triangleIndex < normals->size() && (*normals)[triangleIndex].size() == 3
-                ? (*normals)[triangleIndex][corner]
-                : dust3d::Vector3(0, 1, 0);
-            if (normal.length() < 0.000001)
-                normal = dust3d::Vector3(0, 1, 0);
-            normal.normalize();
-            const auto color = vertexIndex < object->vertexColors.size() ? object->vertexColors[vertexIndex] : dust3d::Color(0.65, 0.7, 0.8);
-            Dust3DVertex vertex {};
-            for (size_t axis = 0; axis < 3; ++axis) {
-                if (!std::isfinite(position[axis]) || !std::isfinite(normal[axis]))
-                    throw dust3d::native::DocumentError(DUST3D_STATUS_GENERATION_FAILED, "The engine produced nonfinite geometry.");
-                vertex.position[axis] = static_cast<float>(position[axis]);
-                vertex.normal[axis] = static_cast<float>(normal[axis]);
-                if (!std::isfinite(vertex.position[axis]))
-                    throw dust3d::native::DocumentError(DUST3D_STATUS_GENERATION_FAILED, "The geometry exceeds the renderer's coordinate range.");
-            }
-            vertex.color[0] = static_cast<float>(color.r());
-            vertex.color[1] = static_cast<float>(color.g());
-            vertex.color[2] = static_cast<float>(color.b());
-            vertex.color[3] = 1.0f; // Opaque preview; material transparency is a later feature.
-            exportedTriangle[corner] = vertex;
-        }
-        auto exportedPosition = [](const Dust3DVertex& vertex) {
-            return dust3d::Vector3(vertex.position[0], vertex.position[1], vertex.position[2]);
-        };
-        const auto first = exportedPosition(exportedTriangle[0]);
-        const auto second = exportedPosition(exportedTriangle[1]);
-        const auto third = exportedPosition(exportedTriangle[2]);
-        // Double-precision surface slivers can collapse only when converted to the
-        // ABI's float coordinates. Validate first so invalid geometry is never hidden.
-        if (dust3d::Vector3::crossProduct(second - first, third - first).lengthSquared() == 0)
-            continue;
-        mesh->vertices.insert(mesh->vertices.end(), exportedTriangle.begin(), exportedTriangle.end());
+namespace dust3d {
+namespace native {
+    std::mutex& engineMutex()
+    {
+        static std::mutex mutex;
+        return mutex;
     }
-    if (mesh->vertices.empty())
-        throw dust3d::native::DocumentError(DUST3D_STATUS_GENERATION_FAILED, "All generated triangles collapse at the exported coordinate precision.");
-    return mesh;
+
+    std::unique_ptr<Dust3DMesh> generateMesh(std::unique_ptr<dust3d::Snapshot> snapshot, const std::string& warning,
+        MeshGenerator::GeneratedCacheContext* cache, MeshGenerator::GenerationMetrics* metrics)
+    {
+        auto mesh = std::make_unique<Dust3DMesh>();
+        mesh->nodeCount = snapshot->nodes.size();
+        mesh->partCount = snapshot->parts.size();
+        mesh->warning = warning;
+        // MeshGenerator owns the raw Snapshot constructor argument.
+        dust3d::MeshGenerator generator(snapshot.release());
+        if (cache)
+            generator.setGeneratedCacheContext(cache);
+        generator.generate();
+        if (metrics)
+            *metrics = generator.generationMetrics();
+        std::unique_ptr<dust3d::Object> object(generator.takeObject());
+        if (!generator.isSuccessful() || !object)
+            throw dust3d::native::DocumentError(DUST3D_STATUS_GENERATION_FAILED, "Dust3D could not generate a complete mesh from this document.");
+        if (object->triangles.empty())
+            throw dust3d::native::DocumentError(DUST3D_STATUS_NO_GEOMETRY, "Generation completed with no mesh-producing geometry.");
+        if (object->triangles.size() > 5000000)
+            throw dust3d::native::DocumentError(DUST3D_STATUS_LIMIT_EXCEEDED, "The generated mesh exceeds the five million triangle limit.");
+        mesh->vertices.reserve(object->triangles.size() * 3);
+        const auto* normals = object->triangleVertexNormals();
+        for (size_t triangleIndex = 0; triangleIndex < object->triangles.size(); ++triangleIndex) {
+            const auto& triangle = object->triangles[triangleIndex];
+            if (triangle.size() != 3)
+                throw dust3d::native::DocumentError(DUST3D_STATUS_GENERATION_FAILED, "The engine returned an invalid triangle.");
+            std::array<Dust3DVertex, 3> exportedTriangle {};
+            for (size_t corner = 0; corner < 3; ++corner) {
+                const auto vertexIndex = triangle[corner];
+                if (vertexIndex >= object->vertices.size())
+                    throw dust3d::native::DocumentError(DUST3D_STATUS_GENERATION_FAILED, "The engine returned an invalid vertex index.");
+                const auto& position = object->vertices[vertexIndex];
+                auto normal = normals && triangleIndex < normals->size() && (*normals)[triangleIndex].size() == 3
+                    ? (*normals)[triangleIndex][corner]
+                    : dust3d::Vector3(0, 1, 0);
+                if (normal.length() < 0.000001)
+                    normal = dust3d::Vector3(0, 1, 0);
+                normal.normalize();
+                const auto color = vertexIndex < object->vertexColors.size() ? object->vertexColors[vertexIndex] : dust3d::Color(0.65, 0.7, 0.8);
+                Dust3DVertex vertex {};
+                for (size_t axis = 0; axis < 3; ++axis) {
+                    if (!std::isfinite(position[axis]) || !std::isfinite(normal[axis]))
+                        throw dust3d::native::DocumentError(DUST3D_STATUS_GENERATION_FAILED, "The engine produced nonfinite geometry.");
+                    vertex.position[axis] = static_cast<float>(position[axis]);
+                    vertex.normal[axis] = static_cast<float>(normal[axis]);
+                    if (!std::isfinite(vertex.position[axis]))
+                        throw dust3d::native::DocumentError(DUST3D_STATUS_GENERATION_FAILED, "The geometry exceeds the renderer's coordinate range.");
+                }
+                vertex.color[0] = static_cast<float>(color.r());
+                vertex.color[1] = static_cast<float>(color.g());
+                vertex.color[2] = static_cast<float>(color.b());
+                vertex.color[3] = 1.0f; // Opaque preview; material transparency is a later feature.
+                exportedTriangle[corner] = vertex;
+            }
+            auto exportedPosition = [](const Dust3DVertex& vertex) {
+                return dust3d::Vector3(vertex.position[0], vertex.position[1], vertex.position[2]);
+            };
+            const auto first = exportedPosition(exportedTriangle[0]);
+            const auto second = exportedPosition(exportedTriangle[1]);
+            const auto third = exportedPosition(exportedTriangle[2]);
+            // Double-precision surface slivers can collapse only when converted to the
+            // ABI's float coordinates. Validate first so invalid geometry is never hidden.
+            if (dust3d::Vector3::crossProduct(second - first, third - first).lengthSquared() == 0)
+                continue;
+            mesh->vertices.insert(mesh->vertices.end(), exportedTriangle.begin(), exportedTriangle.end());
+        }
+        if (mesh->vertices.empty())
+            throw dust3d::native::DocumentError(DUST3D_STATUS_GENERATION_FAILED, "All generated triangles collapse at the exported coordinate precision.");
+        return mesh;
+    }
 }
 }
 
@@ -90,11 +103,10 @@ Dust3DMesh* dust3d_mesh_load(const uint8_t* bytes, size_t size, Dust3DError* err
 {
     dust3d::native::setError(error, DUST3D_STATUS_OK, "");
     try {
-        static std::mutex engineMutex;
-        std::lock_guard<std::mutex> lock(engineMutex);
+        std::lock_guard<std::mutex> lock(dust3d::native::engineMutex());
         std::string warning;
         auto snapshot = dust3d::native::readDocument(bytes, size, warning);
-        return generateMesh(std::move(snapshot), warning).release();
+        return dust3d::native::generateMesh(std::move(snapshot), warning).release();
     } catch (const dust3d::native::DocumentError& exception) {
         dust3d::native::setError(error, exception.status(), exception.what());
     } catch (const std::bad_alloc&) {
