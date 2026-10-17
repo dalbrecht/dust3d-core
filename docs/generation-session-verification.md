@@ -64,6 +64,14 @@ translation, plus an already-failed metadata collector short-circuit. The
 standards' 95% adapter/100% domain targets are not claimed as achieved here;
 the repository's documented coverage adoption gap remains.
 
+A macOS Swift 6 strict-concurrency consumer compiles and runs against the SwiftPM
+C module, including both imported budget constants, copied positions, actual cache
+hits and reset/rebuild behavior. Run `tests/swift/verify-session.sh` from any
+working directory; it builds into a temporary directory and removes only that
+scratch directory on exit. This consumer caught C-cast macros that the Swift
+importer rejected; integer literal constants preserve their numeric values in
+both languages. The script is an explicit local gate, not yet a hosted CI step.
+
 No UI operation or human interaction is required. Swift actor/SDK adoption,
 obsolete preview scheduling, source provenance, memory/RSS benchmarks, TSan and
 the agreed Qt differential corpus remain subsequent plan work. No binary ABI

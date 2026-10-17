@@ -38,8 +38,9 @@ typedef struct Dust3DError {
 /** Mutable generation cache owner. Destroy only when no calls are using it. */
 typedef struct Dust3DGenerationSession Dust3DGenerationSession;
 
-#define DUST3D_DEFAULT_CACHE_PAYLOAD_BYTES ((size_t)64 * 1024 * 1024)
-#define DUST3D_MAX_CACHE_PAYLOAD_BYTES ((size_t)256 * 1024 * 1024)
+/** Integer literals keep these constants available to C and Swift importers (64/256 MiB). */
+#define DUST3D_DEFAULT_CACHE_PAYLOAD_BYTES 67108864
+#define DUST3D_MAX_CACHE_PAYLOAD_BYTES 268435456
 
 typedef enum Dust3DCacheOutcome {
     DUST3D_CACHE_EMPTY = 0,
