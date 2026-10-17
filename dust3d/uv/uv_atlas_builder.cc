@@ -58,8 +58,8 @@ namespace {
         for (const auto& component : object.componentTriangleUvs) {
             for (const auto& triangle : component.second) {
                 for (const auto& uv : triangle.second) {
-                    if (!std::isfinite(uv.x()) || !std::isfinite(uv.y()))
-                        throw UvAtlasError(UvAtlasErrorCode::invalidInput, "A local UV coordinate is nonfinite.");
+                    if (!std::isfinite(uv.x()) || !std::isfinite(uv.y()) || uv.x() < 0 || uv.x() > 1 || uv.y() < 0 || uv.y() > 1)
+                        throw UvAtlasError(UvAtlasErrorCode::invalidInput, "A local UV coordinate is outside its finite normalized chart range.");
                 }
             }
         }

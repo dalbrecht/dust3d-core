@@ -249,11 +249,19 @@ void invalidMetadata()
     options = {};
     options.maximumPayloadBytes = 256 * 1024 * 1024 + 1;
     rejects([&] { dust3d::UvAtlasBuilder::build(object, components(), options); }, dust3d::UvAtlasErrorCode::limitExceeded);
+    for (size_t axis = 0; axis < 2; ++axis) {
+        auto& coordinate = object.componentTriangleUvs.begin()->second.begin()->second[0][axis];
+        for (const double value : { 2.0, -0.1, std::nextafter(0.0, -1.0), std::nextafter(1.0, 2.0) }) {
+            coordinate = value;
+            rejects([&] { dust3d::UvAtlasBuilder::build(object, components()); }, dust3d::UvAtlasErrorCode::invalidInput);
+        }
+        coordinate = 0;
+    }
     auto& uv = object.componentTriangleUvs.begin()->second.begin()->second[0][0];
     uv = std::numeric_limits<double>::quiet_NaN();
     rejects([&] { dust3d::UvAtlasBuilder::build(object, components()); }, dust3d::UvAtlasErrorCode::invalidInput);
     uv = std::numeric_limits<double>::max();
-    rejects([&] { dust3d::UvAtlasBuilder::build(object, components()); }, dust3d::UvAtlasErrorCode::packingFailed);
+    rejects([&] { dust3d::UvAtlasBuilder::build(object, components()); }, dust3d::UvAtlasErrorCode::invalidInput);
 }
 
 void generatedFixtures(const std::string& directory)

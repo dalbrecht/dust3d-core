@@ -72,7 +72,7 @@ struct UvAtlas {
 class UvAtlasBuilder {
 public:
     /// Build inherited atlas metadata without changing the object or using a UI/image framework.
-    /// @param object Generated triangles, local charts and optional existing component assignments.
+    /// @param object Generated triangles, normalized [0,1] local charts and optional component assignments.
     /// @param components Resolved source colors and image metadata; absent components do not gain charts.
     /// @param options Texture scale (1..8192) and logical output budget (zero defaults to 64 MiB).
     /// @return Owned layouts, seam descriptors and triangle-aligned corner/ownership arrays.
