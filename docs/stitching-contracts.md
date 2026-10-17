@@ -20,7 +20,7 @@ license, without user documents, external assets or generated binary fixtures.
   change output, and supported scalar endpoints remain finite.
 - Fill: isolated loop fill adds surface triangles beside a separate uncombined
   model. Connected-loop fill retains existing surface positions. Refilling must
-  restore the same copied geometry within 1e-6 coordinate tolerance. The prior
+  restore the same copied triangle geometry within 1e-6 coordinate tolerance. The prior
   lone-loop empty-result contract continues to cover NO_GEOMETRY without a model.
 
 A controlled test-only fixture mutation changed the front-closure case back to
@@ -39,3 +39,9 @@ No geometry algorithm, dependency, public API or CI workflow changes. The Apple
 production pin can remain at the same reviewed engine implementation. These
 contracts do not prove full inherited coverage, manifoldness, agreed Qt
 differential tolerances or native UI/GPU acceptance.
+
+Review regression coverage canonicalizes triangles and their corners, then matches
+positions within tolerance independent of emission order. Synthetic comparison
+cases check reordered triangles/corners, below/above-tolerance movement, changed
+connectivity with the same vertex multiset, and different counts. The new reorder
+case failed against the old index-based comparison before the correction.

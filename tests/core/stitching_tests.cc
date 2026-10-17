@@ -1,7 +1,10 @@
 #include <Dust3DBridge.h>
+#include <algorithm>
+#include <array>
 #include <cmath>
 #include <iomanip>
 #include <iostream>
+#include <map>
 #include <memory>
 #include <sstream>
 #include <stdexcept>
@@ -103,17 +106,85 @@ Vertices load(const std::string& xml, size_t nodeCount, size_t partCount)
     return result;
 }
 
+using Position = std::array<float, 3>;
+using Triangle = std::array<Position, 3>;
+
+std::vector<Triangle> canonicalTriangles(const Vertices& vertices)
+{
+    std::vector<Triangle> triangles;
+    for (size_t index = 0; index < vertices.size(); index += 3) {
+        Triangle triangle;
+        for (size_t corner = 0; corner < 3; ++corner)
+            std::copy_n(vertices[index + corner].position, 3, triangle[corner].begin());
+        std::sort(triangle.begin(), triangle.end());
+        triangles.push_back(triangle);
+    }
+    std::sort(triangles.begin(), triangles.end());
+    return triangles;
+}
+
 bool samePositions(const Vertices& first, const Vertices& second)
 {
-    if (first.size() != second.size())
+    if (first.size() != second.size() || first.size() % 3 != 0)
         return false;
-    for (size_t index = 0; index < first.size(); ++index) {
-        for (size_t axis = 0; axis < 3; ++axis) {
-            if (std::abs(first[index].position[axis] - second[index].position[axis]) > .000001f)
-                return false;
+    constexpr double tolerance = .000001;
+    auto coordinateSum = [](const Triangle& triangle) {
+        return static_cast<double>(triangle[0][0]) + triangle[1][0] + triangle[2][0];
+    };
+    std::multimap<double, Triangle> remaining;
+    for (const auto& triangle : canonicalTriangles(second))
+        remaining.emplace(coordinateSum(triangle), triangle);
+    for (const auto& triangle : canonicalTriangles(first)) {
+        const auto sum = coordinateSum(triangle);
+        bool matched = false;
+        // Tolerance can reorder almost-equal corners; test permutations rather than
+        // treating their lexicographic order as a geometric distinction.
+        for (auto candidate = remaining.lower_bound(sum - 3 * tolerance);
+            candidate != remaining.end() && candidate->first <= sum + 3 * tolerance; ++candidate) {
+            std::array<size_t, 3> permutation { 0, 1, 2 };
+            do {
+                bool equal = true;
+                for (size_t corner = 0; corner < 3; ++corner) {
+                    for (size_t axis = 0; axis < 3; ++axis)
+                        equal = equal && std::abs(static_cast<double>(triangle[corner][axis]) - candidate->second[permutation[corner]][axis]) <= tolerance;
+                }
+                if (equal) {
+                    remaining.erase(candidate);
+                    matched = true;
+                    break;
+                }
+            } while (std::next_permutation(permutation.begin(), permutation.end()));
+            if (matched)
+                break;
         }
+        if (!matched)
+            return false;
     }
     return true;
+}
+
+void verifyPositionComparison()
+{
+    Vertices original(6);
+    original[0].position[0] = 1;
+    original[1].position[1] = 1;
+    original[2].position[2] = 1;
+    original[3].position[0] = 2;
+    original[4].position[1] = 2;
+    original[5].position[2] = 2;
+    const Vertices reordered { original[5], original[3], original[4], original[1], original[2], original[0] };
+    require(samePositions(original, reordered), "Triangle and corner emission order must not change the comparison");
+    auto moved = reordered;
+    moved[0].position[0] += .0000005f;
+    require(samePositions(original, moved), "Sub-tolerance coordinate changes must compare equal");
+    moved[0].position[0] += .00001f;
+    require(!samePositions(original, moved), "Above-tolerance coordinate changes must compare unequal");
+    auto topology = original;
+    std::swap(topology[1], topology[4]);
+    require(!samePositions(original, topology), "Reconnecting the same vertices must change the triangles");
+    auto missing = original;
+    missing.pop_back();
+    require(!samePositions(original, missing), "Different vertex counts must compare unequal");
 }
 
 void lines()
@@ -148,6 +219,7 @@ void fill()
 int main(int argc, char** argv)
 {
     try {
+        verifyPositionComparison();
         require(argc == 2, "Expected lines, loops or fill scenario");
         const std::string scenario = argv[1];
         if (scenario == "lines")
