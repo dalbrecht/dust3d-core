@@ -28,8 +28,12 @@
 
 namespace dust3d {
 
+class RetainedPayloadBudget;
+
 class Snapshot {
 public:
+    /// Account owned dynamic payload; borrowed views are excluded.
+    void accountDynamicPayload(RetainedPayloadBudget& budget) const noexcept;
     std::map<std::string, std::string> canvas;
     std::map<std::string, std::map<std::string, std::string>> nodes;
     std::map<std::string, std::map<std::string, std::string>> edges;

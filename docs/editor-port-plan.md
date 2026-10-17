@@ -212,3 +212,13 @@ identities and dependency closure without trusting saved dirty flags. See
 input snapshots and unrelated component caches conservatively; persistent cache
 ownership/budgets, assets, mirror eviction and actual session integration remain
 pending. This does not complete semantic component caching or M3 acceptance.
+
+
+### Cache ownership accounting checkpoint (core #21)
+
+Portable C++ ownership visitors now account retained object/value/buffer payloads,
+reserved capacities and nested cache families without allocating or double-counting
+borrowed geometry. See [verification](retained-payload-verification.md) and ADR 0006.
+Allocator bookkeeping and transient/process memory are outside this metric.
+Persistent sessions, eviction/failure recovery and actual cached-versus-fresh
+acceptance remain pending; this does not complete component caching or M3.

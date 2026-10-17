@@ -30,6 +30,8 @@
 
 namespace dust3d {
 
+class RetainedPayloadBudget;
+
 class Uuid {
 public:
     class RandomGenerator {
@@ -52,6 +54,9 @@ public:
     };
 
     static RandomGenerator* m_generator;
+
+    /// Account owned dynamic payload; borrowed views are excluded.
+    void accountDynamicPayload(RetainedPayloadBudget& budget) const noexcept;
 
     Uuid() = default;
 

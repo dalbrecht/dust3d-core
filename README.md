@@ -11,6 +11,11 @@ from immutable snapshot differences, ignoring persisted dirty flags and followin
 profile, inheritance and wrapping dependencies. See [verification](docs/snapshot-invalidation-verification.md).
 Persistent cache ownership, budgets and generation-session integration remain pending.
 
+Retained cache/output owners also support checked, allocation-free payload
+accounting, including reserved capacities and borrowed geometry boundaries. See
+[verification](docs/retained-payload-verification.md). This is a conservative data
+payload estimate, not a process-memory ceiling; persistent sessions remain pending.
+
 ## Build and test without Qt
 
 Requires CMake 3.20+, a C/C++17 compiler and platform thread support. No Swift,

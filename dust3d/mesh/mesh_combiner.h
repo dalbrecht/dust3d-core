@@ -30,6 +30,8 @@
 
 namespace dust3d {
 
+class RetainedPayloadBudget;
+
 class MeshCombiner {
 public:
     enum class Method {
@@ -45,6 +47,8 @@ public:
 
     class Mesh {
     public:
+        /// Account owned dynamic payload; borrowed views are excluded.
+        void accountDynamicPayload(RetainedPayloadBudget& budget) const noexcept;
         Mesh() = default;
         Mesh(const std::vector<Vector3>& vertices, const std::vector<std::vector<size_t>>& faces);
         Mesh(const Mesh& other);

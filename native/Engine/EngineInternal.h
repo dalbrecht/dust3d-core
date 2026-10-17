@@ -8,7 +8,12 @@
 #include <string>
 #include <vector>
 
+namespace dust3d {
+class RetainedPayloadBudget;
+}
+
 struct Dust3DMesh {
+    void accountDynamicPayload(dust3d::RetainedPayloadBudget& budget) const noexcept;
     std::vector<Dust3DVertex> vertices;
     size_t nodeCount = 0;
     size_t partCount = 0;
@@ -16,6 +21,7 @@ struct Dust3DMesh {
 };
 
 struct Dust3DIndexedMesh {
+    void accountDynamicPayload(dust3d::RetainedPayloadBudget& budget) const noexcept;
     std::vector<Dust3DVertex> vertices;
     std::vector<uint32_t> indices;
     size_t nodeCount = 0;

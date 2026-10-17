@@ -39,11 +39,15 @@
 
 namespace dust3d {
 
+class RetainedPayloadBudget;
+
 class MeshGenerator {
 public:
     static double m_minimalRadius;
 
     struct GeneratedPart {
+        /// Account owned dynamic payload; borrowed views are excluded.
+        void accountDynamicPayload(RetainedPayloadBudget& budget) const noexcept;
         std::vector<Vector3> vertices;
         std::map<PositionKey, Uuid> positionToNodeIdMap;
         std::map<Uuid, ObjectNode> nodeMap;
@@ -74,6 +78,8 @@ public:
     };
 
     struct GeneratedComponent {
+        /// Account owned dynamic payload; borrowed views are excluded.
+        void accountDynamicPayload(RetainedPayloadBudget& budget) const noexcept;
         std::unique_ptr<MeshState> mesh;
         std::set<std::pair<PositionKey, PositionKey>> sharedQuadEdges;
         std::unordered_map<Uuid, std::map<std::array<PositionKey, 3>, std::array<Vector2, 3>>> componentTriangleUvs;
@@ -113,6 +119,8 @@ public:
     };
 
     struct GeneratedCacheContext {
+        /// Account owned dynamic payload; borrowed views are excluded.
+        void accountDynamicPayload(RetainedPayloadBudget& budget) const noexcept;
         std::map<std::string, GeneratedComponent> components;
         std::map<std::string, GeneratedPart> parts;
         std::map<std::string, std::string> partMirrorIdMap;

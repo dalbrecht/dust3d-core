@@ -9,6 +9,7 @@ set(DUST3D_CORE_SOURCES
     dust3d/base/snapshot_xml.cc
     dust3d/base/string.cc
     dust3d/base/texture_type.cc
+    dust3d/base/retained_payload.cc
     dust3d/base/uuid.cc
     dust3d/base/vector3.cc
     dust3d/mesh/base_normal.cc
@@ -18,6 +19,7 @@ set(DUST3D_CORE_SOURCES
     dust3d/mesh/mesh_combiner.cc
     dust3d/mesh/mesh_generator.cc
     dust3d/mesh/mesh_recombiner.cc
+    dust3d/mesh/retained_payload.cc
     dust3d/mesh/mesh_state.cc
     dust3d/mesh/re_triangulator.cc
     dust3d/mesh/resolve_triangle_tangent.cc
