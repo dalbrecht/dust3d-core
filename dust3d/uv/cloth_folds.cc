@@ -206,10 +206,23 @@ namespace {
 // Evaluation
 
 ClothFolds::ClothFolds(const std::vector<Fold>& folds, double strength)
+    : ClothFolds(folds, strength, {})
+{
+}
+
+ClothFolds::ClothFolds(const std::vector<Fold>& folds, double strength, const std::function<void(ConstructionStage)>& checkpoint)
     : m_strength(std::max(0.0, std::min(1.0, strength)))
 {
+    if (checkpoint)
+        checkpoint(ConstructionStage::preparingFolds);
+    size_t prepared = 0, gridEntries = 0;
+    auto poll = [&](ConstructionStage stage, size_t& processed) {
+        if (processed++ % 256 == 0 && checkpoint)
+            checkpoint(stage);
+    };
     double maxReach = 0.0;
     for (const auto& fold : folds) {
+        poll(ConstructionStage::preparingFolds, prepared);
         if (fold.points.size() < 2 || fold.normals.size() != fold.points.size() || fold.width <= 0.0)
             continue;
         FoldData data;
@@ -219,18 +232,22 @@ ClothFolds::ClothFolds(const std::vector<Fold>& folds, double strength)
         data.fold.crease = std::max(0.0, std::min(1.0, fold.crease));
         data.fold.ridgeSide = fold.ridgeSide < 0.0 ? -1.0 : 1.0;
         for (auto& normal : data.fold.normals) {
+            poll(ConstructionStage::preparingFolds, prepared);
             if (normal.lengthSquared() > 1e-24)
                 normal.normalize();
         }
         data.arc.push_back(0.0);
-        for (size_t i = 1; i < fold.points.size(); ++i)
+        for (size_t i = 1; i < fold.points.size(); ++i) {
+            poll(ConstructionStage::preparingFolds, prepared);
             data.arc.push_back(data.arc.back() + (fold.points[i] - fold.points[i - 1]).length());
+        }
         data.length = data.arc.back();
         if (data.length <= 1e-9)
             continue;
         // the direction along it at each point, between its segments' (so the frame turns
         // smoothly round a bend)
         for (size_t i = 0; i < fold.points.size(); ++i) {
+            poll(ConstructionStage::preparingFolds, prepared);
             Vector3 before = i > 0 ? fold.points[i] - fold.points[i - 1] : Vector3();
             Vector3 after = i + 1 < fold.points.size() ? fold.points[i + 1] - fold.points[i] : Vector3();
             if (before.lengthSquared() > 1e-24)
@@ -252,13 +269,17 @@ ClothFolds::ClothFolds(const std::vector<Fold>& folds, double strength)
     size_t segmentCount = 0;
     for (size_t f = 0; f < m_folds.size(); ++f) {
         for (size_t i = 0; i + 1 < m_folds[f].fold.points.size(); ++i) {
+            poll(ConstructionStage::preparingFolds, prepared);
             m_segments.push_back({ f, i });
             segmentLength += m_folds[f].arc[i + 1] - m_folds[f].arc[i];
             ++segmentCount;
         }
     }
     m_cellSize = std::max(1e-5, std::max(maxReach, segmentLength / std::max((size_t)1, segmentCount)));
+    if (checkpoint)
+        checkpoint(ConstructionStage::buildingGrid);
     for (size_t i = 0; i < m_segments.size(); ++i) {
+        poll(ConstructionStage::buildingGrid, gridEntries);
         const auto& data = m_folds[m_segments[i].fold];
         const Vector3& a = data.fold.points[m_segments[i].index];
         const Vector3& b = data.fold.points[m_segments[i].index + 1];
@@ -271,10 +292,23 @@ ClothFolds::ClothFolds(const std::vector<Fold>& folds, double strength)
         int z1 = (int)std::floor((std::max(a.z(), b.z()) + r) / m_cellSize);
         for (int x = x0; x <= x1; ++x)
             for (int y = y0; y <= y1; ++y)
-                for (int z = z0; z <= z1; ++z)
+                for (int z = z0; z <= z1; ++z) {
+                    poll(ConstructionStage::buildingGrid, gridEntries);
                     m_cellSegments.push_back({ cellKey(x, y, z), i });
+                }
     }
-    std::sort(m_cellSegments.begin(), m_cellSegments.end());
+    if (checkpoint) {
+        checkpoint(ConstructionStage::sortingGrid);
+        size_t comparisons = 0;
+        std::sort(m_cellSegments.begin(), m_cellSegments.end(), [&](const auto& left, const auto& right) {
+            if (comparisons++ % 4096 == 0)
+                checkpoint(ConstructionStage::sortingGrid);
+            return left < right;
+        });
+        checkpoint(ConstructionStage::sortingGrid);
+    } else {
+        std::sort(m_cellSegments.begin(), m_cellSegments.end());
+    }
 }
 
 double ClothFolds::foldHeight(const FoldData& data, double s, double t, double* crease) const

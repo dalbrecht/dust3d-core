@@ -83,8 +83,8 @@ these focused contracts or by Swift smoke tests. See ADR 0014.
 
 An LLVM-instrumented `texture_baker.cc` object was linked ahead of the ordinary
 native archives into the real contract executable, which ran all its analytic
-and generated-fixture cases. LLVM reports 873/898 executable lines (97.22%),
-680/708 regions (96.05%) and 545/628 branches (86.78%). This measures this source
+and generated-fixture cases. LLVM reports 876/901 executable lines (97.23%),
+685/713 regions (96.07%) and 547/630 branches (86.83%). This measures this source
 file only, not inherited procedural kernels, all headers, the C ABI or the
 complete core. The domain's aspirational 100% target is not met by this report;
 remaining degenerate/fallback and numeric-failure paths stay visible rather than
@@ -272,3 +272,30 @@ Final full Debug 33/33 passed in 21.69 seconds, ASan/UBSan 33/33 in 69.90 second
 and seven Qt comparison/alpha tests in 21.91 seconds. Swift 6 consumers,
 formatting, strict manifest lint, native Qt source/link and diff checks passed.
 Scoped coverage above was remeasured after these changes.
+
+
+## Review regression: procedural construction cancellation
+
+Fold preparation, grid insertion and grid sorting now accept synchronous borrowed
+checkpoints. The baker uses these to check its cancellation token during actual
+construction, rather than only before entering the inherited constructor.
+Surface-pattern centering and covariance accumulation use the same opt-in
+approach. Original two-argument constructors and their symbols remain available;
+no callback is retained. Exceptions propagate unchanged and partial construction
+is cleaned up by RAII.
+
+Deterministic tests first reproduced construction completing despite a throwing
+checkpoint. They now interrupt each phase on its third checkpoint, including
+inside grid insertion and sorting. Compatibility tests compare legacy and
+checkpoint-enabled normals, cavity values, principal axes and colors, verify
+callback lifetime, and preserve the original exception cause. Painting also polls
+before procedural texel evaluation; color-only fold evaluation avoids computing
+unused normal derivatives.
+
+Full Debug passed 33/33 (21.72 s), ASan/UBSan passed 33/33 (111.39 s), Swift
+consumers passed, and all seven relevant Qt reference comparisons passed (33.80 s)
+with unchanged pixel results. The instrumented contract executable additionally
+measured the checkpoint-enabled fold constructor at 93/95 lines (97.89%) and the
+pattern constructor at 38/40 lines (95%). These individual constructor figures
+exclude duplicate constructor entry symbols; they do not establish whole-kernel
+coverage. Cancellation remains cooperative, with no whole-call latency bound.

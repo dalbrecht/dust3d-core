@@ -52,12 +52,14 @@ struct Fixture {
     }
 };
 template <typename Action>
-void rejects(Action action, dust3d::TextureBakeErrorCode code)
+void rejects(Action action, dust3d::TextureBakeErrorCode code, const char* expectedCause = nullptr)
 {
     try {
         action();
     } catch (const dust3d::TextureBakeError& error) {
         require(error.code() == code && *error.what(), "Typed bake error must preserve its cause");
+        if (expectedCause)
+            require(std::string(error.what()) == expectedCause, "Construction must propagate the original checkpoint cause unchanged");
         return;
     }
     throw std::runtime_error("Invalid bake unexpectedly succeeded");
@@ -658,6 +660,102 @@ void rowEventCancellation()
     dust3d::detail::applyTextureRowEvents(ending, starting, active, {});
     require(active.size() == 4096 && *active.begin() == 4096 && *active.rbegin() == 8191, "Large start/end batches must retain every candidate in sorted order");
 }
+std::vector<dust3d::ClothFolds::Fold> constructionFolds()
+{
+    dust3d::ClothFolds::Fold fold;
+    fold.width = 0.2;
+    fold.depth = 0.04;
+    for (size_t index = 0; index < 128; ++index) {
+        fold.points.push_back({ 0.5, index / 127.0, 0 });
+        fold.normals.push_back({ 0, 0, 1 });
+    }
+    return { fold };
+}
+void foldConstructionCancellation()
+{
+    const auto folds = constructionFolds();
+    using Stage = dust3d::ClothFolds::ConstructionStage;
+    for (const auto stage : { Stage::preparingFolds, Stage::buildingGrid, Stage::sortingGrid }) {
+        size_t checkpoints = 0;
+        rejects([&] {
+            dust3d::ClothFolds constructed(folds, 1, [&](Stage current) {
+                if (current == stage && ++checkpoints == 3)
+                    throw dust3d::TextureBakeError(dust3d::TextureBakeErrorCode::cancelled, "Cancelled during fold construction");
+            });
+        },
+            dust3d::TextureBakeErrorCode::cancelled);
+        require(checkpoints == 3, "Each actual construction phase must expose periodic cancellation checkpoints");
+    }
+}
+void patternConstructionCancellation()
+{
+    std::vector<dust3d::Vector3> points;
+    for (size_t index = 0; index < 1024; ++index)
+        points.push_back({ (index % 32) / 31.0, (index / 32) / 31.0, 0 });
+    dust3d::SurfacePattern::Settings settings;
+    settings.type = dust3d::SurfacePattern::Type::Spots;
+    using Stage = dust3d::SurfacePattern::ConstructionStage;
+    for (const auto stage : { Stage::centering, Stage::covariance }) {
+        size_t checkpoints = 0;
+        rejects([&] {
+            dust3d::SurfacePattern constructed(settings, points, [&](Stage current) {
+                if (current == stage && ++checkpoints == 3)
+                    throw dust3d::TextureBakeError(dust3d::TextureBakeErrorCode::cancelled, "Cancelled during pattern construction");
+            });
+        },
+            dust3d::TextureBakeErrorCode::cancelled);
+        require(checkpoints == 3, "Both pattern point scans must expose periodic construction checkpoints");
+    }
+}
+void constructionCheckpointCompatibility()
+{
+    const auto folds = constructionFolds();
+    dust3d::ClothFolds legacy(folds, 0.7);
+    size_t calls = 0;
+    dust3d::ClothFolds observed(folds, 0.7, [&](dust3d::ClothFolds::ConstructionStage) { ++calls; });
+    require(calls > 3 && legacy.foldCount() == observed.foldCount(), "Opt-in fold checkpoints must preserve ordinary construction");
+    for (size_t index = 0; index < 32; ++index) {
+        const dust3d::Vector3 position((index % 8 + 0.5) / 8, (index / 8 + 0.5) / 4, 0);
+        dust3d::Vector3 expectedNormal, actualNormal;
+        double expectedCavity = 0, actualCavity = 0;
+        legacy.evaluate(position, { 0, 0, 1 }, { 1, 0, 0 }, { 0, 1, 0 }, 1.0 / 64, &expectedNormal, &expectedCavity);
+        observed.evaluate(position, { 0, 0, 1 }, { 1, 0, 0 }, { 0, 1, 0 }, 1.0 / 64, &actualNormal, &actualCavity);
+        require((expectedNormal - actualNormal).lengthSquared() < 1e-24 && std::abs(expectedCavity - actualCavity) < 1e-12, "Construction checkpoints must preserve actual fold normal/cavity samples");
+    }
+    std::vector<dust3d::Vector3> points;
+    for (size_t index = 0; index < 1024; ++index)
+        points.push_back({ (index % 32) / 31.0, (index / 32) / 31.0, 0 });
+    dust3d::SurfacePattern::Settings settings;
+    settings.type = dust3d::SurfacePattern::Type::Spots;
+    dust3d::SurfacePattern oldPattern(settings, points);
+    size_t patternCalls = 0;
+    dust3d::SurfacePattern newPattern(settings, points, [&](dust3d::SurfacePattern::ConstructionStage) { ++patternCalls; });
+    require(patternCalls > 3 && (oldPattern.longAxis() - newPattern.longAxis()).lengthSquared() < 1e-24, "Pattern checkpoints must preserve the principal surface axis");
+    for (size_t index = 0; index < 32; ++index) {
+        const dust3d::Vector3 position(index / 31.0, 0.4, 0);
+        const auto expected = oldPattern.colorAt(position, { 0, 0, 1 }, 1.0 / 128);
+        const auto actual = newPattern.colorAt(position, { 0, 0, 1 }, 1.0 / 128);
+        for (size_t channel = 0; channel < 4; ++channel)
+            require(expected[channel] == actual[channel], "Pattern checkpoint construction must preserve every color channel");
+    }
+    std::weak_ptr<int> callbackLifetime;
+    std::unique_ptr<dust3d::ClothFolds> retainedFolds;
+    {
+        const auto guard = std::make_shared<int>(7);
+        callbackLifetime = guard;
+        retainedFolds = std::make_unique<dust3d::ClothFolds>(folds, 1, [guard](dust3d::ClothFolds::ConstructionStage) { require(*guard == 7, "Fold checkpoint context must be live during construction"); });
+    }
+    require(callbackLifetime.expired() && retainedFolds->foldCount() == 1, "Fold construction must not retain borrowed checkpoint state");
+    std::unique_ptr<dust3d::SurfacePattern> retainedPattern;
+    {
+        const auto guard = std::make_shared<int>(7);
+        callbackLifetime = guard;
+        retainedPattern = std::make_unique<dust3d::SurfacePattern>(settings, points, [guard](dust3d::SurfacePattern::ConstructionStage) { require(*guard == 7, "Pattern checkpoint context must be live during construction"); });
+    }
+    require(callbackLifetime.expired() && retainedPattern->settings().type == settings.type, "Pattern construction must not retain borrowed checkpoint state");
+    rejects([&] { dust3d::ClothFolds value(folds, 1, [](dust3d::ClothFolds::ConstructionStage) { throw dust3d::TextureBakeError(dust3d::TextureBakeErrorCode::cancelled, "original fold checkpoint cause"); }); }, dust3d::TextureBakeErrorCode::cancelled, "original fold checkpoint cause");
+    rejects([&] { dust3d::SurfacePattern value(settings, points, [](dust3d::SurfacePattern::ConstructionStage) { throw dust3d::TextureBakeError(dust3d::TextureBakeErrorCode::cancelled, "original pattern checkpoint cause"); }); }, dust3d::TextureBakeErrorCode::cancelled, "original pattern checkpoint cause");
+}
 void generatedFixtures(const std::string& directory)
 {
     for (const std::string name : { "Capsule.ds3", "Sword.ds3", "RoundedCrossing.ds3" }) {
@@ -754,6 +852,9 @@ int main(int argc, char* argv[])
         degenerateNormalWitnessRun();
         chartNormalCancellation();
         rowEventCancellation();
+        foldConstructionCancellation();
+        patternConstructionCancellation();
+        constructionCheckpointCompatibility();
         require(argc == 2, "Expected fixture directory");
         generatedFixtures(argv[1]);
         std::cout << "Texture bake contracts passed\n";

@@ -492,7 +492,7 @@ namespace {
                 continue;
             chart.normals = detail::computeTextureChartNormals(chart.vertices.size(), chart.triangles, options);
             if (surface.pattern && surface.pattern->type != SurfacePattern::Type::None)
-                chart.pattern = std::make_unique<SurfacePattern>(*surface.pattern, chart.vertices);
+                chart.pattern = std::make_unique<SurfacePattern>(*surface.pattern, chart.vertices, [&](SurfacePattern::ConstructionStage) { checkCancellation(options); });
             if (hasEffectiveFolds(surface, options)) {
                 chart.foldScale = foldGridScale(surface, options);
                 for (const auto& fold : surface.folds) {
@@ -525,7 +525,7 @@ namespace {
                         gridEntries += cells;
                     }
                 }
-                chart.folds = std::make_unique<ClothFolds>(surface.folds, surface.wrinkleStrength);
+                chart.folds = std::make_unique<ClothFolds>(surface.folds, surface.wrinkleStrength, [&](ClothFolds::ConstructionStage) { checkCancellation(options); });
                 if (chart.folds->empty())
                     chart.folds.reset();
             }
@@ -613,12 +613,13 @@ namespace {
                     const auto footprint = triangle.worldPerUv / size;
                     Vector3 evaluatedNormal(0, 0, 1);
                     double cavity = 0;
+                    checkCancellation(options);
                     if (chart.folds) {
                         checkFoldCell(position, chart.foldScale);
                         // evaluate() samples neighbouring points along tangent/bitangent.
                         const auto epsilon = std::max(1e-5, footprint * 0.75);
                         checkFoldCell(position, chart.foldScale, epsilon);
-                        chart.folds->evaluate(position, normal, tangent, bitangent, footprint, &evaluatedNormal, &cavity);
+                        chart.folds->evaluate(position, normal, tangent, bitangent, footprint, normalMap ? &evaluatedNormal : nullptr, &cavity);
                     }
                     Pixel pixel;
                     if (normalMap)
