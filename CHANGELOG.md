@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add a private bounded Qt-free GLB mesh/material decoder with owned image bytes and malformed-layout contracts; embedded `.ds3` model generation and Apple adoption remain separate stages.
+
 - Add an opt-in owned C baked-mesh boundary with borrowed RGBA8 views, float-aligned tangent records, independent UV/bake quotas, legacy comma-decimal settings and one-shot cooperative cancellation; Apple renderer adoption remains separate.
 
 - Add borrowed fold-evaluation checkpoints so dense overlapping segment queries and all normal derivative samples can cooperate with cancellation while preserving original evaluation APIs.

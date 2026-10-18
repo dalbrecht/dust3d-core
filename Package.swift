@@ -44,7 +44,8 @@ let package = Package(
             dependencies: ["Dust3DCore"],
             path: "native/Engine",
             sources: [
-                "BakedMesh.cc", "Cancellation.cc", "Dust3DBridge.cc", "GenerationSession.cc", "IndexedMesh.cc",
+                "GlbReader.cc", "BakedMesh.cc", "Cancellation.cc", "Dust3DBridge.cc", "GenerationSession.cc",
+                "IndexedMesh.cc",
                 "RetainedPayload.cc",
                 "SnapshotInvalidation.cc", "SourceProvenance.cc", "UvMetadata.cc",
                 "DocumentReader.cc",
@@ -54,6 +55,7 @@ let package = Package(
             cxxSettings: [
                 .headerSearchPath("../.."),
                 .headerSearchPath("../../third_party/rapidxml-1.13"),
+                .headerSearchPath("../../third_party"),
             ]
         ),
     ],
