@@ -139,3 +139,19 @@ the wrapping remesher, then passed within its existing 180-second timeout (167.7
 seconds). Logs are under `/private/tmp/dust3d-core-pr43-scope-*`.
 Resolver-only coverage above is unchanged; no whole-engine coverage claim is made.
 Fresh exact-head review and all hosted checks are still required before merge.
+
+
+## Portability correction: explicit array definitions
+
+The first hosted Linux build of the ownership correction failed compiling the
+expanded Boolean contract: MeshState/MeshRecombiner used std::array through
+transitive includes that supplied a complete definition on libc++ but not
+libstdc++. Both owning headers now include `<array>` directly. The same Boolean
+contract continues to instantiate those types without an earlier test-file array
+include, so the Linux matrix exercises the original failure path.
+
+The corrected full Debug build and CTest pass **37/37** (71.27 seconds); the full
+ASan/UBSan build and CTest pass **37/37** (190.63 seconds). SwiftPM builds (55.96
+seconds), strict formatting, Qt boundary and whitespace checks pass. These are
+local macOS results; fresh Linux/macOS hosted checks and exact-head review remain
+required. Logs are under `/private/tmp/dust3d-core-pr43-array-*`.

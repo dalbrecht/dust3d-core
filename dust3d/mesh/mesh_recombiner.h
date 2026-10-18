@@ -23,6 +23,7 @@
 #ifndef DUST3D_MESH_MESH_RECOMBINER_H_
 #define DUST3D_MESH_MESH_RECOMBINER_H_
 
+#include <array>
 #include <dust3d/base/vector2.h>
 #include <dust3d/mesh/mesh_combiner.h>
 #include <map>

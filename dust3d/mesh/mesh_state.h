@@ -23,6 +23,7 @@
 #ifndef DUST3D_MESH_MESH_STATE_H_
 #define DUST3D_MESH_MESH_STATE_H_
 
+#include <array>
 #include <dust3d/base/position_key.h>
 #include <dust3d/base/uuid.h>
 #include <dust3d/mesh/mesh_combiner.h>
