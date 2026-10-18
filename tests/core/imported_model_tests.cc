@@ -286,6 +286,35 @@ void testTransformedImportedNormals()
         requireSurfaceNormals(mesh.get());
     }
 }
+void testImportedDeformationQuantizationOverflow()
+{
+    auto xml = modelXml("1000000");
+    const std::string radius = "radius='.15'";
+    size_t offset = 0;
+    while ((offset = xml.find(radius, offset)) != std::string::npos) {
+        const std::string replacement = "radius='1000000' deformWidth='1000000'";
+        xml.replace(offset, radius.size(), replacement);
+        offset += replacement.size();
+    }
+    const auto bytes = archiveWithAssets(xml, { { "models/" + modelIdentity + ".glb", tetrahedron() } });
+    requiresFailure(bytes, DUST3D_STATUS_INVALID_DOCUMENT, "quantization");
+    Dust3DError error {};
+    Dust3DSourceOptions options { sizeof(Dust3DSourceOptions), 0 };
+    std::unique_ptr<Dust3DSourcedMesh, decltype(&dust3d_sourced_mesh_destroy)> sourced(
+        dust3d_sourced_mesh_load(bytes.data(), bytes.size(), &options, &error), dust3d_sourced_mesh_destroy);
+    require(!sourced && error.status == DUST3D_STATUS_INVALID_DOCUMENT && std::string(error.message).find("quantization") != std::string::npos,
+        "Sourced import did not preserve the quantization failure");
+    std::unique_ptr<Dust3DGenerationSession, decltype(&dust3d_generation_session_destroy)> session(
+        dust3d_generation_session_create(DUST3D_DEFAULT_CACHE_PAYLOAD_BYTES, &error), dust3d_generation_session_destroy);
+    const auto valid = archive("1");
+    for (unsigned iteration = 0; iteration < 2; ++iteration) {
+        MeshOwner accepted(dust3d_generation_session_load(session.get(), valid.data(), valid.size(), &error), dust3d_mesh_destroy);
+        require(accepted && error.status == DUST3D_STATUS_OK, "Session did not recover after quantization rejection");
+        MeshOwner rejected(dust3d_generation_session_load(session.get(), bytes.data(), bytes.size(), &error), dust3d_mesh_destroy);
+        require(!rejected && error.status == DUST3D_STATUS_INVALID_DOCUMENT && std::string(error.message).find("quantization") != std::string::npos,
+            "Cached import did not preserve the quantization failure");
+    }
+}
 void testImportedDirectionalNodeScales()
 {
     auto xml = modelXml("1");
@@ -681,6 +710,7 @@ int main()
         const double widened = generatedWidth("2");
         require(original > 0 && std::abs(widened - original * 2) < 1e-6, "Imported spine deformation was not applied");
         testTransformedImportedNormals();
+        testImportedDeformationQuantizationOverflow();
         testImportedDirectionalNodeScales();
         testZeroWidthGeometry();
         testRequiredAssetsAndAliases();
