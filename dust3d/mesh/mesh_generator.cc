@@ -2766,10 +2766,16 @@ void MeshGenerator::generate()
     m_object = new Object;
     m_object->meshId = m_id;
 
-    bool needDeleteCacheContext = false;
+    // Standalone generation owns its temporary cache on every exit, including
+    // rejected geometry. Session-supplied caches remain borrowed.
+    auto deleteLocalCache = [this](GeneratedCacheContext* context) {
+        m_cacheContext = nullptr;
+        delete context;
+    };
+    std::unique_ptr<GeneratedCacheContext, decltype(deleteLocalCache)> localCache(nullptr, deleteLocalCache);
     if (nullptr == m_cacheContext) {
-        m_cacheContext = new GeneratedCacheContext;
-        needDeleteCacheContext = true;
+        localCache.reset(new GeneratedCacheContext);
+        m_cacheContext = localCache.get();
     } else {
         m_cacheEnabled = true;
         for (auto it = m_cacheContext->parts.begin(); it != m_cacheContext->parts.end();) {
@@ -2853,11 +2859,6 @@ void MeshGenerator::generate()
     applyImportedAttributes(m_object);
 
     generateDisabledComponentPreviews();
-
-    if (needDeleteCacheContext) {
-        delete m_cacheContext;
-        m_cacheContext = nullptr;
-    }
 }
 
 }

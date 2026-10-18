@@ -238,3 +238,26 @@ inherited coverage claim is made. Logs are under
 Node 24 CI from master (#45). Fresh exact-head review and hosted CI remain
 required before merge. This remains a geometry-preview stage; material transfer,
 Apple pin/adoption and M4 acceptance are not complete.
+
+## Hosted leak correction: temporary generation-cache ownership
+
+The first hosted Linux sanitizer run of 51abe60 failed the imported-model and
+session contracts with 5,120 and 1,751,788 leaked bytes respectively. Both hosted
+runs reproduced the same signatures. Position quantization now correctly rejects
+extreme geometry, exposing an inherited standalone cache that was deleted only
+on the successful return path. Local macOS ASan/UBSan had passed; that result did
+not establish Linux LeakSanitizer acceptance.
+
+Standalone generation now scopes its temporary cache with a unique owner and
+clears the borrowed member pointer on every owned-cache exit. External session
+caches remain borrowed. The existing real imported overflow/recovery and session
+edit corpus are the regressions: hosted LeakSanitizer failed before this cleanup.
+
+The corrected full Debug build/CTest pass **38/38** (32.39 seconds), and the full
+ASan/UBSan build/CTest pass **38/38** (109.72 seconds), with UBSan halt-on-error.
+SwiftPM builds (3.04 seconds), and formatting, Qt boundary and whitespace checks
+pass. Separately, macOS `leaks --atExit` reports **0 leaks / 0 leaked bytes** for
+both `dust3d_imported_model_tests` and `dust3d_generation_session_tests` against
+the actual fixture corpus. Logs are under
+`/private/tmp/dust3d-core-pr43-cache-unwind-*`. These local results do not replace
+the required fresh exact-head automated review and hosted Linux leak checks.
