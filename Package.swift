@@ -44,7 +44,8 @@ let package = Package(
             dependencies: ["Dust3DCore"],
             path: "native/Engine",
             sources: [
-                "GlbReader.cc", "BakedMesh.cc", "Cancellation.cc", "Dust3DBridge.cc", "GenerationSession.cc",
+                "ImportedModels.cc", "GlbReader.cc", "BakedMesh.cc", "Cancellation.cc", "Dust3DBridge.cc",
+                "GenerationSession.cc",
                 "IndexedMesh.cc",
                 "RetainedPayload.cc",
                 "SnapshotInvalidation.cc", "SourceProvenance.cc", "UvMetadata.cc",

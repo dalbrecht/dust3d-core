@@ -1,4 +1,5 @@
 #include "GenerationPipeline.h"
+#include "ImportedModels.h"
 #include "SnapshotInvalidation.h"
 #include "SourceProvenance.h"
 #include <algorithm>
@@ -122,8 +123,9 @@ struct Dust3DGenerationSession {
         clearStats();
         AssetCollector collector;
         std::string warning;
+        dust3d::native::ImportedModels imports;
         auto source = dust3d::native::readDocument(bytes, size, warning,
-            stats.maximum_cache_payload_bytes ? &collector : nullptr);
+            stats.maximum_cache_payload_bytes ? &collector : nullptr, &imports);
         if (sources)
             *sources = std::make_unique<dust3d::native::SourceProvenance>(*source, maximumSourceBytes);
         std::unique_ptr<dust3d::Snapshot> transient;
@@ -177,7 +179,7 @@ struct Dust3DGenerationSession {
         std::unique_ptr<Dust3DMesh> mesh;
         bool isEmpty = false;
         try {
-            mesh = dust3d::native::generateMesh(cache ? std::move(transient) : std::move(source), warning,
+            mesh = dust3d::native::generateMesh(cache ? std::move(transient) : std::move(source), warning, &imports,
                 cache ? &cache->context : nullptr, &metrics, sources ? sources->get() : nullptr);
         } catch (const dust3d::native::DocumentError& exception) {
             if (exception.status() != DUST3D_STATUS_NO_GEOMETRY)

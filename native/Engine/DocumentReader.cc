@@ -1,4 +1,5 @@
 #include "EngineInternal.h"
+#include "ImportedModels.h"
 #include <algorithm>
 #include <charconv>
 #include <dust3d/base/ds3_file.h>
@@ -117,7 +118,7 @@ namespace native {
         }
     }
 
-    std::unique_ptr<Snapshot> readDocument(const uint8_t* bytes, size_t size, std::string& warning, DocumentAssetObserver* observer)
+    std::unique_ptr<Snapshot> readDocument(const uint8_t* bytes, size_t size, std::string& warning, DocumentAssetObserver* observer, ImportedModels* imports)
     {
         if (!bytes || !size)
             throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Choose a nonempty .ds3 document.");
@@ -146,6 +147,7 @@ namespace native {
         if (!root || xml.first_node() != root || root->next_sibling())
             throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "The archive must have a single ds3 root element.");
         std::set<std::string> names;
+        std::vector<ModelAssetView> modelAssets;
         size_t modelCount = 0;
         std::string modelName;
         for (auto* item = root->first_node(); item; item = item->next_sibling()) {
@@ -162,7 +164,9 @@ namespace native {
                 if (itemSize > maximumModelSize)
                     throw DocumentError(DUST3D_STATUS_LIMIT_EXCEEDED, "The model XML exceeds the 16 MiB limit.");
             } else if (type == "asset" && name.compare(0, 7, "models/") == 0) {
-                throw DocumentError(DUST3D_STATUS_UNSUPPORTED_ASSET, "This document contains imported GLB geometry. The native viewer does not yet support it.");
+                if (!imports)
+                    throw DocumentError(DUST3D_STATUS_UNSUPPORTED_ASSET, "This operation does not yet support imported GLB materials and UVs.");
+                modelAssets.push_back({ name, bytes + binaryOffset + offset, itemSize });
             } else if (type == "asset" && name.compare(0, 7, "images/") == 0) {
                 warning = "Untextured preview: image textures are not yet displayed.";
             }
@@ -186,13 +190,15 @@ namespace native {
         validateModelXml(modelBytes);
         auto snapshot = std::make_unique<Snapshot>();
         loadSnapshotFromXmlString(snapshot.get(), reinterpret_cast<char*>(modelBytes.data()));
-        validateSnapshot(*snapshot);
+        validateSnapshot(*snapshot, imports != nullptr);
         for (const auto& component : snapshot->components) {
             if (!String::valueOrEmpty(component.second, "colorImageId").empty()
                 || !String::valueOrEmpty(component.second, "wrapPattern").empty()
                 || !String::valueOrEmpty(component.second, "wrapWrinkles").empty())
                 warning = "Untextured preview: image textures and procedural surface details are not yet displayed.";
         }
+        if (imports)
+            imports->load(*snapshot, modelAssets, warning);
         return snapshot;
     }
 

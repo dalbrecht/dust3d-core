@@ -33,6 +33,8 @@ struct Dust3DIndexedMesh {
 namespace dust3d {
 namespace native {
 
+    class ImportedModels;
+
     class DocumentError : public std::runtime_error {
     public:
         DocumentError(Dust3DStatus status, const std::string& message)
@@ -58,8 +60,8 @@ namespace native {
         virtual void attribute(std::string_view name, std::string_view value) noexcept = 0;
     };
     std::unique_ptr<Snapshot> readDocument(const uint8_t* bytes, size_t size, std::string& warning,
-        DocumentAssetObserver* observer = nullptr);
-    void validateSnapshot(Snapshot& snapshot);
+        DocumentAssetObserver* observer = nullptr, ImportedModels* imports = nullptr);
+    void validateSnapshot(Snapshot& snapshot, bool canImportModels = false);
 
 }
 }

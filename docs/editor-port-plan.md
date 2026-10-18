@@ -324,3 +324,15 @@ review and CI remain required before landing. Subsequent Apple exact-pin/SDK
 integration must decode retained assets, preserve cancellation lifetime and feed
 UV/tangent/material seams into rendering. PBR/transparency/AO, textured exports,
 full M3/M4 and all later milestone acceptance remain open.
+
+
+## Embedded-model geometry stage (core #41, in progress)
+
+The reviewed bounded decoder now feeds a primary archive resolver and the actual
+imported-model generator in the geometry-preview C APIs. Required failures are
+separate from optional caches, decoded owners have an aggregate quota, and
+same-UUID asset edits invalidate generated reuse. See ADR 0017 and
+[verification](imported-model-generation-verification.md). This stage discloses
+unapplied materials and retains UV/bake rejection. C/Swift material/image adoption,
+reviewed Apple pinning, native lossless editing/file previews and textured exports
+remain required; neither #41 nor M4 is complete.

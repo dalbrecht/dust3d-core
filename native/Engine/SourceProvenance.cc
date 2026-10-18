@@ -1,5 +1,6 @@
 #include "SourceProvenance.h"
 #include "GenerationPipeline.h"
+#include "ImportedModels.h"
 #include <cmath>
 #include <dust3d/base/object.h>
 #include <limits>
@@ -111,10 +112,11 @@ Dust3DSourcedMesh* dust3d_sourced_mesh_load(const uint8_t* bytes, size_t size, c
     try {
         std::lock_guard<std::mutex> lock(engineMutex());
         std::string warning;
-        auto snapshot = readDocument(bytes, size, warning);
+        ImportedModels imports;
+        auto snapshot = readDocument(bytes, size, warning, nullptr, &imports);
         auto owner = std::make_unique<Dust3DSourcedMesh>();
         owner->sources = std::make_unique<SourceProvenance>(*snapshot, maximumBytes);
-        owner->geometry = generateMesh(std::move(snapshot), warning, nullptr, nullptr, owner->sources.get());
+        owner->geometry = generateMesh(std::move(snapshot), warning, &imports, nullptr, nullptr, owner->sources.get());
         return owner.release();
     } catch (const DocumentError& exception) {
         setError(error, exception.status(), exception.what());

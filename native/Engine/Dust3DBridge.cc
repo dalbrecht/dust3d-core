@@ -1,5 +1,6 @@
 #include "BakedMesh.h"
 #include "GenerationPipeline.h"
+#include "ImportedModels.h"
 #include "SourceProvenance.h"
 #include "UvMetadata.h"
 #include <array>
@@ -28,7 +29,7 @@ namespace native {
         return mutex;
     }
 
-    std::unique_ptr<Dust3DMesh> generateMesh(std::unique_ptr<dust3d::Snapshot> snapshot, const std::string& warning,
+    std::unique_ptr<Dust3DMesh> generateMesh(std::unique_ptr<dust3d::Snapshot> snapshot, const std::string& warning, ImportedModels* imports,
         MeshGenerator::GeneratedCacheContext* cache, MeshGenerator::GenerationMetrics* metrics, SourceProvenance* sources,
         UvMetadata* uvs, const std::map<Uuid, UvAtlasImage>& images, size_t textureSize, BakedMeshData* baked)
     {
@@ -39,6 +40,8 @@ namespace native {
         // MeshGenerator owns the raw Snapshot constructor argument.
         dust3d::MeshGenerator generator(snapshot.get());
         snapshot.release();
+        if (imports)
+            generator.setImportedModelData(imports->takeGeometry());
         if (cache)
             generator.setGeneratedCacheContext(cache);
         if (baked)
@@ -136,8 +139,9 @@ Dust3DMesh* dust3d_mesh_load(const uint8_t* bytes, size_t size, Dust3DError* err
     try {
         std::lock_guard<std::mutex> lock(dust3d::native::engineMutex());
         std::string warning;
-        auto snapshot = dust3d::native::readDocument(bytes, size, warning);
-        return dust3d::native::generateMesh(std::move(snapshot), warning).release();
+        dust3d::native::ImportedModels imports;
+        auto snapshot = dust3d::native::readDocument(bytes, size, warning, nullptr, &imports);
+        return dust3d::native::generateMesh(std::move(snapshot), warning, &imports).release();
     } catch (const dust3d::native::DocumentError& exception) {
         dust3d::native::setError(error, exception.status(), exception.what());
     } catch (const std::bad_alloc&) {

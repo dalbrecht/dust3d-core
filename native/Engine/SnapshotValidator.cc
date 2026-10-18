@@ -103,7 +103,7 @@ namespace native {
         }
     }
 
-    void validateSnapshot(Snapshot& snapshot)
+    void validateSnapshot(Snapshot& snapshot, bool canImportModels)
     {
         if (snapshot.nodes.empty() || snapshot.parts.empty())
             throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "The document contains no procedural geometry.");
@@ -126,7 +126,7 @@ namespace native {
                 validateNumber(node.second, key);
         }
         for (const auto& part : snapshot.parts) {
-            if (!String::valueOrEmpty(part.second, "importedModelId").empty()
+            if (!canImportModels && !String::valueOrEmpty(part.second, "importedModelId").empty()
                 && !Uuid(String::valueOrEmpty(part.second, "importedModelId")).isNull())
                 throw DocumentError(DUST3D_STATUS_UNSUPPORTED_ASSET, "This document references imported GLB geometry, which is not yet supported.");
             for (const auto* key : { "deformWidth", "deformThickness", "cutRotation", "hollowThickness", "metalness", "roughness" })
