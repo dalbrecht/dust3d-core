@@ -50,6 +50,47 @@ void testDirectionalNodeScales()
         throw std::runtime_error("Node-scale normal derivatives disagree with finite-difference tangents");
 }
 
+void testCircularSpine()
+{
+    std::vector<dust3d::MeshNode> nodes(4);
+    nodes[0].origin = dust3d::Vector3(0, 0, 0);
+    nodes[1].origin = dust3d::Vector3(2, 0, 0);
+    nodes[2].origin = dust3d::Vector3(2, 2, 0);
+    nodes[3].origin = dust3d::Vector3(0, 2, 0);
+    for (auto& node : nodes)
+        node.radius = 1;
+    const dust3d::Vector3 minimum(-1, 0, -1), maximum(1, 2, 1);
+    dust3d::SpineDeformer circle(nodes, minimum, maximum, 1, 1, 0, true);
+    requireVector(circle.deformVertex(dust3d::Vector3(0, 0, 0)), nodes[0].origin);
+    requireVector(circle.deformVertex(dust3d::Vector3(0, .5, 0)), nodes[1].origin);
+    requireVector(circle.deformVertex(dust3d::Vector3(0, 1, 0)), nodes[2].origin);
+    requireVector(circle.deformVertex(dust3d::Vector3(0, 1.5, 0)), nodes[3].origin);
+    requireVector(circle.deformVertex(dust3d::Vector3(0, 2, 0)), nodes[0].origin);
+    requireVector(circle.deformVertex(dust3d::Vector3(0, 1.75, 0)), dust3d::Vector3(0, 1, 0));
+    requireVector(circle.deformVertex(dust3d::Vector3(.5, 1.75, .25)), dust3d::Vector3(-.25, 1, -.5));
+    requireVector(circle.deformVertex(dust3d::Vector3(.2, 0, .3)), circle.deformVertex(dust3d::Vector3(.2, 2, .3)));
+    requireVector(circle.deformNormal(dust3d::Vector3(1, 0, 0), dust3d::Vector3(.5, 1.75, .25)), dust3d::Vector3(0, 0, -1));
+    requireVector(circle.deformNormal(dust3d::Vector3(0, 0, 1), dust3d::Vector3(.5, 1.75, .25)), dust3d::Vector3(-1, 0, 0));
+    nodes[3].radius = .5;
+    nodes[3].deformWidth = 2;
+    nodes[0].deformThickness = 4;
+    nodes[3].deformThickness = 2;
+    for (bool isNonplanar : { false, true }) {
+        if (isNonplanar)
+            nodes[3].origin.setZ(1);
+        dust3d::SpineDeformer tapered(nodes, minimum, maximum, 2, 3, .25, true);
+        const dust3d::Vector3 point(.2, 1.8, .3), tangentA(1, -1, 0), tangentB(1, 1, -2);
+        const double step = 1e-6;
+        const auto deformedA = (tapered.deformVertex(point + tangentA * step) - tapered.deformVertex(point - tangentA * step)).normalized();
+        const auto deformedB = (tapered.deformVertex(point + tangentB * step) - tapered.deformVertex(point - tangentB * step)).normalized();
+        const auto normal = tapered.deformNormal(dust3d::Vector3(1, 1, 1).normalized(), point);
+        if (std::abs(dust3d::Vector3::dotProduct(normal, deformedA)) > 1e-7
+            || std::abs(dust3d::Vector3::dotProduct(normal, deformedB)) > 1e-7 || std::abs(normal.length() - 1) > 1e-10)
+            throw std::runtime_error("Circular normal Jacobian omitted closing-segment frame/scale derivatives");
+        requireVector(tapered.deformVertex(dust3d::Vector3(.2, 0, .3)), tapered.deformVertex(dust3d::Vector3(.2, 2, .3)));
+    }
+}
+
 void testNormalJacobian()
 {
     std::vector<dust3d::MeshNode> nodes(2);
@@ -114,6 +155,7 @@ int main()
         dust3d::SpineDeformer flatBent(nodes, minimum, maximum, 0, 3, .25);
         dust3d::SpineDeformer wideBent(nodes, minimum, maximum, 2, 3, .25);
         requireVector(flatBent.deformVertex(dust3d::Vector3(0, 1, .25)), wideBent.deformVertex(dust3d::Vector3(0, 1, .25)));
+        testCircularSpine();
         testNormalJacobian();
         testDirectionalNodeScales();
         std::cout << "Independent spine scale/normal contracts passed\n";
