@@ -29,7 +29,9 @@ also stay within checked bounds for the inherited long-based PositionKey.
 
 The initial representation is one mesh and one shared primitive material, with
 triangle primitives, finite positions/normals/UVs, unsigned indices and float or
-normalized unsigned vertex colors. Missing normals are generated. Absent vertex
+normalized unsigned vertex colors. Missing normals generate flat, independently
+indexed triangle corners, with UV/color associations preserved. The vertex quota
+also bounds this expansion. Reserved primitive-restart indices are rejected. Absent vertex
 colors stay absent to preserve inherited part colors; mixed primitives use neutral
 aligned defaults. Material factors, alpha mode/cutoff, double-sided
 state, emissive color and sampler filter/wrap enums remain explicit owned metadata.

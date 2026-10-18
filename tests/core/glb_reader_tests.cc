@@ -375,7 +375,9 @@ void testIndexWidthsAndInvalidTopology()
     view = source.addView({ 0, 1, 2, 0, 2, 1 });
     source.document["accessors"].push_back({ { "bufferView", view }, { "componentType", 5121 }, { "count", 6 }, { "type", "SCALAR" } });
     source.document["meshes"][0]["primitives"][0]["indices"] = 1;
-    rejects(source.bytes(), DUST3D_STATUS_INVALID_DOCUMENT);
+    auto oppositeBytes = source.bytes();
+    const auto opposite = dust3d::native::readGlb(oppositeBytes.data(), oppositeBytes.size());
+    require(opposite.model.vertexNormals.size() == 6 && opposite.model.vertexNormals[0].z() == 1 && opposite.model.vertexNormals[3].z() == -1, "Opposite flat faces must not cancel normals");
 }
 
 void testAggregateAndImageBudgets()
@@ -390,13 +392,17 @@ void testAggregateAndImageBudgets()
     source.document["meshes"][0]["primitives"].push_back(source.document["meshes"][0]["primitives"][0]);
     rejects(source.bytes(), DUST3D_STATUS_LIMIT_EXCEEDED);
     source = AttributedFixture {};
+    source.addFloats("NORMAL", "VEC3", { 0, 0, 1, 0, 0, 1, 0, 0, 1 });
     std::vector<uint8_t> indices;
     for (size_t count = 0; count < 250001; ++count)
         indices.insert(indices.end(), { 0, 1, 2 });
     auto view = source.addView(indices);
     source.document["accessors"].push_back({ { "bufferView", view }, { "componentType", 5121 }, { "count", indices.size() }, { "type", "SCALAR" } });
-    source.document["meshes"][0]["primitives"][0]["indices"] = 1;
+    source.document["meshes"][0]["primitives"][0]["indices"] = 2;
     source.document["meshes"][0]["primitives"].push_back(source.document["meshes"][0]["primitives"][0]);
+    rejects(source.bytes(), DUST3D_STATUS_LIMIT_EXCEEDED);
+    source.document["meshes"][0]["primitives"].erase(source.document["meshes"][0]["primitives"].begin() + 1);
+    source.document["meshes"][0]["primitives"][0]["attributes"].erase("NORMAL");
     rejects(source.bytes(), DUST3D_STATUS_LIMIT_EXCEEDED);
     source = texturedFixture();
     view = source.addView(std::vector<uint8_t>(16 * 1024 * 1024 + 1, 0));
@@ -405,6 +411,62 @@ void testAggregateAndImageBudgets()
     source = AttributedFixture {};
     source.document["extras"] = std::vector<int>(100001, 0);
     rejects(source.bytes(), DUST3D_STATUS_LIMIT_EXCEEDED);
+}
+void testFlatNormalsAndReservedIndices()
+{
+    AttributedFixture source;
+    // Put a second triangle in a perpendicular plane, sharing its first edge.
+    for (float value : { 0.0f, 0.0f, 1.0f })
+        appendFloat(source.binary, value);
+    source.document["bufferViews"][0]["byteLength"] = 48;
+    source.document["accessors"][0]["count"] = 4;
+    auto view = source.addView({ 0, 1, 2, 0, 3, 1 });
+    source.document["accessors"].push_back({ { "bufferView", view }, { "componentType", 5121 }, { "count", 6 }, { "type", "SCALAR" } });
+    source.document["meshes"][0]["primitives"][0]["indices"] = 1;
+    std::vector<uint8_t> uvBytes;
+    for (float value : { 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f })
+        appendFloat(uvBytes, value);
+    auto uvView = source.addView(uvBytes);
+    source.document["accessors"].push_back({ { "bufferView", uvView }, { "componentType", 5126 }, { "count", 4 }, { "type", "VEC2" } });
+    source.document["meshes"][0]["primitives"][0]["attributes"]["TEXCOORD_0"] = 2;
+    const auto colorView = source.addView({ 255, 0, 0, 255, 0, 255, 0, 128, 0, 0, 255, 255, 255, 255, 0, 64 });
+    source.document["accessors"].push_back({ { "bufferView", colorView }, { "componentType", 5121 }, { "count", 4 }, { "type", "VEC4" }, { "normalized", true } });
+    source.document["meshes"][0]["primitives"][0]["attributes"]["COLOR_0"] = 3;
+    auto bytes = source.bytes();
+    const auto result = dust3d::native::readGlb(bytes.data(), bytes.size());
+    require(result.model.vertices.size() == 6 && result.model.vertexNormals.size() == 6, "Flat normals require independent corners");
+    for (size_t i = 0; i < 3; ++i) {
+        require(result.model.vertexNormals[i].z() == 1 && result.model.vertexNormals[i].y() == 0, "First face normal was smoothed");
+        require(result.model.vertexNormals[i + 3].y() == 1 && result.model.vertexNormals[i + 3].z() == 0, "Second face normal was smoothed");
+    }
+    require(result.model.triangleUvs.size() == 2 && result.model.vertexColors.size() == 6, "Flat expansion lost UV/color alignment");
+    require(result.model.vertexColors[4].red() == 1 && result.model.vertexColors[4].green() == 1 && std::abs(result.model.vertexColors[4].alpha() - 64.0 / 255) < 1e-10, "Flat expansion changed corner color");
+    for (size_t component : { 5121, 5123 }) {
+        source = AttributedFixture {};
+        source.binary.clear();
+        const size_t count = component == 5121 ? 256 : 65536;
+        for (size_t i = 0; i < count; ++i) {
+            appendFloat(source.binary, i == 1 ? 1 : 0);
+            appendFloat(source.binary, i > 1 ? 1 : 0);
+            appendFloat(source.binary, 0);
+        }
+        source.document["accessors"][0]["count"] = count;
+        source.document["bufferViews"][0]["byteLength"] = source.binary.size();
+        std::vector<uint8_t> normals;
+        for (size_t i = 0; i < count; ++i) {
+            appendFloat(normals, 0);
+            appendFloat(normals, 0);
+            appendFloat(normals, 1);
+        }
+        auto normalView = source.addView(normals);
+        source.document["accessors"].push_back({ { "bufferView", normalView }, { "componentType", 5126 }, { "count", count }, { "type", "VEC3" } });
+        source.document["meshes"][0]["primitives"][0]["attributes"]["NORMAL"] = 1;
+        std::vector<uint8_t> indices = component == 5121 ? std::vector<uint8_t> { 0, 1, 255 } : std::vector<uint8_t> { 0, 0, 1, 0, 255, 255 };
+        view = source.addView(indices);
+        source.document["accessors"].push_back({ { "bufferView", view }, { "componentType", component }, { "count", 3 }, { "type", "SCALAR" } });
+        source.document["meshes"][0]["primitives"][0]["indices"] = 2;
+        rejects(source.bytes(), DUST3D_STATUS_INVALID_DOCUMENT);
+    }
 }
 void testContainerBoundaries()
 {
@@ -472,6 +534,7 @@ int main()
         testMixedPrimitiveColors();
         testTextureAndAttributeBoundaries();
         testIndexWidthsAndInvalidTopology();
+        testFlatNormalsAndReservedIndices();
         testContainerBoundaries();
         testAggregateAndImageBudgets();
         using namespace dust3d::native;

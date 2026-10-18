@@ -448,6 +448,10 @@ namespace native {
                         invalid("triangle indices require unsigned integer components");
                     for (size_t index = 0; index < values.count; ++index) {
                         const size_t vertex = decoder.unsignedValue(values.bytes + index * values.stride, values.componentType);
+                        const size_t reserved = values.componentType == 5121 ? 255 : values.componentType == 5123 ? 65535
+                                                                                                                  : std::numeric_limits<uint32_t>::max();
+                        if (vertex == reserved)
+                            invalid("triangle index uses the reserved primitive-restart value");
                         if (vertex >= positions.count)
                             invalid("triangle index exceeds primitive vertex count");
                         indices.push_back(vertex);
@@ -460,17 +464,21 @@ namespace native {
                     invalid("triangle index count is not divisible by three");
                 if (indices.size() / 3 > maximumFaces - result.model.faces.size())
                     limit("total triangle count exceeds budget");
+                const size_t firstFace = result.model.faces.size();
+                std::vector<Vector3> faceNormals;
+                if (!attributes.count("NORMAL")) {
+                    if (indices.size() > maximumVertices - base)
+                        limit("flat-normal corner expansion exceeds vertex budget");
+                    faceNormals.reserve(indices.size() / 3);
+                }
                 for (size_t index = 0; index < indices.size(); index += 3) {
                     const size_t a = indices[index], b = indices[index + 1], c = indices[index + 2];
                     const auto normal = Vector3::crossProduct(result.model.vertices[base + b] - result.model.vertices[base + a], result.model.vertices[base + c] - result.model.vertices[base + a]);
                     if (normal.length() < 1e-12)
                         invalid("degenerate triangle");
                     result.model.faces.push_back({ base + a, base + b, base + c });
-                    if (!attributes.count("NORMAL")) {
-                        normals[a] += normal;
-                        normals[b] += normal;
-                        normals[c] += normal;
-                    }
+                    if (!attributes.count("NORMAL"))
+                        faceNormals.push_back(normal.normalized());
                     if (!uvs.empty()) {
                         const std::array<PositionKey, 3> key { PositionKey(result.model.vertices[base + a]), PositionKey(result.model.vertices[base + b]), PositionKey(result.model.vertices[base + c]) };
                         if (!result.model.triangleUvs.emplace(key, std::array<Vector2, 3> { uvs[a], uvs[b], uvs[c] }).second)
@@ -478,11 +486,27 @@ namespace native {
                     }
                 }
                 if (!attributes.count("NORMAL")) {
-                    for (auto& normal : normals) {
-                        if (normal.length() < 1e-12)
-                            invalid("unused or canceling vertex has no generated normal");
-                        normal = normal.normalized();
+                    // glTF requires flat normals when NORMAL is absent. Shared indexed
+                    // corners must split so adjacent faces cannot smooth each other.
+                    std::vector<Vector3> flatVertices;
+                    std::vector<Vector3> flatNormals;
+                    std::vector<Color> flatColors;
+                    flatVertices.reserve(indices.size());
+                    flatNormals.reserve(indices.size());
+                    flatColors.reserve(indices.size());
+                    for (size_t faceIndex = firstFace; faceIndex < result.model.faces.size(); ++faceIndex) {
+                        auto& face = result.model.faces[faceIndex];
+                        for (auto& vertex : face) {
+                            flatVertices.push_back(result.model.vertices[vertex]);
+                            flatNormals.push_back(faceNormals[faceIndex - firstFace]);
+                            flatColors.push_back(colors[vertex - base]);
+                            vertex = base + flatVertices.size() - 1;
+                        }
                     }
+                    result.model.vertices.resize(base);
+                    result.model.vertices.insert(result.model.vertices.end(), flatVertices.begin(), flatVertices.end());
+                    normals = std::move(flatNormals);
+                    colors = std::move(flatColors);
                 }
                 result.model.vertexNormals.insert(result.model.vertexNormals.end(), normals.begin(), normals.end());
                 result.model.vertexColors.insert(result.model.vertexColors.end(), colors.begin(), colors.end());

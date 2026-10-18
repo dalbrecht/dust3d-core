@@ -34,7 +34,7 @@ A fixture initializer syntax error temporarily caused an unguarded CTest command
 to run an older executable. That result is excluded; the final evidence below
 comes from successful fail-fast build/test sequences.
 
-## Final local results
+## Initial local results (d1382f7)
 
 - Complete Debug CMake build and **35/35 CTest entries passed**, 37.84 seconds.
 - Production `GlbReader.cc`, inherited PositionKey and the expanded contract built
@@ -68,3 +68,23 @@ Document asset binding, actual spine deformation/part transforms, asset-aware
 cache invalidation and quotas, decoded-image integration, C/Swift ownership,
 reviewed Apple pinning and rendered/export compatibility remain stages of #41.
 Broader scene/material support and fuzzing remain required for the full M4/M8 plan.
+
+
+## Automated-review correction
+
+Review finding 4308143850 identified averaged shared-vertex normals when `NORMAL`
+is absent. The specification requires flat normals. A failing non-coplanar fixture
+reproduced the issue; independent corners now retain each face normal, color and
+UV association, and opposite faces no longer cancel one another. Expansion is
+checked against the vertex quota before allocation. Additional in-range UInt8/16
+fixtures reject the reserved maximum index value. The aggregate face-limit test
+uses supplied normals so it still exercises the face quota rather than the corner
+expansion quota. The corrected full Debug build and **35/35 CTest entries pass** (31.61 seconds).
+The expanded production parser contract passes ASan/UBSan, SwiftPM compiles,
+formatting and the Qt boundary scan pass. Final decoder-only LLVM coverage is
+**509/510 lines (99.80%)**, **407/442 branches (92.08%)**, and **24/24 functions**.
+The uncovered line remains the narrower-host integer-width guard. These results
+supersede the initial-head measurements above. Logs are retained under
+`/private/tmp/dust3d-glb-review-final-*`, with SwiftPM/boundary logs under
+`/private/tmp/dust3d-glb-review-flat-*`. Fresh exact-head review and hosted CI
+remain required before merge.
