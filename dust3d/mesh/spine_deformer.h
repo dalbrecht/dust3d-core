@@ -132,8 +132,14 @@ public:
         // Scale the cross-section by the node radius relative to the source size.
         double scale = (radius * 2.0) / m_crossSize;
         // Width may be zero while the independent thickness remains nonzero.
-        double widthScale = scale * m_deformWidth;
-        double thicknessScale = scale * m_deformThickness;
+        double nodeWidth = m_meshNodes.size() >= 2
+            ? m_meshNodes[segIdx].deformWidth * (1.0 - segT) + m_meshNodes[segIdx + 1].deformWidth * segT
+            : m_meshNodes[0].deformWidth;
+        double nodeThickness = m_meshNodes.size() >= 2
+            ? m_meshNodes[segIdx].deformThickness * (1.0 - segT) + m_meshNodes[segIdx + 1].deformThickness * segT
+            : m_meshNodes[0].deformThickness;
+        double widthScale = scale * m_deformWidth * nodeWidth;
+        double thicknessScale = scale * m_deformThickness * nodeThickness;
 
         return spinePos + rotatedRight * (localU * widthScale) + rotatedUp * (localV * thicknessScale);
     }
@@ -167,11 +173,15 @@ public:
         double longitudinalScale = m_totalSpineLength / m_sourceLength;
         double scaleDerivative = 2.0 / m_crossSize
             * (m_meshNodes[segIdx + 1].radius - m_meshNodes[segIdx].radius) / segLen * longitudinalScale;
-        Vector3 derivativeX = rotatedRight * (scale * m_deformWidth);
-        Vector3 derivativeZ = rotatedUp * (scale * m_deformThickness);
+        double nodeWidth = m_meshNodes[segIdx].deformWidth * (1.0 - segT) + m_meshNodes[segIdx + 1].deformWidth * segT;
+        double nodeThickness = m_meshNodes[segIdx].deformThickness * (1.0 - segT) + m_meshNodes[segIdx + 1].deformThickness * segT;
+        double widthDerivative = m_deformWidth * (scaleDerivative * nodeWidth + scale * (m_meshNodes[segIdx + 1].deformWidth - m_meshNodes[segIdx].deformWidth) / segLen * longitudinalScale);
+        double thicknessDerivative = m_deformThickness * (scaleDerivative * nodeThickness + scale * (m_meshNodes[segIdx + 1].deformThickness - m_meshNodes[segIdx].deformThickness) / segLen * longitudinalScale);
+        Vector3 derivativeX = rotatedRight * (scale * m_deformWidth * nodeWidth);
+        Vector3 derivativeZ = rotatedUp * (scale * m_deformThickness * nodeThickness);
         Vector3 derivativeY = m_spineForwards[segIdx] * longitudinalScale
-            + rotatedRight * ((sourceVertex.x() - m_sourceCenter.x()) * scaleDerivative * m_deformWidth)
-            + rotatedUp * ((sourceVertex.z() - m_sourceCenter.z()) * scaleDerivative * m_deformThickness);
+            + rotatedRight * ((sourceVertex.x() - m_sourceCenter.x()) * widthDerivative)
+            + rotatedUp * ((sourceVertex.z() - m_sourceCenter.z()) * thicknessDerivative);
         Vector3 cofactorX = Vector3::crossProduct(derivativeY, derivativeZ);
         Vector3 cofactorY = Vector3::crossProduct(derivativeZ, derivativeX);
         Vector3 cofactorZ = Vector3::crossProduct(derivativeX, derivativeY);
