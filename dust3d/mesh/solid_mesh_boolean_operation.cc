@@ -293,6 +293,7 @@ size_t SolidMeshBooleanOperation::addNewPoint(const Vector3& position)
 }
 
 bool SolidMeshBooleanOperation::addUnintersectedTriangles(const SolidMesh* mesh,
+    bool isFirst,
     const std::set<size_t>& usedFaces,
     std::vector<size_t>& vertexIndices,
     std::map<std::uint64_t, size_t>* halfEdges)
@@ -314,6 +315,7 @@ bool SolidMeshBooleanOperation::addUnintersectedTriangles(const SolidMesh* mesh,
             continue;
         size_t newInsertedIndex = m_newTriangles.size();
         m_newTriangles.push_back(mappedTriangle);
+        m_newTriangleSources.push_back({ isFirst, i });
         const auto& newInsertedTriangle = m_newTriangles.back();
         if (!halfEdges->insert({ makeHalfEdgeKey(newInsertedTriangle[0], newInsertedTriangle[1]), newInsertedIndex }).second) {
             dust3dDebug << "Found repeated halfedge:" << newInsertedTriangle[0] << "," << newInsertedTriangle[1];
@@ -388,6 +390,7 @@ bool SolidMeshBooleanOperation::combine()
 
     auto reTriangulate = [&](const std::map<size_t, IntersectedContext>& context,
                              const SolidMesh* mesh,
+                             bool isFirst,
                              const std::vector<size_t>& vertexIndices,
                              std::map<size_t, std::set<size_t>>& edges,
                              std::map<std::uint64_t, size_t>& halfEdges) {
@@ -417,6 +420,7 @@ bool SolidMeshBooleanOperation::combine()
                     continue;
                 size_t newInsertedIndex = m_newTriangles.size();
                 m_newTriangles.push_back(mappedTriangle);
+                m_newTriangleSources.push_back({ isFirst, contextKey });
                 const auto& newInsertedTriangle = m_newTriangles.back();
                 if (!halfEdges.insert({ makeHalfEdgeKey(newInsertedTriangle[0], newInsertedTriangle[1]), newInsertedIndex }).second) {
                     dust3dDebug << "Found repeated halfedge:" << newInsertedTriangle[0] << "," << newInsertedTriangle[1];
@@ -445,24 +449,24 @@ bool SolidMeshBooleanOperation::combine()
     std::vector<size_t> firstVertexIndices;
     std::vector<size_t> secondVertexIndices;
     size_t firstRemainingStartTriangleIndex = m_newTriangles.size();
-    if (!addUnintersectedTriangles(m_firstMesh, m_firstIntersectedFaces, firstVertexIndices, &firstHalfEdges)) {
+    if (!addUnintersectedTriangles(m_firstMesh, true, m_firstIntersectedFaces, firstVertexIndices, &firstHalfEdges)) {
         dust3dDebug << "Add first mesh remaining triangles failed";
     }
     size_t firstRemainingTriangleCount = m_newTriangles.size() - firstRemainingStartTriangleIndex;
 
     size_t secondRemainingStartTriangleIndex = m_newTriangles.size();
-    if (!addUnintersectedTriangles(m_secondMesh, m_secondIntersectedFaces, secondVertexIndices, &secondHalfEdges)) {
+    if (!addUnintersectedTriangles(m_secondMesh, false, m_secondIntersectedFaces, secondVertexIndices, &secondHalfEdges)) {
         dust3dDebug << "Add second mesh remaining triangles failed";
     }
     size_t secondRemainingTriangleCount = m_newTriangles.size() - secondRemainingStartTriangleIndex;
 
     if (!reTriangulate(firstTriangleIntersectedContext,
-            m_firstMesh, firstVertexIndices, firstEdges, firstHalfEdges)) {
+            m_firstMesh, true, firstVertexIndices, firstEdges, firstHalfEdges)) {
         dust3dDebug << "Retriangulate first mesh failed";
         return false;
     }
     if (!reTriangulate(secondTriangleIntersectedContext,
-            m_secondMesh, secondVertexIndices, secondEdges, secondHalfEdges)) {
+            m_secondMesh, false, secondVertexIndices, secondEdges, secondHalfEdges)) {
         dust3dDebug << "Retriangulate second mesh failed";
         return false;
     }
@@ -525,30 +529,41 @@ void SolidMeshBooleanOperation::decideGroupSide(const std::vector<std::vector<si
     }
 }
 
-void SolidMeshBooleanOperation::fetchUnion(std::vector<std::vector<size_t>>& resultTriangles)
+void SolidMeshBooleanOperation::fetchUnion(std::vector<std::vector<size_t>>& resultTriangles,
+    std::vector<TriangleSource>* sources)
 {
     for (size_t i = 0; i < m_firstGroupSides.size(); ++i) {
         if (m_firstGroupSides[i])
             continue;
-        for (const auto& it : m_firstTriangleGroups[i])
+        for (const auto& it : m_firstTriangleGroups[i]) {
             resultTriangles.push_back(m_newTriangles[it]);
+            if (sources)
+                sources->push_back(m_newTriangleSources.at(it));
+        }
     }
 
     for (size_t i = 0; i < m_secondGroupSides.size(); ++i) {
         if (m_secondGroupSides[i])
             continue;
-        for (const auto& it : m_secondTriangleGroups[i])
+        for (const auto& it : m_secondTriangleGroups[i]) {
             resultTriangles.push_back(m_newTriangles[it]);
+            if (sources)
+                sources->push_back(m_newTriangleSources.at(it));
+        }
     }
 }
 
-void SolidMeshBooleanOperation::fetchDiff(std::vector<std::vector<size_t>>& resultTriangles)
+void SolidMeshBooleanOperation::fetchDiff(std::vector<std::vector<size_t>>& resultTriangles,
+    std::vector<TriangleSource>* sources)
 {
     for (size_t i = 0; i < m_firstGroupSides.size(); ++i) {
         if (m_firstGroupSides[i])
             continue;
-        for (const auto& it : m_firstTriangleGroups[i])
+        for (const auto& it : m_firstTriangleGroups[i]) {
             resultTriangles.push_back(m_newTriangles[it]);
+            if (sources)
+                sources->push_back(m_newTriangleSources.at(it));
+        }
     }
 
     for (size_t i = 0; i < m_secondGroupSides.size(); ++i) {
@@ -557,24 +572,36 @@ void SolidMeshBooleanOperation::fetchDiff(std::vector<std::vector<size_t>>& resu
         for (const auto& it : m_secondTriangleGroups[i]) {
             auto triangle = m_newTriangles[it];
             resultTriangles.push_back({ triangle[2], triangle[1], triangle[0] });
+            if (sources) {
+                auto source = m_newTriangleSources.at(it);
+                source.isReversed = true;
+                sources->push_back(source);
+            }
         }
     }
 }
 
-void SolidMeshBooleanOperation::fetchIntersect(std::vector<std::vector<size_t>>& resultTriangles)
+void SolidMeshBooleanOperation::fetchIntersect(std::vector<std::vector<size_t>>& resultTriangles,
+    std::vector<TriangleSource>* sources)
 {
     for (size_t i = 0; i < m_firstGroupSides.size(); ++i) {
         if (!m_firstGroupSides[i])
             continue;
-        for (const auto& it : m_firstTriangleGroups[i])
+        for (const auto& it : m_firstTriangleGroups[i]) {
             resultTriangles.push_back(m_newTriangles[it]);
+            if (sources)
+                sources->push_back(m_newTriangleSources.at(it));
+        }
     }
 
     for (size_t i = 0; i < m_secondGroupSides.size(); ++i) {
         if (!m_secondGroupSides[i])
             continue;
-        for (const auto& it : m_secondTriangleGroups[i])
+        for (const auto& it : m_secondTriangleGroups[i]) {
             resultTriangles.push_back(m_newTriangles[it]);
+            if (sources)
+                sources->push_back(m_newTriangleSources.at(it));
+        }
     }
 }
 

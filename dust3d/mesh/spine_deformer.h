@@ -41,13 +41,16 @@ namespace dust3d {
 // deformWidth (X) and deformThickness (Z), and spun by the cut rotation.
 //
 // This is the transformation used by the ImportedModel part target to sweep an
-// imported mesh along the part's tube spine.
+// imported mesh along the part's tube spine. Circular topology includes the
+// closing segment and interpolates periodic node frames; the default preserves
+// existing open-spine behavior.
 class SpineDeformer {
 public:
     SpineDeformer(const std::vector<MeshNode>& meshNodes,
         const Vector3& sourceMin, const Vector3& sourceMax,
-        float deformWidth, float deformThickness, float cutRotation)
+        float deformWidth, float deformThickness, float cutRotation, bool isCircle = false)
         : m_meshNodes(meshNodes)
+        , m_isCircle(isCircle)
         , m_deformWidth(deformWidth)
         , m_deformThickness(deformThickness)
         , m_cutRotation(cutRotation)
@@ -66,9 +69,9 @@ public:
             m_crossSize = 0.0001;
 
         // Cumulative spine distance at each node.
-        m_spineDistances.assign(meshNodes.size(), 0.0);
-        for (size_t i = 1; i < meshNodes.size(); ++i)
-            m_spineDistances[i] = m_spineDistances[i - 1] + (meshNodes[i].origin - meshNodes[i - 1].origin).length();
+        m_spineDistances.assign(meshNodes.size() + (m_isCircle && !meshNodes.empty() ? 1 : 0), 0.0);
+        for (size_t i = 1; i < m_spineDistances.size(); ++i)
+            m_spineDistances[i] = m_spineDistances[i - 1] + (meshNodes[i % meshNodes.size()].origin - meshNodes[i - 1].origin).length();
         m_totalSpineLength = meshNodes.empty() ? 0.0 : m_spineDistances.back();
         if (m_totalSpineLength < 0.0001)
             m_totalSpineLength = 0.0001;
@@ -78,9 +81,21 @@ public:
         for (size_t i = 0; i + 1 < meshNodes.size(); ++i)
             m_spineForwards[i] = (meshNodes[i + 1].origin - meshNodes[i].origin).normalized();
         if (meshNodes.size() > 1)
-            m_spineForwards.back() = m_spineForwards[meshNodes.size() - 2];
+            m_spineForwards.back() = m_isCircle ? (meshNodes.front().origin - meshNodes.back().origin).normalized()
+                                                : m_spineForwards[meshNodes.size() - 2];
         else if (!meshNodes.empty())
             m_spineForwards[0] = Vector3(0, 1, 0);
+
+        // Periodic node frames prevent a circular cross-section seam; segment
+        // directions remain separate for the centreline's Jacobian derivative.
+        if (m_isCircle) {
+            m_nodeForwards.resize(meshNodes.size());
+            for (size_t i = 0; i < meshNodes.size(); ++i) {
+                m_nodeForwards[i] = (m_spineForwards[(i + meshNodes.size() - 1) % meshNodes.size()] + m_spineForwards[i]).normalized();
+                if (m_nodeForwards[i].isZero())
+                    m_nodeForwards[i] = m_spineForwards[i];
+            }
+        }
 
         // A single global base normal for the whole spine, computed the same way
         // as TubeMeshBuilder. Deriving every cross-section frame from this
@@ -89,7 +104,7 @@ public:
         std::vector<Vector3> positions(meshNodes.size());
         for (size_t i = 0; i < meshNodes.size(); ++i)
             positions[i] = meshNodes[i].origin;
-        m_baseNormal = BaseNormal::calculateTubeBaseNormal(positions);
+        m_baseNormal = m_isCircle ? BaseNormal::calculateCircleBaseNormal(positions) : BaseNormal::calculateTubeBaseNormal(positions);
         if (m_baseNormal.isZero())
             m_baseNormal = Vector3(1, 0, 0);
     }
@@ -107,20 +122,21 @@ public:
 
         double targetDist = t * m_totalSpineLength;
         size_t segIdx = segmentForDistance(targetDist);
+        const size_t nextNode = (segIdx + 1) % m_meshNodes.size();
 
         double segLen = (m_meshNodes.size() >= 2) ? (m_spineDistances[segIdx + 1] - m_spineDistances[segIdx]) : 0.0;
         double segT = (segLen > 0.0001) ? (targetDist - m_spineDistances[segIdx]) / segLen : 0.0;
 
         Vector3 spinePos = (m_meshNodes.size() >= 2)
-            ? m_meshNodes[segIdx].origin * (1.0 - segT) + m_meshNodes[segIdx + 1].origin * segT
+            ? m_meshNodes[segIdx].origin * (1.0 - segT) + m_meshNodes[nextNode].origin * segT
             : m_meshNodes[0].origin;
         double radius = (m_meshNodes.size() >= 2)
-            ? m_meshNodes[segIdx].radius * (1.0 - segT) + m_meshNodes[segIdx + 1].radius * segT
+            ? m_meshNodes[segIdx].radius * (1.0 - segT) + m_meshNodes[nextNode].radius * segT
             : m_meshNodes[0].radius;
 
         Vector3 right;
         Vector3 realUp;
-        crossSectionBasis(segIdx, &right, &realUp);
+        crossSectionBasis(segIdx, segT, &right, &realUp);
 
         // Apply the cut rotation to the cross-section basis.
         double rotationAngle = m_cutRotation * Math::Pi;
@@ -131,48 +147,132 @@ public:
 
         // Scale the cross-section by the node radius relative to the source size.
         double scale = (radius * 2.0) / m_crossSize;
-        scale *= m_deformWidth;
+        // Width may be zero while the independent thickness remains nonzero.
+        double nodeWidth = m_meshNodes.size() >= 2
+            ? m_meshNodes[segIdx].deformWidth * (1.0 - segT) + m_meshNodes[nextNode].deformWidth * segT
+            : m_meshNodes[0].deformWidth;
+        double nodeThickness = m_meshNodes.size() >= 2
+            ? m_meshNodes[segIdx].deformThickness * (1.0 - segT) + m_meshNodes[nextNode].deformThickness * segT
+            : m_meshNodes[0].deformThickness;
+        double widthScale = scale * m_deformWidth * nodeWidth;
+        double thicknessScale = scale * m_deformThickness * nodeThickness;
 
-        return spinePos + rotatedRight * (localU * scale) + rotatedUp * (localV * scale * m_deformThickness / m_deformWidth);
+        return spinePos + rotatedRight * (localU * widthScale) + rotatedUp * (localV * thicknessScale);
     }
 
-    // Map a source normal onto the spine frame (cut rotation is intentionally
-    // not applied to normals, matching the Imported generator).
-    Vector3 deformNormal(const Vector3& sourceNormal, double sourceY) const
+    // Apply the inverse transpose of the local vertex-deformation Jacobian.
+    // Singular transforms return zero so callers can retain geometry-derived normals.
+    Vector3 deformNormal(const Vector3& sourceNormal, const Vector3& sourceVertex) const
     {
-        double t = (sourceY - m_sourceMin.y()) / m_sourceLength;
+        if (m_meshNodes.size() < 2)
+            return Vector3();
+        double t = (sourceVertex.y() - m_sourceMin.y()) / m_sourceLength;
+        if (!std::isfinite(t) || t < 0 || t > 1)
+            return Vector3();
         t = std::max(0.0, std::min(1.0, t));
-        size_t segIdx = segmentForDistance(t * m_totalSpineLength);
-
+        double targetDist = t * m_totalSpineLength;
+        size_t segIdx = segmentForDistance(targetDist);
+        const size_t nextNode = (segIdx + 1) % m_meshNodes.size();
+        double segLen = m_spineDistances[segIdx + 1] - m_spineDistances[segIdx];
+        if (segLen <= 0.0001)
+            return Vector3();
+        double segT = (targetDist - m_spineDistances[segIdx]) / segLen;
+        double radius = m_meshNodes[segIdx].radius * (1.0 - segT) + m_meshNodes[nextNode].radius * segT;
         Vector3 right;
         Vector3 realUp;
-        crossSectionBasis(segIdx, &right, &realUp);
-        Vector3 forward = m_spineForwards[segIdx];
+        Vector3 rightDerivative;
+        Vector3 upDerivative;
+        crossSectionBasis(segIdx, segT, &right, &realUp, &rightDerivative, &upDerivative);
+        double rotationAngle = m_cutRotation * Math::Pi;
+        double cosR = std::cos(rotationAngle);
+        double sinR = std::sin(rotationAngle);
+        Vector3 rotatedRight = right * cosR + realUp * sinR;
+        Vector3 rotatedUp = realUp * cosR - right * sinR;
+        const double frameDerivativeScale = m_totalSpineLength / m_sourceLength / segLen;
+        const Vector3 rotatedRightDerivative = (rightDerivative * cosR + upDerivative * sinR) * frameDerivativeScale;
+        const Vector3 rotatedUpDerivative = (upDerivative * cosR - rightDerivative * sinR) * frameDerivativeScale;
+        double scale = radius * 2.0 / m_crossSize;
+        double longitudinalScale = m_totalSpineLength / m_sourceLength;
+        double scaleDerivative = 2.0 / m_crossSize
+            * (m_meshNodes[nextNode].radius - m_meshNodes[segIdx].radius) / segLen * longitudinalScale;
+        double nodeWidth = m_meshNodes[segIdx].deformWidth * (1.0 - segT) + m_meshNodes[nextNode].deformWidth * segT;
+        double nodeThickness = m_meshNodes[segIdx].deformThickness * (1.0 - segT) + m_meshNodes[nextNode].deformThickness * segT;
+        double widthDerivative = m_deformWidth * (scaleDerivative * nodeWidth + scale * (m_meshNodes[nextNode].deformWidth - m_meshNodes[segIdx].deformWidth) / segLen * longitudinalScale);
+        double thicknessDerivative = m_deformThickness * (scaleDerivative * nodeThickness + scale * (m_meshNodes[nextNode].deformThickness - m_meshNodes[segIdx].deformThickness) / segLen * longitudinalScale);
+        Vector3 derivativeX = rotatedRight * (scale * m_deformWidth * nodeWidth);
+        Vector3 derivativeZ = rotatedUp * (scale * m_deformThickness * nodeThickness);
+        Vector3 derivativeY = m_spineForwards[segIdx] * longitudinalScale
+            + rotatedRight * ((sourceVertex.x() - m_sourceCenter.x()) * widthDerivative)
+            + rotatedUp * ((sourceVertex.z() - m_sourceCenter.z()) * thicknessDerivative)
+            + rotatedRightDerivative * ((sourceVertex.x() - m_sourceCenter.x()) * scale * m_deformWidth * nodeWidth)
+            + rotatedUpDerivative * ((sourceVertex.z() - m_sourceCenter.z()) * scale * m_deformThickness * nodeThickness);
+        Vector3 cofactorX = Vector3::crossProduct(derivativeY, derivativeZ);
+        Vector3 cofactorY = Vector3::crossProduct(derivativeZ, derivativeX);
+        Vector3 cofactorZ = Vector3::crossProduct(derivativeX, derivativeY);
+        double determinant = Vector3::dotProduct(derivativeX, cofactorX);
+        if (!std::isfinite(determinant) || determinant == 0)
+            return Vector3();
+        Vector3 normal = cofactorX * sourceNormal.x() + cofactorY * sourceNormal.y() + cofactorZ * sourceNormal.z();
+        if (determinant < 0)
+            normal = -normal;
+        double maximumComponent = 0;
+        for (size_t axis = 0; axis < 3; ++axis) {
+            if (!std::isfinite(normal[axis]))
+                return Vector3();
+            maximumComponent = std::max(maximumComponent, std::abs(normal[axis]));
+        }
+        if (maximumComponent == 0)
+            return Vector3();
+        // Normalize after rescaling to avoid squared-length overflow/underflow.
+        return Vector3(normal.x() / maximumComponent, normal.y() / maximumComponent, normal.z() / maximumComponent).normalized();
+    }
 
-        return (right * sourceNormal.x() + forward * sourceNormal.y() + realUp * sourceNormal.z()).normalized();
+    // Compatibility overload evaluated at the source cross-section centre.
+    Vector3 deformNormal(const Vector3& sourceNormal, double sourceY) const
+    {
+        return deformNormal(sourceNormal, Vector3(m_sourceCenter.x(), sourceY, m_sourceCenter.z()));
     }
 
 private:
     size_t segmentForDistance(double targetDist) const
     {
         size_t segIdx = 0;
-        for (size_t i = 1; i < m_meshNodes.size(); ++i) {
+        for (size_t i = 1; i < m_spineDistances.size(); ++i) {
             if (m_spineDistances[i] >= targetDist) {
                 segIdx = i - 1;
                 break;
             }
             segIdx = i - 1;
         }
-        if (m_meshNodes.size() < 2)
+        if (m_spineDistances.size() < 2)
             segIdx = 0;
-        else if (segIdx + 1 >= m_meshNodes.size())
-            segIdx = m_meshNodes.size() - 2;
+        else if (segIdx + 1 >= m_spineDistances.size())
+            segIdx = m_spineDistances.size() - 2;
         return segIdx;
     }
 
-    void crossSectionBasis(size_t segIdx, Vector3* right, Vector3* realUp) const
+    static Vector3 normalizedDerivative(const Vector3& value, const Vector3& derivative)
+    {
+        const double length = value.length();
+        if (length <= 0.000000000001)
+            return Vector3();
+        const Vector3 direction = value / length;
+        return (derivative - direction * Vector3::dotProduct(direction, derivative)) / length;
+    }
+
+    void crossSectionBasis(size_t segIdx, double segT, Vector3* right, Vector3* realUp,
+        Vector3* rightDerivative = nullptr, Vector3* upDerivative = nullptr) const
     {
         Vector3 forward = m_spineForwards[segIdx];
+        Vector3 forwardDerivative;
+        if (m_isCircle && m_meshNodes.size() >= 2) {
+            const size_t nextNode = (segIdx + 1) % m_meshNodes.size();
+            const Vector3 rawForward = m_nodeForwards[segIdx] * (1 - segT) + m_nodeForwards[nextNode] * segT;
+            if (!rawForward.isZero()) {
+                forward = rawForward.normalized();
+                forwardDerivative = normalizedDerivative(rawForward, m_nodeForwards[nextNode] - m_nodeForwards[segIdx]);
+            }
+        }
         // Re-orthogonalise the global base normal against the local forward
         // direction to obtain the cross-section frame. m_baseNormal plays the
         // role of the width axis (right); realUp is the thickness axis. The
@@ -181,13 +281,23 @@ private:
         // right=+X, realUp=+Z (an identity frame), so an imported model is swept
         // without being mirrored. (TubeMeshBuilder uses the opposite order, but
         // it builds fresh geometry and has no source chirality to preserve.)
-        Vector3 v = Vector3::crossProduct(m_baseNormal, forward).normalized();
-        Vector3 u = Vector3::crossProduct(forward, v).normalized();
+        const Vector3 rawUp = Vector3::crossProduct(m_baseNormal, forward);
+        const Vector3 v = rawUp.normalized();
+        const Vector3 derivativeV = normalizedDerivative(rawUp, Vector3::crossProduct(m_baseNormal, forwardDerivative));
+        const Vector3 rawRight = Vector3::crossProduct(forward, v);
+        const Vector3 u = rawRight.normalized();
         *right = u;
         *realUp = v;
+        if (rightDerivative)
+            *rightDerivative = normalizedDerivative(rawRight,
+                Vector3::crossProduct(forwardDerivative, v) + Vector3::crossProduct(forward, derivativeV));
+        if (upDerivative)
+            *upDerivative = derivativeV;
     }
 
     const std::vector<MeshNode>& m_meshNodes;
+    bool m_isCircle;
+    std::vector<Vector3> m_nodeForwards;
     float m_deformWidth;
     float m_deformThickness;
     float m_cutRotation;

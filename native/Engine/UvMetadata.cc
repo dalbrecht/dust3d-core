@@ -210,7 +210,7 @@ Dust3DUvMesh* dust3d_uv_mesh_load(const uint8_t* bytes, size_t size, const Dust3
         (void)resolvedComponents(*snapshot, images);
         auto owner = std::make_unique<Dust3DUvMesh>();
         owner->metadata = std::make_unique<UvMetadata>(*snapshot, maximumBytes);
-        owner->geometry = generateMesh(std::move(snapshot), warning, nullptr, nullptr, nullptr, owner->metadata.get(), images, options->texture_size == 0 ? 4096 : options->texture_size);
+        owner->geometry = generateMesh(std::move(snapshot), warning, nullptr, nullptr, nullptr, nullptr, owner->metadata.get(), images, options->texture_size == 0 ? 4096 : options->texture_size);
         return owner.release();
     } catch (const DocumentError& exception) {
         setError(error, exception.status(), exception.what());

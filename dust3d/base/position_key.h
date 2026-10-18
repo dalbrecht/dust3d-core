@@ -24,11 +24,23 @@
 #define DUST3D_BASE_POSITION_KEY_H_
 
 #include <dust3d/base/vector3.h>
+#include <stdexcept>
 
 namespace dust3d {
 
+// Quantization rejects nonfinite or unrepresentable scaled coordinates before
+// conversion. Callers may propagate this typed failure to their error boundary.
+class PositionQuantizationError : public std::range_error {
+public:
+    PositionQuantizationError()
+        : std::range_error("Coordinate exceeds the finite position quantization range.")
+    {
+    }
+};
+
 class PositionKey {
 public:
+    // Both constructors throw PositionQuantizationError for unsafe coordinates.
     PositionKey(const Vector3& v);
     PositionKey(double x, double y, double z);
     bool operator<(const PositionKey& right) const;

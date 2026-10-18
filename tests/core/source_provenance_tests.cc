@@ -48,6 +48,30 @@ void identitiesAndWeights()
     require(source.corners()[2].kind == DUST3D_SOURCE_UNKNOWN && source.corners()[2].influence_count == 0, "Generated geometry must stay unknown");
 }
 
+void componentScopedAssociations()
+{
+    dust3d::Snapshot snapshot;
+    snapshot.nodes[node]["partId"] = "first part";
+    snapshot.nodes[other]["partId"] = "second part";
+    dust3d::native::SourceProvenance source(snapshot, 1024 * 1024);
+    dust3d::Object object;
+    const dust3d::Vector3 position(.25, .5, .75);
+    const dust3d::Uuid component("{33333333-3333-4333-8333-333333333333}");
+    object.positionToNodeIdMap[position] = dust3d::Uuid(node);
+    object.positionToNodeWeights[position] = { { dust3d::Uuid(node), 1 } };
+    object.componentPositionToNodeIdMap[component.toString()][position] = dust3d::Uuid(other);
+    object.triangleComponentKeys.push_back(component.toString());
+    source.appendCorner(object, position, 0);
+    require(source.corners()[0].kind == DUST3D_SOURCE_NODE_HINT && source.corners()[0].influence_count == 1,
+        "Scoped imported association must take precedence over another component's weights");
+    require(source.identities()[source.influences()[0].source_index].node == other,
+        "Scoped source must refer to the owning component's node");
+    object.componentPositionToNodeIdMap[component.toString()].clear();
+    source.appendCorner(object, position, 0);
+    require(source.corners()[1].kind == DUST3D_SOURCE_UNKNOWN && source.corners()[1].influence_count == 0,
+        "A missing scoped association must not fall back to another component");
+}
+
 void aliasesAndGeneratedIdentities()
 {
     dust3d::Snapshot snapshot;
@@ -320,6 +344,7 @@ int main(int argc, char** argv)
 {
     try {
         identitiesAndWeights();
+        componentScopedAssociations();
         aliasesAndGeneratedIdentities();
         boundsAndErrors();
         require(argc == 2, "Expected fixture directory");

@@ -32,6 +32,7 @@ target_include_directories(dust3d_core PUBLIC
     third_party/earcut.hpp/include)
 target_link_libraries(dust3d_core PUBLIC dust3d_remesher dust3d_triangle Threads::Threads)
 add_library(dust3d_engine STATIC
+    native/Engine/ImportedModels.cc
     native/Engine/GlbReader.cc
     native/Engine/BakedMesh.cc
     native/Engine/Cancellation.cc
@@ -49,6 +50,18 @@ target_link_libraries(dust3d_engine PRIVATE dust3d_core)
 
 include(CTest)
 if(BUILD_TESTING)
+    add_executable(dust3d_position_key_tests tests/core/position_key_tests.cc)
+    target_link_libraries(dust3d_position_key_tests PRIVATE dust3d_core)
+    add_test(NAME contract_position_quantization COMMAND dust3d_position_key_tests)
+    set_tests_properties(contract_position_quantization PROPERTIES TIMEOUT 60)
+    add_executable(dust3d_spine_deformer_tests tests/core/spine_deformer_tests.cc)
+    target_link_libraries(dust3d_spine_deformer_tests PRIVATE dust3d_core)
+    add_test(NAME contract_spine_deformation COMMAND dust3d_spine_deformer_tests)
+    set_tests_properties(contract_spine_deformation PROPERTIES TIMEOUT 60)
+    add_executable(dust3d_imported_model_tests tests/core/imported_model_tests.cc)
+    target_link_libraries(dust3d_imported_model_tests PRIVATE dust3d_engine dust3d_core)
+    add_test(NAME contract_imported_models COMMAND dust3d_imported_model_tests)
+    set_tests_properties(contract_imported_models PROPERTIES TIMEOUT 60)
     add_executable(dust3d_glb_reader_tests tests/core/glb_reader_tests.cc)
     target_include_directories(dust3d_glb_reader_tests PRIVATE native/Engine)
     target_link_libraries(dust3d_glb_reader_tests PRIVATE dust3d_engine dust3d_core)

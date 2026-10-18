@@ -45,6 +45,13 @@ public:
         Second
     };
 
+    /// Exact source face in the triangulated input; subtraction may reverse winding.
+    struct TriangleSource {
+        Source source;
+        size_t triangleIndex;
+        bool isReversed = false;
+    };
+
     class Mesh {
     public:
         /// Account owned dynamic payload; borrowed views are excluded.
@@ -64,8 +71,11 @@ public:
         std::unique_ptr<std::vector<std::vector<size_t>>> m_triangles;
     };
 
+    /// Optional triangle sources align with fetched output faces. Vertex sources
+    /// remain positional hints and are not authoritative coincident ownership.
     static Mesh* combine(const Mesh& firstMesh, const Mesh& secondMesh, Method method,
-        std::vector<std::pair<Source, size_t>>* combinedVerticesComeFrom = nullptr);
+        std::vector<std::pair<Source, size_t>>* combinedVerticesComeFrom = nullptr,
+        std::vector<TriangleSource>* combinedTrianglesComeFrom = nullptr);
 };
 
 }

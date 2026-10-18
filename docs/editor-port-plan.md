@@ -324,3 +324,43 @@ review and CI remain required before landing. Subsequent Apple exact-pin/SDK
 integration must decode retained assets, preserve cancellation lifetime and feed
 UV/tangent/material seams into rendering. PBR/transparency/AO, textured exports,
 full M3/M4 and all later milestone acceptance remain open.
+
+
+## Embedded-model geometry stage (core #41, in progress)
+
+The reviewed bounded decoder now feeds a primary archive resolver and the actual
+imported-model generator in the geometry-preview C APIs. Required failures are
+separate from optional caches, decoded owners have an aggregate quota, and
+same-UUID asset edits invalidate generated reuse. See ADR 0017 and
+[verification](imported-model-generation-verification.md). This stage discloses
+unapplied materials and retains UV/bake rejection. C/Swift material/image adoption,
+reviewed Apple pinning, native lossless editing/file previews and textured exports
+remain required; neither #41 nor M4 is complete.
+
+
+The geometry-stage review correction retains exact triangle ownership through
+Boolean cutting, recombination and cached copies before applying imported colors
+and normals. Coincident imported parts, colorless component fallback, nested
+group previews and public cached loads have dedicated regressions. Newly created
+seam faces use computed fallback attributes; this does not establish full GLB
+material transfer or close M4. Fresh exact-head review and hosted CI remain
+required for core #43 before the next dependency stage.
+
+
+Further geometry-stage review contracts preserve vertex-color seams through
+cached corner attributes, node-level directional deformation and its normal
+Jacobian, and component-scoped original source hints. Ownership retains opaque
+original component keys so accepted brace aliases do not collide. These remain
+geometry-stage acceptance; embedded materials, native asset adoption, rendered
+file previews and full M4 acceptance are still open.
+
+
+### Embedded geometry review hardening checkpoint
+
+Core #43 now rejects unsafe position quantization with a typed core failure,
+including extreme combined imported deformation and session recovery, and retains
+per-component fallback colors when multiple imported instances share a part. Both
+regressions failed before their fixes. Full Debug and ASan/UBSan suites pass
+38/38 locally; SwiftPM and formatting/Qt boundary checks pass. Exact-head review
+and hosted checks remain required before merging. These corrections do not
+complete imported materials, Apple adoption, file previews or M4 acceptance.

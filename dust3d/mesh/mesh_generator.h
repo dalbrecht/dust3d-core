@@ -66,7 +66,7 @@ public:
         float roughness = 1.0;
         bool isSuccessful = false;
         bool joined = true;
-        std::map<PositionKey, Color> importedVertexColorMap;
+        std::vector<Color> importedVertexColors;
         std::map<std::array<PositionKey, 3>, std::array<Vector3, 3>> importedTriangleNormals;
         void reset()
         {
@@ -75,7 +75,7 @@ public:
             triangleUvs.clear();
             positionToNodeIdMap.clear();
             nodeMap.clear();
-            importedVertexColorMap.clear();
+            importedVertexColors.clear();
             importedTriangleNormals.clear();
             color = Color(1.0, 1.0, 1.0);
             metalness = 0.0;
@@ -95,8 +95,6 @@ public:
         std::set<PositionKey> noneSeamVertices;
         std::map<PositionKey, Uuid> positionToNodeIdMap;
         std::map<Uuid, ObjectNode> nodeMap;
-        std::map<PositionKey, Color> importedVertexColorMap;
-        std::map<std::array<PositionKey, 3>, std::array<Vector3, 3>> importedTriangleNormals;
         std::map<PositionKey, std::vector<std::pair<Uuid, float>>> positionToNodeWeights;
         std::map<PositionKey, ObjectVertexAttribute> positionToVertexAttribute;
         // The wrap surface of a cloth component: emitted as its own mesh, next to the
@@ -121,8 +119,6 @@ public:
             noneSeamVertices.clear();
             positionToNodeIdMap.clear();
             nodeMap.clear();
-            importedVertexColorMap.clear();
-            importedTriangleNormals.clear();
         }
     };
 
@@ -211,6 +207,7 @@ private:
     std::unique_ptr<MeshState> combineComponentMesh(const std::string& componentIdString, CombineMode* combineMode);
     void collectSharedQuadEdges(const std::vector<Vector3>& vertices, const std::vector<std::vector<size_t>>& faces,
         std::set<std::pair<PositionKey, PositionKey>>* sharedQuadEdges);
+    void applyImportedAttributes(Object* object);
     const std::map<std::string, std::string>* findComponent(const std::string& componentIdString);
     CombineMode componentCombineMode(const std::map<std::string, std::string>* component);
     std::unique_ptr<MeshState> combineComponentChildGroupMesh(const std::vector<std::string>& componentIdStrings,

@@ -202,7 +202,7 @@ Dust3DBakedMesh* dust3d_baked_mesh_load(const uint8_t* bytes, size_t size, const
         owner->data->validateVisuals(*snapshot);
         owner->uvs = std::make_unique<Dust3DUvMesh>();
         owner->uvs->metadata = std::make_unique<UvMetadata>(*snapshot, owner->data->uvBudget());
-        owner->uvs->geometry = generateMesh(std::move(snapshot), warning, nullptr, nullptr, nullptr, owner->uvs->metadata.get(), owner->data->images(), owner->data->textureSize(), owner->data.get());
+        owner->uvs->geometry = generateMesh(std::move(snapshot), warning, nullptr, nullptr, nullptr, nullptr, owner->uvs->metadata.get(), owner->data->images(), owner->data->textureSize(), owner->data.get());
         return owner.release();
     } catch (const DocumentError& cause) {
         setError(error, cause.status(), cause.what());

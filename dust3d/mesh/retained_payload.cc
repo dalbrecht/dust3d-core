@@ -21,8 +21,8 @@ void MeshCombiner::Mesh::accountDynamicPayload(RetainedPayloadBudget& budget) co
 
 void MeshState::accountDynamicPayload(RetainedPayloadBudget& budget) const noexcept
 {
-    const auto& [mesh, seamUvs, brokenTriangles, reports] = *this;
-    budget.accountDynamicFields(mesh, seamUvs, brokenTriangles, reports);
+    const auto& [mesh, seamUvs, brokenTriangles, owners, colors, reports] = *this;
+    budget.accountDynamicFields(mesh, seamUvs, brokenTriangles, owners, colors, reports);
 }
 
 void MeshGenerator::GeneratedPart::accountDynamicPayload(RetainedPayloadBudget& budget) const noexcept
@@ -33,8 +33,8 @@ void MeshGenerator::GeneratedPart::accountDynamicPayload(RetainedPayloadBudget& 
 
 void MeshGenerator::GeneratedComponent::accountDynamicPayload(RetainedPayloadBudget& budget) const noexcept
 {
-    const auto& [mesh, quadEdges, componentUvs, brokenTriangles, seamVertices, sources, nodes, importedColors, importedNormals, weights, attributes, wrapOutput, wrapColor, folds] = *this;
-    budget.accountDynamicFields(mesh, quadEdges, componentUvs, brokenTriangles, seamVertices, sources, nodes, importedColors, importedNormals, weights, attributes, wrapOutput, wrapColor, folds);
+    const auto& [mesh, quadEdges, componentUvs, brokenTriangles, seamVertices, sources, nodes, weights, attributes, wrapOutput, wrapColor, folds] = *this;
+    budget.accountDynamicFields(mesh, quadEdges, componentUvs, brokenTriangles, seamVertices, sources, nodes, weights, attributes, wrapOutput, wrapColor, folds);
 }
 
 void MeshGenerator::GeneratedCacheContext::accountDynamicPayload(RetainedPayloadBudget& budget) const noexcept

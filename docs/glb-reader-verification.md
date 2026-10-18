@@ -1,8 +1,11 @@
 # Internal GLB decoder verification
 
-Tracked by [core #41](https://github.com/dalbrecht/dust3d-core/issues/41).
-Local validation passes; automated review and hosted CI are required before merge.
-Native `.ds3` APIs still reject imported models. No end-to-end import, scene,
+Decoder-stage evidence from PR #42, merged at `4c99bcf659049afe0e18a7e8657502909181726a`
+after clean exact-head review and all six CI checks. The wider import feature remains
+tracked by [core #41](https://github.com/dalbrecht/dust3d-core/issues/41).
+At this decoder stage, native `.ds3` APIs still rejected imported models; the later
+[geometry integration](imported-model-generation-verification.md) changes that for
+geometry-preview endpoints. No end-to-end import, scene,
 spine-deformation, texture rendering or export parity is claimed by this stage.
 
 ## Contract evidence

@@ -20,9 +20,24 @@
  *  SOFTWARE.
  */
 
+#include <cmath>
 #include <dust3d/base/position_key.h>
+#include <limits>
 
 namespace dust3d {
+
+namespace {
+    long quantizeCoordinate(double coordinate, long factor)
+    {
+        const double scaled = coordinate * factor;
+        // LONG_MAX can round up when converted to double. The exact power-of-two
+        // exclusive bound keeps the subsequent conversion valid on 32/64-bit long.
+        const double exclusiveLimit = std::ldexp(1.0, std::numeric_limits<long>::digits);
+        if (!std::isfinite(scaled) || scaled < -exclusiveLimit || scaled >= exclusiveLimit)
+            throw PositionQuantizationError();
+        return static_cast<long>(scaled);
+    }
+}
 
 long PositionKey::m_toIntFactor = 100000;
 
@@ -33,9 +48,9 @@ PositionKey::PositionKey(const Vector3& v)
 
 PositionKey::PositionKey(double x, double y, double z)
 {
-    m_intX = (long)(x * m_toIntFactor);
-    m_intY = (long)(y * m_toIntFactor);
-    m_intZ = (long)(z * m_toIntFactor);
+    m_intX = quantizeCoordinate(x, m_toIntFactor);
+    m_intY = quantizeCoordinate(y, m_toIntFactor);
+    m_intZ = quantizeCoordinate(z, m_toIntFactor);
 }
 
 bool PositionKey::operator<(const PositionKey& right) const

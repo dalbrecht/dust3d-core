@@ -69,7 +69,8 @@ bool MeshCombiner::Mesh::isNull() const
 }
 
 MeshCombiner::Mesh* MeshCombiner::combine(const Mesh& firstMesh, const Mesh& secondMesh, Method method,
-    std::vector<std::pair<Source, size_t>>* combinedVerticesComeFrom)
+    std::vector<std::pair<Source, size_t>>* combinedVerticesComeFrom,
+    std::vector<TriangleSource>* combinedTrianglesComeFrom)
 {
     if (firstMesh.isNull() || secondMesh.isNull())
         return nullptr;
@@ -97,10 +98,12 @@ MeshCombiner::Mesh* MeshCombiner::combine(const Mesh& firstMesh, const Mesh& sec
     }
 
     std::vector<std::vector<size_t>> resultTriangles;
+    std::vector<SolidMeshBooleanOperation::TriangleSource> triangleSources;
+    auto* requestedSources = combinedTrianglesComeFrom ? &triangleSources : nullptr;
     if (Method::Union == method) {
-        booleanOperation.fetchUnion(resultTriangles);
+        booleanOperation.fetchUnion(resultTriangles, requestedSources);
     } else if (Method::Diff == method) {
-        booleanOperation.fetchDiff(resultTriangles);
+        booleanOperation.fetchDiff(resultTriangles, requestedSources);
     } else {
         return nullptr;
     }
@@ -118,6 +121,13 @@ MeshCombiner::Mesh* MeshCombiner::combine(const Mesh& firstMesh, const Mesh& sec
         }
     }
 
+    if (combinedTrianglesComeFrom) {
+        combinedTrianglesComeFrom->clear();
+        combinedTrianglesComeFrom->reserve(triangleSources.size());
+        for (const auto& source : triangleSources)
+            combinedTrianglesComeFrom->push_back({ source.isFirst ? Source::First : Source::Second,
+                source.triangleIndex, source.isReversed });
+    }
     return new Mesh(resultVertices, resultTriangles);
 }
 

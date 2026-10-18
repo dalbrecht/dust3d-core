@@ -54,11 +54,13 @@ workspace/allocator overhead. See [C/Swift contracts and limits](docs/uv-metadat
 and [ADR 0012](docs/adr/0012-owned-uv-metadata-boundary.md). These are metadata,
 not baked texture pixels or new renderer functionality.
 
-The internal `GlbReader` now provides bounded, owned single-mesh decoding for the
-embedded-model port. Native `.ds3` APIs still reject imported models until asset
-binding and generator integration land. See [design and limits](docs/adr/0016-bounded-glb-decoder.md)
-and [verification](docs/glb-reader-verification.md). This does not expose a new C
-API or establish application import, scene-transform, deformation or export parity.
+Geometry-preview loads now bind bounded embedded GLB assets to the existing
+imported-model spine generator. Required asset failures remain primary errors;
+opaque unreferenced assets stay untouched. Expanded/sourced/session owners disclose
+unapplied GLB materials, textures and transparency; UV/bake operations still reject
+imports pending complete material integration. See [design](docs/adr/0017-embedded-model-geometry-generation.md)
+and [verification](docs/imported-model-generation-verification.md). Apple SDK/pin,
+editor/file-preview adoption and full import/export parity remain separate stages.
 
 ## Build and test without Qt
 
@@ -79,10 +81,11 @@ its public header is `native/Engine/include/Dust3DBridge.h`. Direct static-libra
 consumers must link those transitive archives too. No installable SDK or stable
 binary ABI release is promised by this initial source setup.
 
-The current API generates procedural geometry and colors from existing `.ds3`
-archives. Textures are untextured previews with warnings; embedded GLB geometry
-is explicitly unsupported. Editing/encoding, texture baking, export and animation
-APIs are planned. `dust3d_mesh_load` returns an owning handle for nonempty output. A NULL handle
+The current API provides procedural/imported geometry previews, optional source
+and UV metadata, and opt-in CPU baking. Imported GLB support currently applies to
+geometry-preview paths only, with explicit material limitations. Editing/encoding,
+export and animation integration remain later stages. `dust3d_mesh_load` returns
+an owning handle for nonempty output. A NULL handle
 with `DUST3D_STATUS_NO_GEOMETRY` means generation succeeded without triangles
 (for example an isolated closed loop with its fill disabled). Other non-OK
 statuses remain failures. Callers can clear a preview for this distinct result

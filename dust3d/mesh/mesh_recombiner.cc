@@ -393,11 +393,14 @@ size_t MeshRecombiner::otherVertexOfTriangle(const std::vector<size_t>& face, co
 
 void MeshRecombiner::copyNonSeamFacesAsRegenerated()
 {
+    // Bridges are emitted first and have no single input face to inherit from.
+    m_regeneratedFaceSources.resize(m_regeneratedFaces.size());
     for (size_t faceIndex = 0; faceIndex < m_faces->size(); ++faceIndex) {
         const auto& findFaceInSeam = m_facesInSeamArea.find(faceIndex);
         if (findFaceInSeam != m_facesInSeamArea.end() && m_goodSeams.find(findFaceInSeam->second) != m_goodSeams.end())
             continue;
         m_regeneratedFaces.push_back((*m_faces)[faceIndex]);
+        m_regeneratedFaceSources.push_back(faceIndex);
     }
 }
 
@@ -414,6 +417,11 @@ const std::vector<std::pair<MeshCombiner::Source, size_t>>& MeshRecombiner::rege
 const std::vector<std::vector<size_t>>& MeshRecombiner::regeneratedFaces()
 {
     return m_regeneratedFaces;
+}
+
+const std::vector<std::optional<size_t>>& MeshRecombiner::regeneratedFaceSources() const
+{
+    return m_regeneratedFaceSources;
 }
 
 size_t MeshRecombiner::nearestIndex(const Vector3& position, const std::vector<size_t>& edgeLoop)

@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+- Sweep imported geometry across circular spines' closing edges with periodic cross-section frames and matching normal derivatives.
+
+- Apply authored-versus-smoothed imported normals per component instance, including coincident instances sharing the same part.
+
+- Reject nonfinite/out-of-range position quantization before integer conversion, and preserve distinct imported component fallback colors when multiple instances share one part.
+
+- Preserve imported vertex-color seams, per-node directional scales and component-scoped source hints, including distinct original component aliases.
+
+- Preserve imported colors and normals per owning component through Boolean/cache aggregation, including coincident uncombined parts, component-color fallback and group previews.
+
+- Transform imported normals with the local spine Jacobian, including cut rotation, nonuniform scales and taper; singular deformations retain geometry-derived normals.
+
+- Keep imported-model spine width and thickness scales independent, so zero width produces finite flattened geometry without a division by zero.
+
+- Resolve required embedded GLB assets for expanded/sourced/session geometry previews with an aggregate decoded-owner quota, independent outputs, same-UUID cache invalidation and explicit material limitations; UV/bake and Apple adoption remain separate.
+
 - Add a private bounded Qt-free GLB mesh/material decoder with owned image bytes and malformed-layout contracts; embedded `.ds3` model generation and Apple adoption remain separate stages.
 
 - Add an opt-in owned C baked-mesh boundary with borrowed RGBA8 views, float-aligned tangent records, independent UV/bake quotas, legacy comma-decimal settings and one-shot cooperative cancellation; Apple renderer adoption remains separate.

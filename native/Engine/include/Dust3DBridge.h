@@ -370,7 +370,12 @@ Dust3DStatus dust3d_generation_session_get_stats(const Dust3DGenerationSession* 
  * Zero-area triangles at exported float precision are omitted after validation.
  * If all generated triangles collapse at that precision, DUST3D_STATUS_GENERATION_FAILED is returned.
  * DUST3D_STATUS_NO_GEOMETRY means generation succeeded without triangles; other non-OK statuses are failures.
- * Maximum input size: 256 MiB. Imported GLB geometry is not supported by this viewer.
+ * Maximum input size: 256 MiB. Required embedded GLB models use the bounded
+ * single-mesh decoder and a 64 MiB aggregate decoded-owner payload limit.
+ * Geometry previews disclose unapplied GLB materials/textures/transparency through
+ * dust3d_mesh_warning. UV and baked-mesh APIs still reject imported models.
+ * Missing, malformed or ambiguous required model assets fail the primary load;
+ * unreferenced model assets are preserved as opaque input and are not decoded.
  */
 Dust3DMesh* dust3d_mesh_load(const uint8_t* bytes, size_t size, Dust3DError* error);
 

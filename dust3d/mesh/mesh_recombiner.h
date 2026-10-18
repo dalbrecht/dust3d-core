@@ -23,9 +23,11 @@
 #ifndef DUST3D_MESH_MESH_RECOMBINER_H_
 #define DUST3D_MESH_MESH_RECOMBINER_H_
 
+#include <array>
 #include <dust3d/base/vector2.h>
 #include <dust3d/mesh/mesh_combiner.h>
 #include <map>
+#include <optional>
 #include <set>
 #include <vector>
 
@@ -59,6 +61,8 @@ public:
     const std::vector<Vector3>& regeneratedVertices();
     const std::vector<std::pair<MeshCombiner::Source, size_t>>& regeneratedVerticesSourceIndices();
     const std::vector<std::vector<size_t>>& regeneratedFaces();
+    /// Input face index for retained faces; generated bridges have no single source.
+    const std::vector<std::optional<size_t>>& regeneratedFaceSources() const;
     const std::vector<std::pair<std::vector<std::array<Vector3, 3>>, std::vector<std::array<Vector3, 3>>>>& generatedBridgingTriangles();
     bool recombine();
     const std::map<size_t, size_t>& inputFacesInSeamArea() const;
@@ -70,6 +74,7 @@ private:
     std::vector<Vector3> m_regeneratedVertices;
     std::vector<std::pair<MeshCombiner::Source, size_t>> m_regeneratedVerticesSourceIndices;
     std::vector<std::vector<size_t>> m_regeneratedFaces;
+    std::vector<std::optional<size_t>> m_regeneratedFaceSources;
     std::map<std::pair<size_t, size_t>, size_t> m_halfEdgeToFaceMap;
     std::map<size_t, size_t> m_facesInSeamArea;
     std::set<size_t> m_goodSeams;
