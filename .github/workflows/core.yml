@@ -22,7 +22,7 @@ jobs:
     env:
       CTEST_OUTPUT_ON_FAILURE: '1'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: true
       - name: Check new C++ formatting and Qt boundary
