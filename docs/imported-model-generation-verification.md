@@ -26,9 +26,9 @@ The contract exercises:
 
 Final local results:
 
-- Full Debug build and **36/36 CTest entries passed**, 42.13 seconds.
-- An ASan/UBSan build of the complete linked engine passes the expanded imported-model
-  contract, 3.10 seconds, with UBSan halt-on-error enabled. Other local instrumented
+- Full Debug build and **37/37 CTest entries passed**, 24.54 seconds.
+- The ASan/UBSan build passes the direct spine and expanded imported-model
+  contracts, 2.28 seconds, with UBSan halt-on-error enabled. Other local instrumented
   contracts were not rerun; hosted sanitizer CI still runs the full suite.
 - SwiftPM source product builds; strict Swift/C++ formatting and Qt boundary scan pass.
 - Resolver-only LLVM coverage: **83/83 lines and 5/5 functions (100%)**,
@@ -50,3 +50,21 @@ runs the complete suite with leak detection; no local Linux/32-bit result is cla
 Next acceptance includes imported materials/pixel decoding, aggregate transferred
 asset ownership, C/Swift integration and exact Apple pin, native open/edit/undo/save,
 Quick Look/thumbnail rendering, export re-import and broader upstream comparisons.
+
+
+## Review correction: independent zero-width scaling
+
+Automated finding 4308286986 identified `0/0` in inherited spine deformation when
+`deformWidth` is zero. Both a direct portable deformer test and an actual imported
+`.ds3` load failed before the fix; the latter reported nonfinite generated geometry.
+Width and thickness now multiply the radius/source scale independently. This small
+core fix preserves the inherited layout and can be extracted for upstream review.
+
+The direct contract covers zero/positive/negative width, zero/positive thickness,
+cut rotation, zero radius and a bent spine. The C API regression requires finite
+flattened faces with remaining thickness. The full corrected Debug build passes all 37 contracts (24.54 seconds), relevant
+ASan/UBSan contracts pass (2.28 seconds), and SwiftPM/formatting/Qt boundary checks
+pass. Logs are retained under `/private/tmp/dust3d-core-pr43-zero-width-*`.
+The resolver-only coverage measurement above is unchanged source from the initial
+head; no whole-engine coverage claim is made. Fresh exact-head review and all
+hosted CI checks remain required before merge.

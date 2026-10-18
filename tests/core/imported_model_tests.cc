@@ -149,6 +149,21 @@ Positions positions(const Dust3DMesh* mesh)
     std::sort(result.begin(), result.end());
     return result;
 }
+void testZeroWidthGeometry()
+{
+    auto mesh = load(archive("0"));
+    require(dust3d_mesh_vertex_count(mesh.get()) >= 3, "Zero width erased all flattened faces");
+    const auto* vertices = dust3d_mesh_vertices(mesh.get());
+    double minimumZ = vertices[0].position[2], maximumZ = minimumZ;
+    for (size_t index = 0; index < dust3d_mesh_vertex_count(mesh.get()); ++index) {
+        for (size_t axis = 0; axis < 3; ++axis)
+            require(std::isfinite(vertices[index].position[axis]) && std::isfinite(vertices[index].normal[axis]), "Zero width produced nonfinite geometry");
+        require(std::abs(vertices[index].position[0]) < 1e-6, "Zero width did not flatten the width axis");
+        minimumZ = std::min(minimumZ, double(vertices[index].position[2]));
+        maximumZ = std::max(maximumZ, double(vertices[index].position[2]));
+    }
+    require(maximumZ - minimumZ > .1, "Zero width also collapsed the independent thickness axis");
+}
 void testRequiredAssetsAndAliases()
 {
     const auto xml = modelXml("1");
@@ -339,6 +354,7 @@ int main()
         const double original = generatedWidth("1");
         const double widened = generatedWidth("2");
         require(original > 0 && std::abs(widened - original * 2) < 1e-6, "Imported spine deformation was not applied");
+        testZeroWidthGeometry();
         testRequiredAssetsAndAliases();
         testOwnedOutputsAndMaterialDiagnostics();
         testSessionAssetRevisionAndRecovery();

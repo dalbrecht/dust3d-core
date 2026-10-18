@@ -30,7 +30,8 @@ before the aggregate check rejects it. This is not a hard process-memory ceiling
 
 Geometry is moved into the inherited generator and uses its actual spine,
 width/thickness, rotation and mirror implementation. Tests establish straight
-spine width deformation; the separate development probe covers a bent spine.
+spine width deformation and finite zero-width flattening after correcting the
+inherited coupled-scale division; the separate development probe covers a bent spine.
 Broader modifier/differential acceptance is still required. Result buffers are
 copied into their existing opaque owners and survive import-context/session
 teardown. All engine entry points continue using the shared engine lock.

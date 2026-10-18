@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Keep imported-model spine width and thickness scales independent, so zero width produces finite flattened geometry without a division by zero.
+
 - Resolve required embedded GLB assets for expanded/sourced/session geometry previews with an aggregate decoded-owner quota, independent outputs, same-UUID cache invalidation and explicit material limitations; UV/bake and Apple adoption remain separate.
 
 - Add a private bounded Qt-free GLB mesh/material decoder with owned image bytes and malformed-layout contracts; embedded `.ds3` model generation and Apple adoption remain separate stages.

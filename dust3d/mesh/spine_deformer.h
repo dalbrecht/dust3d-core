@@ -131,9 +131,11 @@ public:
 
         // Scale the cross-section by the node radius relative to the source size.
         double scale = (radius * 2.0) / m_crossSize;
-        scale *= m_deformWidth;
+        // Width may be zero while the independent thickness remains nonzero.
+        double widthScale = scale * m_deformWidth;
+        double thicknessScale = scale * m_deformThickness;
 
-        return spinePos + rotatedRight * (localU * scale) + rotatedUp * (localV * scale * m_deformThickness / m_deformWidth);
+        return spinePos + rotatedRight * (localU * widthScale) + rotatedUp * (localV * thicknessScale);
     }
 
     // Map a source normal onto the spine frame (cut rotation is intentionally
