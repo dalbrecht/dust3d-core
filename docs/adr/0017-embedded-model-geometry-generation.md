@@ -57,3 +57,15 @@ insufficient. A compatibility source-Y overload evaluates the centre only. Singu
 Jacobian results leave the geometry-derived normals intact. Independent vector,
 finite-difference and actual archive tests cover the adopted path. This is a scoped
 portable core correction, with original formatting and licenses retained.
+
+
+Imported color and normal lookup is scoped by the owning leaf component, not by
+root-level positional maps. Boolean cutting exports original input triangle
+identity; MeshState propagates component IDs through cached combinations and
+copies. Recombination retains exact input face indices, while new bridge faces
+have no single source and use computed attributes. This ownership is activated
+for imported documents and is included in cache payload accounting. Object corner
+colors preserve differing colors at shared vertices; the native bridge and group
+previews consume them. Position-based imported smoothing is component-scoped.
+This correction prevents cross-part attribute leakage without claiming complete
+material/attribute interpolation on newly generated Boolean or seam geometry.

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Preserve imported colors and normals per owning component through Boolean/cache aggregation, including coincident uncombined parts, component-color fallback and group previews.
+
 - Transform imported normals with the local spine Jacobian, including cut rotation, nonuniform scales and taper; singular deformations retain geometry-derived normals.
 
 - Keep imported-model spine width and thickness scales independent, so zero width produces finite flattened geometry without a division by zero.

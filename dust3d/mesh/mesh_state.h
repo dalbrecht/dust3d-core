@@ -24,6 +24,7 @@
 #define DUST3D_MESH_MESH_STATE_H_
 
 #include <dust3d/base/position_key.h>
+#include <dust3d/base/uuid.h>
 #include <dust3d/mesh/mesh_combiner.h>
 #include <dust3d/mesh/mesh_recombiner.h>
 #include <map>
@@ -40,6 +41,8 @@ public:
     std::unique_ptr<MeshCombiner::Mesh> mesh;
     std::vector<std::pair<std::set<std::array<PositionKey, 3>>, std::set<std::array<PositionKey, 3>>>> seamTriangleUvs;
     std::vector<std::array<PositionKey, 3>> brokenTriangles;
+    // Parallel to fetched triangles; generated bridges have no single owning component.
+    std::vector<Uuid> triangleComponentIds;
     // Seam diagnostics of the combine() that produced this state
     std::vector<MeshRecombiner::SeamReport> seamReports;
 

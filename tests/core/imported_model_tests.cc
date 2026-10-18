@@ -1,4 +1,6 @@
 // SPDX-License-Identifier: MIT
+#include "../../native/Engine/EngineInternal.h"
+#include "../../native/Engine/ImportedModels.h"
 #include <Dust3DBridge.h>
 #include <algorithm>
 #include <array>
@@ -82,6 +84,35 @@ std::vector<uint8_t> tetrahedronWithNormals()
     }
     binary.insert(binary.end(), normals.begin(), normals.end());
     std::string json = R"({"asset":{"version":"2.0"},"buffers":[{"byteLength":288}],"bufferViews":[{"buffer":0,"byteOffset":0,"byteLength":144},{"buffer":0,"byteOffset":144,"byteLength":144}],"accessors":[{"bufferView":0,"componentType":5126,"count":12,"type":"VEC3","min":[-0.5,0,0],"max":[0.5,1,0.5]},{"bufferView":1,"componentType":5126,"count":12,"type":"VEC3"}],"meshes":[{"primitives":[{"attributes":{"POSITION":0,"NORMAL":1}}]}]})";
+    while (json.size() % 4)
+        json += ' ';
+    std::vector<uint8_t> result;
+    appendWord(result, 0x46546c67);
+    appendWord(result, 2);
+    appendWord(result, static_cast<uint32_t>(28 + json.size() + binary.size()));
+    appendWord(result, static_cast<uint32_t>(json.size()));
+    appendWord(result, 0x4e4f534a);
+    result.insert(result.end(), json.begin(), json.end());
+    appendWord(result, static_cast<uint32_t>(binary.size()));
+    appendWord(result, 0x004e4942);
+    result.insert(result.end(), binary.begin(), binary.end());
+    return result;
+}
+
+std::vector<uint8_t> attributedTetrahedron(const std::array<uint8_t, 3>& color, const std::array<float, 3>& normal)
+{
+    const auto original = tetrahedron();
+    std::vector<uint8_t> binary(original.end() - 72, original.end());
+    for (size_t vertex = 0; vertex < 4; ++vertex) {
+        for (float value : normal) {
+            uint32_t bits;
+            std::memcpy(&bits, &value, sizeof(bits));
+            appendWord(binary, bits);
+        }
+    }
+    for (size_t vertex = 0; vertex < 4; ++vertex)
+        binary.insert(binary.end(), { color[0], color[1], color[2], 255 });
+    std::string json = R"({"asset":{"version":"2.0"},"buffers":[{"byteLength":136}],"bufferViews":[{"buffer":0,"byteOffset":0,"byteLength":48},{"buffer":0,"byteOffset":48,"byteLength":24},{"buffer":0,"byteOffset":72,"byteLength":48},{"buffer":0,"byteOffset":120,"byteLength":16}],"accessors":[{"bufferView":0,"componentType":5126,"count":4,"type":"VEC3","min":[-0.5,0,0],"max":[0.5,1,0.5]},{"bufferView":1,"componentType":5123,"count":12,"type":"SCALAR"},{"bufferView":2,"componentType":5126,"count":4,"type":"VEC3"},{"bufferView":3,"componentType":5121,"count":4,"type":"VEC4","normalized":true}],"meshes":[{"primitives":[{"attributes":{"POSITION":0,"NORMAL":2,"COLOR_0":3},"indices":1}]}]})";
     while (json.size() % 4)
         json += ' ';
     std::vector<uint8_t> result;
@@ -352,6 +383,79 @@ void testSharedAssetParts()
     auto mesh = load(archiveWithAssets(xml, { { "models/" + modelIdentity + ".glb", tetrahedron() } }));
     require(dust3d_mesh_vertex_count(mesh.get()) == 24 && dust3d_mesh_node_count(mesh.get()) == 4 && dust3d_mesh_part_count(mesh.get()) == 2, "Shared model asset did not generate both distinct parts");
 }
+void testCoincidentImportedAttributeIsolation(bool hasSecondColor)
+{
+    std::string nodes, edges, parts, components;
+    std::vector<Asset> assets;
+    for (unsigned index = 0; index < 2; ++index) {
+        const auto part = serialIdentity(100 + index);
+        const auto model = serialIdentity(300 + index);
+        const auto first = serialIdentity(1000 + index * 2);
+        const auto second = serialIdentity(1001 + index * 2);
+        nodes += "<node id='" + first + "' partId='" + part + "' x='.5' y='.2' z='.5' radius='.15'/>";
+        nodes += "<node id='" + second + "' partId='" + part + "' x='.5' y='.8' z='.5' radius='.15'/>";
+        edges += "<edge id='" + serialIdentity(2000 + index) + "' partId='" + part + "' from='" + first + "' to='" + second + "'/>";
+        parts += "<part id='" + part + "' target='ImportedModel' importedModelId='" + model + "'/>";
+        components += "<component id='" + serialIdentity(200 + index) + "' linkDataType='partId' linkData='" + part + "'" + (index ? " combineMode='Uncombined' color='#0000ff'" : "") + "/>";
+        assets.emplace_back("models/" + model + ".glb", index ? (hasSecondColor ? attributedTetrahedron({ 0, 255, 0 }, { 0, 0, 1 }) : tetrahedron()) : attributedTetrahedron({ 255, 0, 0 }, { 1, 0, 0 }));
+    }
+    const auto xml = "<canvas originX='.5' originY='.5' originZ='.5'><nodes>" + nodes + "</nodes><edges>" + edges + "</edges><parts>" + parts + "</parts><components>" + components + "</components></canvas>";
+    const auto bytes = archiveWithAssets(xml, assets);
+    auto mesh = load(bytes);
+    require(dust3d_mesh_vertex_count(mesh.get()) == 24, "Coincident uncombined import lost geometry");
+    const auto* vertices = dust3d_mesh_vertices(mesh.get());
+    size_t red = 0, green = 0;
+    for (size_t index = 0; index < 24; ++index) {
+        const auto& vertex = vertices[index];
+        if (vertex.color[0] > .99f && vertex.color[1] < .01f) {
+            ++red;
+            require(vertex.normal[0] > .99f, "Another part overwrote the red import normal");
+        } else if (vertex.color[hasSecondColor ? 1 : 2] > .99f && vertex.color[0] < .01f) {
+            ++green;
+            if (hasSecondColor)
+                require(vertex.normal[2] < -.99f, "Another part overwrote the green import normal");
+        } else {
+            throw std::runtime_error("Imported vertex color was lost");
+        }
+    }
+    require(red == 12 && green == 12, "Coincident parts overwrote each other's imported attributes");
+    std::string warning;
+    dust3d::native::ImportedModels imports;
+    auto snapshot = dust3d::native::readDocument(bytes.data(), bytes.size(), warning, nullptr, &imports);
+    const auto group = serialIdentity(900);
+    snapshot->components[group] = { { "id", group }, { "children", snapshot->rootComponent["children"] } };
+    snapshot->rootComponent["children"] = group;
+    dust3d::MeshGenerator generator(snapshot.release());
+    generator.setImportedModelData(imports.takeGeometry());
+    generator.generate();
+    require(generator.isSuccessful(), "Coincident group preview generation failed");
+    const auto& preview = generator.generatedComponentPreviews().at(dust3d::Uuid(group));
+    size_t previewRed = 0, previewGreen = 0;
+    for (const auto& triangle : preview.triangles) {
+        for (auto vertex : triangle) {
+            const auto& color = std::get<0>(preview.vertexProperties.at(vertex));
+            previewRed += color.r() > .99 && color.g() < .01;
+            previewGreen += (hasSecondColor ? color.g() : color.b()) > .99 && color.r() < .01;
+        }
+    }
+    require(previewRed == 12 && previewGreen == 12, "Group preview merged coincident imported colors");
+    Dust3DError error {};
+    std::unique_ptr<Dust3DGenerationSession, decltype(&dust3d_generation_session_destroy)> session(
+        dust3d_generation_session_create(DUST3D_DEFAULT_CACHE_PAYLOAD_BYTES, &error), dust3d_generation_session_destroy);
+    for (unsigned iteration = 0; iteration < 2; ++iteration) {
+        MeshOwner cached(dust3d_generation_session_load(session.get(), bytes.data(), bytes.size(), &error), dust3d_mesh_destroy);
+        require(cached && error.status == DUST3D_STATUS_OK && dust3d_mesh_vertex_count(cached.get()) == 24,
+            "Coincident import session failed");
+        const auto* cachedVertices = dust3d_mesh_vertices(cached.get());
+        const auto* originalVertices = dust3d_mesh_vertices(mesh.get());
+        for (size_t index = 0; index < 24; ++index) {
+            for (size_t axis = 0; axis < 3; ++axis)
+                require(cachedVertices[index].color[axis] == originalVertices[index].color[axis]
+                        && cachedVertices[index].normal[axis] == originalVertices[index].normal[axis],
+                    "Cached mesh copy lost imported attribute ownership");
+        }
+    }
+}
 std::vector<uint8_t> repeatedTriangles()
 {
     constexpr size_t vertexCount = 125001;
@@ -433,6 +537,8 @@ int main()
         testOwnedOutputsAndMaterialDiagnostics();
         testSessionAssetRevisionAndRecovery();
         testSharedAssetParts();
+        testCoincidentImportedAttributeIsolation(true);
+        testCoincidentImportedAttributeIsolation(false);
         testAggregateImportedPayloadLimit();
         std::cout << "Imported archive generation contracts passed\n";
         return 0;

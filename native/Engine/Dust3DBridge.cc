@@ -85,7 +85,9 @@ namespace native {
                 if (normal.length() < 0.000001)
                     normal = dust3d::Vector3(0, 1, 0);
                 normal.normalize();
-                const auto color = vertexIndex < object->vertexColors.size() ? object->vertexColors[vertexIndex] : dust3d::Color(0.65, 0.7, 0.8);
+                const auto color = triangleIndex < object->triangleVertexColors.size() ? object->triangleVertexColors[triangleIndex][corner]
+                    : vertexIndex < object->vertexColors.size()                        ? object->vertexColors[vertexIndex]
+                                                                                       : dust3d::Color(0.65, 0.7, 0.8);
                 Dust3DVertex vertex {};
                 for (size_t axis = 0; axis < 3; ++axis) {
                     if (!std::isfinite(position[axis]) || !std::isfinite(normal[axis]))

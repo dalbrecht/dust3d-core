@@ -71,6 +71,8 @@ public:
     std::vector<std::pair<std::set<std::array<PositionKey, 3>>, std::set<std::array<PositionKey, 3>>>> seamTriangleUvs;
     std::vector<Vector3> triangleNormals;
     std::vector<Color> vertexColors;
+    // Corner colors preserve distinct attributes where Boolean vertices are shared.
+    std::vector<std::array<Color, 3>> triangleVertexColors;
     std::vector<float> vertexSmoothCutoffDegrees;
     std::map<std::array<PositionKey, 3>, Uuid> brokenTrianglesToComponentIdMap;
     std::map<Uuid, std::string> componentNames; // the component names, for exporters to label parts

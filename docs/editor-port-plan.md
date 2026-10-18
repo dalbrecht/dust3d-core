@@ -336,3 +336,12 @@ same-UUID asset edits invalidate generated reuse. See ADR 0017 and
 unapplied materials and retains UV/bake rejection. C/Swift material/image adoption,
 reviewed Apple pinning, native lossless editing/file previews and textured exports
 remain required; neither #41 nor M4 is complete.
+
+
+The geometry-stage review correction retains exact triangle ownership through
+Boolean cutting, recombination and cached copies before applying imported colors
+and normals. Coincident imported parts, colorless component fallback, nested
+group previews and public cached loads have dedicated regressions. Newly created
+seam faces use computed fallback attributes; this does not establish full GLB
+material transfer or close M4. Fresh exact-head review and hosted CI remain
+required for core #43 before the next dependency stage.

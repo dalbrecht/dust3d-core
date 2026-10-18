@@ -39,9 +39,21 @@ public:
         const SolidMesh* secondMesh);
     ~SolidMeshBooleanOperation();
     bool combine();
-    void fetchUnion(std::vector<std::vector<size_t>>& resultTriangles);
-    void fetchDiff(std::vector<std::vector<size_t>>& resultTriangles);
-    void fetchIntersect(std::vector<std::vector<size_t>>& resultTriangles);
+    /// Exact input triangle identity, retained through cutting and output selection.
+    struct TriangleSource {
+        bool isFirst;
+        size_t triangleIndex;
+        bool isReversed = false;
+    };
+    /// Append triangles and optional exact source records in matching order.
+    void fetchUnion(std::vector<std::vector<size_t>>& resultTriangles,
+        std::vector<TriangleSource>* sources = nullptr);
+    /// Append triangles and optional exact source records in matching order.
+    void fetchDiff(std::vector<std::vector<size_t>>& resultTriangles,
+        std::vector<TriangleSource>* sources = nullptr);
+    /// Append triangles and optional exact source records in matching order.
+    void fetchIntersect(std::vector<std::vector<size_t>>& resultTriangles,
+        std::vector<TriangleSource>* sources = nullptr);
 
     const std::vector<Vector3>& resultVertices();
 
@@ -51,6 +63,7 @@ private:
     std::vector<std::pair<size_t, size_t>> m_potentialIntersectedPairs;
     std::vector<Vector3> m_newVertices;
     std::vector<std::vector<size_t>> m_newTriangles;
+    std::vector<TriangleSource> m_newTriangleSources;
     std::map<PositionKey, std::vector<size_t>> m_newPositionMap;
     std::vector<std::vector<size_t>> m_firstTriangleGroups;
     std::vector<std::vector<size_t>> m_secondTriangleGroups;
@@ -88,6 +101,7 @@ private:
         std::vector<std::vector<size_t>>& triangleGroups);
     size_t addNewPoint(const Vector3& position);
     bool addUnintersectedTriangles(const SolidMesh* mesh,
+        bool isFirst,
         const std::set<size_t>& usedFaces,
         std::vector<size_t>& vertexIndices,
         std::map<std::uint64_t, size_t>* halfEdges);

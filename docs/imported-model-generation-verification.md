@@ -1,6 +1,7 @@
 # Embedded-model geometry verification
 
-Tracked by core #41. Final local validation passes; hosted review/CI remain required.
+Tracked by core #41. Final local gates pass for the ownership correction below;
+fresh exact-head review and hosted CI remain required before merge.
 This stage does not establish full M4 or application import support.
 
 The first end-to-end C API test failed with the existing imported-GLB rejection.
@@ -24,7 +25,7 @@ The contract exercises:
 - A real multi-model archive exceeding the 64 MiB decoded-owner quota before
   generation. No production test/failure switches or reduced quota are used.
 
-Final local results:
+Earlier committed-head results (`df70d4a`):
 
 - Full Debug build and **37/37 CTest entries passed**, 23.46 seconds.
 - The ASan/UBSan build passes the direct spine and expanded imported-model
@@ -90,3 +91,51 @@ ASan/UBSan contracts pass (1.99 seconds). SwiftPM, formatting and Qt boundary
 checks pass. Logs are under `/private/tmp/dust3d-core-pr43-normal-*`.
 Fresh exact-head automated review and all hosted CI checks remain required.
 No whole-engine coverage claim is made.
+
+
+## Review correction: coincident attribute ownership
+
+Finding 4308411184 was reproduced by
+`testCoincidentImportedAttributeIsolation` in the public imported-model contract.
+Two embedded tetrahedra occupy exactly the same space but belong to separate
+parts: a combined red part with source +X normals and an uncombined green part
+with source +Z normals. The expected 24 expanded corners retain twelve corners
+from each part, including their independently transformed normals. The original
+implementation failed with “Coincident parts overwrote each other's imported
+attributes”. The corrected regression passes, including a second variant without
+COLOR_0 that retains the owning blue component color. Cached loads and a nested
+group preview preserve the same independent attributes.
+
+The correction carries exact source triangle indices from Boolean cutting through
+union/difference selection. Cached MeshState copies retain component ownership;
+recombination maps retained faces by input index and gives new bridges no invented
+owner. Ownership tracking is activated by imported documents; ordinary documents
+do not retain per-face UUID buffers. The extra cached capacity and UUID strings
+are included by the allocation-free payload visitor and its capacity regression.
+
+Imported attributes remain in their owning part cache, rather than being merged
+into global position maps. Final native output uses corner colors, so shared
+Boolean vertices can retain different attributes on different faces. Group
+previews expand corners when imports are present, and the imported smoothing
+pass keys positions by owning component. Unidentified generated bridge faces keep
+computed fallback attributes. This does not establish interpolated GLB materials
+or complete attribute transfer onto new Boolean/seam geometry.
+
+The portable Boolean regression verifies source triangle containment and winding
+for union, difference and intersection; MeshCombiner forwarding; recombination
+retained-face identity; and cached MeshState copies with/without recombination.
+Each new source-identity API first failed to compile in its regression before its
+implementation was added. No preexisting position-derived vertex source hint is
+used as authoritative triangle ownership.
+
+Final complete Debug build and CTest pass **37/37** (129.82 seconds), and the
+complete linked ASan/UBSan build and CTest pass **37/37** (263.00 seconds), with
+UBSan halt-on-error enabled. No local leak-detector or Linux result is claimed.
+SwiftPM builds (69.81 seconds); strict formatting, changed inherited source ranges,
+Qt boundary scan and whitespace checks pass. Parallel compilation occurred during
+the Debug test run; these timings are validation evidence, not performance parity.
+The long sanitizer session contract was sampled while live and was computing in
+the wrapping remesher, then passed within its existing 180-second timeout (167.71
+seconds). Logs are under `/private/tmp/dust3d-core-pr43-scope-*`.
+Resolver-only coverage above is unchanged; no whole-engine coverage claim is made.
+Fresh exact-head review and all hosted checks are still required before merge.

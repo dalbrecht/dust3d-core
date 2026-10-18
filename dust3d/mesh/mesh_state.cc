@@ -39,6 +39,7 @@ MeshState::MeshState(const MeshState& other)
         mesh = std::make_unique<MeshCombiner::Mesh>(*other.mesh);
     seamTriangleUvs = other.seamTriangleUvs;
     seamReports = other.seamReports;
+    triangleComponentIds = other.triangleComponentIds;
 }
 
 void MeshState::fetch(std::vector<Vector3>& vertices, std::vector<std::vector<size_t>>& faces) const
@@ -61,12 +62,19 @@ std::unique_ptr<MeshState> MeshState::combine(const MeshState& first, const Mesh
         return nullptr;
     auto newMeshState = std::make_unique<MeshState>();
     std::vector<std::pair<MeshCombiner::Source, size_t>> combinedVerticesSources;
+    std::vector<MeshCombiner::TriangleSource> combinedTriangleSources;
+    const bool shouldTrackOwners = !first.triangleComponentIds.empty() || !second.triangleComponentIds.empty();
     auto newMesh = std::unique_ptr<MeshCombiner::Mesh>(MeshCombiner::combine(*first.mesh,
         *second.mesh,
         method,
-        &combinedVerticesSources));
+        &combinedVerticesSources, shouldTrackOwners ? &combinedTriangleSources : nullptr));
     if (nullptr == newMesh)
         return nullptr;
+    newMeshState->triangleComponentIds.reserve(combinedTriangleSources.size());
+    for (const auto& source : combinedTriangleSources) {
+        const auto& owners = source.source == MeshCombiner::Source::First ? first.triangleComponentIds : second.triangleComponentIds;
+        newMeshState->triangleComponentIds.push_back(source.triangleIndex < owners.size() ? owners[source.triangleIndex] : Uuid());
+    }
     if (recombine && !newMesh->isNull()) {
         MeshRecombiner recombiner;
         std::vector<Vector3> combinedVertices;
@@ -95,6 +103,13 @@ std::unique_ptr<MeshState> MeshState::combine(const MeshState& first, const Mesh
                     if (triangles.first.empty() && triangles.second.empty())
                         continue;
                     newMeshState->seamTriangleUvs.push_back(triangles);
+                }
+                if (shouldTrackOwners) {
+                    std::vector<Uuid> regeneratedOwners;
+                    regeneratedOwners.reserve(recombiner.regeneratedFaceSources().size());
+                    for (const auto& source : recombiner.regeneratedFaceSources())
+                        regeneratedOwners.push_back(source ? newMeshState->triangleComponentIds.at(*source) : Uuid());
+                    newMeshState->triangleComponentIds = std::move(regeneratedOwners);
                 }
                 newMesh = std::move(reMesh);
             }
