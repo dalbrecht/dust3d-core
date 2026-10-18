@@ -261,3 +261,28 @@ both `dust3d_imported_model_tests` and `dust3d_generation_session_tests` against
 the actual fixture corpus. Logs are under
 `/private/tmp/dust3d-core-pr43-cache-unwind-*`. These local results do not replace
 the required fresh exact-head automated review and hosted Linux leak checks.
+
+## Review correction: shared-part normal policies
+
+Finding 4309161199 identified authored-normal selection being stored according to
+the last component instance's smoothing cutoff in a shared part cache. A real
+`.ds3` regression failed because the red instance's normals changed when another
+instance of the same part requested smoothing.
+
+Authored transformed normal data is now retained independently of instance policy.
+Imported smoothing groups positions by original component key, reads that
+component's cutoff, and resets its corners to geometry-derived normals before
+applying its own smoothing. Authored normals are then selected only for instances
+whose own cutoff requests them. Shared vertex/node maps cannot determine the
+normal policy for coincident imported instances.
+
+The contract compares each instance with a separately generated reference,
+asserts the known authored normal, covers both component orders, swaps policies
+through an edit, and checks that the repeated session load actually reuses cached
+components. The full final Debug build/CTest passes **38/38** (26.12 seconds),
+and full ASan/UBSan build/CTest passes **38/38** (81.06 seconds), with UBSan
+halt-on-error. SwiftPM builds (2.92 seconds), formatting/Qt/whitespace checks pass,
+and the updated imported-model executable reports 0 leaked bytes under macOS
+`leaks --atExit`. Logs are under `/private/tmp/dust3d-core-pr43-instance-policy-*`.
+Fresh exact-head automated review and all hosted checks, including Linux leak
+detection, remain required before merge.

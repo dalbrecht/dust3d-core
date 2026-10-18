@@ -1035,9 +1035,9 @@ std::unique_ptr<MeshState> MeshGenerator::combinePartMesh(const std::string& par
                 // Source indices distinguish valid duplicated positions at color seams.
                 partCache.importedVertexColors = importedData.vertexColors;
 
-                // Transform and store per-face-vertex normals from imported model
-                // When smoothCutoffDegrees is set, skip GLB normals and let smoothNormal handle it
-                if (!importedData.vertexNormals.empty() && smoothCutoffDegrees < 0.01f) {
+                // Retain authored normals independently of each component instance's
+                // smoothing policy; the shared part cache cannot select that policy.
+                if (!importedData.vertexNormals.empty()) {
                     auto transformNormal = [&](size_t vi) -> Vector3 {
                         const auto& sv = importedData.vertices[vi];
                         Vector3 transformed = spineDeformer.deformNormal(importedData.vertexNormals[vi], sv);
@@ -1630,29 +1630,41 @@ void MeshGenerator::postprocessObject(Object* object)
     // flat normals from smoothNormal. This pass groups face normals by position and only
     // merges those within the cutoff angle.
     if (!m_importedModelData.empty()) {
+        std::map<std::string, float> importedSmoothCutoffs;
+        for (const auto& component : m_snapshot->components) {
+            if (String::valueOrEmpty(component.second, "linkDataType") != "partId")
+                continue;
+            auto part = m_snapshot->parts.find(String::valueOrEmpty(component.second, "linkData"));
+            if (part == m_snapshot->parts.end()
+                || PartTargetFromString(String::valueOrEmpty(part->second, "target").c_str()) != PartTarget::ImportedModel)
+                continue;
+            const auto cutoff = String::valueOrEmpty(component.second, "smoothCutoffDegrees");
+            importedSmoothCutoffs.emplace(component.first, cutoff.empty() ? 0.0f : String::toFloat(cutoff));
+        }
         std::map<std::pair<std::string, PositionKey>, std::vector<size_t>> posToTriangles;
         for (size_t ti = 0; ti < object->triangles.size(); ++ti) {
-            const auto& face = object->triangles[ti];
-            if (ti >= object->triangleComponentKeys.size() || object->triangleComponentKeys[ti].empty())
+            if (ti >= object->triangleComponentKeys.size())
                 continue;
-            for (size_t j = 0; j < face.size() && j < 3; ++j) {
-                if (face[j] < object->vertexSmoothCutoffDegrees.size()
-                    && object->vertexSmoothCutoffDegrees[face[j]] > 0.0f) {
-                    posToTriangles[{ object->triangleComponentKeys[ti], PositionKey(object->vertices[face[j]]) }].push_back(ti);
-                }
-            }
+            const auto policy = importedSmoothCutoffs.find(object->triangleComponentKeys[ti]);
+            if (policy == importedSmoothCutoffs.end() || policy->second <= 0.0f)
+                continue;
+            for (const auto vertex : object->triangles[ti])
+                posToTriangles[{ policy->first, PositionKey(object->vertices.at(vertex)) }].push_back(ti);
         }
         for (size_t ti = 0; ti < object->triangles.size(); ++ti) {
-            const auto& face = object->triangles[ti];
-            if (ti >= object->triangleComponentKeys.size() || object->triangleComponentKeys[ti].empty())
+            if (ti >= object->triangleComponentKeys.size())
                 continue;
+            const auto policy = importedSmoothCutoffs.find(object->triangleComponentKeys[ti]);
+            if (policy == importedSmoothCutoffs.end())
+                continue;
+            const auto& face = object->triangles[ti];
             for (size_t j = 0; j < face.size() && j < 3; ++j) {
-                if (face[j] >= object->vertexSmoothCutoffDegrees.size()
-                    || object->vertexSmoothCutoffDegrees[face[j]] <= 0.0f)
+                // Shared node/vertex maps cannot carry instance-specific policy.
+                triangleVertexNormals[ti][j] = object->triangleNormals[ti];
+                if (policy->second <= 0.0f)
                     continue;
-                float cutoff = object->vertexSmoothCutoffDegrees[face[j]];
-                double cosLimit = std::cos(cutoff * Math::Pi / 180.0);
-                auto it = posToTriangles.find({ object->triangleComponentKeys[ti], PositionKey(object->vertices[face[j]]) });
+                const double cosLimit = std::cos(policy->second * Math::Pi / 180.0);
+                const auto it = posToTriangles.find({ policy->first, PositionKey(object->vertices.at(face[j])) });
                 if (it == posToTriangles.end())
                     continue;
                 Vector3 sum;
@@ -1676,6 +1688,7 @@ void MeshGenerator::applyImportedAttributes(Object* object)
     struct ImportedOwner {
         const GeneratedPart* part;
         Color fallbackColor;
+        bool shouldUseAuthoredNormals;
     };
     std::map<std::string, ImportedOwner> owners;
     for (const auto& component : m_snapshot->components) {
@@ -1690,7 +1703,9 @@ void MeshGenerator::applyImportedAttributes(Object* object)
         if (part != m_cacheContext->parts.end()) {
             const auto color = String::valueOrEmpty(component.second, "color");
             // A part can have multiple component instances with distinct colors.
-            owners.emplace(component.first, ImportedOwner { &part->second, color.empty() ? m_defaultPartColor : Color(color) });
+            const auto cutoff = String::valueOrEmpty(component.second, "smoothCutoffDegrees");
+            const bool shouldUseAuthoredNormals = cutoff.empty() || String::toFloat(cutoff) < 0.01f;
+            owners.emplace(component.first, ImportedOwner { &part->second, color.empty() ? m_defaultPartColor : Color(color), shouldUseAuthoredNormals });
             object->componentPositionToNodeIdMap.emplace(component.first, part->second.positionToNodeIdMap);
         }
     }
@@ -1716,7 +1731,8 @@ void MeshGenerator::applyImportedAttributes(Object* object)
         if (!hasImportedColors)
             object->triangleVertexColors[index] = std::array<Color, 3> { owner->second.fallbackColor, owner->second.fallbackColor, owner->second.fallbackColor };
         auto importedNormals = part.importedTriangleNormals.find(key);
-        if (importedNormals != part.importedTriangleNormals.end() && index < updatedNormals.size() && updatedNormals[index].size() == 3) {
+        if (owner->second.shouldUseAuthoredNormals && importedNormals != part.importedTriangleNormals.end()
+            && index < updatedNormals.size() && updatedNormals[index].size() == 3) {
             for (size_t corner = 0; corner < 3; ++corner)
                 updatedNormals[index][corner] = importedNormals->second[corner];
         }

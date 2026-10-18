@@ -595,6 +595,76 @@ void testSharedImportedPartFallbackColors(bool hasFirstColor)
             "Shared imported part overwrote leaf/group preview fallback colors");
     }
 }
+void testSharedImportedPartNormalPolicies(bool isReversed)
+{
+    auto createArchive = [&](bool hasRed, bool hasBlue, bool isEdited) {
+        auto xml = modelXml("1");
+        const std::string part = "{00000100-0000-4000-8000-000000000100}";
+        const auto red = "<component id='" + serialIdentity(200) + "' linkDataType='partId' linkData='" + part
+            + "' color='#ff0000' smoothCutoffDegrees='" + (isEdited ? "180" : "0") + "'/>";
+        const auto blue = "<component id='" + serialIdentity(201) + "' linkDataType='partId' linkData='" + part
+            + "' combineMode='Uncombined' color='#0000ff' smoothCutoffDegrees='" + (isEdited ? "0" : "180") + "'/>";
+        const auto components = isReversed ? (hasBlue ? blue : "") + (hasRed ? red : "")
+                                           : (hasRed ? red : "") + (hasBlue ? blue : "");
+        const auto start = xml.find("<components>"), end = xml.find("</components>", start);
+        xml.replace(start, end + std::string("</components>").size() - start, "<components>" + components + "</components>");
+        // Authored normals intentionally differ from the geometry-derived smoothing.
+        auto source = attributedTetrahedron({ 255, 255, 255 }, { 1, 0, 0 });
+        // Keep NORMAL but remove COLOR_0 so component colors identify the instances.
+        const std::string attribute = ",\"COLOR_0\":3";
+        auto sourceText = std::string(source.begin(), source.end());
+        const auto attributeOffset = sourceText.find(attribute);
+        require(attributeOffset != std::string::npos, "Normal-policy fixture lost its color attribute");
+        std::fill(source.begin() + attributeOffset, source.begin() + attributeOffset + attribute.size(), ' ');
+        return archiveWithAssets(xml, { { "models/" + modelIdentity + ".glb", source } });
+    };
+    using Samples = std::vector<std::array<int64_t, 6>>;
+    auto sampleNormals = [](const Dust3DMesh* mesh, bool isRed) {
+        Samples samples;
+        const auto* vertices = dust3d_mesh_vertices(mesh);
+        for (size_t index = 0; index < dust3d_mesh_vertex_count(mesh); ++index) {
+            if ((vertices[index].color[0] > .99f) != isRed)
+                continue;
+            std::array<int64_t, 6> sample;
+            for (size_t axis = 0; axis < 3; ++axis) {
+                sample[axis] = std::llround(vertices[index].position[axis] * 1000000.0);
+                sample[axis + 3] = std::llround(vertices[index].normal[axis] * 1000000.0);
+            }
+            samples.push_back(sample);
+        }
+        std::sort(samples.begin(), samples.end());
+        require(samples.size() == 12, "Normal-policy comparison lost one imported instance");
+        return samples;
+    };
+    const auto redAuthored = sampleNormals(load(createArchive(true, false, false)).get(), true);
+    const auto redSmoothed = sampleNormals(load(createArchive(true, false, true)).get(), true);
+    const auto blueSmoothed = sampleNormals(load(createArchive(false, true, false)).get(), false);
+    const auto blueAuthored = sampleNormals(load(createArchive(false, true, true)).get(), false);
+    require(redAuthored != redSmoothed && blueAuthored != blueSmoothed, "Normal-policy regression does not distinguish authored/smoothed normals");
+    for (const auto& sample : redAuthored)
+        require(sample[3] == 1000000 && sample[4] == 0 && sample[5] == 0, "Authored reference lost its known normal");
+    Dust3DError error {};
+    std::unique_ptr<Dust3DGenerationSession, decltype(&dust3d_generation_session_destroy)> session(
+        dust3d_generation_session_create(DUST3D_DEFAULT_CACHE_PAYLOAD_BYTES, &error), dust3d_generation_session_destroy);
+    for (unsigned iteration = 0; iteration < 3; ++iteration) {
+        const bool isEdited = iteration == 2;
+        const auto bytes = createArchive(true, true, isEdited);
+        auto assertNormals = [&](const Dust3DMesh* mesh) {
+            require(sampleNormals(mesh, true) == (isEdited ? redSmoothed : redAuthored), "Shared imported part changed the red component normal policy");
+            require(sampleNormals(mesh, false) == (isEdited ? blueAuthored : blueSmoothed), "Shared imported part changed the blue component normal policy");
+        };
+        assertNormals(load(bytes).get());
+        MeshOwner cached(dust3d_generation_session_load(session.get(), bytes.data(), bytes.size(), &error), dust3d_mesh_destroy);
+        require(cached && error.status == DUST3D_STATUS_OK, "Shared normal-policy session failed");
+        assertNormals(cached.get());
+        if (iteration == 1) {
+            Dust3DGenerationStats stats {};
+            require(dust3d_generation_session_get_stats(session.get(), &stats, sizeof(stats), &error) == DUST3D_STATUS_OK
+                    && stats.reused_components > 0,
+                "Normal-policy regression did not exercise component cache reuse");
+        }
+    }
+}
 void testCoincidentImportedAttributeIsolation(bool hasSecondColor, bool hasComponentAliases = false)
 {
     std::string nodes, edges, parts, components;
@@ -788,6 +858,8 @@ int main()
         testSharedAssetParts();
         testSharedImportedPartFallbackColors(true);
         testSharedImportedPartFallbackColors(false);
+        testSharedImportedPartNormalPolicies(false);
+        testSharedImportedPartNormalPolicies(true);
         testImportedColorSeams();
         testCoincidentImportedAttributeIsolation(true);
         testCoincidentImportedAttributeIsolation(false);

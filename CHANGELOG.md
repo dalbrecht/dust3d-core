@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Apply authored-versus-smoothed imported normals per component instance, including coincident instances sharing the same part.
+
 - Reject nonfinite/out-of-range position quantization before integer conversion, and preserve distinct imported component fallback colors when multiple instances share one part.
 
 - Preserve imported vertex-color seams, per-node directional scales and component-scoped source hints, including distinct original component aliases.
