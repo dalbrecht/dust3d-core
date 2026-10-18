@@ -987,7 +987,7 @@ std::unique_ptr<MeshState> MeshGenerator::combinePartMesh(const std::string& par
                 // Sweep the imported mesh along the tube spine: Y becomes the
                 // primary (spine) axis, X/Z become the cross-section.
                 SpineDeformer spineDeformer(meshNodes, importedMin, importedMax,
-                    deformWidth, deformThickness, cutRotation);
+                    deformWidth, deformThickness, cutRotation, isCircle);
 
                 partCache.vertices.resize(importedData.vertices.size());
                 for (size_t vi = 0; vi < importedData.vertices.size(); ++vi) {

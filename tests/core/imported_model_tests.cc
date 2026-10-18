@@ -27,10 +27,10 @@ void appendWord(std::vector<uint8_t>& bytes, uint32_t value)
     for (size_t index = 0; index < 4; ++index)
         bytes.push_back(static_cast<uint8_t>(value >> (index * 8)));
 }
-std::vector<uint8_t> tetrahedron(float tipX = 0)
+std::vector<uint8_t> tetrahedron(float tipX = 0, float tipZ = 0, float fourthY = .5)
 {
     // Closed, consistently oriented source mesh, independent of the decoder implementation.
-    const std::array<float, 12> positions { -.5, 0, 0, .5, 0, 0, tipX, 1, 0, 0, .5, .5 };
+    const std::array<float, 12> positions { -.5, 0, 0, .5, 0, 0, tipX, 1, tipZ, 0, fourthY, .5 };
     std::vector<uint8_t> binary;
     for (float position : positions) {
         uint32_t bits;
@@ -526,6 +526,53 @@ void testImportedColorSeams()
         assertColors(cached.get());
     }
 }
+void testCircularImportedSpine()
+{
+    const auto part = serialIdentity(100);
+    std::string nodes, edges;
+    const std::array<std::array<const char*, 2>, 4> points { { { ".5", ".5" }, { ".8", ".5" }, { ".8", ".2" }, { ".5", ".2" } } };
+    for (unsigned index = 0; index < 4; ++index) {
+        nodes += "<node id='" + serialIdentity(1000 + index) + "' partId='" + part
+            + "' x='" + points[index][0] + "' y='" + points[index][1] + "' z='.5' radius='.1'/>";
+        edges += "<edge id='" + serialIdentity(2000 + index) + "' partId='" + part + "' from='"
+            + serialIdentity(1000 + index) + "' to='" + serialIdentity(1000 + (index + 1) % 4) + "'/>";
+    }
+    const auto xml = "<canvas originX='.5' originY='.5' originZ='.5'><nodes>" + nodes + "</nodes><edges>" + edges
+        + "</edges><parts><part id='" + part + "' target='ImportedModel' importedModelId='" + modelIdentity
+        + "' interpolated='false'/></parts><components><component id='" + serialIdentity(200)
+        + "' linkDataType='partId' linkData='" + part + "'/></components></canvas>";
+    // The source tip is on the longitudinal cross-section centre. At Y=max it
+    // must return to the first node of the cycle, not stop at the last node.
+    const auto bytes = archiveWithAssets(xml, { { "models/" + modelIdentity + ".glb", tetrahedron(0, .25f, .875f) } });
+    auto assertClosedTip = [](const Dust3DMesh* mesh) {
+        const auto* vertices = dust3d_mesh_vertices(mesh);
+        size_t tips = 0, closingMidpoints = 0;
+        for (size_t index = 0; index < dust3d_mesh_vertex_count(mesh); ++index) {
+            bool isTip = true;
+            for (size_t axis = 0; axis < 3; ++axis)
+                isTip = isTip && std::abs(vertices[index].position[axis]) < 1e-6;
+            tips += isTip;
+            closingMidpoints += std::abs(vertices[index].position[0] + .05f) < 1e-6
+                && std::abs(vertices[index].position[1] - .15f) < 1e-6 && std::abs(vertices[index].position[2]) < 1e-6;
+        }
+        require(tips == 3 && closingMidpoints == 3, "Circular imported spine omitted its closing segment");
+    };
+    assertClosedTip(load(bytes).get());
+    Dust3DError error {};
+    std::unique_ptr<Dust3DGenerationSession, decltype(&dust3d_generation_session_destroy)> session(
+        dust3d_generation_session_create(DUST3D_DEFAULT_CACHE_PAYLOAD_BYTES, &error), dust3d_generation_session_destroy);
+    for (unsigned iteration = 0; iteration < 2; ++iteration) {
+        MeshOwner cached(dust3d_generation_session_load(session.get(), bytes.data(), bytes.size(), &error), dust3d_mesh_destroy);
+        require(cached && error.status == DUST3D_STATUS_OK, "Circular import session failed");
+        assertClosedTip(cached.get());
+        if (iteration == 1) {
+            Dust3DGenerationStats stats {};
+            require(dust3d_generation_session_get_stats(session.get(), &stats, sizeof(stats), &error) == DUST3D_STATUS_OK
+                    && stats.reused_components > 0,
+                "Circular spine regression did not exercise component cache reuse");
+        }
+    }
+}
 void testSharedImportedPartFallbackColors(bool hasFirstColor)
 {
     auto createArchive = [&](const std::string& secondColor) {
@@ -856,6 +903,7 @@ int main()
         testOwnedOutputsAndMaterialDiagnostics();
         testSessionAssetRevisionAndRecovery();
         testSharedAssetParts();
+        testCircularImportedSpine();
         testSharedImportedPartFallbackColors(true);
         testSharedImportedPartFallbackColors(false);
         testSharedImportedPartNormalPolicies(false);

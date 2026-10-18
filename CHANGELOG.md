@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Sweep imported geometry across circular spines' closing edges with periodic cross-section frames and matching normal derivatives.
+
 - Apply authored-versus-smoothed imported normals per component instance, including coincident instances sharing the same part.
 
 - Reject nonfinite/out-of-range position quantization before integer conversion, and preserve distinct imported component fallback colors when multiple instances share one part.

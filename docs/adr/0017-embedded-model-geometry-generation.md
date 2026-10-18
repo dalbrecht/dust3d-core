@@ -85,3 +85,11 @@ The additional corner capacity is included in cache accounting. This preserves
 color seams without claiming complete material interpolation or PBR parity.
 Node directional scales are interpolated along the spine; their derivatives and
 radius-gradient product terms participate in normal transformation.
+
+Circular imported spines retain their topology flag through generation. Arc length
+includes the closing edge, and radius/directional scales interpolate back to the
+first node. Circular cross-sections interpolate periodic averaged node frames;
+open-spine frames retain their prior behavior. The inverse-transpose Jacobian
+includes frame derivatives on circular segments. Centreline interpolation remains
+piecewise linear, so no smooth-centreline or arbitrary-loop parity claim follows
+from the selected closure and finite-difference regressions.

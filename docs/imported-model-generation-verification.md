@@ -286,3 +286,32 @@ and the updated imported-model executable reports 0 leaked bytes under macOS
 `leaks --atExit`. Logs are under `/private/tmp/dust3d-core-pr43-instance-policy-*`.
 Fresh exact-head automated review and all hosted checks, including Linux leak
 detection, remain required before merge.
+
+## Review correction: circular imported spines
+
+Review 5565520877 found that the ordered-node traversal recognized a cycle but
+imported generation discarded its circular flag. The real `.ds3` regression
+failed before the fix: the source tip stopped at the last node instead of
+returning to the first.
+
+SpineDeformer now accepts optional circular topology, includes the last-to-first
+segment in its arc-length parameterization, and interpolates radius and directional
+scales across that segment. Circular base normals and periodic averaged node
+frames close the cross-section seam while retaining the previous open-spine
+behavior. The normal Jacobian includes the derivatives of the circular frame.
+
+Direct tests assert knot/closing-midpoint positions, cross-section closure,
+independent normal vectors, and finite-difference normal agreement on tapered,
+rotated planar/nonplanar loops. The actual archive test checks both the closing
+edge midpoint and the returning tip, including a confirmed component-cache hit.
+These tests exercise selected loop configurations; they do not establish broad
+upstream differential acceptance for arbitrary imported assets.
+
+The final complete Debug build/CTest passes **38/38** (55.04 seconds), and the
+complete ASan/UBSan build/CTest passes **38/38** (159.97 seconds), with UBSan
+halt-on-error. SwiftPM builds (5.64 seconds); strict native/test formatting,
+changed inherited ranges, manifest formatting, Qt boundary and whitespace checks
+pass. The updated imported-model executable reports 0 leaked bytes with macOS
+`leaks --atExit`. Logs are under `/private/tmp/dust3d-core-pr43-circle-*`.
+These are local results, and timings are not performance parity measurements.
+Fresh exact-head automated review and all hosted checks remain required.
