@@ -345,3 +345,11 @@ group previews and public cached loads have dedicated regressions. Newly created
 seam faces use computed fallback attributes; this does not establish full GLB
 material transfer or close M4. Fresh exact-head review and hosted CI remain
 required for core #43 before the next dependency stage.
+
+
+Further geometry-stage review contracts preserve vertex-color seams through
+cached corner attributes, node-level directional deformation and its normal
+Jacobian, and component-scoped original source hints. Ownership retains opaque
+original component keys so accepted brace aliases do not collide. These remain
+geometry-stage acceptance; embedded materials, native asset adoption, rendered
+file previews and full M4 acceptance are still open.

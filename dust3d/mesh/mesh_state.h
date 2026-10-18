@@ -24,12 +24,14 @@
 #define DUST3D_MESH_MESH_STATE_H_
 
 #include <array>
+#include <dust3d/base/color.h>
 #include <dust3d/base/position_key.h>
-#include <dust3d/base/uuid.h>
 #include <dust3d/mesh/mesh_combiner.h>
 #include <dust3d/mesh/mesh_recombiner.h>
 #include <map>
+#include <optional>
 #include <set>
+#include <string>
 
 namespace dust3d {
 
@@ -43,7 +45,9 @@ public:
     std::vector<std::pair<std::set<std::array<PositionKey, 3>>, std::set<std::array<PositionKey, 3>>>> seamTriangleUvs;
     std::vector<std::array<PositionKey, 3>> brokenTriangles;
     // Parallel to fetched triangles; generated bridges have no single owning component.
-    std::vector<Uuid> triangleComponentIds;
+    std::vector<std::string> triangleComponentKeys;
+    // Parallel corner attributes; absent entries denote newly generated/uncolored faces.
+    std::vector<std::optional<std::array<Color, 3>>> triangleVertexColors;
     // Seam diagnostics of the combine() that produced this state
     std::vector<MeshRecombiner::SeamReport> seamReports;
 

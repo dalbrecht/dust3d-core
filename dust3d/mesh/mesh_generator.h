@@ -66,7 +66,7 @@ public:
         float roughness = 1.0;
         bool isSuccessful = false;
         bool joined = true;
-        std::map<PositionKey, Color> importedVertexColorMap;
+        std::vector<Color> importedVertexColors;
         std::map<std::array<PositionKey, 3>, std::array<Vector3, 3>> importedTriangleNormals;
         void reset()
         {
@@ -75,7 +75,7 @@ public:
             triangleUvs.clear();
             positionToNodeIdMap.clear();
             nodeMap.clear();
-            importedVertexColorMap.clear();
+            importedVertexColors.clear();
             importedTriangleNormals.clear();
             color = Color(1.0, 1.0, 1.0);
             metalness = 0.0;

@@ -69,3 +69,19 @@ colors preserve differing colors at shared vertices; the native bridge and group
 previews consume them. Position-based imported smoothing is component-scoped.
 This correction prevents cross-part attribute leakage without claiming complete
 material/attribute interpolation on newly generated Boolean or seam geometry.
+
+
+Triangle ownership retains original opaque component keys, rather than only
+Uuid-normalized values, so accepted brace aliases cannot collide in imported
+normal/color fallback or source hints. Legacy UV identities remain separate.
+Source associations are resolved through the owning imported component's node
+map; missing associations do not fall back across components. Generated node IDs
+still remain unknown unless present in the original document membership.
+
+Vertex colors retain source vertex identity at leaf generation and optional
+triangle-corner values through Boolean/cache copies. Cut faces interpolate from
+their exact source face; generated bridges retain computed fallback attributes.
+The additional corner capacity is included in cache accounting. This preserves
+color seams without claiming complete material interpolation or PBR parity.
+Node directional scales are interpolated along the spine; their derivatives and
+radius-gradient product terms participate in normal transformation.

@@ -1,7 +1,7 @@
 # Embedded-model geometry verification
 
-Tracked by core #41. Final local gates pass for the ownership correction below;
-fresh exact-head review and hosted CI remain required before merge.
+Tracked by core #41. The committed ownership/header correction passed its gates.
+Further review corrections are in progress below; the working tree is not merge-ready.
 This stage does not establish full M4 or application import support.
 
 The first end-to-end C API test failed with the existing imported-GLB rejection.
@@ -155,3 +155,54 @@ ASan/UBSan build and CTest pass **37/37** (190.63 seconds). SwiftPM builds (55.9
 seconds), strict formatting, Qt boundary and whitespace checks pass. These are
 local macOS results; fresh Linux/macOS hosted checks and exact-head review remain
 required. Logs are under `/private/tmp/dust3d-core-pr43-array-*`.
+
+
+## Review corrections: source hints, color seams and node scales
+
+Finding 4308646690 is reproduced through the sourced C API: known corner hints
+from the second coincident imported part resolve to the first part. The regression
+failed with “Coincident imported source hint refers to another part”. Imported
+component-specific position-to-node associations now remain on the generated
+Object, and each exported triangle index is supplied to the source resolver. A
+known imported owner never falls back to another component's global node/weight
+map. Generated nearest-node identities absent from original membership remain
+explicitly unknown; no new original identity is invented. Fresh and cached sourced
+loads, coincident global weights and missing scoped associations are covered.
+
+Finding 4308646686 is reproduced by a valid nonindexed tetrahedron with four face
+colors and duplicated seam positions. The public API failed with “Imported color
+seam collapsed distinct coincident corners”. Imported colors are now indexed by
+source vertex at leaf generation and carried as optional triangle-corner arrays
+through MeshState/cache copies, Boolean source triangles and recombination. Cut
+triangles interpolate colors from their exact originating face using bounded,
+scaled barycentric weights; new seam bridges have no invented source colors.
+Native output and leaf/group previews retain all four colors. Independent clipped
+box gradients exercise union/difference, recombination and cached copies; corner
+buffer capacity is included in allocation-free cache accounting.
+
+Finding 4308676923 identified ignored per-node directional scales. A standalone
+portable regression failed its expected vertex vector, and the actual .ds3/C API
+regression failed with “Imported node width modifiers were ignored”. Width and
+thickness now interpolate independently along each segment and multiply the
+part/radius scales. Normal Jacobians include both node-scale derivatives and the
+radius-gradient product terms. Expected endpoint/midpoint vectors, independent
+normal vectors, combined radius/scale gradients, bent/rotated finite differences
+and actual archive extents/normals cover the correction.
+
+An additional accepted-identity regression used distinct braced/unbraced component
+keys that collapse to one inherited Uuid. It failed with “Another part overwrote
+the red import normal”. MeshState now retains original opaque component keys,
+including cached/recombined output. Normal/color fallback, imported smoothing and
+source associations use those keys; legacy Uuid metadata is derived separately.
+Public coincident-geometry and portable clipped-gradient regressions exercise
+these aliases without rejecting the document or choosing an arbitrary owner.
+
+The final complete Debug build and CTest pass **37/37** (62.11 seconds); the
+complete ASan/UBSan build and CTest pass **37/37** (169.30 seconds), with UBSan
+halt-on-error. SwiftPM builds (21.79 seconds). Strict formatting, inherited changed
+ranges, Qt boundary and whitespace checks pass. Logs are under
+`/private/tmp/dust3d-core-pr43-final-opaque-*`. No local leak-detector/Linux result
+or performance-parity claim is made. The resolver-only earlier coverage numbers
+are not whole-engine or freshly instrumented coverage for these changes.
+Fresh exact-head hosted review and all CI checks remain required before merge.
+Imported materials, new seam material interpolation and full M4 remain open.

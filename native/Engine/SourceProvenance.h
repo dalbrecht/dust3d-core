@@ -21,7 +21,7 @@ namespace native {
     class SourceProvenance {
     public:
         SourceProvenance(const Snapshot& snapshot, size_t maximumBytes);
-        void appendCorner(const Object& object, const Vector3& position);
+        void appendCorner(const Object& object, const Vector3& position, size_t triangleIndex = SIZE_MAX);
         const std::vector<SourceIdentity>& identities() const { return m_identities; }
         const std::vector<Dust3DSourceCorner>& corners() const { return m_corners; }
         const std::vector<Dust3DSourceInfluence>& influences() const { return m_influences; }

@@ -127,6 +127,40 @@ std::vector<uint8_t> attributedTetrahedron(const std::array<uint8_t, 3>& color, 
     result.insert(result.end(), binary.begin(), binary.end());
     return result;
 }
+std::vector<uint8_t> colorSeamTetrahedron()
+{
+    const std::array<std::array<float, 3>, 4> positions { { { -.5, 0, 0 }, { .5, 0, 0 }, { 0, 1, 0 }, { 0, .5, .5 } } };
+    const std::array<std::array<size_t, 3>, 4> faces { { { 0, 2, 1 }, { 0, 1, 3 }, { 1, 2, 3 }, { 2, 0, 3 } } };
+    const std::array<std::array<uint8_t, 4>, 4> colors { { { 255, 0, 0, 255 }, { 0, 255, 0, 255 }, { 0, 0, 255, 255 }, { 255, 255, 0, 255 } } };
+    std::vector<uint8_t> binary;
+    for (const auto& face : faces) {
+        for (auto vertex : face) {
+            for (float value : positions[vertex]) {
+                uint32_t bits;
+                std::memcpy(&bits, &value, sizeof(bits));
+                appendWord(binary, bits);
+            }
+        }
+    }
+    for (const auto& color : colors) {
+        for (size_t corner = 0; corner < 3; ++corner)
+            binary.insert(binary.end(), color.begin(), color.end());
+    }
+    std::string json = R"({"asset":{"version":"2.0"},"buffers":[{"byteLength":192}],"bufferViews":[{"buffer":0,"byteOffset":0,"byteLength":144},{"buffer":0,"byteOffset":144,"byteLength":48}],"accessors":[{"bufferView":0,"componentType":5126,"count":12,"type":"VEC3","min":[-0.5,0,0],"max":[0.5,1,0.5]},{"bufferView":1,"componentType":5121,"count":12,"type":"VEC4","normalized":true}],"meshes":[{"primitives":[{"attributes":{"POSITION":0,"COLOR_0":1}}]}]})";
+    while (json.size() % 4)
+        json += ' ';
+    std::vector<uint8_t> result;
+    appendWord(result, 0x46546c67);
+    appendWord(result, 2);
+    appendWord(result, static_cast<uint32_t>(28 + json.size() + binary.size()));
+    appendWord(result, static_cast<uint32_t>(json.size()));
+    appendWord(result, 0x4e4f534a);
+    result.insert(result.end(), json.begin(), json.end());
+    appendWord(result, static_cast<uint32_t>(binary.size()));
+    appendWord(result, 0x004e4942);
+    result.insert(result.end(), binary.begin(), binary.end());
+    return result;
+}
 std::vector<uint8_t> texturedTetrahedron()
 {
     const auto original = tetrahedron();
@@ -251,6 +285,33 @@ void testTransformedImportedNormals()
         auto mesh = load(archiveWithAssets(xml, { { "models/" + modelIdentity + ".glb", payload } }));
         requireSurfaceNormals(mesh.get());
     }
+}
+void testImportedDirectionalNodeScales()
+{
+    auto xml = modelXml("1");
+    const std::string nodeScales = "deformWidth='2' deformThickness='3' ";
+    const std::string radiusAttribute = "radius='.15'";
+    size_t offset = 0;
+    while ((offset = xml.find(radiusAttribute, offset)) != std::string::npos) {
+        xml.insert(offset, nodeScales);
+        offset += nodeScales.size() + radiusAttribute.size();
+    }
+    auto original = load(archive("1"));
+    auto scaled = load(archiveWithAssets(xml, { { "models/" + modelIdentity + ".glb", tetrahedronWithNormals() } }));
+    auto extent = [](const Dust3DMesh* mesh, size_t axis) {
+        const auto* vertices = dust3d_mesh_vertices(mesh);
+        double minimum = vertices[0].position[axis], maximum = minimum;
+        for (size_t index = 0; index < dust3d_mesh_vertex_count(mesh); ++index) {
+            minimum = std::min(minimum, double(vertices[index].position[axis]));
+            maximum = std::max(maximum, double(vertices[index].position[axis]));
+        }
+        return maximum - minimum;
+    };
+    require(std::abs(extent(scaled.get(), 0) - 2 * extent(original.get(), 0)) < 1e-6,
+        "Imported node width modifiers were ignored");
+    require(std::abs(extent(scaled.get(), 2) - 3 * extent(original.get(), 2)) < 1e-6,
+        "Imported node thickness modifiers were ignored");
+    requireSurfaceNormals(scaled.get());
 }
 void testZeroWidthGeometry()
 {
@@ -383,7 +444,60 @@ void testSharedAssetParts()
     auto mesh = load(archiveWithAssets(xml, { { "models/" + modelIdentity + ".glb", tetrahedron() } }));
     require(dust3d_mesh_vertex_count(mesh.get()) == 24 && dust3d_mesh_node_count(mesh.get()) == 4 && dust3d_mesh_part_count(mesh.get()) == 2, "Shared model asset did not generate both distinct parts");
 }
-void testCoincidentImportedAttributeIsolation(bool hasSecondColor)
+void testImportedColorSeams()
+{
+    const auto bytes = archiveWithAssets(modelXml("1"), { { "models/" + modelIdentity + ".glb", colorSeamTetrahedron() } });
+    auto assertColors = [](const Dust3DMesh* mesh) {
+        require(dust3d_mesh_vertex_count(mesh) == 12, "Color seam fixture lost triangles");
+        std::array<size_t, 4> counts {};
+        const auto* vertices = dust3d_mesh_vertices(mesh);
+        for (size_t index = 0; index < 12; ++index) {
+            const auto& color = vertices[index].color;
+            const unsigned palette = (color[0] > .99f ? 1 : 0) + (color[1] > .99f ? 2 : 0) + (color[2] > .99f ? 4 : 0);
+            require(palette == 1 || palette == 2 || palette == 4 || palette == 3, "Color seam introduced an unrelated color");
+            ++counts[palette == 1 ? 0 : palette == 2 ? 1
+                    : palette == 4                   ? 2
+                                                     : 3];
+        }
+        require(counts == std::array<size_t, 4> { 3, 3, 3, 3 }, "Imported color seam collapsed distinct coincident corners");
+    };
+    auto mesh = load(bytes);
+    assertColors(mesh.get());
+    std::string warning;
+    dust3d::native::ImportedModels imports;
+    auto snapshot = dust3d::native::readDocument(bytes.data(), bytes.size(), warning, nullptr, &imports);
+    const auto group = serialIdentity(900);
+    snapshot->components[group] = { { "id", group }, { "children", snapshot->rootComponent["children"] } };
+    snapshot->rootComponent["children"] = group;
+    dust3d::MeshGenerator generator(snapshot.release());
+    generator.setImportedModelData(imports.takeGeometry());
+    generator.generate();
+    require(generator.isSuccessful(), "Color seam preview generation failed");
+    for (const auto& component : { dust3d::Uuid("{00000200-0000-4000-8000-000000000200}"), dust3d::Uuid(group) }) {
+        const auto& preview = generator.generatedComponentPreviews().at(component);
+        std::array<size_t, 4> counts {};
+        for (const auto& triangle : preview.triangles) {
+            for (auto vertex : triangle) {
+                const auto& color = std::get<0>(preview.vertexProperties.at(vertex));
+                const unsigned palette = (color.r() > .99 ? 1 : 0) + (color.g() > .99 ? 2 : 0) + (color.b() > .99 ? 4 : 0);
+                require(palette == 1 || palette == 2 || palette == 4 || palette == 3, "Preview seam introduced an unrelated color");
+                ++counts[palette == 1 ? 0 : palette == 2 ? 1
+                        : palette == 4                   ? 2
+                                                         : 3];
+            }
+        }
+        require(counts == std::array<size_t, 4> { 3, 3, 3, 3 }, "Leaf/group preview collapsed source color seams");
+    }
+    Dust3DError error {};
+    std::unique_ptr<Dust3DGenerationSession, decltype(&dust3d_generation_session_destroy)> session(
+        dust3d_generation_session_create(DUST3D_DEFAULT_CACHE_PAYLOAD_BYTES, &error), dust3d_generation_session_destroy);
+    for (unsigned iteration = 0; iteration < 2; ++iteration) {
+        MeshOwner cached(dust3d_generation_session_load(session.get(), bytes.data(), bytes.size(), &error), dust3d_mesh_destroy);
+        require(cached && error.status == DUST3D_STATUS_OK, "Cached seam generation failed");
+        assertColors(cached.get());
+    }
+}
+void testCoincidentImportedAttributeIsolation(bool hasSecondColor, bool hasComponentAliases = false)
 {
     std::string nodes, edges, parts, components;
     std::vector<Asset> assets;
@@ -396,7 +510,8 @@ void testCoincidentImportedAttributeIsolation(bool hasSecondColor)
         nodes += "<node id='" + second + "' partId='" + part + "' x='.5' y='.8' z='.5' radius='.15'/>";
         edges += "<edge id='" + serialIdentity(2000 + index) + "' partId='" + part + "' from='" + first + "' to='" + second + "'/>";
         parts += "<part id='" + part + "' target='ImportedModel' importedModelId='" + model + "'/>";
-        components += "<component id='" + serialIdentity(200 + index) + "' linkDataType='partId' linkData='" + part + "'" + (index ? " combineMode='Uncombined' color='#0000ff'" : "") + "/>";
+        const auto componentId = hasComponentAliases ? (index ? serialIdentity(200).substr(1, 36) : serialIdentity(200)) : serialIdentity(200 + index);
+        components += "<component id='" + componentId + "' linkDataType='partId' linkData='" + part + "'" + (index ? " combineMode='Uncombined' color='#0000ff'" : "") + "/>";
         assets.emplace_back("models/" + model + ".glb", index ? (hasSecondColor ? attributedTetrahedron({ 0, 255, 0 }, { 0, 0, 1 }) : tetrahedron()) : attributedTetrahedron({ 255, 0, 0 }, { 1, 0, 0 }));
     }
     const auto xml = "<canvas originX='.5' originY='.5' originZ='.5'><nodes>" + nodes + "</nodes><edges>" + edges + "</edges><parts>" + parts + "</parts><components>" + components + "</components></canvas>";
@@ -419,6 +534,34 @@ void testCoincidentImportedAttributeIsolation(bool hasSecondColor)
         }
     }
     require(red == 12 && green == 12, "Coincident parts overwrote each other's imported attributes");
+    Dust3DSourceOptions sourceOptions { sizeof(Dust3DSourceOptions), 0 };
+    Dust3DError sourceError {};
+    std::unique_ptr<Dust3DSourcedMesh, decltype(&dust3d_sourced_mesh_destroy)> sourced(
+        dust3d_sourced_mesh_load(bytes.data(), bytes.size(), &sourceOptions, &sourceError), dust3d_sourced_mesh_destroy);
+    require(sourced && sourceError.status == DUST3D_STATUS_OK && dust3d_sourced_mesh_corner_count(sourced.get()) == 24,
+        "Coincident sourced import failed");
+    auto assertSourceOwnership = [](const Dust3DSourcedMesh* source) {
+        const auto* sourceCorners = dust3d_sourced_mesh_corners(source);
+        const auto* sourceInfluences = dust3d_sourced_mesh_influences(source);
+        const auto* sourcedVertices = dust3d_mesh_vertices(dust3d_sourced_mesh_geometry(source));
+        size_t firstPartHints = 0, secondPartHints = 0;
+        for (size_t index = 0; index < 24; ++index) {
+            const auto& corner = sourceCorners[index];
+            require(corner.influence_count == 1, "Imported corner must retain its nearest-node association");
+            const auto identity = sourceInfluences[corner.first_influence].source_index;
+            if (corner.kind == DUST3D_SOURCE_UNKNOWN) {
+                require(identity == SIZE_MAX, "Generated nearest-node identities must remain explicitly unknown");
+                continue;
+            }
+            require(corner.kind == DUST3D_SOURCE_NODE_HINT, "Unexpected imported source kind");
+            sourcedVertices[index].color[0] > .99f ? ++firstPartHints : ++secondPartHints;
+            const auto expectedPart = serialIdentity(sourcedVertices[index].color[0] > .99f ? 100 : 101);
+            require(dust3d_sourced_mesh_part_id(source, identity) == expectedPart,
+                "Coincident imported source hint refers to another part");
+        }
+        require(firstPartHints > 0 && secondPartHints > 0, "Source regression must exercise both original parts");
+    };
+    assertSourceOwnership(sourced.get());
     std::string warning;
     dust3d::native::ImportedModels imports;
     auto snapshot = dust3d::native::readDocument(bytes.data(), bytes.size(), warning, nullptr, &imports);
@@ -446,6 +589,12 @@ void testCoincidentImportedAttributeIsolation(bool hasSecondColor)
         MeshOwner cached(dust3d_generation_session_load(session.get(), bytes.data(), bytes.size(), &error), dust3d_mesh_destroy);
         require(cached && error.status == DUST3D_STATUS_OK && dust3d_mesh_vertex_count(cached.get()) == 24,
             "Coincident import session failed");
+        std::unique_ptr<Dust3DSourcedMesh, decltype(&dust3d_sourced_mesh_destroy)> cachedSources(
+            dust3d_generation_session_load_sourced(session.get(), bytes.data(), bytes.size(), &sourceOptions, &error),
+            dust3d_sourced_mesh_destroy);
+        require(cachedSources && error.status == DUST3D_STATUS_OK && dust3d_sourced_mesh_corner_count(cachedSources.get()) == 24,
+            "Coincident cached sourced import failed");
+        assertSourceOwnership(cachedSources.get());
         const auto* cachedVertices = dust3d_mesh_vertices(cached.get());
         const auto* originalVertices = dust3d_mesh_vertices(mesh.get());
         for (size_t index = 0; index < 24; ++index) {
@@ -532,13 +681,16 @@ int main()
         const double widened = generatedWidth("2");
         require(original > 0 && std::abs(widened - original * 2) < 1e-6, "Imported spine deformation was not applied");
         testTransformedImportedNormals();
+        testImportedDirectionalNodeScales();
         testZeroWidthGeometry();
         testRequiredAssetsAndAliases();
         testOwnedOutputsAndMaterialDiagnostics();
         testSessionAssetRevisionAndRecovery();
         testSharedAssetParts();
+        testImportedColorSeams();
         testCoincidentImportedAttributeIsolation(true);
         testCoincidentImportedAttributeIsolation(false);
+        testCoincidentImportedAttributeIsolation(true, true);
         testAggregateImportedPayloadLimit();
         std::cout << "Imported archive generation contracts passed\n";
         return 0;

@@ -1032,14 +1032,8 @@ std::unique_ptr<MeshState> MeshGenerator::combinePartMesh(const std::string& par
                     }
                 }
 
-                // Store per-vertex colors from imported model
-                if (!importedData.vertexColors.empty()) {
-                    for (size_t i = 0; i < partCache.vertices.size(); ++i) {
-                        if (i < importedData.vertexColors.size()) {
-                            partCache.importedVertexColorMap[PositionKey(partCache.vertices[i])] = importedData.vertexColors[i];
-                        }
-                    }
-                }
+                // Source indices distinguish valid duplicated positions at color seams.
+                partCache.importedVertexColors = importedData.vertexColors;
 
                 // Transform and store per-face-vertex normals from imported model
                 // When smoothCutoffDegrees is set, skip GLB normals and let smoothNormal handle it
@@ -1102,7 +1096,15 @@ std::unique_ptr<MeshState> MeshGenerator::combinePartMesh(const std::string& par
         std::vector<Vector3> vertices;
         std::vector<std::vector<size_t>> faces;
         mesh->fetch(vertices, faces);
-        mesh->triangleComponentIds.assign(faces.size(), Uuid(componentIdString));
+        mesh->triangleComponentKeys.assign(faces.size(), componentIdString);
+    }
+    if (!partCache.importedVertexColors.empty()) {
+        std::vector<Vector3> vertices;
+        std::vector<std::vector<size_t>> faces;
+        mesh->fetch(vertices, faces);
+        for (const auto& face : faces)
+            mesh->triangleVertexColors.push_back(std::array<Color, 3> { partCache.importedVertexColors.at(face.at(0)),
+                partCache.importedVertexColors.at(face.at(1)), partCache.importedVertexColors.at(face.at(2)) });
     }
     if (mesh->isNull()) {
         hasMeshError = true;
@@ -1116,13 +1118,9 @@ std::unique_ptr<MeshState> MeshGenerator::combinePartMesh(const std::string& par
         preview.metalness = partCache.metalness;
         preview.roughness = partCache.roughness;
         preview.triangleUvs = partCache.triangleUvs;
-        if (!partCache.importedVertexColorMap.empty()) {
-            for (const auto& vertex : preview.vertices) {
-                auto findColor = partCache.importedVertexColorMap.find(vertex);
-                preview.vertexProperties.emplace_back(
-                    findColor == partCache.importedVertexColorMap.end() ? preview.color : findColor->second,
-                    preview.metalness, preview.roughness);
-            }
+        if (!partCache.importedVertexColors.empty()) {
+            for (size_t index = 0; index < preview.vertices.size(); ++index)
+                preview.vertexProperties.emplace_back(partCache.importedVertexColors.at(index), preview.metalness, preview.roughness);
         }
         addComponentPreview(componentIdString, std::move(preview));
     } else if (PartTarget::CutFace == target) {
@@ -1632,21 +1630,21 @@ void MeshGenerator::postprocessObject(Object* object)
     // flat normals from smoothNormal. This pass groups face normals by position and only
     // merges those within the cutoff angle.
     if (!m_importedModelData.empty()) {
-        std::map<std::pair<Uuid, PositionKey>, std::vector<size_t>> posToTriangles;
+        std::map<std::pair<std::string, PositionKey>, std::vector<size_t>> posToTriangles;
         for (size_t ti = 0; ti < object->triangles.size(); ++ti) {
             const auto& face = object->triangles[ti];
-            if (ti >= object->triangleComponentIds.size() || object->triangleComponentIds[ti].isNull())
+            if (ti >= object->triangleComponentKeys.size() || object->triangleComponentKeys[ti].empty())
                 continue;
             for (size_t j = 0; j < face.size() && j < 3; ++j) {
                 if (face[j] < object->vertexSmoothCutoffDegrees.size()
                     && object->vertexSmoothCutoffDegrees[face[j]] > 0.0f) {
-                    posToTriangles[{ object->triangleComponentIds[ti], PositionKey(object->vertices[face[j]]) }].push_back(ti);
+                    posToTriangles[{ object->triangleComponentKeys[ti], PositionKey(object->vertices[face[j]]) }].push_back(ti);
                 }
             }
         }
         for (size_t ti = 0; ti < object->triangles.size(); ++ti) {
             const auto& face = object->triangles[ti];
-            if (ti >= object->triangleComponentIds.size() || object->triangleComponentIds[ti].isNull())
+            if (ti >= object->triangleComponentKeys.size() || object->triangleComponentKeys[ti].empty())
                 continue;
             for (size_t j = 0; j < face.size() && j < 3; ++j) {
                 if (face[j] >= object->vertexSmoothCutoffDegrees.size()
@@ -1654,7 +1652,7 @@ void MeshGenerator::postprocessObject(Object* object)
                     continue;
                 float cutoff = object->vertexSmoothCutoffDegrees[face[j]];
                 double cosLimit = std::cos(cutoff * Math::Pi / 180.0);
-                auto it = posToTriangles.find({ object->triangleComponentIds[ti], PositionKey(object->vertices[face[j]]) });
+                auto it = posToTriangles.find({ object->triangleComponentKeys[ti], PositionKey(object->vertices[face[j]]) });
                 if (it == posToTriangles.end())
                     continue;
                 Vector3 sum;
@@ -1675,7 +1673,7 @@ void MeshGenerator::applyImportedAttributes(Object* object)
 {
     if (m_importedModelData.empty())
         return;
-    std::map<Uuid, const GeneratedPart*> owners;
+    std::map<std::string, const GeneratedPart*> owners;
     for (const auto& component : m_snapshot->components) {
         if (String::valueOrEmpty(component.second, "linkDataType") != "partId")
             continue;
@@ -1685,28 +1683,32 @@ void MeshGenerator::applyImportedAttributes(Object* object)
             || PartTargetFromString(String::valueOrEmpty(snapshotPart->second, "target").c_str()) != PartTarget::ImportedModel)
             continue;
         auto part = m_cacheContext->parts.find(partId);
-        if (part != m_cacheContext->parts.end())
-            owners.emplace(Uuid(component.first), &part->second);
+        if (part != m_cacheContext->parts.end()) {
+            owners.emplace(component.first, &part->second);
+            object->componentPositionToNodeIdMap.emplace(component.first, part->second.positionToNodeIdMap);
+        }
     }
     object->triangleVertexColors.resize(object->triangles.size());
     const auto* normals = object->triangleVertexNormals();
     std::vector<std::vector<Vector3>> updatedNormals = normals ? *normals : std::vector<std::vector<Vector3>>();
     for (size_t index = 0; index < object->triangles.size(); ++index) {
         const auto& face = object->triangles[index];
-        for (size_t corner = 0; corner < 3 && corner < face.size(); ++corner)
-            object->triangleVertexColors[index][corner] = object->vertexColors.at(face[corner]);
-        if (face.size() != 3 || index >= object->triangleComponentIds.size())
+        const bool hasImportedColors = object->triangleVertexColors[index].has_value();
+        if (!hasImportedColors) {
+            object->triangleVertexColors[index].emplace();
+            for (size_t corner = 0; corner < 3 && corner < face.size(); ++corner)
+                (*object->triangleVertexColors[index])[corner] = object->vertexColors.at(face[corner]);
+        }
+        if (face.size() != 3 || index >= object->triangleComponentKeys.size())
             continue;
-        auto owner = owners.find(object->triangleComponentIds[index]);
+        auto owner = owners.find(object->triangleComponentKeys[index]);
         if (owner == owners.end())
             continue;
         const auto& part = *owner->second;
         std::array<PositionKey, 3> key { PositionKey(object->vertices.at(face[0])),
             PositionKey(object->vertices.at(face[1])), PositionKey(object->vertices.at(face[2])) };
-        for (size_t corner = 0; corner < 3; ++corner) {
-            auto color = part.importedVertexColorMap.find(key[corner]);
-            object->triangleVertexColors[index][corner] = color != part.importedVertexColorMap.end() ? color->second : part.color;
-        }
+        if (!hasImportedColors)
+            object->triangleVertexColors[index] = std::array<Color, 3> { part.color, part.color, part.color };
         auto importedNormals = part.importedTriangleNormals.find(key);
         if (importedNormals != part.importedTriangleNormals.end() && index < updatedNormals.size() && updatedNormals[index].size() == 3) {
             for (size_t corner = 0; corner < 3; ++corner)
@@ -1759,11 +1761,21 @@ void MeshGenerator::collectIncombinableMesh(const MeshState* mesh, const Generat
     // Uncombined parts are kept whole, so their triangles are known to be theirs: record it
     // (the UV generator places the rest by position, which cannot tell apart two parts that
     // overlap exactly, e.g. equipment variants in the same place).
-    m_object->triangleComponentIds.resize(m_object->triangles.size());
-    if (mesh->triangleComponentIds.size() == uncombinedFaces.size())
-        m_object->triangleComponentIds.insert(m_object->triangleComponentIds.end(), mesh->triangleComponentIds.begin(), mesh->triangleComponentIds.end());
+    m_object->triangleVertexColors.resize(m_object->triangles.size());
+    if (mesh->triangleVertexColors.size() == uncombinedFaces.size())
+        m_object->triangleVertexColors.insert(m_object->triangleVertexColors.end(), mesh->triangleVertexColors.begin(), mesh->triangleVertexColors.end());
     else
+        m_object->triangleVertexColors.resize(m_object->triangles.size() + uncombinedFaces.size());
+    m_object->triangleComponentIds.resize(m_object->triangles.size());
+    m_object->triangleComponentKeys.resize(m_object->triangles.size());
+    if (mesh->triangleComponentKeys.size() == uncombinedFaces.size()) {
+        m_object->triangleComponentKeys.insert(m_object->triangleComponentKeys.end(), mesh->triangleComponentKeys.begin(), mesh->triangleComponentKeys.end());
+        for (const auto& key : mesh->triangleComponentKeys)
+            m_object->triangleComponentIds.emplace_back(key);
+    } else {
+        m_object->triangleComponentKeys.resize(m_object->triangles.size() + uncombinedFaces.size());
         m_object->triangleComponentIds.insert(m_object->triangleComponentIds.end(), uncombinedFaces.size(), componentId);
+    }
     m_object->triangles.insert(m_object->triangles.end(), uncombinedFaces.begin(), uncombinedFaces.end());
     m_object->triangleAndQuads.insert(m_object->triangleAndQuads.end(), uncombinedTriangleAndQuads.begin(), uncombinedTriangleAndQuads.end());
 }
@@ -2645,7 +2657,8 @@ void MeshGenerator::collectComponentPreview(const std::string& componentIdString
             Object scoped;
             scoped.vertices = vertices;
             scoped.triangles = triangles;
-            scoped.triangleComponentIds = mesh->triangleComponentIds;
+            scoped.triangleComponentKeys = mesh->triangleComponentKeys;
+            scoped.triangleVertexColors = mesh->triangleVertexColors;
             for (const auto& property : properties)
                 scoped.vertexColors.push_back(std::get<0>(property));
             applyImportedAttributes(&scoped);
@@ -2656,7 +2669,7 @@ void MeshGenerator::collectComponentPreview(const std::string& componentIdString
                     expanded.push_back(preview.vertices.size());
                     preview.vertices.push_back(vertices.at(vertex));
                     const auto& property = properties.at(vertex);
-                    preview.vertexProperties.emplace_back(scoped.triangleVertexColors.at(index).at(corner),
+                    preview.vertexProperties.emplace_back(scoped.triangleVertexColors.at(index)->at(corner),
                         std::get<1>(property), std::get<2>(property));
                 }
                 preview.triangles.push_back(std::move(expanded));
@@ -2819,7 +2832,10 @@ void MeshGenerator::generate()
         recoverQuads(combinedVertices, combinedFaces, componentCache.sharedQuadEdges, m_object->triangleAndQuads);
         m_object->vertices = combinedVertices;
         m_object->triangles = combinedFaces;
-        m_object->triangleComponentIds = combinedMesh->triangleComponentIds;
+        m_object->triangleComponentKeys = combinedMesh->triangleComponentKeys;
+        for (const auto& key : combinedMesh->triangleComponentKeys)
+            m_object->triangleComponentIds.emplace_back(key);
+        m_object->triangleVertexColors = combinedMesh->triangleVertexColors;
     }
 
     // Recursively check uncombined components

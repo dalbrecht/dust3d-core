@@ -63,7 +63,7 @@ namespace native {
         return { DUST3D_SOURCE_NODE_HINT, found->second, weight };
     }
 
-    void SourceProvenance::appendCorner(const Object& object, const Vector3& position)
+    void SourceProvenance::appendCorner(const Object& object, const Vector3& position, size_t triangleIndex)
     {
         Dust3DSourceCorner corner { DUST3D_SOURCE_UNKNOWN, m_influences.size(), 0 };
         charge(sizeof(corner));
@@ -78,8 +78,17 @@ namespace native {
         }
         if (canQuantize) {
             const PositionKey key(position);
+            const auto* nodeAssociations = &object.positionToNodeIdMap;
+            bool hasScopedAssociations = false;
+            if (triangleIndex < object.triangleComponentKeys.size()) {
+                const auto scoped = object.componentPositionToNodeIdMap.find(object.triangleComponentKeys[triangleIndex]);
+                if (scoped != object.componentPositionToNodeIdMap.end()) {
+                    nodeAssociations = &scoped->second;
+                    hasScopedAssociations = true;
+                }
+            }
             const auto weights = object.positionToNodeWeights.find(key);
-            if (weights != object.positionToNodeWeights.end() && !weights->second.empty()) {
+            if (!hasScopedAssociations && weights != object.positionToNodeWeights.end() && !weights->second.empty()) {
                 corner.kind = DUST3D_SOURCE_WEIGHTED_HINT;
                 for (const auto& [node, weight] : weights->second) {
                     const auto influence = resolve(node, weight);
@@ -88,8 +97,8 @@ namespace native {
                     ++corner.influence_count;
                 }
             } else {
-                const auto node = object.positionToNodeIdMap.find(key);
-                if (node != object.positionToNodeIdMap.end()) {
+                const auto node = nodeAssociations->find(key);
+                if (node != nodeAssociations->end()) {
                     const auto influence = resolve(node->second, 1);
                     charge(sizeof(influence));
                     m_influences.push_back(influence);

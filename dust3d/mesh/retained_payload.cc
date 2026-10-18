@@ -21,8 +21,8 @@ void MeshCombiner::Mesh::accountDynamicPayload(RetainedPayloadBudget& budget) co
 
 void MeshState::accountDynamicPayload(RetainedPayloadBudget& budget) const noexcept
 {
-    const auto& [mesh, seamUvs, brokenTriangles, owners, reports] = *this;
-    budget.accountDynamicFields(mesh, seamUvs, brokenTriangles, owners, reports);
+    const auto& [mesh, seamUvs, brokenTriangles, owners, colors, reports] = *this;
+    budget.accountDynamicFields(mesh, seamUvs, brokenTriangles, owners, colors, reports);
 }
 
 void MeshGenerator::GeneratedPart::accountDynamicPayload(RetainedPayloadBudget& budget) const noexcept

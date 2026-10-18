@@ -188,11 +188,13 @@ void nestedWrappingOwnership()
     part.vertices = vertices;
     part.faces = faces;
     part.triangleUvs[points] = uvs;
-    part.importedVertexColorMap[points[0]] = dust3d::Color(0.2, 0.4, 0.8);
+    part.importedVertexColors.push_back(dust3d::Color(0.2, 0.4, 0.8));
     part.importedTriangleNormals[points] = { dust3d::Vector3(0, 0, 1), dust3d::Vector3(0, 0, 1), dust3d::Vector3(0, 0, 1) };
     auto& combination = cache.cachedCombination["union"];
     combination = std::make_unique<dust3d::MeshState>(vertices, faces);
-    combination->triangleComponentIds.push_back(node);
+    combination->triangleComponentKeys.push_back(node.toString());
+    combination->triangleVertexColors.push_back(std::array<dust3d::Color, 3> {
+        dust3d::Color(1, 0, 0), dust3d::Color(0, 1, 0), dust3d::Color(0, 0, 1) });
     combination->brokenTriangles.reserve(64);
     combination->brokenTriangles.push_back(points);
     combination->seamReports.reserve(128);
@@ -208,12 +210,18 @@ void nestedWrappingOwnership()
     require(observedAllocations.load() == 0, "Nested UV, source, wrapping and imported metadata inspection must not allocate");
     require(populated.usedBytes() >= empty.usedBytes() + 512 * sizeof(dust3d::Vector3), "Wrapping buffers and node-weight ownership must count");
     const auto beforeOwnerReservation = populated.usedBytes();
-    combination->triangleComponentIds.reserve(1000);
+    combination->triangleComponentKeys.reserve(1000);
     dust3d::RetainedPayloadBudget expandedOwners(std::numeric_limits<size_t>::max());
     expandedOwners.accountObject(cache);
-    require(expandedOwners.usedBytes() >= beforeOwnerReservation + 999 * sizeof(dust3d::Uuid),
+    require(expandedOwners.usedBytes() >= beforeOwnerReservation + 999 * sizeof(std::string),
         "Cached triangle owner capacity must count toward retention");
-    const auto beforeWeightReservation = expandedOwners.usedBytes();
+    combination->triangleVertexColors.reserve(1000);
+    dust3d::RetainedPayloadBudget expandedColors(std::numeric_limits<size_t>::max());
+    expandedColors.accountObject(cache);
+    require(expandedColors.usedBytes() >= expandedOwners.usedBytes()
+                + 999 * sizeof(std::optional<std::array<dust3d::Color, 3>>),
+        "Cached corner-color capacity must count toward retention");
+    const auto beforeWeightReservation = expandedColors.usedBytes();
     wrap.resultVertexNodeWeights[0].reserve(1000);
     dust3d::RetainedPayloadBudget expandedWeights(std::numeric_limits<size_t>::max());
     expandedWeights.accountObject(cache);

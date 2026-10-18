@@ -31,7 +31,9 @@
 #include <dust3d/base/vector2.h>
 #include <dust3d/base/vector3.h>
 #include <map>
+#include <optional>
 #include <set>
+#include <string>
 #include <unordered_map>
 #include <vector>
 
@@ -64,6 +66,8 @@ class Object {
 public:
     std::vector<Vector3> vertices;
     std::map<PositionKey, Uuid> positionToNodeIdMap;
+    // Imported source associations remain distinct even when components coincide.
+    std::map<std::string, std::map<PositionKey, Uuid>> componentPositionToNodeIdMap;
     std::map<Uuid, ObjectNode> nodeMap;
     std::vector<std::vector<size_t>> triangleAndQuads;
     std::vector<std::vector<size_t>> triangles;
@@ -72,11 +76,13 @@ public:
     std::vector<Vector3> triangleNormals;
     std::vector<Color> vertexColors;
     // Corner colors preserve distinct attributes where Boolean vertices are shared.
-    std::vector<std::array<Color, 3>> triangleVertexColors;
+    std::vector<std::optional<std::array<Color, 3>>> triangleVertexColors;
     std::vector<float> vertexSmoothCutoffDegrees;
     std::map<std::array<PositionKey, 3>, Uuid> brokenTrianglesToComponentIdMap;
     std::map<Uuid, std::string> componentNames; // the component names, for exporters to label parts
     std::vector<Uuid> triangleComponentIds; // the component each triangle came from (parallel to triangles)
+    // Original document keys distinguish valid brace aliases lost by Uuid conversion.
+    std::vector<std::string> triangleComponentKeys;
     // Vertices of wrap surfaces (skin / cloth components) are not made by one node: they
     // carry weights over several nodes (skin weights transferred from what they wrap),
     // and their own colour and smoothing.

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Preserve imported vertex-color seams, per-node directional scales and component-scoped source hints, including distinct original component aliases.
+
 - Preserve imported colors and normals per owning component through Boolean/cache aggregation, including coincident uncombined parts, component-color fallback and group previews.
 
 - Transform imported normals with the local spine Jacobian, including cut rotation, nonuniform scales and taper; singular deformations retain geometry-derived normals.
