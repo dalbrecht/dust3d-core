@@ -206,3 +206,35 @@ or performance-parity claim is made. The resolver-only earlier coverage numbers
 are not whole-engine or freshly instrumented coverage for these changes.
 Fresh exact-head hosted review and all CI checks remain required before merge.
 Imported materials, new seam material interpolation and full M4 remain open.
+
+## Review corrections: quantization bounds and shared-part fallback colors
+
+Finding 4308854378 exposed an unchecked floating-point-to-long conversion after
+accepted radius/part/node scales multiplied into coordinates near 10^18. Before
+the fix, a direct quantization regression accepted unsafe inputs and an actual
+imported `.ds3` did not return the expected rejection. PositionKey now checks the
+scaled value against exact, exclusive signed-long bounds before conversion and
+throws PositionQuantizationError. This generic fix is kept in its own commit for
+upstream reuse. Tests cover each coordinate axis, NaN/infinities, finite overflow,
+near-boundary ordering and unchanged truncation; the archive contract covers
+expanded/sourced errors and a session recovering after rejection. The check adapts
+to the platform's long width; a local 32-bit build has not been performed.
+
+Finding 4308854381 reproduced two components referencing the same uncolored GLB
+part inheriting the last component's color. Imported attribute owners now retain
+the component's explicit/default fallback color separately from the shared part
+cache. Regressions cover red/blue and default/blue instances, a later color edit,
+fresh/session loads, and leaf/group previews. Explicit source vertex colors retain
+their existing precedence. The regression failed with the original implementation
+before this correction.
+
+The full final Debug build and CTest pass **38/38** (28.10 seconds), and the
+complete ASan/UBSan build and CTest pass **38/38** (74.06 seconds), with UBSan
+halt-on-error enabled. SwiftPM builds (12.50 seconds); strict native/test formatting,
+changed inherited ranges, manifest formatting, Qt boundary and whitespace checks
+pass. These are local macOS results; no local Linux/leak/32-bit result or full
+inherited coverage claim is made. Logs are under
+`/private/tmp/dust3d-core-pr43-bounds-*`. The branch also incorporates reviewed
+Node 24 CI from master (#45). Fresh exact-head review and hosted CI remain
+required before merge. This remains a geometry-preview stage; material transfer,
+Apple pin/adoption and M4 acceptance are not complete.

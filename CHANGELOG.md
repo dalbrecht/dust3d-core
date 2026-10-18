@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Reject nonfinite/out-of-range position quantization before integer conversion, and preserve distinct imported component fallback colors when multiple instances share one part.
+
 - Preserve imported vertex-color seams, per-node directional scales and component-scoped source hints, including distinct original component aliases.
 
 - Preserve imported colors and normals per owning component through Boolean/cache aggregation, including coincident uncombined parts, component-color fallback and group previews.

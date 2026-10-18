@@ -353,3 +353,14 @@ Jacobian, and component-scoped original source hints. Ownership retains opaque
 original component keys so accepted brace aliases do not collide. These remain
 geometry-stage acceptance; embedded materials, native asset adoption, rendered
 file previews and full M4 acceptance are still open.
+
+
+### Embedded geometry review hardening checkpoint
+
+Core #43 now rejects unsafe position quantization with a typed core failure,
+including extreme combined imported deformation and session recovery, and retains
+per-component fallback colors when multiple imported instances share a part. Both
+regressions failed before their fixes. Full Debug and ASan/UBSan suites pass
+38/38 locally; SwiftPM and formatting/Qt boundary checks pass. Exact-head review
+and hosted checks remain required before merging. These corrections do not
+complete imported materials, Apple adoption, file previews or M4 acceptance.
