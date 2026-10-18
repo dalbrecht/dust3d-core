@@ -54,6 +54,12 @@ workspace/allocator overhead. See [C/Swift contracts and limits](docs/uv-metadat
 and [ADR 0012](docs/adr/0012-owned-uv-metadata-boundary.md). These are metadata,
 not baked texture pixels or new renderer functionality.
 
+The internal `GlbReader` now provides bounded, owned single-mesh decoding for the
+embedded-model port. Native `.ds3` APIs still reject imported models until asset
+binding and generator integration land. See [design and limits](docs/adr/0016-bounded-glb-decoder.md)
+and [verification](docs/glb-reader-verification.md). This does not expose a new C
+API or establish application import, scene-transform, deformation or export parity.
+
 ## Build and test without Qt
 
 Requires CMake 3.20+, a C/C++17 compiler and platform thread support. No Swift,
