@@ -1673,7 +1673,11 @@ void MeshGenerator::applyImportedAttributes(Object* object)
 {
     if (m_importedModelData.empty())
         return;
-    std::map<std::string, const GeneratedPart*> owners;
+    struct ImportedOwner {
+        const GeneratedPart* part;
+        Color fallbackColor;
+    };
+    std::map<std::string, ImportedOwner> owners;
     for (const auto& component : m_snapshot->components) {
         if (String::valueOrEmpty(component.second, "linkDataType") != "partId")
             continue;
@@ -1684,7 +1688,9 @@ void MeshGenerator::applyImportedAttributes(Object* object)
             continue;
         auto part = m_cacheContext->parts.find(partId);
         if (part != m_cacheContext->parts.end()) {
-            owners.emplace(component.first, &part->second);
+            const auto color = String::valueOrEmpty(component.second, "color");
+            // A part can have multiple component instances with distinct colors.
+            owners.emplace(component.first, ImportedOwner { &part->second, color.empty() ? m_defaultPartColor : Color(color) });
             object->componentPositionToNodeIdMap.emplace(component.first, part->second.positionToNodeIdMap);
         }
     }
@@ -1704,11 +1710,11 @@ void MeshGenerator::applyImportedAttributes(Object* object)
         auto owner = owners.find(object->triangleComponentKeys[index]);
         if (owner == owners.end())
             continue;
-        const auto& part = *owner->second;
+        const auto& part = *owner->second.part;
         std::array<PositionKey, 3> key { PositionKey(object->vertices.at(face[0])),
             PositionKey(object->vertices.at(face[1])), PositionKey(object->vertices.at(face[2])) };
         if (!hasImportedColors)
-            object->triangleVertexColors[index] = std::array<Color, 3> { part.color, part.color, part.color };
+            object->triangleVertexColors[index] = std::array<Color, 3> { owner->second.fallbackColor, owner->second.fallbackColor, owner->second.fallbackColor };
         auto importedNormals = part.importedTriangleNormals.find(key);
         if (importedNormals != part.importedTriangleNormals.end() && index < updatedNormals.size() && updatedNormals[index].size() == 3) {
             for (size_t corner = 0; corner < 3; ++corner)

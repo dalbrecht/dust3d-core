@@ -526,6 +526,75 @@ void testImportedColorSeams()
         assertColors(cached.get());
     }
 }
+void testSharedImportedPartFallbackColors(bool hasFirstColor)
+{
+    auto createArchive = [&](const std::string& secondColor) {
+        auto xml = modelXml("1");
+        const std::string part = "{00000100-0000-4000-8000-000000000100}";
+        const auto first = "<component id='" + serialIdentity(200) + "' linkDataType='partId' linkData='" + part
+            + "'" + (hasFirstColor ? " color='#ff0000'" : "") + "/>";
+        const auto second = "<component id='" + serialIdentity(201) + "' linkDataType='partId' linkData='" + part
+            + "' combineMode='Uncombined' color='" + secondColor + "'/>";
+        const auto start = xml.find("<components>");
+        const auto end = xml.find("</components>", start);
+        xml.replace(start, end + std::string("</components>").size() - start, "<components>" + first + second + "</components>");
+        return archiveWithAssets(xml, { { "models/" + modelIdentity + ".glb", tetrahedron() } });
+    };
+    auto assertColors = [&](const Dust3DMesh* mesh, bool isSecondGreen) {
+        require(dust3d_mesh_vertex_count(mesh) == 24, "Shared imported part lost a component");
+        std::array<size_t, 2> counts {};
+        const auto* vertices = dust3d_mesh_vertices(mesh);
+        for (size_t index = 0; index < 24; ++index) {
+            const auto& color = vertices[index].color;
+            if (color[0] > .99f && (hasFirstColor ? color[1] < .01f && color[2] < .01f : color[1] > .99f && color[2] > .99f))
+                ++counts[0];
+            else if (color[0] < .01f && color[isSecondGreen ? 1 : 2] > .99f && color[isSecondGreen ? 2 : 1] < .01f)
+                ++counts[1];
+            else
+                throw std::runtime_error("Shared imported part introduced an unrelated fallback color");
+        }
+        require(counts == std::array<size_t, 2> { 12, 12 }, "Shared imported part overwrote component fallback colors");
+    };
+    const auto bytes = createArchive("#0000ff");
+    assertColors(load(bytes).get(), false);
+    Dust3DError error {};
+    std::unique_ptr<Dust3DGenerationSession, decltype(&dust3d_generation_session_destroy)> session(
+        dust3d_generation_session_create(DUST3D_DEFAULT_CACHE_PAYLOAD_BYTES, &error), dust3d_generation_session_destroy);
+    for (unsigned iteration = 0; iteration < 3; ++iteration) {
+        const auto edited = iteration == 2 ? createArchive("#00ff00") : bytes;
+        MeshOwner cached(dust3d_generation_session_load(session.get(), edited.data(), edited.size(), &error), dust3d_mesh_destroy);
+        require(cached && error.status == DUST3D_STATUS_OK, "Shared imported part session failed");
+        assertColors(cached.get(), iteration == 2);
+    }
+    std::string warning;
+    dust3d::native::ImportedModels imports;
+    auto snapshot = dust3d::native::readDocument(bytes.data(), bytes.size(), warning, nullptr, &imports);
+    const auto group = serialIdentity(900);
+    snapshot->components[group] = { { "id", group }, { "children", snapshot->rootComponent["children"] } };
+    snapshot->rootComponent["children"] = group;
+    dust3d::MeshGenerator generator(snapshot.release());
+    generator.setImportedModelData(imports.takeGeometry());
+    generator.generate();
+    require(generator.isSuccessful(), "Shared imported part group preview failed");
+    for (unsigned identity : { 200, 201, 900 }) {
+        const auto& preview = generator.generatedComponentPreviews().at(dust3d::Uuid(serialIdentity(identity)));
+        std::array<size_t, 2> counts {};
+        for (const auto& triangle : preview.triangles) {
+            for (auto vertex : triangle) {
+                const auto color = preview.vertexProperties.empty() ? preview.color : std::get<0>(preview.vertexProperties.at(vertex));
+                if (color.r() > .99 && (hasFirstColor ? color.g() < .01 && color.b() < .01 : color.g() > .99 && color.b() > .99))
+                    ++counts[0];
+                else if (color.r() < .01 && color.g() < .01 && color.b() > .99)
+                    ++counts[1];
+                else
+                    throw std::runtime_error("Shared imported preview introduced an unrelated fallback color");
+            }
+        }
+        require(counts == (identity == 900 ? std::array<size_t, 2> { 12, 12 } : identity == 200 ? std::array<size_t, 2> { 12, 0 }
+                                                                                                : std::array<size_t, 2> { 0, 12 }),
+            "Shared imported part overwrote leaf/group preview fallback colors");
+    }
+}
 void testCoincidentImportedAttributeIsolation(bool hasSecondColor, bool hasComponentAliases = false)
 {
     std::string nodes, edges, parts, components;
@@ -717,6 +786,8 @@ int main()
         testOwnedOutputsAndMaterialDiagnostics();
         testSessionAssetRevisionAndRecovery();
         testSharedAssetParts();
+        testSharedImportedPartFallbackColors(true);
+        testSharedImportedPartFallbackColors(false);
         testImportedColorSeams();
         testCoincidentImportedAttributeIsolation(true);
         testCoincidentImportedAttributeIsolation(false);
