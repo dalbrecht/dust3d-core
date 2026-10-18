@@ -1046,7 +1046,7 @@ std::unique_ptr<MeshState> MeshGenerator::combinePartMesh(const std::string& par
                 if (!importedData.vertexNormals.empty() && smoothCutoffDegrees < 0.01f) {
                     auto transformNormal = [&](size_t vi) -> Vector3 {
                         const auto& sv = importedData.vertices[vi];
-                        Vector3 transformed = spineDeformer.deformNormal(importedData.vertexNormals[vi], sv.y());
+                        Vector3 transformed = spineDeformer.deformNormal(importedData.vertexNormals[vi], sv);
                         if (!__mirrorFromPartId.empty())
                             transformed.setX(-transformed.x());
                         return transformed;
@@ -1064,11 +1064,16 @@ std::unique_ptr<MeshState> MeshGenerator::combinePartMesh(const std::string& par
                             PositionKey(partCache.vertices[face[1]]),
                             PositionKey(partCache.vertices[face[2]])
                         };
-                        partCache.importedTriangleNormals[triKey] = {
+                        std::array<Vector3, 3> transformedNormals = {
                             transformNormal(face[0]),
                             transformNormal(face[1]),
                             transformNormal(face[2])
                         };
+                        // A collapsed deformation has no inverse normal transform.
+                        // Keep the normals computed from surviving geometry instead.
+                        if (transformedNormals[0].isZero() || transformedNormals[1].isZero() || transformedNormals[2].isZero())
+                            continue;
+                        partCache.importedTriangleNormals[triKey] = transformedNormals;
                     }
                 }
 

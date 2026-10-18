@@ -55,6 +55,47 @@ std::vector<uint8_t> tetrahedron(float tipX = 0)
     return result;
 }
 
+std::vector<uint8_t> tetrahedronWithNormals()
+{
+    const std::array<std::array<float, 3>, 4> positions { { { -.5, 0, 0 }, { .5, 0, 0 }, { 0, 1, 0 }, { 0, .5, .5 } } };
+    const std::array<std::array<size_t, 3>, 4> faces { { { 0, 2, 1 }, { 0, 1, 3 }, { 1, 2, 3 }, { 2, 0, 3 } } };
+    std::vector<uint8_t> binary, normals;
+    auto appendSample = [](std::vector<uint8_t>& bytes, float value) {
+        uint32_t bits;
+        std::memcpy(&bits, &value, sizeof(bits));
+        appendWord(bytes, bits);
+    };
+    for (const auto& face : faces) {
+        std::array<double, 3> first, second;
+        for (size_t axis = 0; axis < 3; ++axis) {
+            first[axis] = positions[face[1]][axis] - positions[face[0]][axis];
+            second[axis] = positions[face[2]][axis] - positions[face[0]][axis];
+        }
+        const std::array<double, 3> normal { first[1] * second[2] - first[2] * second[1], first[2] * second[0] - first[0] * second[2], first[0] * second[1] - first[1] * second[0] };
+        const double length = std::sqrt(normal[0] * normal[0] + normal[1] * normal[1] + normal[2] * normal[2]);
+        for (size_t vertex : face) {
+            for (size_t axis = 0; axis < 3; ++axis) {
+                appendSample(binary, positions[vertex][axis]);
+                appendSample(normals, static_cast<float>(normal[axis] / length));
+            }
+        }
+    }
+    binary.insert(binary.end(), normals.begin(), normals.end());
+    std::string json = R"({"asset":{"version":"2.0"},"buffers":[{"byteLength":288}],"bufferViews":[{"buffer":0,"byteOffset":0,"byteLength":144},{"buffer":0,"byteOffset":144,"byteLength":144}],"accessors":[{"bufferView":0,"componentType":5126,"count":12,"type":"VEC3","min":[-0.5,0,0],"max":[0.5,1,0.5]},{"bufferView":1,"componentType":5126,"count":12,"type":"VEC3"}],"meshes":[{"primitives":[{"attributes":{"POSITION":0,"NORMAL":1}}]}]})";
+    while (json.size() % 4)
+        json += ' ';
+    std::vector<uint8_t> result;
+    appendWord(result, 0x46546c67);
+    appendWord(result, 2);
+    appendWord(result, static_cast<uint32_t>(28 + json.size() + binary.size()));
+    appendWord(result, static_cast<uint32_t>(json.size()));
+    appendWord(result, 0x4e4f534a);
+    result.insert(result.end(), json.begin(), json.end());
+    appendWord(result, static_cast<uint32_t>(binary.size()));
+    appendWord(result, 0x004e4942);
+    result.insert(result.end(), binary.begin(), binary.end());
+    return result;
+}
 std::vector<uint8_t> texturedTetrahedron()
 {
     const auto original = tetrahedron();
@@ -149,6 +190,37 @@ Positions positions(const Dust3DMesh* mesh)
     std::sort(result.begin(), result.end());
     return result;
 }
+void requireSurfaceNormals(const Dust3DMesh* mesh)
+{
+    const auto* vertices = dust3d_mesh_vertices(mesh);
+    for (size_t triangle = 0; triangle < dust3d_mesh_vertex_count(mesh); triangle += 3) {
+        std::array<double, 3> first, second;
+        for (size_t axis = 0; axis < 3; ++axis) {
+            first[axis] = double(vertices[triangle + 1].position[axis]) - vertices[triangle].position[axis];
+            second[axis] = double(vertices[triangle + 2].position[axis]) - vertices[triangle].position[axis];
+        }
+        std::array<double, 3> normal { first[1] * second[2] - first[2] * second[1], first[2] * second[0] - first[0] * second[2], first[0] * second[1] - first[1] * second[0] };
+        const double length = std::sqrt(normal[0] * normal[0] + normal[1] * normal[1] + normal[2] * normal[2]);
+        require(length > 1e-12, "Fixture produced a degenerate exported face");
+        for (size_t corner = 0; corner < 3; ++corner) {
+            double dot = 0;
+            for (size_t axis = 0; axis < 3; ++axis)
+                dot += normal[axis] / length * vertices[triangle + corner].normal[axis];
+            require(std::abs(dot - 1) < 2e-5, "Imported normal is not perpendicular to its transformed face");
+        }
+    }
+}
+void testTransformedImportedNormals()
+{
+    auto xml = modelXml("2");
+    const auto position = xml.find("deformWidth='2'");
+    require(position != std::string::npos, "Cannot configure normal fixture");
+    xml.insert(position, "deformThickness='1' cutRotation='.5' ");
+    for (const auto& payload : { tetrahedron(), tetrahedronWithNormals() }) {
+        auto mesh = load(archiveWithAssets(xml, { { "models/" + modelIdentity + ".glb", payload } }));
+        requireSurfaceNormals(mesh.get());
+    }
+}
 void testZeroWidthGeometry()
 {
     auto mesh = load(archive("0"));
@@ -163,6 +235,7 @@ void testZeroWidthGeometry()
         maximumZ = std::max(maximumZ, double(vertices[index].position[2]));
     }
     require(maximumZ - minimumZ > .1, "Zero width also collapsed the independent thickness axis");
+    requireSurfaceNormals(mesh.get());
 }
 void testRequiredAssetsAndAliases()
 {
@@ -354,6 +427,7 @@ int main()
         const double original = generatedWidth("1");
         const double widened = generatedWidth("2");
         require(original > 0 && std::abs(widened - original * 2) < 1e-6, "Imported spine deformation was not applied");
+        testTransformedImportedNormals();
         testZeroWidthGeometry();
         testRequiredAssetsAndAliases();
         testOwnedOutputsAndMaterialDiagnostics();

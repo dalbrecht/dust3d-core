@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Transform imported normals with the local spine Jacobian, including cut rotation, nonuniform scales and taper; singular deformations retain geometry-derived normals.
+
 - Keep imported-model spine width and thickness scales independent, so zero width produces finite flattened geometry without a division by zero.
 
 - Resolve required embedded GLB assets for expanded/sourced/session geometry previews with an aggregate decoded-owner quota, independent outputs, same-UUID cache invalidation and explicit material limitations; UV/bake and Apple adoption remain separate.

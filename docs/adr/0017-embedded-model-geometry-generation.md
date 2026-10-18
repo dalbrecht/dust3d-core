@@ -48,3 +48,12 @@ integration can be complete; they must not silently emit incomplete textured
 output. Pixel decoding, material ownership through C/Swift, reviewed Apple pinning,
 rendered file previews, lossless editor interactions and textured exports remain
 subsequent stages of #41 and M4/M7. The Apple apps are not updated by this core PR.
+
+
+Imported normals follow the inverse transpose of the local spine Jacobian. The
+full source position is necessary because taper introduces an off-axis derivative
+along the spine; frame rotation alone or inverse cross-section scales alone are
+insufficient. A compatibility source-Y overload evaluates the centre only. Singular
+Jacobian results leave the geometry-derived normals intact. Independent vector,
+finite-difference and actual archive tests cover the adopted path. This is a scoped
+portable core correction, with original formatting and licenses retained.

@@ -26,9 +26,9 @@ The contract exercises:
 
 Final local results:
 
-- Full Debug build and **37/37 CTest entries passed**, 24.54 seconds.
+- Full Debug build and **37/37 CTest entries passed**, 23.46 seconds.
 - The ASan/UBSan build passes the direct spine and expanded imported-model
-  contracts, 2.28 seconds, with UBSan halt-on-error enabled. Other local instrumented
+  contracts, 1.99 seconds, with UBSan halt-on-error enabled. Other local instrumented
   contracts were not rerun; hosted sanitizer CI still runs the full suite.
 - SwiftPM source product builds; strict Swift/C++ formatting and Qt boundary scan pass.
 - Resolver-only LLVM coverage: **83/83 lines and 5/5 functions (100%)**,
@@ -68,3 +68,25 @@ pass. Logs are retained under `/private/tmp/dust3d-core-pr43-zero-width-*`.
 The resolver-only coverage measurement above is unchanged source from the initial
 head; no whole-engine coverage claim is made. Fresh exact-head review and all
 hosted CI checks remain required before merge.
+
+
+## Review correction: transformed imported normals
+
+Finding 4308327427 identified frame-only normals under rotated/nonuniform vertex
+deformation. Both direct expected-vector tests and a public C API perpendicularity
+test failed before the fix. Normals now use the inverse transpose of the local
+vertex-deformation Jacobian, including longitudinal and radius-gradient terms.
+The generator supplies the full source point so tapered cross-sections retain
+their shear contribution. The legacy source-Y overload evaluates the centre.
+
+The direct contract covers rotation, inverse nonuniform scales, reflected scales,
+thin scales, taper and finite-difference tangents on a bent spine. Singular
+transforms return an unavailable normal; the generator retains geometry-derived
+normals rather than overriding them with zero or nonfinite data. Actual GLB
+fixtures with explicit and generated normals verify perpendicular output under
+rotation/scaling; the zero-width archive verifies the singular fallback. Final
+corrected Debug build passes all 37 contracts (23.46 seconds); both relevant
+ASan/UBSan contracts pass (1.99 seconds). SwiftPM, formatting and Qt boundary
+checks pass. Logs are under `/private/tmp/dust3d-core-pr43-normal-*`.
+Fresh exact-head automated review and all hosted CI checks remain required.
+No whole-engine coverage claim is made.

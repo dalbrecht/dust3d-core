@@ -138,20 +138,65 @@ public:
         return spinePos + rotatedRight * (localU * widthScale) + rotatedUp * (localV * thicknessScale);
     }
 
-    // Map a source normal onto the spine frame (cut rotation is intentionally
-    // not applied to normals, matching the Imported generator).
-    Vector3 deformNormal(const Vector3& sourceNormal, double sourceY) const
+    // Apply the inverse transpose of the local vertex-deformation Jacobian.
+    // Singular transforms return zero so callers can retain geometry-derived normals.
+    Vector3 deformNormal(const Vector3& sourceNormal, const Vector3& sourceVertex) const
     {
-        double t = (sourceY - m_sourceMin.y()) / m_sourceLength;
+        if (m_meshNodes.size() < 2)
+            return Vector3();
+        double t = (sourceVertex.y() - m_sourceMin.y()) / m_sourceLength;
+        if (!std::isfinite(t) || t < 0 || t > 1)
+            return Vector3();
         t = std::max(0.0, std::min(1.0, t));
-        size_t segIdx = segmentForDistance(t * m_totalSpineLength);
-
+        double targetDist = t * m_totalSpineLength;
+        size_t segIdx = segmentForDistance(targetDist);
+        double segLen = m_spineDistances[segIdx + 1] - m_spineDistances[segIdx];
+        if (segLen <= 0.0001)
+            return Vector3();
+        double segT = (targetDist - m_spineDistances[segIdx]) / segLen;
+        double radius = m_meshNodes[segIdx].radius * (1.0 - segT) + m_meshNodes[segIdx + 1].radius * segT;
         Vector3 right;
         Vector3 realUp;
         crossSectionBasis(segIdx, &right, &realUp);
-        Vector3 forward = m_spineForwards[segIdx];
+        double rotationAngle = m_cutRotation * Math::Pi;
+        double cosR = std::cos(rotationAngle);
+        double sinR = std::sin(rotationAngle);
+        Vector3 rotatedRight = right * cosR + realUp * sinR;
+        Vector3 rotatedUp = realUp * cosR - right * sinR;
+        double scale = radius * 2.0 / m_crossSize;
+        double longitudinalScale = m_totalSpineLength / m_sourceLength;
+        double scaleDerivative = 2.0 / m_crossSize
+            * (m_meshNodes[segIdx + 1].radius - m_meshNodes[segIdx].radius) / segLen * longitudinalScale;
+        Vector3 derivativeX = rotatedRight * (scale * m_deformWidth);
+        Vector3 derivativeZ = rotatedUp * (scale * m_deformThickness);
+        Vector3 derivativeY = m_spineForwards[segIdx] * longitudinalScale
+            + rotatedRight * ((sourceVertex.x() - m_sourceCenter.x()) * scaleDerivative * m_deformWidth)
+            + rotatedUp * ((sourceVertex.z() - m_sourceCenter.z()) * scaleDerivative * m_deformThickness);
+        Vector3 cofactorX = Vector3::crossProduct(derivativeY, derivativeZ);
+        Vector3 cofactorY = Vector3::crossProduct(derivativeZ, derivativeX);
+        Vector3 cofactorZ = Vector3::crossProduct(derivativeX, derivativeY);
+        double determinant = Vector3::dotProduct(derivativeX, cofactorX);
+        if (!std::isfinite(determinant) || determinant == 0)
+            return Vector3();
+        Vector3 normal = cofactorX * sourceNormal.x() + cofactorY * sourceNormal.y() + cofactorZ * sourceNormal.z();
+        if (determinant < 0)
+            normal = -normal;
+        double maximumComponent = 0;
+        for (size_t axis = 0; axis < 3; ++axis) {
+            if (!std::isfinite(normal[axis]))
+                return Vector3();
+            maximumComponent = std::max(maximumComponent, std::abs(normal[axis]));
+        }
+        if (maximumComponent == 0)
+            return Vector3();
+        // Normalize after rescaling to avoid squared-length overflow/underflow.
+        return Vector3(normal.x() / maximumComponent, normal.y() / maximumComponent, normal.z() / maximumComponent).normalized();
+    }
 
-        return (right * sourceNormal.x() + forward * sourceNormal.y() + realUp * sourceNormal.z()).normalized();
+    // Compatibility overload evaluated at the source cross-section centre.
+    Vector3 deformNormal(const Vector3& sourceNormal, double sourceY) const
+    {
+        return deformNormal(sourceNormal, Vector3(m_sourceCenter.x(), sourceY, m_sourceCenter.z()));
     }
 
 private:
