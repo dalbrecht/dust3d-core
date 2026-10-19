@@ -12,12 +12,14 @@ namespace native {
     class UvMetadata;
     class BakedMeshData;
     class ImportedSurfaceData;
+    class SourceBakedData;
     /// Named borrowed output hooks. All pointees outlive this synchronous generation call.
     struct GenerationOutputs {
         SourceProvenance* sources = nullptr;
         UvMetadata* uvs = nullptr;
         BakedMeshData* baked = nullptr;
         ImportedSurfaceData* surfaces = nullptr;
+        SourceBakedData* sourceBaked = nullptr;
         const std::map<Uuid, UvAtlasImage>* images = nullptr;
         size_t textureSize = 4096;
     };

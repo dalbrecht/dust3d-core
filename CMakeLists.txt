@@ -32,6 +32,7 @@ target_include_directories(dust3d_core PUBLIC
     third_party/earcut.hpp/include)
 target_link_libraries(dust3d_core PUBLIC dust3d_remesher dust3d_triangle Threads::Threads)
 add_library(dust3d_engine STATIC
+    native/Engine/SourceBakedMesh.cc
     native/Engine/ImportedSurface.cc
     native/Engine/ImportedAssets.cc
     native/Engine/ImportedModels.cc
@@ -52,6 +53,18 @@ target_link_libraries(dust3d_engine PRIVATE dust3d_core)
 
 include(CTest)
 if(BUILD_TESTING)
+    add_executable(dust3d_source_bake_composition_tests tests/core/source_bake_composition_tests.cc)
+    target_link_libraries(dust3d_source_bake_composition_tests PRIVATE dust3d_engine dust3d_core)
+    add_test(NAME source_bake_composition COMMAND dust3d_source_bake_composition_tests)
+    set_tests_properties(source_bake_composition PROPERTIES TIMEOUT 60)
+    add_executable(dust3d_source_baked_c_consumer tests/core/source_baked_mesh_c_consumer.c)
+    set_target_properties(dust3d_source_baked_c_consumer PROPERTIES LINKER_LANGUAGE CXX)
+    target_link_libraries(dust3d_source_baked_c_consumer PRIVATE dust3d_engine)
+    add_test(NAME source_baked_c_consumer COMMAND dust3d_source_baked_c_consumer)
+    add_executable(dust3d_source_baked_mesh_tests tests/core/source_baked_mesh_tests.cc)
+    target_link_libraries(dust3d_source_baked_mesh_tests PRIVATE dust3d_engine)
+    add_test(NAME source_baked_mesh_contracts COMMAND dust3d_source_baked_mesh_tests ${CMAKE_CURRENT_SOURCE_DIR}/tests/core/fixtures)
+    set_tests_properties(source_baked_mesh_contracts PROPERTIES TIMEOUT 60)
     add_executable(dust3d_source_texture_baker_tests tests/core/source_texture_baker_tests.cc)
     target_link_libraries(dust3d_source_texture_baker_tests PRIVATE dust3d_engine dust3d_core)
     add_test(NAME source_texture_baker_contracts COMMAND dust3d_source_texture_baker_tests ${CMAKE_CURRENT_SOURCE_DIR}/tests/core/fixtures)

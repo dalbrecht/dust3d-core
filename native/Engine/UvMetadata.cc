@@ -89,6 +89,11 @@ namespace native {
         }
     }
 
+    std::map<Uuid, UvAtlasComponent> resolvedUvComponents(const Snapshot& generated, const std::map<Uuid, UvAtlasImage>& images)
+    {
+        return resolvedComponents(generated, images);
+    }
+
     Color normalizedUvColor(const std::string& text) { return normalizedColor(text); }
     void validateUvVisuals(const Snapshot& snapshot, const std::map<Uuid, UvAtlasImage>& images) { (void)resolvedComponents(snapshot, images); }
 

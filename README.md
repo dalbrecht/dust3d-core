@@ -363,3 +363,41 @@ output filtering; honor `maximumSamplingLod=0` until chart-isolated atlas minifi
 lands in #59. Source-image mip sampling remains supported. See [ADR 0023](docs/adr/0023-source-aware-cpu-baking.md) for
 linear color, mip footprint, normal-transposition and resource/coverage requirements.
 Native document loading and Apple adoption remain separate; no image decoder is added.
+
+### Native source-aware bake owner
+
+`dust3d_source_baked_mesh_load` opts into imported/procedural composition without
+changing the existing loaders. Resolve encoded materials with the inspection API,
+decode matching images into bounded sRGB straight RGBA8, then keep those buffers
+alive throughout this synchronous serialized call:
+
+```c
+Dust3DSourceBakeOptions options = {0};
+options.struct_size = sizeof(options);
+options.legacy.struct_size = sizeof(options.legacy);
+options.model_images = decoded_model_images;
+options.model_image_count = decoded_model_image_count;
+Dust3DSourceBakedMesh* owner =
+    dust3d_source_baked_mesh_load(bytes, size, &options, &error);
+if (owner != NULL) {
+    const Dust3DMesh* geometry = dust3d_source_baked_mesh_geometry(owner);
+    const Dust3DSourceBakedTriangle* triangles =
+        dust3d_source_baked_mesh_triangles(owner);
+    Dust3DTextureView color =
+        dust3d_source_baked_mesh_texture(owner, DUST3D_TEXTURE_COLOR);
+    double maximum_lod = dust3d_source_baked_mesh_maximum_sampling_lod(owner);
+    /* Copy needed views/catalogs before destruction; never destroy geometry.
+       Honor maximum_lod (currently 0), uv_known, policy_known and tangent.known. */
+    dust3d_source_baked_mesh_destroy(owner);
+}
+```
+
+Decoded model IDs are exact byte spans from the material catalog; source buffers
+and cancellation tokens are borrowed only during the call. Results own geometry,
+source catalogs, packed UVs, tangents, complete-color maps and aligned draw policies.
+Known mapped geometry has neutral vertex modulation. Direct imported component
+color-image overrides reject explicitly until supported. No decoder or dependency
+is added. See [ADR 0024](docs/adr/0024-owned-native-source-baking.md) for aggregate
+quota, workspace/cancellation limits and [verification](docs/native-source-baking-verification.md).
+Apple SDK/rendering/export adoption and chart-isolated atlas minification (#59)
+remain required stages; no full material/editor parity is claimed.

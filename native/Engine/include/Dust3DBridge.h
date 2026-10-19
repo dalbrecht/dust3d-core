@@ -552,7 +552,8 @@ Dust3DStatus dust3d_generation_session_get_stats(const Dust3DGenerationSession* 
  * Maximum input size: 256 MiB. Required embedded GLB models use the bounded
  * single-mesh decoder and a 64 MiB aggregate decoded-owner payload limit.
  * Geometry previews disclose unapplied GLB materials/textures/transparency through
- * dust3d_mesh_warning. UV and baked-mesh APIs still reject imported models.
+ * dust3d_mesh_warning. Legacy UV/baked-mesh APIs still reject imported models;
+ * source-aware baking is a separate opt-in owner.
  * Missing, malformed or ambiguous required model assets fail the primary load;
  * unreferenced model assets are preserved as opaque input and are not decoded.
  */
@@ -722,6 +723,92 @@ size_t dust3d_baked_mesh_tangent_count(const Dust3DBakedMesh* mesh);
  * zero for NULL owner. Does not establish a process memory cap.
  */
 size_t dust3d_baked_mesh_payload_bytes(const Dust3DBakedMesh* mesh);
+
+/** Independently owned source-aware bake; destroy with its matching function. */
+typedef struct Dust3DSourceBakedMesh Dust3DSourceBakedMesh;
+/** Caller-decoded sRGB straight RGBA8 for one exact material model_id.
+ * Identity bytes and image storage are borrowed only during load. Length is 1..128,
+ * excludes NUL, and embedded NULs reject. Decode the matching imported material's
+ * encoded image; the core validates storage but cannot verify decoder correspondence.
+ */
+typedef struct Dust3DModelBakeImage {
+    const char* model_id;
+    size_t model_id_length;
+    Dust3DTextureView image;
+} Dust3DModelBakeImage;
+/** Source-matched options; both struct_size fields must match their types.
+ * legacy supplies procedural decoded images, dimensions, cancellation and independent
+ * procedural workspace quotas. Zero sampler/atlas quotas select 64 MiB, output 256 MiB;
+ * hard maximum for each is 256 MiB. Output charges retained geometry, surface catalogs,
+ * maps, roots and triangle capacities, excluding allocator and temporary workspace.
+ * Sampler quota sums copied sampler/mip payloads; lookup workspace is excluded.
+ * Zero chart/work limits select 50000/250000000; hard maxima 100000/1000000000.
+ * Up to 10000 model images may be borrowed. Every used textured model must resolve.
+ * No whole-call time/RSS/cancellation-latency guarantee is made.
+ */
+typedef struct Dust3DSourceBakeOptions {
+    size_t struct_size;
+    Dust3DBakeOptions legacy;
+    const Dust3DModelBakeImage* model_images;
+    size_t model_image_count;
+    size_t maximum_sampler_payload_bytes;
+    size_t maximum_atlas_payload_bytes;
+    size_t maximum_output_payload_bytes;
+    size_t maximum_chart_count;
+    size_t maximum_raster_samples;
+} Dust3DSourceBakeOptions;
+/** Final float-retained triangle order; uv is packed, not authored. Indices refer
+ * to this owner's exact catalogs; SIZE_MAX means unknown. Unknown mapping/policy
+ * stays explicit. Tangents use top-down image V. Color maps already include source
+ * factors; known mapped geometry has neutral vertex color to avoid double modulation.
+ */
+typedef struct Dust3DSourceBakedTriangle {
+    double uv[3][2];
+    uint8_t uv_known;
+    uint8_t policy_known;
+    Dust3DImportedAlphaMode alpha_mode;
+    double alpha_cutoff;
+    uint8_t is_double_sided;
+    size_t model_index;
+    size_t component_index;
+    Dust3DTextureTangent tangent;
+} Dust3DSourceBakedTriangle;
+/** Serialized opt-in source-aware bake. Existing loaders retain their contracts.
+ * @param bytes Complete archive bytes, borrowed throughout this synchronous call.
+ * @param size Readable byte count, subject to existing document limits.
+ * @param options Required source-matched options and borrowed decoded views.
+ * @param error Optional initialized diagnostic; original failure causes are preserved.
+ * @return Independent owner on success, NULL on failure.
+ * Inputs are borrowed for the call only; no caller storage survives in the owner.
+ * INVALID_DOCUMENT covers malformed options/storage, UNSUPPORTED_ASSET unresolved
+ * visuals, LIMIT_EXCEEDED quotas/resolution, CANCELLED cooperative cancellation;
+ * other parse/generation failures retain their original cause. Never throws into C.
+ * Returns NULL on failure. Image decoding remains the caller's responsibility.
+ * Output atlas sampling must honor maximum_sampling_lod (currently zero); global
+ * mixed-chart mip generation is unsafe until a chart-isolated mip policy exists.
+ */
+Dust3DSourceBakedMesh* dust3d_source_baked_mesh_load(const uint8_t* bytes, size_t size, const Dust3DSourceBakeOptions* options, Dust3DError* error);
+/** NULL accepted. All borrowed views below expire on owner destruction. */
+void dust3d_source_baked_mesh_destroy(Dust3DSourceBakedMesh* mesh);
+/** Borrowed geometry; never destroy separately. NULL for NULL owner. */
+const Dust3DMesh* dust3d_source_baked_mesh_geometry(const Dust3DSourceBakedMesh* mesh);
+/** Borrowed aligned records, NULL for NULL/empty owner. */
+const Dust3DSourceBakedTriangle* dust3d_source_baked_mesh_triangles(const Dust3DSourceBakedMesh* mesh);
+/** Counts and logical retained bytes; zero for NULL owner. */
+size_t dust3d_source_baked_mesh_triangle_count(const Dust3DSourceBakedMesh* mesh);
+size_t dust3d_source_baked_mesh_model_count(const Dust3DSourceBakedMesh* mesh);
+size_t dust3d_source_baked_mesh_component_count(const Dust3DSourceBakedMesh* mesh);
+size_t dust3d_source_baked_mesh_payload_bytes(const Dust3DSourceBakedMesh* mesh);
+/** Borrowed exact identity, empty for NULL/out-of-range; never free. */
+const char* dust3d_source_baked_mesh_model_id(const Dust3DSourceBakedMesh* mesh, size_t index);
+const char* dust3d_source_baked_mesh_component_id(const Dust3DSourceBakedMesh* mesh, size_t index);
+/** Membership classification; UNKNOWN for NULL/out-of-range. */
+Dust3DSurfaceComponentKind dust3d_source_baked_mesh_component_kind(const Dust3DSourceBakedMesh* mesh, size_t index);
+/** Borrowed packed RGBA8, same map selectors/encoding as the legacy bake API.
+ * Zero value for NULL, absent normal or invalid selector. */
+Dust3DTextureView dust3d_source_baked_mesh_texture(const Dust3DSourceBakedMesh* mesh, uint32_t map);
+/** Output LOD clamp, currently zero (also for NULL). Source-image LOD is independent. */
+double dust3d_source_baked_mesh_maximum_sampling_lod(const Dust3DSourceBakedMesh* mesh);
 
 #ifdef __cplusplus
 }

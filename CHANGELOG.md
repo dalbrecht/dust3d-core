@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add an owned opt-in native source-bake C API with caller-decoded imported images, exact final geometry/UV/material alignment, procedural composition, bounded ownership and explicit atlas LOD metadata. Existing load/bake contracts and Apple pins remain unchanged (#58).
+
 - Add owned CPU source-aware atlas baking with linear imported color factors, derivative mip selection, per-triangle alpha/sidedness policies, PBR maps and legacy-map composition. Isolate chart gutters, require bilinear padding and expose the output LOD-zero limit; chart-isolated atlas mips remain #59. Native/Apple adoption remains pending (#56).
 
 - Add ordinal imported atlas layout with independent authored UVs, exact model/component identities, geometry-derived non-overlapping charts and a separate procedural atlas transform. Native bake adoption remains pending (#54).
