@@ -11,6 +11,8 @@ enum class SourceTextureAlphaMode { opaque,
     blend };
 struct SourceTexturePolicy {
     SourceTextureAlphaMode alphaMode = SourceTextureAlphaMode::opaque;
+    /// Finite nonnegative glTF cutoff; MASK values above one hide every fragment.
+    /// OPAQUE/BLEND ignore the cutoff. Preserve it without thresholding baked alpha.
     double alphaCutoff = .5;
     bool isDoubleSided = false;
 };

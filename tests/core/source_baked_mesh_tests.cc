@@ -346,6 +346,32 @@ void texturelessAndEncodedFallback(const std::vector<uint8_t>& bytes)
         "Encoded component fallback color must decode independently of linear glTF vertex colors");
 }
 
+void preservesLargeAlphaCutoffs(const std::vector<uint8_t>& bytes)
+{
+    auto baseline = load(bytes);
+    const auto original = dust3d_source_baked_mesh_texture(baseline.get(), DUST3D_TEXTURE_COLOR);
+    const std::string text(bytes.begin(), bytes.end());
+    const std::string field = "\"alphaCutoff\":0.375";
+    const auto offset = text.find(field);
+    require(offset != std::string::npos, "Missing real GLB alpha cutoff fixture field");
+    for (const auto& replacement : { std::string("1.500"), std::string("1e300") }) {
+        auto changed = bytes;
+        std::copy(replacement.begin(), replacement.end(), changed.begin() + offset + field.size() - replacement.size());
+        auto owner = load(changed);
+        const double expected = replacement == "1.500" ? 1.5 : 1e300;
+        const auto count = dust3d_source_baked_mesh_triangle_count(owner.get());
+        require(count == 4, "Valid large cutoffs must not change retained geometry");
+        const auto* triangles = dust3d_source_baked_mesh_triangles(owner.get());
+        for (size_t index = 0; index < count; ++index)
+            require(triangles[index].policy_known && triangles[index].alpha_mode == DUST3D_IMPORTED_ALPHA_MASK
+                    && triangles[index].alpha_cutoff == expected,
+                "The owned C API must preserve the original nonnegative double cutoff");
+        const auto color = dust3d_source_baked_mesh_texture(owner.get(), DUST3D_TEXTURE_COLOR);
+        require(color.byte_count == original.byte_count && std::equal(original.pixels, original.pixels + original.byte_count, color.pixels),
+            "A mask cutoff must not erase source RGB/alpha during baking");
+    }
+}
+
 void proceduralCompatibility(const std::vector<uint8_t>& bytes)
 {
     Dust3DError error {};
@@ -483,6 +509,7 @@ int main(int argc, char** argv)
         rejectUnsupportedImportedImageOverride(bytes);
         acceptedSamplerValues(bytes);
         texturelessAndEncodedFallback(bytes);
+        preservesLargeAlphaCutoffs(bytes);
         std::cout << "Native source bake contracts passed\n";
         return 0;
     } catch (const std::exception& error) {

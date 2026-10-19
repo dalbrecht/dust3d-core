@@ -38,7 +38,7 @@ namespace {
     }
     void validatePolicy(const SourceTexturePolicy& policy)
     {
-        if ((policy.alphaMode != SourceTextureAlphaMode::opaque && policy.alphaMode != SourceTextureAlphaMode::mask && policy.alphaMode != SourceTextureAlphaMode::blend) || !unit(policy.alphaCutoff))
+        if ((policy.alphaMode != SourceTextureAlphaMode::opaque && policy.alphaMode != SourceTextureAlphaMode::mask && policy.alphaMode != SourceTextureAlphaMode::blend) || !std::isfinite(policy.alphaCutoff) || policy.alphaCutoff < 0)
             invalid("Source texture alpha policy is invalid");
     }
     void validateView(const TextureImageView& view)
