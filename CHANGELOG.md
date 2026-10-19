@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add ordinal imported atlas layout with independent authored UVs, exact model/component identities, geometry-derived non-overlapping charts and a separate procedural atlas transform. Native bake adoption remains pending (#54).
+
 - Add bounded, owned CPU sRGB color sampling with authored wrapping, all glTF filter modes, straight alpha and odd-dimension mip reduction as an imported-baking foundation. Atlas/bake integration remains pending (#52).
 
 - Add an owned C surface-source API with float-retained triangle alignment, authored repeat UVs, straight RGBA with explicit linear/sRGB encoding, resolved model/component catalogs and bounded retained ownership. Atlas sampling, baking and Apple adoption remain separate.

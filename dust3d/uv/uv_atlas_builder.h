@@ -15,7 +15,8 @@ class Object;
 enum class UvAtlasErrorCode {
     invalidInput,
     limitExceeded,
-    packingFailed
+    packingFailed,
+    cancelled
 };
 
 /// Typed input, quota or atlas failure. Allocation failures may also throw std::bad_alloc.
