@@ -358,6 +358,8 @@ chart-count/payload bounds, cancellation limits and remaining bake integration.
 into packed charts and composes borrowed procedural maps through the legacy region.
 Provide exact-key materials, aligned corner colors and optional owned CPU samplers;
 all borrowed storage must outlive the call. Output owns color/PBR maps and aligned
-alpha/sidedness policies. See [ADR 0023](docs/adr/0023-source-aware-cpu-baking.md) for
+alpha/sidedness policies. Chart-owned dilation and one-texel collars support bilinear
+output filtering; honor `maximumSamplingLod=0` until chart-isolated atlas minification
+lands in #59. Source-image mip sampling remains supported. See [ADR 0023](docs/adr/0023-source-aware-cpu-baking.md) for
 linear color, mip footprint, normal-transposition and resource/coverage requirements.
 Native document loading and Apple adoption remain separate; no image decoder is added.

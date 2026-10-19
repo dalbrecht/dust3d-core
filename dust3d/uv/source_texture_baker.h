@@ -52,6 +52,9 @@ struct SourceTextureBakeResult {
     TextureImage emissive;
     std::optional<TextureImage> normal;
     std::vector<std::optional<SourceTexturePolicy>> trianglePolicies;
+    /// Output supports base-level bilinear filtering. Global atlas mip chains are
+    /// not chart-isolated; callers must clamp output sampling to this LOD.
+    double maximumSamplingLod = 0;
     size_t payloadBytes = 0;
     size_t rasterSamples = 0;
 };
@@ -70,7 +73,9 @@ public:
     /// @throws TextureBakeError Invalid/incomplete inputs, insufficient texel resolution, quota or cancellation.
     /// Allocation failures may throw std::bad_alloc. Payload includes root, pixel/policy capacities;
     /// excludes caller inputs, allocator overhead, overlap/raster/dilation workspace (not an RSS cap).
-    /// Every imported triangle must cover a texel in each output map; otherwise increase resolution.
+    /// Every imported triangle must cover a texel in each output map, with disjoint
+    /// one-texel chart collars for bilinear filtering; otherwise increase resolution.
+    /// Output sampling is clamped to LOD zero; source texture mip selection is independent.
     /// Cancellation is checked during validation, between rows and every 4096 texel operations.
     /// Example: `auto maps = SourceTextureBaker::bake(atlas, resolvedInputs);`
     static SourceTextureBakeResult bake(const SourceUvAtlas& atlas, const SourceTextureBakeInputs& inputs, const SourceTextureBakeOptions& options = {});

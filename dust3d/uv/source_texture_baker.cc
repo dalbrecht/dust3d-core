@@ -70,13 +70,19 @@ namespace {
         size_t ordinal;
         bool starts;
     };
-    void rejectOverlaps(const std::vector<SourceUvChart>& charts, const SourceTextureBakeOptions& options)
+    void rejectOverlaps(const std::vector<SourceUvChart>& charts, const SourceTextureBakeOptions& options, double padding = 0)
     {
         std::vector<Event> events;
         events.reserve(charts.size() * 2);
         for (size_t index = 0; index < charts.size(); ++index) {
             checkCancellation(options);
-            const auto& chart = charts[index];
+            auto chart = charts[index];
+            const double right = std::min(1.0, chart.left + chart.width + padding);
+            const double bottom = std::min(1.0, chart.top + chart.height + padding);
+            chart.left = std::max(0.0, chart.left - padding);
+            chart.top = std::max(0.0, chart.top - padding);
+            chart.width = right - chart.left;
+            chart.height = bottom - chart.top;
             events.push_back({ chart.left, chart.top, chart.top + chart.height, index, true });
             events.push_back({ chart.left + chart.width, chart.top, chart.top + chart.height, index, false });
         }
@@ -96,8 +102,11 @@ namespace {
                 continue;
             }
             auto next = active.lower_bound(key);
-            if ((next != active.end() && next->first.first < event.bottom) || (next != active.begin() && std::prev(next)->second > event.top))
+            if ((next != active.end() && next->first.first < event.bottom) || (next != active.begin() && std::prev(next)->second > event.top)) {
+                if (padding > 0)
+                    limit("Output texture resolution cannot reserve one texel of chart padding; increase map dimensions");
                 invalid("Source texture charts overlap");
+            }
             active.emplace(key, event.bottom);
         }
     }
@@ -197,6 +206,10 @@ namespace {
                         invalid("Source texture corner colors must be normalized and finite");
         }
         rejectOverlaps(charts, options);
+        size_t minimumSize = std::min(options.colorSize, options.materialSize);
+        if (inputs.legacy.normal)
+            minimumSize = std::min(minimumSize, options.normalSize);
+        rejectOverlaps(charts, options, 1.0 / minimumSize);
     }
     double lod(const Geometry& geometry, const SourceUvTriangle& triangle, const SourceTextureMaterial& material)
     {
@@ -245,9 +258,76 @@ namespace {
         return { encode(value[0]), encode(value[1]), encode(value[2]), byte(value[3]) };
     }
     void put(TextureImage& image, size_t index, const Pixel& pixel) { std::copy(pixel.begin(), pixel.end(), image.pixels.begin() + index * 4); }
-    void dilate(TextureImage& image, std::vector<uint8_t>& coverage, Work& work)
+    std::vector<uint32_t> chartOwnership(size_t size, const SourceUvAtlas& atlas, Work& work)
+    {
+        constexpr uint32_t unknown = std::numeric_limits<uint32_t>::max();
+        std::vector<uint32_t> owners(size * size, unknown);
+        std::vector<uint32_t> queue;
+        queue.reserve(size * size);
+        std::vector<const SourceUvChart*> charts;
+        if (atlas.legacyChart)
+            charts.push_back(&*atlas.legacyChart);
+        for (const auto& triangle : atlas.triangles)
+            if (triangle.importedChart)
+                charts.push_back(&*triangle.importedChart);
+        for (size_t ordinal = 0; ordinal < charts.size(); ++ordinal) {
+            auto chart = *charts[ordinal];
+            // Reserve the complete bilinear collar before assigning more distant
+            // gaps, so Manhattan flood distance cannot steal a diagonal corner.
+            const double margin = 1.0 / size;
+            const double right = std::min(1.0, chart.left + chart.width + margin);
+            const double bottom = std::min(1.0, chart.top + chart.height + margin);
+            chart.left = std::max(0.0, chart.left - margin);
+            chart.top = std::max(0.0, chart.top - margin);
+            chart.width = right - chart.left;
+            chart.height = bottom - chart.top;
+            size_t startX = static_cast<size_t>(std::floor(chart.left * size));
+            size_t startY = static_cast<size_t>(std::floor(chart.top * size));
+            size_t endX = std::min(size, static_cast<size_t>(std::ceil((chart.left + chart.width) * size)));
+            size_t endY = std::min(size, static_cast<size_t>(std::ceil((chart.top + chart.height) * size)));
+            for (size_t y = startY; y < endY; ++y) {
+                checkCancellation(work.options);
+                for (size_t x = startX; x < endX; ++x) {
+                    work.step();
+                    double u = ((x + .5) / size - chart.left) / chart.width;
+                    double v = ((y + .5) / size - chart.top) / chart.height;
+                    if (u < 0 || u >= 1 || v < 0 || v >= 1)
+                        continue;
+                    const size_t index = y * size + x;
+                    if (owners[index] != unknown)
+                        invalid("Packed charts claim the same output texel ownership");
+                    owners[index] = static_cast<uint32_t>(ordinal);
+                    queue.push_back(static_cast<uint32_t>(index));
+                }
+            }
+        }
+        // Seed entire rectangles, not colored triangle pixels: even distant uncovered
+        // chart corners and nearby padding must belong to their own material.
+        for (size_t cursor = 0; cursor < queue.size(); ++cursor) {
+            work.step();
+            const size_t index = queue[cursor], x = index % size, y = index / size;
+            auto spread = [&](size_t next) {
+                if (owners[next] != unknown)
+                    return;
+                owners[next] = owners[index];
+                queue.push_back(static_cast<uint32_t>(next));
+            };
+            if (x)
+                spread(index - 1);
+            if (x + 1 < size)
+                spread(index + 1);
+            if (y)
+                spread(index - size);
+            if (y + 1 < size)
+                spread(index + size);
+        }
+        return owners;
+    }
+
+    void dilate(TextureImage& image, std::vector<uint8_t>& coverage, const std::vector<uint32_t>& owners, Work& work)
     {
         std::vector<uint32_t> queue;
+        queue.reserve(coverage.size());
         for (size_t index = 0; index < coverage.size(); ++index) {
             work.step();
             if (coverage[index])
@@ -257,7 +337,7 @@ namespace {
             work.step();
             size_t index = queue[cursor], x = index % image.width, y = index / image.width;
             auto spread = [&](size_t next) {
-                if (coverage[next])
+                if (coverage[next] || owners[next] != owners[index])
                     return;
                 coverage[next] = 1;
                 std::copy_n(image.pixels.data() + index * 4, 4, image.pixels.data() + next * 4);
@@ -283,6 +363,7 @@ namespace {
             put(image, index, initial);
         }
         std::vector<uint8_t> coverage(size * size);
+        const auto owners = chartOwnership(size, atlas, work);
         if (atlas.legacyChart) {
             const auto& chart = *atlas.legacyChart;
             const auto* view = kind == 0 ? &inputs.legacy.color : kind == 1 ? &inputs.legacy.metallic
@@ -321,11 +402,13 @@ namespace {
             if (!painted)
                 limit("Output texture resolution cannot retain the legacy atlas region");
         }
+        uint32_t chartOwner = atlas.legacyChart ? 1 : 0;
         for (size_t ordinal = 0; ordinal < atlas.triangles.size(); ++ordinal) {
             checkCancellation(work.options);
             const auto& triangle = atlas.triangles[ordinal];
             if (triangle.modelKey.empty())
                 continue;
+            const uint32_t currentOwner = chartOwner++;
             const auto& material = inputs.materials.at(triangle.modelKey);
             const auto shape = geometry(triangle, size);
             double level = kind == 0 ? lod(shape, triangle, material) : 0;
@@ -367,8 +450,8 @@ namespace {
                     for (size_t corner = 0; corner < 3; ++corner)
                         weights[corner] /= sum;
                     size_t index = y * size + x;
-                    if (coverage[index])
-                        invalid("Packed texture triangles claim the same output texel");
+                    if (coverage[index] || owners[index] != currentOwner)
+                        invalid("Imported texture triangle crosses chart-local texel ownership");
                     put(image, index, evaluate(triangle, material, colors, weights, level, kind));
                     coverage[index] = 1;
                     ++painted;
@@ -377,7 +460,7 @@ namespace {
             if (!painted)
                 limit("Output texture resolution cannot retain every imported triangle; increase map dimensions");
         }
-        dilate(image, coverage, work);
+        dilate(image, coverage, owners, work);
         return image;
     }
 }

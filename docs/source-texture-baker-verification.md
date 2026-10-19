@@ -16,9 +16,11 @@ native/test files and new domain files, whitespace checks and Qt-boundary scans
 passed. Inherited compiler warnings and the existing SwiftPM native-build-system
 deprecation remain; no warning-free whole-core claim is made.
 
-Clang instrumentation for `source_texture_baker.cc` reports 403/403 executable
-lines, 24/24 functions, 386/387 regions and 300/332 branches. The measurement is scoped
-to the new implementation and does not assert whole-engine or 100% branch coverage.
+Clang instrumentation for `source_texture_baker.cc` reports 484/486 executable
+lines, 26/26 functions, 436/439 regions and 342/376 branches. The measurement is scoped
+to the new implementation. Two conflicting-owner diagnostic guards remain untriggered
+after strict chart/collar validation; this is not 100% changed-file line/branch or
+whole-engine coverage.
 
 ## Independent behavior contracts
 
@@ -46,6 +48,23 @@ to the new implementation and does not assert whole-engine or 100% branch covera
   corner colors/material factors and a synthetic decoded image. Four aligned
   policies and owned map storage are verified. This isolates the decoder boundary;
   it does not claim PNG decoding or an enabled native document-bake API.
+
+## Automated-review regression
+
+Codex identified cross-chart contamination in the original global coverage dilation
+(P1, PR #57). A regression failed on the original implementation: an uncovered red
+triangle corner borrowed blue color/material/alpha from a nearby chart. The fix
+reserves rectangle ownership and disjoint one-texel collars before assigning distant
+gaps, then restricts dilation to that owner. A second diagonal-collar case puts blue
+first to prove that Manhattan tie order cannot steal a red collar. Both regressions
+pass, including hidden red RGB at zero alpha and chart-local PBR values. Too-small
+map dimensions reject insufficient collars. All 43 Debug and 43 sanitizer contracts
+and the SwiftPM build pass with the correction.
+
+Output reports `maximumSamplingLod=0`; consumers must clamp atlas output sampling to
+base-level bilinear filtering. Combined-atlas minification requires chart-safe mip
+footprints/padding and remains required M4 work in core #59. Authored source-image
+derivative mip sampling is independent and remains supported.
 
 ## Reproduction and acceptance limits
 

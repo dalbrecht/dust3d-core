@@ -196,16 +196,16 @@ void mixedAndInterpolated()
     require(dust3d::SourceTextureBaker::bake(source, resolved, options()).color.pixels == result.color.pixels, "reversed winding preserves corresponding corner colors");
     source = atlas();
     resolved = inputs();
-    source.legacyChart = dust3d::SourceUvChart { 0, 0, .5, 1, false };
-    source.triangles[0].importedChart = dust3d::SourceUvChart { .5, 0, .5, 1, false };
+    source.legacyChart = dust3d::SourceUvChart { 0, 0, .4, 1, false };
+    source.triangles[0].importedChart = dust3d::SourceUvChart { .6, 0, .4, 1, false };
     for (auto& uv : source.triangles[0].packedUvs)
-        uv[0] = .5 + .5 * uv.x();
+        uv[0] = .6 + .4 * uv.x();
     auto procedural = source.triangles[0];
     procedural.modelKey.clear();
     procedural.importedChart.reset();
     procedural.authoredUvs.reset();
     for (auto& uv : procedural.packedUvs)
-        uv[0] -= .5;
+        uv[0] -= .6;
     source.triangles.push_back(procedural);
     resolved.triangleColors.push_back(resolved.triangleColors[0]);
     for (auto& color : resolved.triangleColors[0])
@@ -216,10 +216,12 @@ void mixedAndInterpolated()
     resolved.legacy.color = dust3d::TextureImageView { 1, 1, 4, 4, legacyColor };
     resolved.legacy.metallic = dust3d::TextureImageView { 1, 1, 4, 4, scalar };
     resolved.legacy.normal = dust3d::TextureImageView { 1, 1, 4, 4, normal };
-    result = dust3d::SourceTextureBaker::bake(source, resolved, options());
-    require(result.color.pixels[0] == 40 && result.color.pixels[3] == 20 && result.color.pixels[12] == 255 && result.color.pixels[13] == 0, "mixed chart composition");
-    require(result.metallic.pixels[0] == 51 && result.metallic.pixels[12] == 255, "mixed scalar maps");
-    require(result.normal && result.normal->pixels[12] == 128 && result.normal->pixels[14] == 255, "imported geometric normals keep flat tangent normal");
+    auto mixedSettings = options();
+    mixedSettings.colorSize = mixedSettings.materialSize = mixedSettings.normalSize = 16;
+    result = dust3d::SourceTextureBaker::bake(source, resolved, mixedSettings);
+    require(result.color.pixels[0] == 40 && result.color.pixels[3] == 20 && result.color.pixels[48] == 255 && result.color.pixels[49] == 0, "mixed chart composition");
+    require(result.metallic.pixels[0] == 51 && result.metallic.pixels[48] == 255, "mixed scalar maps");
+    require(result.normal && result.normal->pixels[48] == 128 && result.normal->pixels[50] == 255, "imported geometric normals keep flat tangent normal");
     require(result.trianglePolicies[0]->alphaMode == dust3d::SourceTextureAlphaMode::opaque && result.trianglePolicies[1]->alphaMode == dust3d::SourceTextureAlphaMode::blend, "mixed per-triangle policies");
 }
 void additionalFailures()
@@ -335,8 +337,59 @@ void remainingBoundaries()
     adjacent.packedUvs = { dust3d::Vector2(.125, 0), dust3d::Vector2(.625, 0), dust3d::Vector2(.125, 1) };
     source.triangles.push_back(adjacent);
     resolved.triangleColors.push_back(resolved.triangleColors[0]);
-    rejects([&] { dust3d::SourceTextureBaker::bake(source, resolved, options()); }, dust3d::TextureBakeErrorCode::invalidInput);
+    rejects([&] { dust3d::SourceTextureBaker::bake(source, resolved, options()); }, dust3d::TextureBakeErrorCode::limitExceeded);
 }
+
+void verifyChartLocalGutters()
+{
+    auto source = atlas();
+    auto resolved = inputs();
+    source.triangles[0].importedChart = dust3d::SourceUvChart { 0, 0, .6, 1, false };
+    source.triangles[0].packedUvs = { dust3d::Vector2(0, 0), dust3d::Vector2(.6, 0), dust3d::Vector2(0, 1) };
+    auto adjacent = source.triangles[0];
+    adjacent.modelKey = "blue";
+    adjacent.importedChart = dust3d::SourceUvChart { .8, 0, .2, 1, false };
+    adjacent.packedUvs = { dust3d::Vector2(.8, 0), dust3d::Vector2(1, 1), dust3d::Vector2(.8, 1) };
+    source.triangles.push_back(adjacent);
+    resolved.triangleColors.push_back(resolved.triangleColors[0]);
+    resolved.materials.emplace("blue", dust3d::SourceTextureMaterial {});
+    auto& red = resolved.materials.at("model");
+    red.baseColor = { 1, 0, 0, 0 };
+    red.policy.alphaMode = dust3d::SourceTextureAlphaMode::blend;
+    red.metallic = .25;
+    red.roughness = .75;
+    auto& blue = resolved.materials.at("blue");
+    blue.baseColor = { 0, 0, 1, 1 };
+    blue.metallic = .75;
+    blue.roughness = .25;
+    auto settings = options();
+    settings.colorSize = settings.materialSize = 16;
+    const auto result = dust3d::SourceTextureBaker::bake(source, resolved, settings);
+    const size_t redCorner = (15 * 16 + 9) * 4; // Inside red's rectangle, outside its triangle.
+    require(result.color.pixels[redCorner] == 255 && result.color.pixels[redCorner + 2] == 0 && result.color.pixels[redCorner + 3] == 0,
+        "uncovered red chart corners must retain hidden red RGB and alpha instead of borrowing blue");
+    require(result.metallic.pixels[redCorner] == 64 && result.roughness.pixels[redCorner] == 191, "chart-local material gutters");
+    require(result.maximumSamplingLod == 0, "base atlas sampling must not enable a global mixed-chart mip chain");
+    const size_t redApron = (15 * 16 + 10) * 4;
+    require(result.color.pixels[redApron] == 255 && result.color.pixels[redApron + 2] == 0 && result.color.pixels[redApron + 3] == 0, "explicit bilinear collar belongs to its chart");
+    auto insufficient = settings;
+    insufficient.colorSize = insufficient.materialSize = 4;
+    rejects([&] { dust3d::SourceTextureBaker::bake(source, resolved, insufficient); }, dust3d::TextureBakeErrorCode::limitExceeded);
+    auto diagonal = source;
+    diagonal.triangles[0].importedChart = dust3d::SourceUvChart { 0, 0, .4375, .4375, false };
+    diagonal.triangles[0].packedUvs = { dust3d::Vector2(0, 0), dust3d::Vector2(.4375, 0), dust3d::Vector2(0, .4375) };
+    diagonal.triangles[1].importedChart = dust3d::SourceUvChart { .5625, 0, .4375, 1, false };
+    diagonal.triangles[1].packedUvs = { dust3d::Vector2(.5625, 0), dust3d::Vector2(1, 1), dust3d::Vector2(.5625, 1) };
+    std::swap(diagonal.triangles[0], diagonal.triangles[1]); // Blue wins an unreserved Manhattan tie.
+    const auto cornerResult = dust3d::SourceTextureBaker::bake(diagonal, resolved, settings);
+    const size_t diagonalApron = (7 * 16 + 7) * 4;
+    require(cornerResult.color.pixels[diagonalApron] == 255 && cornerResult.color.pixels[diagonalApron + 2] == 0
+            && cornerResult.color.pixels[diagonalApron + 3] == 0,
+        "diagonal bilinear collar must be reserved independently of flood tie order");
+    const size_t blueCorner = 15 * 4; // Inside blue's rectangle, outside its triangle.
+    require(result.color.pixels[blueCorner] == 0 && result.color.pixels[blueCorner + 2] == 255, "uncovered blue chart corners must stay blue");
+}
+
 void realGeneratedFixture(const char* directory)
 {
     std::ifstream input(std::string(directory) + "/ImportedSurface.ds3", std::ios::binary);
@@ -380,9 +433,9 @@ void realGeneratedFixture(const char* directory)
         resolved.triangleColors.push_back(colors);
     }
     auto settings = options();
-    settings.colorSize = settings.materialSize = 128;
+    settings.colorSize = settings.materialSize = 256;
     auto result = dust3d::SourceTextureBaker::bake(source, resolved, settings);
-    require(result.trianglePolicies.size() == 4 && result.color.pixels.size() == 128 * 128 * 4, "real generated source bake ownership");
+    require(result.trianglePolicies.size() == 4 && result.color.pixels.size() == 256 * 256 * 4, "real generated source bake ownership");
     for (const auto& policy : result.trianglePolicies)
         require(policy && policy->alphaMode == dust3d::SourceTextureAlphaMode::mask, "real generated source policy alignment");
 }
@@ -390,6 +443,7 @@ void realGeneratedFixture(const char* directory)
 int main(int argc, char** argv)
 {
     try {
+        verifyChartLocalGutters();
         linearFactorsAndPolicies();
         authoredRepeatAndLod();
         legacyComposition();

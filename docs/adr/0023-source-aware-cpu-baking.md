@@ -44,8 +44,11 @@ preserves this relation including byte quantization.
 
 Validate material enums/factors, image spans, coherent chart ownership, finite
 normalized output UVs and source colors. A sweep detects overlapping chart rectangles
-in O(n log n). Shared output texel claims are rejected rather than silently selecting
-a source. Each imported triangle and the legacy region must cover a texel in every
+in O(n log n). A second sweep requires disjoint one-texel collars at the smallest
+output resolution. Rectangle/collar ownership is assigned before color filling;
+gap ownership then expands from those rectangles. Dilation never crosses an owner,
+including alpha-zero source texels and uncovered triangle corners. Shared output
+texel claims are rejected rather than silently selecting a source. Each imported triangle and the legacy region must cover a texel in every
 enabled output map. Insufficient resolution fails explicitly and asks for larger
 map dimensions; no partially missing material result escapes.
 
@@ -57,6 +60,13 @@ and dilation (250 million default, supported maximum one billion). Caller chart
 limits are bounded by 100,000; material catalogs by 10,000. Cancellation is checked
 through validation, between rows and every 4096 texel operations. This is cooperative
 cancellation, not a hard latency guarantee. No source or cancellation pointer escapes.
+
+The returned `maximumSamplingLod=0` is an explicit output contract: the maps support
+base-level bilinear filtering. A globally generated mixed-chart mip chain can
+reintroduce contamination and must not be sampled. Source-image mip selection by
+authored UV derivatives remains independent and supported. Chart-isolated atlas
+minification is required remaining M4 work in core #59; callers must keep the output
+LOD clamp until that stage establishes safe mip footprints and padding.
 
 ## Consequences and remaining adoption
 
