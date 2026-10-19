@@ -36,6 +36,7 @@ set(DUST3D_CORE_SOURCES
     dust3d/mesh/wrap_mesh_builder.cc
     dust3d/rig/rig_generator.cc
     dust3d/uv/chart_packer.cc
+    dust3d/uv/color_texture_sampler.cc
     dust3d/uv/cloth_folds.cc
     dust3d/uv/max_rectangles.cc
     dust3d/uv/surface_pattern.cc

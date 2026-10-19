@@ -332,3 +332,13 @@ samples. Generated catalog membership does not establish unique Boolean
 provenance. This API adds no texture decoding, sampling, atlas/bake integration
 or new renderer behavior. See [design](docs/adr/0020-owned-imported-surfaces.md)
 and [verification](docs/imported-surface-verification.md).
+
+### CPU imported color sampling
+
+`dust3d/uv/color_texture_sampler.h` provides owned RGBA8 sampling with repeat,
+mirrored-repeat or clamp wrapping and explicit mip LOD. RGB is filtered in linear
+space; alpha stays straight. Pass decoded top-to-bottom sRGB pixels through
+`ColorTextureSampler::create(image, options)` and use `sampleLinear(u, v, lod)`.
+Source buffers are borrowed only during construction. See
+[ADR 0021](docs/adr/0021-cpu-imported-color-sampling.md) for quota semantics and
+remaining imported atlas/baking integration. No image decoder dependency is added.
