@@ -26,6 +26,7 @@
 #include <array>
 #include <dust3d/base/color.h>
 #include <dust3d/base/position_key.h>
+#include <dust3d/base/vector2.h>
 #include <dust3d/mesh/mesh_combiner.h>
 #include <dust3d/mesh/mesh_recombiner.h>
 #include <map>
@@ -46,8 +47,12 @@ public:
     std::vector<std::array<PositionKey, 3>> brokenTriangles;
     // Parallel to fetched triangles; generated bridges have no single owning component.
     std::vector<std::string> triangleComponentKeys;
+    // Resolved GLB material identity survives derived component IDs, including mirrors.
+    std::vector<std::string> triangleModelKeys;
     // Parallel corner attributes; absent entries denote newly generated/uncolored faces.
     std::vector<std::optional<std::array<Color, 3>>> triangleVertexColors;
+    // Parallel source coordinates; generated bridges have no authored UV mapping.
+    std::vector<std::optional<std::array<Vector2, 3>>> triangleCornerUvs;
     // Seam diagnostics of the combine() that produced this state
     std::vector<MeshRecombiner::SeamReport> seamReports;
 

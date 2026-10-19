@@ -22,8 +22,8 @@ struct Material {
     void accountDynamicPayload(RetainedPayloadBudget& budget) const noexcept
     {
         const auto& [model, baseColor, metallic, roughness, emissive, alphaMode, alphaCutoff, isDoubleSided, sampler, image] = asset;
-        const auto& [vertices, normals, faces, uvs, colors] = model;
-        budget.accountDynamicFields(identity, vertices, normals, faces, uvs, colors);
+        const auto& [vertices, normals, faces, uvs, colors, cornerUvs] = model;
+        budget.accountDynamicFields(identity, vertices, normals, faces, uvs, colors, cornerUvs);
         if (image)
             budget.accountDynamicFields(image->mimeType, image->bytes);
     }

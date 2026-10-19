@@ -77,12 +77,15 @@ public:
     std::vector<Color> vertexColors;
     // Corner colors preserve distinct attributes where Boolean vertices are shared.
     std::vector<std::optional<std::array<Color, 3>>> triangleVertexColors;
+    // Authored corner coordinates remain parallel to triangles; generated surfaces are unmapped.
+    std::vector<std::optional<std::array<Vector2, 3>>> triangleCornerUvs;
     std::vector<float> vertexSmoothCutoffDegrees;
     std::map<std::array<PositionKey, 3>, Uuid> brokenTrianglesToComponentIdMap;
     std::map<Uuid, std::string> componentNames; // the component names, for exporters to label parts
     std::vector<Uuid> triangleComponentIds; // the component each triangle came from (parallel to triangles)
     // Original document keys distinguish valid brace aliases lost by Uuid conversion.
     std::vector<std::string> triangleComponentKeys;
+    std::vector<std::string> triangleModelKeys;
     // Vertices of wrap surfaces (skin / cloth components) are not made by one node: they
     // carry weights over several nodes (skin weights transferred from what they wrap),
     // and their own colour and smoothing.

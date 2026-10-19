@@ -123,6 +123,21 @@ AttributedFixture texturedFixture()
     source.document["meshes"][0]["primitives"][0]["material"] = 0;
     return source;
 }
+void testCoincidentUvTrianglesRetainIndependentCorners()
+{
+    auto source = texturedFixture();
+    const auto original = source.document["meshes"][0]["primitives"][0];
+    source.addFloats("TEXCOORD_0", "VEC2", { -2, 3, 4, 5, 6, 7 });
+    source.document["meshes"][0]["primitives"].push_back(original);
+    const auto bytes = source.bytes();
+    const auto result = dust3d::native::readGlb(bytes.data(), bytes.size());
+    require(result.model.faces.size() == 2 && result.model.triangleCornerUvs.size() == 2,
+        "Coincident GLB triangles lost parallel UV records");
+    require(result.model.triangleCornerUvs[0] && result.model.triangleCornerUvs[1], "Textured GLB corners are unmapped");
+    require(result.model.triangleCornerUvs[0]->at(0) == dust3d::Vector2(-2, 3)
+            && result.model.triangleCornerUvs[1]->at(0) == dust3d::Vector2(0, 0),
+        "Quantized position lookup collapsed distinct authored UVs");
+}
 void testAttributesAndIndependentOwnership()
 {
     auto source = texturedFixture();
@@ -309,7 +324,11 @@ void testTextureAndAttributeBoundaries()
     rejects(source.bytes(), DUST3D_STATUS_INVALID_DOCUMENT);
     source = texturedFixture();
     source.document["meshes"][0]["primitives"].push_back(source.document["meshes"][0]["primitives"][0]);
-    rejects(source.bytes(), DUST3D_STATUS_UNSUPPORTED_ASSET);
+    const auto coincidentBytes = source.bytes();
+    const auto coincident = dust3d::native::readGlb(coincidentBytes.data(), coincidentBytes.size());
+    require(coincident.model.triangleCornerUvs.size() == 2
+            && coincident.model.triangleCornerUvs[0] == coincident.model.triangleCornerUvs[1],
+        "Coincident identical UV triangles must retain both parallel records");
     source.document["meshes"][0]["primitives"][1]["material"] = 1;
     rejects(source.bytes(), DUST3D_STATUS_UNSUPPORTED_ASSET);
     source = texturedFixture();
@@ -527,6 +546,7 @@ int main()
 {
     try {
         testAttributesAndIndependentOwnership();
+        testCoincidentUvTrianglesRetainIndependentCorners();
         testMalformedLayouts();
         testAccessorAlignmentAndIndexStride();
         testRejectedDocumentMutations();
