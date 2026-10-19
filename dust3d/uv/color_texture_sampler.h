@@ -48,6 +48,9 @@ public:
     /// @return Four channels in [0,1]. Concurrent const sampling is supported.
     /// @throws TextureBakeError For nonfinite UVs or LOD.
     std::array<double, 4> sampleLinear(double u, double v, double lod = 0) const;
+    /// Original dimensions; zero for an owner that has been moved from.
+    size_t width() const noexcept { return m_levels.empty() ? 0 : m_levels.front().width; }
+    size_t height() const noexcept { return m_levels.empty() ? 0 : m_levels.front().height; }
     /// Number of owned levels, including the original image.
     size_t mipLevelCount() const noexcept { return m_levels.size(); }
     /// Retained logical payload in bytes, as defined by create().

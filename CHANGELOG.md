@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add owned CPU source-aware atlas baking with linear imported color factors, derivative mip selection, per-triangle alpha/sidedness policies, PBR maps and legacy-map composition. Native/Apple adoption remains pending (#56).
+
 - Add ordinal imported atlas layout with independent authored UVs, exact model/component identities, geometry-derived non-overlapping charts and a separate procedural atlas transform. Native bake adoption remains pending (#54).
 
 - Add bounded, owned CPU sRGB color sampling with authored wrapping, all glTF filter modes, straight alpha and odd-dimension mip reduction as an imported-baking foundation. Atlas/bake integration remains pending (#52).
