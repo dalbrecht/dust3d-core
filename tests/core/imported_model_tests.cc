@@ -127,7 +127,7 @@ std::vector<uint8_t> attributedTetrahedron(const std::array<uint8_t, 3>& color, 
     result.insert(result.end(), binary.begin(), binary.end());
     return result;
 }
-std::vector<uint8_t> colorSeamTetrahedron()
+std::vector<uint8_t> colorSeamTetrahedron(bool hasUvs = false)
 {
     const std::array<std::array<float, 3>, 4> positions { { { -.5, 0, 0 }, { .5, 0, 0 }, { 0, 1, 0 }, { 0, .5, .5 } } };
     const std::array<std::array<size_t, 3>, 4> faces { { { 0, 2, 1 }, { 0, 1, 3 }, { 1, 2, 3 }, { 2, 0, 3 } } };
@@ -147,6 +147,26 @@ std::vector<uint8_t> colorSeamTetrahedron()
             binary.insert(binary.end(), color.begin(), color.end());
     }
     std::string json = R"({"asset":{"version":"2.0"},"buffers":[{"byteLength":192}],"bufferViews":[{"buffer":0,"byteOffset":0,"byteLength":144},{"buffer":0,"byteOffset":144,"byteLength":48}],"accessors":[{"bufferView":0,"componentType":5126,"count":12,"type":"VEC3","min":[-0.5,0,0],"max":[0.5,1,0.5]},{"bufferView":1,"componentType":5121,"count":12,"type":"VEC4","normalized":true}],"meshes":[{"primitives":[{"attributes":{"POSITION":0,"COLOR_0":1}}]}]})";
+    if (hasUvs) {
+        for (size_t face = 0; face < 4; ++face) {
+            for (size_t corner = 0; corner < 3; ++corner) {
+                for (float value : { float(face * 10 + corner), float(corner) - 2 }) {
+                    uint32_t bits;
+                    std::memcpy(&bits, &value, sizeof(bits));
+                    appendWord(binary, bits);
+                }
+            }
+        }
+        auto change = [&](const std::string& old, const std::string& replacement) {
+            const auto offset = json.find(old);
+            require(offset != std::string::npos, "Invalid UV fixture mutation");
+            json.replace(offset, old.size(), replacement);
+        };
+        change("\"byteLength\":192", "\"byteLength\":288");
+        change("],\"accessors\"", ",{\"buffer\":0,\"byteOffset\":192,\"byteLength\":96}],\"accessors\"");
+        change("],\"meshes\"", ",{\"bufferView\":2,\"componentType\":5126,\"count\":12,\"type\":\"VEC2\"}],\"meshes\"");
+        change("\"COLOR_0\":1", "\"COLOR_0\":1,\"TEXCOORD_0\":2");
+    }
     while (json.size() % 4)
         json += ' ';
     std::vector<uint8_t> result;
@@ -524,6 +544,248 @@ void testImportedColorSeams()
         MeshOwner cached(dust3d_generation_session_load(session.get(), bytes.data(), bytes.size(), &error), dust3d_mesh_destroy);
         require(cached && error.status == DUST3D_STATUS_OK, "Cached seam generation failed");
         assertColors(cached.get());
+    }
+}
+void testImportedCornerUvSeamsAndWarmCache()
+{
+    const auto bytes = archiveWithAssets(modelXml("2"), { { "models/" + modelIdentity + ".glb", colorSeamTetrahedron(true) } });
+    dust3d::MeshGenerator::GeneratedCacheContext cache;
+    for (size_t iteration = 0; iteration < 3; ++iteration) {
+        std::string warning;
+        dust3d::native::ImportedModels imports;
+        auto snapshot = dust3d::native::readDocument(bytes.data(), bytes.size(), warning, nullptr, &imports);
+        const auto group = serialIdentity(900);
+        snapshot->components[group] = { { "id", group }, { "children", snapshot->rootComponent["children"] } };
+        snapshot->rootComponent["children"] = group;
+        auto geometry = imports.takeGeometry();
+        require(geometry.at(modelIdentity).triangleCornerUvs.size() == 4, "GLB corner UV alignment was lost");
+        if (iteration == 2) {
+            // Inherited C++ callers can still provide the original position-key UV map only.
+            cache = dust3d::MeshGenerator::GeneratedCacheContext();
+            geometry.at(modelIdentity).triangleCornerUvs.clear();
+        }
+        dust3d::MeshGenerator generator(snapshot.release());
+        generator.setGeneratedCacheContext(&cache);
+        generator.setImportedModelData(std::move(geometry));
+        generator.generate();
+        require(generator.isSuccessful(), "Imported UV seam generation failed");
+        if (iteration == 1)
+            require(generator.generationMetrics().reusedComponents > 0, "UV fixture did not exercise a warm component cache");
+        for (const auto& component : { std::string("{00000200-0000-4000-8000-000000000200}"), group }) {
+            std::vector<std::optional<std::array<dust3d::Vector2, 3>>> uvs;
+            if (iteration != 1) {
+                const auto found = generator.generatedComponentPreviews().find(dust3d::Uuid(component));
+                require(found != generator.generatedComponentPreviews().end(), "Missing rebuilt UV preview " + component);
+                const auto& preview = found->second;
+                require(preview.triangleCornerUvs.size() == preview.triangles.size() && preview.triangles.size() == 4,
+                    "Leaf/group preview lost parallel imported corner UVs");
+                require(preview.triangleModelKeys == std::vector<std::string>(4, modelIdentity),
+                    "Leaf/group preview lost resolved model ownership");
+                uvs = preview.triangleCornerUvs;
+            } else {
+                // Generated previews contain updates only; unchanged components reuse their retained mesh.
+                const auto& retained = cache.components.at(component).mesh;
+                require(retained && retained->triangleCornerUvs.size() == 4, "Warm component cache lost UV alignment");
+                require(retained->triangleModelKeys == std::vector<std::string>(4, modelIdentity),
+                    "Warm component cache lost resolved model ownership");
+                uvs = retained->triangleCornerUvs;
+            }
+            for (size_t face = 0; face < 4; ++face) {
+                require(uvs[face].has_value(), "Preview/cache dropped authored UV mapping");
+                for (size_t corner = 0; corner < 3; ++corner) {
+                    const auto& uv = uvs[face]->at(corner);
+                    require(uv.x() == double(face * 10 + corner) && uv.y() == double(corner) - 2,
+                        "Leaf/group preview/cache collapsed source UV seams");
+                }
+            }
+        }
+        std::unique_ptr<dust3d::Object> object(generator.takeObject());
+        require(object && object->triangles.size() == 4 && object->triangleCornerUvs.size() == 4,
+            "Final imported object lost parallel corner UVs");
+        for (size_t face = 0; face < 4; ++face) {
+            require(object->triangleCornerUvs[face].has_value(), "Imported source face lost UVs");
+            require(object->triangleModelKeys.at(face) == modelIdentity, "Imported UV face lost resolved model ownership");
+            require(object->triangleComponentKeys.at(face) == "{00000200-0000-4000-8000-000000000200}", "UV face lost original material owner");
+            for (size_t corner = 0; corner < 3; ++corner) {
+                const auto& uv = object->triangleCornerUvs[face]->at(corner);
+                require(uv.x() == double(face * 10 + corner) && uv.y() == double(corner) - 2,
+                    "Deformation or warm cache collapsed a coincident UV seam");
+            }
+        }
+    }
+}
+void testMirroredImportedUvWinding()
+{
+    auto generate = [](bool mirrored) {
+        auto xml = modelXml("2");
+        if (mirrored) {
+            const auto part = xml.find("<part id=");
+            xml.insert(part + 6, "xMirrored='true' ");
+            const auto component = xml.find("<component id=");
+            xml.insert(component + 11, "combineMode='Uncombined' ");
+        }
+        const auto bytes = archiveWithAssets(xml, { { "models/" + modelIdentity + ".glb", colorSeamTetrahedron(true) } });
+        std::string warning;
+        dust3d::native::ImportedModels imports;
+        auto snapshot = dust3d::native::readDocument(bytes.data(), bytes.size(), warning, nullptr, &imports);
+        dust3d::MeshGenerator generator(snapshot.release());
+        generator.setImportedModelData(imports.takeGeometry());
+        generator.generate();
+        require(generator.isSuccessful(), "Mirrored UV fixture failed generation");
+        return std::unique_ptr<dust3d::Object>(generator.takeObject());
+    };
+    const auto reference = generate(false);
+    const auto mirrored = generate(true);
+    require(mirrored->triangles.size() == 8 && mirrored->triangleCornerUvs.size() == 8,
+        "Uncombined mirror lost source geometry/UVs");
+    size_t originalCount = 0, mirrorCount = 0;
+    for (size_t index = 0; index < 8; ++index) {
+        require(mirrored->triangleModelKeys.at(index) == modelIdentity, "Generated mirror lost source GLB material ownership");
+        const bool isMirror = mirrored->triangleComponentKeys.at(index) != std::string("{00000200-0000-4000-8000-000000000200}");
+        isMirror ? ++mirrorCount : ++originalCount;
+        require(mirrored->triangleCornerUvs[index].has_value(), "Mirrored source UVs became unmapped");
+        const auto& uvs = *mirrored->triangleCornerUvs[index];
+        const size_t face = static_cast<size_t>(uvs[0].x()) / 10;
+        require(face < 4, "Mirror invented a UV source face");
+        for (size_t corner = 0; corner < 3; ++corner) {
+            const size_t sourceCorner = isMirror ? 2 - corner : corner;
+            require(uvs[corner].x() == double(face * 10 + sourceCorner) && uvs[corner].y() == double(sourceCorner) - 2,
+                "Mirrored winding did not reverse matching UV corners");
+            auto position = reference->vertices.at(reference->triangles.at(face).at(sourceCorner));
+            if (isMirror)
+                position.setX(-position.x());
+            require((mirrored->vertices.at(mirrored->triangles[index][corner]) - position).length() < 1e-9,
+                "Mirror UV corner refers to a different source vertex");
+        }
+    }
+    require(originalCount == 4 && mirrorCount == 4, "Mirror fixture did not exercise both component instances");
+}
+void testMixedImportedProceduralUvClipping()
+{
+    const std::string importedOwner = "{00000200-0000-4000-8000-000000000200}";
+    const std::string proceduralOwner = "{00000201-0000-4000-8000-000000000201}";
+    auto generate = [](const std::string& xml, dust3d::MeshGenerator::GeneratedCacheContext* cache, bool forceRoot) {
+        const auto bytes = archiveWithAssets(xml, { { "models/" + modelIdentity + ".glb", colorSeamTetrahedron(true) } });
+        std::string warning;
+        dust3d::native::ImportedModels imports;
+        auto snapshot = dust3d::native::readDocument(bytes.data(), bytes.size(), warning, nullptr, &imports);
+        if (forceRoot)
+            snapshot->rootComponent["__dirty"] = "true";
+        dust3d::MeshGenerator generator(snapshot.release());
+        if (cache)
+            generator.setGeneratedCacheContext(cache);
+        generator.setImportedModelData(imports.takeGeometry());
+        generator.generate();
+        require(generator.isSuccessful(), "Mixed imported/procedural UV generation failed");
+        if (forceRoot)
+            require(generator.generationMetrics().reusedComponents > 0, "Mixed UV fixture did not reuse child caches");
+        return std::unique_ptr<dust3d::Object>(generator.takeObject());
+    };
+    const auto reference = generate(modelXml("2"), nullptr, false);
+    for (unsigned mode = 0; mode < 3; ++mode) {
+        const bool difference = mode == 1;
+        const bool uncombined = mode == 2;
+        for (bool hard : { false, true }) {
+            auto xml = modelXml("2");
+            auto insert = [&](const std::string& closing, const std::string& text) {
+                const auto offset = xml.find(closing);
+                require(offset != std::string::npos, "Invalid mixed UV fixture insertion");
+                xml.insert(offset, text);
+            };
+            const std::string part = "{00000101-0000-4000-8000-000000000101}";
+            const std::string first = "{00001002-0000-4000-8000-000000001002}";
+            const std::string second = "{00001003-0000-4000-8000-000000001003}";
+            insert("</nodes>", "<node id='" + first + "' partId='" + part + "' x='.6' y='.3' z='.5' radius='.13'/>" + "<node id='" + second + "' partId='" + part + "' x='.6' y='.7' z='.5' radius='.13'/>");
+            insert("</edges>", "<edge id='{00002001-0000-4000-8000-000000002001}' partId='" + part + "' from='" + first + "' to='" + second + "'/>");
+            insert("</parts>", "<part id='" + part + "' target='Model' hard='" + (hard ? "true" : "false") + "'/>");
+            insert("</components>", "<component id='" + proceduralOwner + "' linkDataType='partId' linkData='" + part + "' combineMode='" + (uncombined ? "Uncombined" : difference ? "Inversion"
+                                                                                                                                                                                    : "Normal")
+                    + "'/>");
+            dust3d::MeshGenerator::GeneratedCacheContext cache;
+            std::unique_ptr<dust3d::Object> cold;
+            for (size_t iteration = 0; iteration < 2; ++iteration) {
+                auto object = generate(xml, &cache, iteration != 0);
+                if (!uncombined)
+                    require(!cache.cachedCombination.empty(), "Mixed UV fixture did not exercise combination caching");
+                require(object && object->triangleCornerUvs.size() == object->triangles.size(), "Mixed UV triangle alignment failed");
+                size_t importedCount = 0, proceduralCount = 0, clippedCorners = 0;
+                for (size_t faceIndex = 0; faceIndex < object->triangles.size(); ++faceIndex) {
+                    const auto& owner = object->triangleComponentKeys.at(faceIndex);
+                    const auto& actual = object->triangleCornerUvs[faceIndex];
+                    require(object->triangleModelKeys.at(faceIndex) == (owner == importedOwner ? modelIdentity : ""),
+                        "Mixed UV face lost or invented resolved model ownership");
+                    if (owner != importedOwner) {
+                        require(owner.empty() || owner == proceduralOwner, "Mixed UV face invented an owner");
+                        require(!actual, "Procedural/generated face inherited an imported UV mapping");
+                        if (!owner.empty())
+                            ++proceduralCount;
+                        continue;
+                    }
+                    ++importedCount;
+                    require(actual.has_value(), "Clipped imported surface lost UV mapping");
+                    bool matched = false;
+                    for (size_t sourceFace = 0; sourceFace < 4 && !matched; ++sourceFace) {
+                        const auto& triangle = reference->triangles[sourceFace];
+                        const auto& a = reference->vertices.at(triangle[0]);
+                        const auto e1 = reference->vertices.at(triangle[1]) - a;
+                        const auto e2 = reference->vertices.at(triangle[2]) - a;
+                        const auto normal = dust3d::Vector3::crossProduct(e1, e2).normalized();
+                        size_t drop = 0;
+                        for (size_t axis = 1; axis < 3; ++axis)
+                            if (std::abs(normal[axis]) > std::abs(normal[drop]))
+                                drop = axis;
+                        const size_t x = (drop + 1) % 3, y = (drop + 2) % 3;
+                        const double determinant = e1[x] * e2[y] - e1[y] * e2[x];
+                        if (std::abs(determinant) < 1e-15)
+                            continue;
+                        std::array<dust3d::Vector2, 3> expected;
+                        size_t newCorners = 0;
+                        bool contains = true;
+                        for (size_t corner = 0; corner < 3; ++corner) {
+                            const auto& position = object->vertices.at(object->triangles[faceIndex][corner]);
+                            const auto offset = position - a;
+                            const double u = (offset[x] * e2[y] - offset[y] * e2[x]) / determinant;
+                            const double v = (e1[x] * offset[y] - e1[y] * offset[x]) / determinant;
+                            if (std::abs(dust3d::Vector3::dotProduct(offset, normal)) > 1e-7 || u < -1e-7 || v < -1e-7 || u + v > 1 + 1e-7) {
+                                contains = false;
+                                break;
+                            }
+                            expected[corner] = dust3d::Vector2(double(sourceFace * 10) + u + 2 * v, -2 + u + 2 * v);
+                            bool original = false;
+                            for (auto vertex : triangle)
+                                original = original || (position - reference->vertices[vertex]).length() < 1e-8;
+                            if (!original)
+                                ++newCorners;
+                        }
+                        if (!contains)
+                            continue;
+                        matched = true;
+                        clippedCorners += newCorners;
+                        for (size_t corner = 0; corner < 3; ++corner) {
+                            require(std::abs(actual->at(corner).x() - expected[corner].x()) < 1e-6
+                                    && std::abs(actual->at(corner).y() - expected[corner].y()) < 1e-6,
+                                "Imported clipped UV differs from independent projected-coordinate oracle");
+                        }
+                    }
+                    require(matched, "Imported UV owner refers to an unrelated source triangle");
+                }
+                require(importedCount && proceduralCount, "Mixed UV fixture did not exercise both source types");
+                if (uncombined)
+                    require(!clippedCorners && importedCount == 4, "Uncombined import unexpectedly changed source triangles");
+                else
+                    require(clippedCorners, "Mixed UV fixture exercised no clipped imported corners");
+                if (iteration) {
+                    require(object->vertices.size() == cold->vertices.size()
+                            && std::equal(object->vertices.begin(), object->vertices.end(), cold->vertices.begin(),
+                                [](const auto& lhs, const auto& rhs) { return lhs.x() == rhs.x() && lhs.y() == rhs.y() && lhs.z() == rhs.z(); })
+                            && object->triangles == cold->triangles
+                            && object->triangleComponentKeys == cold->triangleComponentKeys && object->triangleCornerUvs == cold->triangleCornerUvs
+                            && object->triangleModelKeys == cold->triangleModelKeys,
+                        "Warm mixed combination cache changed geometry, owners or corner UVs");
+                } else
+                    cold = std::move(object);
+            }
+        }
     }
 }
 void testCircularImportedSpine()
@@ -909,6 +1171,9 @@ int main()
         testSharedImportedPartNormalPolicies(false);
         testSharedImportedPartNormalPolicies(true);
         testImportedColorSeams();
+        testImportedCornerUvSeamsAndWarmCache();
+        testMirroredImportedUvWinding();
+        testMixedImportedProceduralUvClipping();
         testCoincidentImportedAttributeIsolation(true);
         testCoincidentImportedAttributeIsolation(false);
         testCoincidentImportedAttributeIsolation(true, true);

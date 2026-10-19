@@ -34,7 +34,7 @@ namespace native {
         void accountAsset(RetainedPayloadBudget& budget, const GlbAsset& asset) noexcept
         {
             const auto& model = asset.model;
-            budget.accountDynamicFields(model.vertices, model.vertexNormals, model.faces, model.triangleUvs, model.vertexColors);
+            budget.accountDynamicFields(model.vertices, model.vertexNormals, model.faces, model.triangleUvs, model.vertexColors, model.triangleCornerUvs);
             if (asset.image)
                 budget.accountDynamicFields(asset.image->mimeType, asset.image->bytes);
         }

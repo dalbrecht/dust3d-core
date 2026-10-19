@@ -31,8 +31,22 @@
 namespace dust3d {
 
 namespace {
-    std::optional<std::array<Color, 3>> transferCornerColors(const std::vector<Vector3>& sourceVertices,
-        const std::vector<size_t>& sourceFace, const std::array<Color, 3>& colors,
+    Color interpolateCorner(const std::array<Color, 3>& values, double w, double u, double v)
+    {
+        return Color(values[0].r() * w + values[1].r() * u + values[2].r() * v,
+            values[0].g() * w + values[1].g() * u + values[2].g() * v,
+            values[0].b() * w + values[1].b() * u + values[2].b() * v,
+            values[0].alpha() * w + values[1].alpha() * u + values[2].alpha() * v);
+    }
+
+    Vector2 interpolateCorner(const std::array<Vector2, 3>& values, double w, double u, double v)
+    {
+        return values[0] * w + values[1] * u + values[2] * v;
+    }
+
+    template <typename Attribute>
+    std::optional<std::array<Attribute, 3>> transferCornerAttributes(const std::vector<Vector3>& sourceVertices,
+        const std::vector<size_t>& sourceFace, const std::array<Attribute, 3>& values,
         const std::vector<Vector3>& outputVertices, const std::vector<size_t>& outputFace)
     {
         if (sourceFace.size() != 3 || outputFace.size() != 3)
@@ -40,14 +54,14 @@ namespace {
         const auto& a = sourceVertices.at(sourceFace[0]);
         const auto& b = sourceVertices.at(sourceFace[1]);
         const auto& c = sourceVertices.at(sourceFace[2]);
-        std::array<Color, 3> result;
+        std::array<Attribute, 3> result;
         for (size_t corner = 0; corner < 3; ++corner) {
             const auto& position = outputVertices.at(outputFace[corner]);
             bool matches = false;
             for (size_t original = 0; original < 3; ++original) {
                 const auto& source = sourceVertices.at(sourceFace[original]);
                 if (position.x() == source.x() && position.y() == source.y() && position.z() == source.z()) {
-                    result[corner] = colors[original];
+                    result[corner] = values[original];
                     matches = true;
                     break;
                 }
@@ -81,10 +95,7 @@ namespace {
             w /= total;
             u /= total;
             v /= total;
-            result[corner] = Color(colors[0].r() * w + colors[1].r() * u + colors[2].r() * v,
-                colors[0].g() * w + colors[1].g() * u + colors[2].g() * v,
-                colors[0].b() * w + colors[1].b() * u + colors[2].b() * v,
-                colors[0].alpha() * w + colors[1].alpha() * u + colors[2].alpha() * v);
+            result[corner] = interpolateCorner(values, w, u, v);
         }
         return result;
     }
@@ -102,7 +113,9 @@ MeshState::MeshState(const MeshState& other)
     seamTriangleUvs = other.seamTriangleUvs;
     seamReports = other.seamReports;
     triangleComponentKeys = other.triangleComponentKeys;
+    triangleModelKeys = other.triangleModelKeys;
     triangleVertexColors = other.triangleVertexColors;
+    triangleCornerUvs = other.triangleCornerUvs;
 }
 
 void MeshState::fetch(std::vector<Vector3>& vertices, std::vector<std::vector<size_t>>& faces) const
@@ -127,11 +140,13 @@ std::unique_ptr<MeshState> MeshState::combine(const MeshState& first, const Mesh
     std::vector<std::pair<MeshCombiner::Source, size_t>> combinedVerticesSources;
     std::vector<MeshCombiner::TriangleSource> combinedTriangleSources;
     const bool shouldTrackOwners = !first.triangleComponentKeys.empty() || !second.triangleComponentKeys.empty();
+    const bool shouldTrackModels = !first.triangleModelKeys.empty() || !second.triangleModelKeys.empty();
     const bool shouldTrackColors = !first.triangleVertexColors.empty() || !second.triangleVertexColors.empty();
+    const bool shouldTrackUvs = !first.triangleCornerUvs.empty() || !second.triangleCornerUvs.empty();
     auto newMesh = std::unique_ptr<MeshCombiner::Mesh>(MeshCombiner::combine(*first.mesh,
         *second.mesh,
         method,
-        &combinedVerticesSources, (shouldTrackOwners || shouldTrackColors) ? &combinedTriangleSources : nullptr));
+        &combinedVerticesSources, (shouldTrackOwners || shouldTrackModels || shouldTrackColors || shouldTrackUvs) ? &combinedTriangleSources : nullptr));
     if (nullptr == newMesh)
         return nullptr;
     if (shouldTrackOwners) {
@@ -141,7 +156,14 @@ std::unique_ptr<MeshState> MeshState::combine(const MeshState& first, const Mesh
             newMeshState->triangleComponentKeys.push_back(source.triangleIndex < owners.size() ? owners[source.triangleIndex] : std::string());
         }
     }
-    if (shouldTrackColors) {
+    if (shouldTrackModels) {
+        newMeshState->triangleModelKeys.reserve(combinedTriangleSources.size());
+        for (const auto& source : combinedTriangleSources) {
+            const auto& models = source.source == MeshCombiner::Source::First ? first.triangleModelKeys : second.triangleModelKeys;
+            newMeshState->triangleModelKeys.push_back(source.triangleIndex < models.size() ? models[source.triangleIndex] : std::string());
+        }
+    }
+    if (shouldTrackColors || shouldTrackUvs) {
         std::vector<Vector3> sourceVertices[2], outputVertices;
         std::vector<std::vector<size_t>> sourceFaces[2], outputFaces;
         first.fetch(sourceVertices[0], sourceFaces[0]);
@@ -150,12 +172,22 @@ std::unique_ptr<MeshState> MeshState::combine(const MeshState& first, const Mesh
         for (size_t index = 0; index < combinedTriangleSources.size(); ++index) {
             const auto& source = combinedTriangleSources[index];
             const bool isSecond = source.source == MeshCombiner::Source::Second;
-            const auto& colors = isSecond ? second.triangleVertexColors : first.triangleVertexColors;
-            if (source.triangleIndex < colors.size() && colors[source.triangleIndex])
-                newMeshState->triangleVertexColors.push_back(transferCornerColors(sourceVertices[isSecond],
-                    sourceFaces[isSecond].at(source.triangleIndex), *colors[source.triangleIndex], outputVertices, outputFaces.at(index)));
-            else
-                newMeshState->triangleVertexColors.push_back(std::nullopt);
+            if (shouldTrackColors) {
+                const auto& colors = isSecond ? second.triangleVertexColors : first.triangleVertexColors;
+                if (source.triangleIndex < colors.size() && colors[source.triangleIndex])
+                    newMeshState->triangleVertexColors.push_back(transferCornerAttributes(sourceVertices[isSecond],
+                        sourceFaces[isSecond].at(source.triangleIndex), *colors[source.triangleIndex], outputVertices, outputFaces.at(index)));
+                else
+                    newMeshState->triangleVertexColors.push_back(std::nullopt);
+            }
+            if (shouldTrackUvs) {
+                const auto& uvs = isSecond ? second.triangleCornerUvs : first.triangleCornerUvs;
+                if (source.triangleIndex < uvs.size() && uvs[source.triangleIndex])
+                    newMeshState->triangleCornerUvs.push_back(transferCornerAttributes(sourceVertices[isSecond],
+                        sourceFaces[isSecond].at(source.triangleIndex), *uvs[source.triangleIndex], outputVertices, outputFaces.at(index)));
+                else
+                    newMeshState->triangleCornerUvs.push_back(std::nullopt);
+            }
         }
     }
     if (recombine && !newMesh->isNull()) {
@@ -194,12 +226,26 @@ std::unique_ptr<MeshState> MeshState::combine(const MeshState& first, const Mesh
                         regeneratedOwners.push_back(source ? newMeshState->triangleComponentKeys.at(*source) : std::string());
                     newMeshState->triangleComponentKeys = std::move(regeneratedOwners);
                 }
+                if (shouldTrackModels) {
+                    std::vector<std::string> regeneratedModels;
+                    regeneratedModels.reserve(recombiner.regeneratedFaceSources().size());
+                    for (const auto& source : recombiner.regeneratedFaceSources())
+                        regeneratedModels.push_back(source ? newMeshState->triangleModelKeys.at(*source) : std::string());
+                    newMeshState->triangleModelKeys = std::move(regeneratedModels);
+                }
                 if (shouldTrackColors) {
                     std::vector<std::optional<std::array<Color, 3>>> regeneratedColors;
                     regeneratedColors.reserve(recombiner.regeneratedFaceSources().size());
                     for (const auto& source : recombiner.regeneratedFaceSources())
                         regeneratedColors.push_back(source ? newMeshState->triangleVertexColors.at(*source) : std::nullopt);
                     newMeshState->triangleVertexColors = std::move(regeneratedColors);
+                }
+                if (shouldTrackUvs) {
+                    std::vector<std::optional<std::array<Vector2, 3>>> regeneratedUvs;
+                    regeneratedUvs.reserve(recombiner.regeneratedFaceSources().size());
+                    for (const auto& source : recombiner.regeneratedFaceSources())
+                        regeneratedUvs.push_back(source ? newMeshState->triangleCornerUvs.at(*source) : std::nullopt);
+                    newMeshState->triangleCornerUvs = std::move(regeneratedUvs);
                 }
                 newMesh = std::move(reMesh);
             }

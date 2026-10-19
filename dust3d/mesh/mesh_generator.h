@@ -67,6 +67,7 @@ public:
         bool isSuccessful = false;
         bool joined = true;
         std::vector<Color> importedVertexColors;
+        std::vector<std::optional<std::array<Vector2, 3>>> importedTriangleUvs;
         std::map<std::array<PositionKey, 3>, std::array<Vector3, 3>> importedTriangleNormals;
         void reset()
         {
@@ -76,6 +77,7 @@ public:
             positionToNodeIdMap.clear();
             nodeMap.clear();
             importedVertexColors.clear();
+            importedTriangleUvs.clear();
             importedTriangleNormals.clear();
             color = Color(1.0, 1.0, 1.0);
             metalness = 0.0;
@@ -142,6 +144,8 @@ public:
         float roughness = 1.0;
         std::vector<std::tuple<dust3d::Color, float /*metalness*/, float /*roughness*/>> vertexProperties;
         std::vector<Vector2> cutFaceTemplate;
+        std::vector<std::optional<std::array<Vector2, 3>>> triangleCornerUvs;
+        std::vector<std::string> triangleModelKeys;
     };
 
     struct ImportedModelData {
@@ -150,6 +154,8 @@ public:
         std::vector<std::vector<size_t>> faces;
         std::map<std::array<PositionKey, 3>, std::array<Vector2, 3>> triangleUvs;
         std::vector<Color> vertexColors;
+        // Parallel corner storage preserves coincident source UV seams.
+        std::vector<std::optional<std::array<Vector2, 3>>> triangleCornerUvs;
     };
 
     MeshGenerator(Snapshot* snapshot);

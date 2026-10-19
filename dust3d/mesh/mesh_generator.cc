@@ -1005,31 +1005,28 @@ std::unique_ptr<MeshState> MeshGenerator::combinePartMesh(const std::string& par
                         std::reverse(it.begin(), it.end());
                 }
 
-                // Build triangleUvs using deformed vertex positions as keys.
-                // importedData.triangleUvs uses pre-deformation position keys,
-                // but the packer/renderer looks up by deformed position keys.
-                if (!importedData.triangleUvs.empty()) {
-                    std::vector<Vector2> perVertexUv(importedData.vertices.size(), Vector2(0, 0));
-                    for (const auto& face : importedData.faces) {
-                        if (face.size() < 3)
-                            continue;
-                        auto findUv = importedData.triangleUvs.find({ PositionKey(importedData.vertices[face[0]]),
-                            PositionKey(importedData.vertices[face[1]]),
-                            PositionKey(importedData.vertices[face[2]]) });
-                        if (findUv != importedData.triangleUvs.end()) {
-                            perVertexUv[face[0]] = findUv->second[0];
-                            perVertexUv[face[1]] = findUv->second[1];
-                            perVertexUv[face[2]] = findUv->second[2];
-                        }
+                partCache.importedTriangleUvs.resize(partCache.faces.size());
+                for (size_t index = 0; index < partCache.faces.size(); ++index) {
+                    auto& corners = partCache.importedTriangleUvs[index];
+                    const auto& original = importedData.faces[index];
+                    const auto& face = partCache.faces[index];
+                    if (!importedData.triangleCornerUvs.empty()) {
+                        corners = importedData.triangleCornerUvs.at(index);
+                    } else if (original.size() == 3) {
+                        // Compatibility for inherited callers that only supply the old map.
+                        auto found = importedData.triangleUvs.find({ PositionKey(importedData.vertices.at(original[0])),
+                            PositionKey(importedData.vertices.at(original[1])), PositionKey(importedData.vertices.at(original[2])) });
+                        if (found != importedData.triangleUvs.end())
+                            corners = found->second;
                     }
-                    for (const auto& face : partCache.faces) {
-                        if (face.size() < 3)
-                            continue;
-                        partCache.triangleUvs.insert({ { PositionKey(partCache.vertices[face[0]]),
-                                                           PositionKey(partCache.vertices[face[1]]),
-                                                           PositionKey(partCache.vertices[face[2]]) },
-                            { perVertexUv[face[0]], perVertexUv[face[1]], perVertexUv[face[2]] } });
-                    }
+                    if (!corners || face.size() != 3)
+                        continue;
+                    if (!__mirrorFromPartId.empty())
+                        std::reverse(corners->begin(), corners->end());
+                    // Keep the inherited preview map without using it to recover source corners.
+                    partCache.triangleUvs.emplace(std::array<PositionKey, 3> { PositionKey(partCache.vertices.at(face[0])),
+                                                      PositionKey(partCache.vertices.at(face[1])), PositionKey(partCache.vertices.at(face[2])) },
+                        *corners);
                 }
 
                 // Source indices distinguish valid duplicated positions at color seams.
@@ -1097,7 +1094,9 @@ std::unique_ptr<MeshState> MeshGenerator::combinePartMesh(const std::string& par
         std::vector<std::vector<size_t>> faces;
         mesh->fetch(vertices, faces);
         mesh->triangleComponentKeys.assign(faces.size(), componentIdString);
+        mesh->triangleModelKeys.assign(faces.size(), target == PartTarget::ImportedModel ? String::valueOrEmpty(part, "importedModelId") : std::string());
     }
+    mesh->triangleCornerUvs = partCache.importedTriangleUvs;
     if (!partCache.importedVertexColors.empty()) {
         std::vector<Vector3> vertices;
         std::vector<std::vector<size_t>> faces;
@@ -1118,6 +1117,10 @@ std::unique_ptr<MeshState> MeshGenerator::combinePartMesh(const std::string& par
         preview.metalness = partCache.metalness;
         preview.roughness = partCache.roughness;
         preview.triangleUvs = partCache.triangleUvs;
+        if (mesh) {
+            preview.triangleCornerUvs = mesh->triangleCornerUvs;
+            preview.triangleModelKeys = mesh->triangleModelKeys;
+        }
         if (!partCache.importedVertexColors.empty()) {
             for (size_t index = 0; index < preview.vertices.size(); ++index)
                 preview.vertexProperties.emplace_back(partCache.importedVertexColors.at(index), preview.metalness, preview.roughness);
@@ -1783,6 +1786,16 @@ void MeshGenerator::collectIncombinableMesh(const MeshState* mesh, const Generat
     // Uncombined parts are kept whole, so their triangles are known to be theirs: record it
     // (the UV generator places the rest by position, which cannot tell apart two parts that
     // overlap exactly, e.g. equipment variants in the same place).
+    m_object->triangleModelKeys.resize(m_object->triangles.size());
+    if (mesh->triangleModelKeys.size() == uncombinedFaces.size())
+        m_object->triangleModelKeys.insert(m_object->triangleModelKeys.end(), mesh->triangleModelKeys.begin(), mesh->triangleModelKeys.end());
+    else
+        m_object->triangleModelKeys.resize(m_object->triangles.size() + uncombinedFaces.size());
+    m_object->triangleCornerUvs.resize(m_object->triangles.size());
+    if (mesh->triangleCornerUvs.size() == uncombinedFaces.size())
+        m_object->triangleCornerUvs.insert(m_object->triangleCornerUvs.end(), mesh->triangleCornerUvs.begin(), mesh->triangleCornerUvs.end());
+    else
+        m_object->triangleCornerUvs.resize(m_object->triangles.size() + uncombinedFaces.size());
     m_object->triangleVertexColors.resize(m_object->triangles.size());
     if (mesh->triangleVertexColors.size() == uncombinedFaces.size())
         m_object->triangleVertexColors.insert(m_object->triangleVertexColors.end(), mesh->triangleVertexColors.begin(), mesh->triangleVertexColors.end());
@@ -2695,6 +2708,8 @@ void MeshGenerator::collectComponentPreview(const std::string& componentIdString
                         std::get<1>(property), std::get<2>(property));
                 }
                 preview.triangles.push_back(std::move(expanded));
+                preview.triangleCornerUvs.push_back(index < mesh->triangleCornerUvs.size() ? mesh->triangleCornerUvs[index] : std::nullopt);
+                preview.triangleModelKeys.push_back(index < mesh->triangleModelKeys.size() ? mesh->triangleModelKeys[index] : std::string());
             }
         }
         for (const auto& componentUvs : source.componentTriangleUvs)
@@ -2864,6 +2879,8 @@ void MeshGenerator::generate()
         for (const auto& key : combinedMesh->triangleComponentKeys)
             m_object->triangleComponentIds.emplace_back(key);
         m_object->triangleVertexColors = combinedMesh->triangleVertexColors;
+        m_object->triangleCornerUvs = combinedMesh->triangleCornerUvs;
+        m_object->triangleModelKeys = combinedMesh->triangleModelKeys;
     }
 
     // Recursively check uncombined components

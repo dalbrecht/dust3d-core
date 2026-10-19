@@ -189,6 +189,7 @@ void nestedWrappingOwnership()
     part.faces = faces;
     part.triangleUvs[points] = uvs;
     part.importedVertexColors.push_back(dust3d::Color(0.2, 0.4, 0.8));
+    part.importedTriangleUvs.push_back(uvs);
     part.importedTriangleNormals[points] = { dust3d::Vector3(0, 0, 1), dust3d::Vector3(0, 0, 1), dust3d::Vector3(0, 0, 1) };
     auto& combination = cache.cachedCombination["union"];
     combination = std::make_unique<dust3d::MeshState>(vertices, faces);
@@ -221,7 +222,24 @@ void nestedWrappingOwnership()
     require(expandedColors.usedBytes() >= expandedOwners.usedBytes()
                 + 999 * sizeof(std::optional<std::array<dust3d::Color, 3>>),
         "Cached corner-color capacity must count toward retention");
-    const auto beforeWeightReservation = expandedColors.usedBytes();
+    combination->triangleCornerUvs.reserve(1000);
+    dust3d::RetainedPayloadBudget expandedUvs(std::numeric_limits<size_t>::max());
+    expandedUvs.accountObject(cache);
+    require(expandedUvs.usedBytes() >= expandedColors.usedBytes()
+                + 1000 * sizeof(std::optional<std::array<dust3d::Vector2, 3>>),
+        "Cached corner-UV capacity must count toward retention");
+    combination->triangleModelKeys.reserve(1000);
+    dust3d::RetainedPayloadBudget expandedModels(std::numeric_limits<size_t>::max());
+    expandedModels.accountObject(cache);
+    require(expandedModels.usedBytes() >= expandedUvs.usedBytes() + 1000 * sizeof(std::string),
+        "Cached GLB model-key capacity must count toward retention");
+    part.importedTriangleUvs.reserve(1000);
+    dust3d::RetainedPayloadBudget expandedPartUvs(std::numeric_limits<size_t>::max());
+    expandedPartUvs.accountObject(cache);
+    require(expandedPartUvs.usedBytes() >= expandedModels.usedBytes()
+                + 999 * sizeof(std::optional<std::array<dust3d::Vector2, 3>>),
+        "Imported part-cache UV capacity must count toward retention");
+    const auto beforeWeightReservation = expandedPartUvs.usedBytes();
     wrap.resultVertexNodeWeights[0].reserve(1000);
     dust3d::RetainedPayloadBudget expandedWeights(std::numeric_limits<size_t>::max());
     expandedWeights.accountObject(cache);

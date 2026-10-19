@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Preserve imported per-corner UV seams and resolved model ownership through spine deformation, mirrored winding, Boolean clipping, recombination, previews and retained caches. Public imported UV/bake rendering integration remains pending.
+
 - Add an opt-in owned C material/image inspection API for required imported models,
   preserving original instance bindings, glTF factors/samplers and encoded storage
   under a separate output quota; pixel decoding and application adoption remain

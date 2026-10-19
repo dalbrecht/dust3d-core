@@ -479,10 +479,14 @@ namespace native {
                     result.model.faces.push_back({ base + a, base + b, base + c });
                     if (!attributes.count("NORMAL"))
                         faceNormals.push_back(normal.normalized());
+                    result.model.triangleCornerUvs.push_back(std::nullopt);
                     if (!uvs.empty()) {
+                        const std::array<Vector2, 3> corners { uvs[a], uvs[b], uvs[c] };
+                        result.model.triangleCornerUvs.back() = corners;
                         const std::array<PositionKey, 3> key { PositionKey(result.model.vertices[base + a]), PositionKey(result.model.vertices[base + b]), PositionKey(result.model.vertices[base + c]) };
-                        if (!result.model.triangleUvs.emplace(key, std::array<Vector2, 3> { uvs[a], uvs[b], uvs[c] }).second)
-                            unsupported("duplicate position-key UV triangles cannot be represented losslessly");
+                        // Retain the inherited lookup for legacy consumers; parallel
+                        // corners are authoritative when source positions coincide.
+                        result.model.triangleUvs.emplace(key, corners);
                     }
                 }
                 if (!attributes.count("NORMAL")) {
@@ -516,7 +520,7 @@ namespace native {
             if (!hasVertexColors)
                 result.model.vertexColors.clear();
             readMaterial(document, decoder, selectedMaterial, result);
-            if (result.image && result.model.triangleUvs.size() != result.model.faces.size())
+            if (result.image && std::any_of(result.model.triangleCornerUvs.begin(), result.model.triangleCornerUvs.end(), [](const auto& corners) { return !corners.has_value(); }))
                 invalid("textured primitives require UVs on every triangle");
             return result;
         }

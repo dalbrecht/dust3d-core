@@ -1,4 +1,5 @@
 #include <cmath>
+#include <dust3d/base/vector2.h>
 #include <dust3d/mesh/mesh_combiner.h>
 #include <dust3d/mesh/mesh_recombiner.h>
 #include <dust3d/mesh/mesh_state.h>
@@ -180,7 +181,7 @@ void verifyBooleanTriangleOwnership(int mode)
         throw std::runtime_error("Ownership fixture did not exercise both input meshes");
 }
 
-void verifyCachedMeshTriangleOwnership(bool difference, bool recombine, bool hasOwnerAliases = false)
+size_t verifyCachedMeshTriangleOwnership(bool difference, bool recombine, bool hasOwnerAliases = false)
 {
     auto first = box(0, 0, 1);
     auto second = box(0, 0.4, 1.4);
@@ -191,18 +192,32 @@ void verifyCachedMeshTriangleOwnership(bool difference, bool recombine, bool has
     const std::string firstOwner("{11111111-1111-4111-8111-111111111111}");
     const std::string secondOwner = hasOwnerAliases ? firstOwner.substr(1, 36) : "{22222222-2222-4222-8222-222222222222}";
     firstState.triangleComponentKeys.assign(first.triangles.size(), firstOwner);
+    firstState.triangleModelKeys.assign(first.triangles.size(), "model-A");
+    secondState.triangleModelKeys.assign(second.triangles.size(), "model-B");
     secondState.triangleComponentKeys.assign(second.triangles.size(), secondOwner);
     for (const auto& face : first.triangles) {
         std::array<dust3d::Color, 3> colors;
         for (size_t corner = 0; corner < 3; ++corner)
             colors[corner] = dust3d::Color(first.vertices[face[corner]].x(), 0, 0);
         firstState.triangleVertexColors.push_back(colors);
+        std::array<dust3d::Vector2, 3> uvs;
+        for (size_t corner = 0; corner < 3; ++corner) {
+            const auto& position = first.vertices[face[corner]];
+            uvs[corner] = dust3d::Vector2(position.x() * 2 - 1, position.z() * 3);
+        }
+        firstState.triangleCornerUvs.push_back(uvs);
     }
     for (const auto& face : second.triangles) {
         std::array<dust3d::Color, 3> colors;
         for (size_t corner = 0; corner < 3; ++corner)
             colors[corner] = dust3d::Color(0, second.vertices[face[corner]].x() - .4, 0);
         secondState.triangleVertexColors.push_back(colors);
+        std::array<dust3d::Vector2, 3> uvs;
+        for (size_t corner = 0; corner < 3; ++corner) {
+            const auto& position = second.vertices[face[corner]];
+            uvs[corner] = dust3d::Vector2(position.x() * 2 + 4, position.z() * 3 - 2);
+        }
+        secondState.triangleCornerUvs.push_back(uvs);
     }
     auto combined = dust3d::MeshState::combine(firstState, secondState,
         difference ? dust3d::MeshCombiner::Method::Diff : dust3d::MeshCombiner::Method::Union, recombine);
@@ -216,20 +231,34 @@ void verifyCachedMeshTriangleOwnership(bool difference, bool recombine, bool has
         throw std::runtime_error("Cached mesh copy lost triangle ownership");
     if (copy.triangleVertexColors.size() != faces.size())
         throw std::runtime_error("Cached mesh copy lost corner color alignment");
+    if (copy.triangleCornerUvs != combined->triangleCornerUvs || copy.triangleCornerUvs.size() != faces.size()
+        || copy.triangleModelKeys != combined->triangleModelKeys || copy.triangleModelKeys.size() != faces.size())
+        throw std::runtime_error("Cached mesh copy lost corner UV alignment");
+    size_t bridgeCount = 0;
     size_t firstCount = 0;
     size_t secondCount = 0;
     for (size_t index = 0; index < faces.size(); ++index) {
         const auto& owner = copy.triangleComponentKeys[index];
         if (owner.empty()) {
-            if (copy.triangleVertexColors[index])
-                throw std::runtime_error("A generated bridge invented source corner colors");
+            ++bridgeCount;
+            if (!copy.triangleModelKeys.at(index).empty())
+                throw std::runtime_error("Generated bridge invented GLB model ownership");
+            if (copy.triangleVertexColors[index] || copy.triangleCornerUvs[index])
+                throw std::runtime_error("A generated bridge invented source corner attributes");
             continue;
         }
-        if (!copy.triangleVertexColors[index])
-            throw std::runtime_error("A retained Boolean face lost its corner colors");
+        if (copy.triangleModelKeys.at(index) != (owner == firstOwner ? "model-A" : "model-B"))
+            throw std::runtime_error("Boolean face lost exact source model ownership");
+        if (!copy.triangleVertexColors[index] || !copy.triangleCornerUvs[index])
+            throw std::runtime_error("A retained Boolean face lost its corner attributes");
         for (size_t corner = 0; corner < 3; ++corner) {
             const auto& position = vertices.at(faces[index].at(corner));
             const auto& color = (*copy.triangleVertexColors[index])[corner];
+            const auto& uv = (*copy.triangleCornerUvs[index])[corner];
+            const double expectedU = position.x() * 2 + (owner == firstOwner ? -1 : 4);
+            const double expectedV = position.z() * 3 + (owner == firstOwner ? 0 : -2);
+            if (std::abs(uv.x() - expectedU) > 1e-6 || std::abs(uv.y() - expectedV) > 1e-6)
+                throw std::runtime_error("Boolean clipping/cached copying changed source corner UVs");
             const double red = owner == firstOwner ? position.x() : 0;
             const double green = owner == secondOwner ? position.x() - .4 : 0;
             if (std::abs(color.r() - red) > 1e-6 || std::abs(color.g() - green) > 1e-6 || color.b() != 0)
@@ -256,6 +285,52 @@ void verifyCachedMeshTriangleOwnership(bool difference, bool recombine, bool has
     }
     if (!firstCount || !secondCount)
         throw std::runtime_error("Cached mesh ownership fixture lost an input");
+    return bridgeCount;
+}
+
+void verifyUvOnlyAndMixedProceduralFaces()
+{
+    const auto first = box(0, 0, 1);
+    const auto second = box(0, 2, 3);
+    dust3d::MeshState firstState(first.vertices, first.triangles);
+    dust3d::MeshState secondState(second.vertices, second.triangles);
+    for (const auto& face : first.triangles) {
+        std::array<dust3d::Vector2, 3> uvs;
+        for (size_t corner = 0; corner < 3; ++corner) {
+            const auto& position = first.vertices[face[corner]];
+            uvs[corner] = dust3d::Vector2(position.x() * 2 - 1, position.z() * 3);
+        }
+        firstState.triangleCornerUvs.push_back(uvs);
+    }
+    auto output = dust3d::MeshState::combine(firstState, secondState, dust3d::MeshCombiner::Method::Union, false);
+    if (!output || output->isNull())
+        throw std::runtime_error("UV-only mixed fixture failed");
+    dust3d::MeshState copy(*output);
+    std::vector<dust3d::Vector3> vertices;
+    std::vector<std::vector<size_t>> faces;
+    copy.fetch(vertices, faces);
+    if (!copy.triangleComponentKeys.empty() || !copy.triangleVertexColors.empty()
+        || copy.triangleCornerUvs.size() != faces.size())
+        throw std::runtime_error("UV-only propagation requires neither colors nor owner labels");
+    size_t mapped = 0, unmapped = 0;
+    for (size_t index = 0; index < faces.size(); ++index) {
+        const bool hasImportedUv = vertices.at(faces[index][0]).x() < 1.5;
+        if (copy.triangleCornerUvs[index].has_value() != hasImportedUv)
+            throw std::runtime_error("Procedural faces inherited imported UVs or imported faces lost them");
+        if (!hasImportedUv) {
+            ++unmapped;
+            continue;
+        }
+        ++mapped;
+        for (size_t corner = 0; corner < 3; ++corner) {
+            const auto& position = vertices.at(faces[index][corner]);
+            const auto& uv = (*copy.triangleCornerUvs[index])[corner];
+            if (std::abs(uv.x() - (position.x() * 2 - 1)) > 1e-9 || std::abs(uv.y() - position.z() * 3) > 1e-9)
+                throw std::runtime_error("UV-only copy changed source coordinates");
+        }
+    }
+    if (mapped != first.triangles.size() || unmapped != second.triangles.size())
+        throw std::runtime_error("UV-only fixture failed to exercise both mapped and unmapped triangles");
 }
 
 }
@@ -263,17 +338,21 @@ void verifyCachedMeshTriangleOwnership(bool difference, bool recombine, bool has
 int main()
 {
     try {
+        verifyUvOnlyAndMixedProceduralFaces();
         for (size_t axis = 0; axis < 3; ++axis)
             verifyThinSolidAcrossZero(axis);
         verifyBooleanTriangleOwnership(0);
         verifyBooleanTriangleOwnership(1);
         verifyBooleanTriangleOwnership(2);
+        size_t generatedBridges = 0;
         for (bool difference : { false, true }) {
             for (bool recombine : { false, true }) {
-                verifyCachedMeshTriangleOwnership(difference, recombine);
-                verifyCachedMeshTriangleOwnership(difference, recombine, true);
+                generatedBridges += verifyCachedMeshTriangleOwnership(difference, recombine);
+                generatedBridges += verifyCachedMeshTriangleOwnership(difference, recombine, true);
             }
         }
+        if (!generatedBridges)
+            throw std::runtime_error("UV propagation fixtures exercised no generated bridges");
         return 0;
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';
