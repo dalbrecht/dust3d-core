@@ -1,8 +1,10 @@
 # Embedded-model geometry verification
 
-Tracked by core #41. The committed ownership/header correction passed its gates.
-Further review corrections are in progress below; the working tree is not merge-ready.
-This stage does not establish full M4 or application import support.
+Geometry stage merged as core #43 at master 030074d, following a clean exact-head
+review of 0ea7c28 and all six Linux/macOS hosted checks, including Linux leak
+detection. The sections below preserve per-head implementation/review evidence;
+their pending statements apply to those earlier checkpoints. Core #41/M4 and
+application import acceptance remain open; material ownership follows in #46.
 
 The first end-to-end C API test failed with the existing imported-GLB rejection.
 The corrected reader binds a self-contained, closed tetrahedron from an actual

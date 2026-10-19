@@ -37,6 +37,109 @@ typedef struct Dust3DError {
     char message[512];
 } Dust3DError;
 
+/** Immutable imported material/image metadata owner; no geometry or pixel decoding.
+ * Release with dust3d_imported_assets_destroy. Source-matched prototype ABI.
+ */
+typedef struct Dust3DImportedAssets Dust3DImportedAssets;
+
+typedef enum Dust3DImportedAlphaMode {
+    DUST3D_IMPORTED_ALPHA_OPAQUE = 0,
+    DUST3D_IMPORTED_ALPHA_MASK = 1,
+    DUST3D_IMPORTED_ALPHA_BLEND = 2
+} Dust3DImportedAlphaMode;
+
+/** Borrowed, untrusted encoded storage; MIME is declared by GLB, not pixel validation.
+ * PNG/JPEG data must be validated/decoded at the caller's platform boundary.
+ * Absent images have NULL pointers and zero byte_count.
+ */
+typedef struct Dust3DImportedEncodedImageView {
+    const char* mime_type;
+    const uint8_t* bytes;
+    size_t byte_count;
+} Dust3DImportedEncodedImageView;
+
+/** Copied glTF factors and sampler state, plus views borrowed from the owner.
+ * Factors are unpremultiplied source values; no material application is implied.
+ * Filter-presence flags distinguish unspecified filtering from explicit GL constants.
+ * Without a sampler, its flags/values are zero; an image binding has a sampler
+ * with glTF repeat defaults even when the source omits a sampler object.
+ */
+typedef struct Dust3DImportedMaterialView {
+    const char* model_id;
+    double base_color[4];
+    double metallic;
+    double roughness;
+    double emissive[3];
+    Dust3DImportedAlphaMode alpha_mode;
+    double alpha_cutoff;
+    uint32_t is_double_sided;
+    uint32_t has_sampler;
+    uint32_t has_magnification_filter;
+    uint32_t magnification_filter;
+    uint32_t has_minification_filter;
+    uint32_t minification_filter;
+    uint32_t wrap_s;
+    uint32_t wrap_t;
+    Dust3DImportedEncodedImageView image;
+} Dust3DImportedMaterialView;
+
+/** Original opaque identities, not UUID-collapsed spellings. A NULL component_id
+ * with non-NULL part_id represents an imported part with no component instance.
+ * model_index refers to this owner's material records. No ordering is promised.
+ */
+typedef struct Dust3DImportedBindingView {
+    const char* component_id;
+    const char* part_id;
+    size_t model_index;
+} Dust3DImportedBindingView;
+
+#define DUST3D_DEFAULT_IMPORTED_ASSET_PAYLOAD_BYTES 67108864
+#define DUST3D_MAX_IMPORTED_ASSET_PAYLOAD_BYTES 268435456
+
+/** NULL options and zero maximum_payload_bytes select the nonzero default.
+ * struct_size must be at least sizeof(Dust3DImportedAssetOptions).
+ * Output quota counts owned object/record/identity/buffer capacities, excluding
+ * allocator bookkeeping, parser/generator workspace and temporary lookup indexes.
+ * Existing input/decoded-model limits apply separately; this is not an RSS bound.
+ */
+typedef struct Dust3DImportedAssetOptions {
+    size_t struct_size;
+    size_t maximum_payload_bytes;
+} Dust3DImportedAssetOptions;
+
+/** Resolve required models and copy/move their materials into an independent owner.
+ * Does not generate geometry, decode image pixels, or apply/bake materials.
+ * Original input is unchanged and borrowed only during this call. All engine
+ * entry points serialize inherited globals. Optional caches are not involved.
+ * @param bytes Readable complete archive storage (NULL is invalid).
+ * @param size Archive length, subject to the existing 256 MiB input limit.
+ * @param options Optional validated output quota.
+ * @param error Optional initialized status/original diagnostic.
+ * @return Owner or NULL for malformed, unsupported, over-budget or allocation failure.
+ * Missing/malformed required assets retain their cause before output quota checks.
+ * Never throws across C. Copy borrowed views before destroying their owner.
+ * Example: Dust3DImportedAssets* assets = dust3d_imported_assets_load(data, size, NULL, &error);
+ */
+Dust3DImportedAssets* dust3d_imported_assets_load(const uint8_t* bytes, size_t size, const Dust3DImportedAssetOptions* options, Dust3DError* error);
+/** Release a quiescent owner. NULL accepted; destruction cannot race any use. */
+void dust3d_imported_assets_destroy(Dust3DImportedAssets* assets);
+/** Required unique model-material count; NULL returns zero. */
+size_t dust3d_imported_assets_model_count(const Dust3DImportedAssets* assets);
+/** Instance/uninstanced-part binding count; NULL returns zero. */
+size_t dust3d_imported_assets_binding_count(const Dust3DImportedAssets* assets);
+/** Accounted retained output payload; NULL returns zero. */
+size_t dust3d_imported_assets_payload_bytes(const Dust3DImportedAssets* assets);
+/** Return copied factors plus owner-borrowed strings/image bytes.
+ * NULL/out-of-range returns a zeroed view with NULL model_id. All non-NULL
+ * pointers remain valid until owner destruction, independent of subsequent loads.
+ * Example: Dust3DImportedMaterialView material = dust3d_imported_assets_material(assets, 0);
+ */
+Dust3DImportedMaterialView dust3d_imported_assets_material(const Dust3DImportedAssets* assets, size_t index);
+/** Return owner-borrowed original identities. NULL/out-of-range returns a zeroed
+ * view with NULL part_id. Lifetimes match dust3d_imported_assets_material.
+ */
+Dust3DImportedBindingView dust3d_imported_assets_binding(const Dust3DImportedAssets* assets, size_t index);
+
 /** One-shot cooperative cancellation state, independent of the engine lock.
  * The caller must retain the token until the operation and all concurrent cancel/query
  * calls finish. Destruction must never race any use. Tokens cannot be reset/reused

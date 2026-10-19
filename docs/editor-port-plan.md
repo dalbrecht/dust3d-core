@@ -364,3 +364,18 @@ regressions failed before their fixes. Full Debug and ASan/UBSan suites pass
 38/38 locally; SwiftPM and formatting/Qt boundary checks pass. Exact-head review
 and hosted checks remain required before merging. These corrections do not
 complete imported materials, Apple adoption, file previews or M4 acceptance.
+
+
+### Owned imported-material inspection stage
+
+Core #43 is merged at 030074d after exact-head automated review and all six hosted
+checks passed. Geometry-preview acceptance does not close #41/M4. Core #46 now
+implements an independent C material/image owner with original instance bindings,
+explicit sampler/alpha factors, untrusted encoded storage and an output quota.
+Empty material sets do not relax geometry-loading or graph-reference validation.
+See ADR 0018 and imported-asset ownership verification. Full local Debug and
+ASan/UBSan suites pass 39/39; SwiftPM and formatting/Qt checks pass. Boundary-only
+coverage is 98.69% lines, 100% functions and 100% measured branches, with the
+defensive catch-all exception handler uncovered. Automated review and hosted CI
+remain required; Swift/ImageIO, imported UV/bake/PBR integration, the Apple pin,
+file previews and textured export acceptance are still required.

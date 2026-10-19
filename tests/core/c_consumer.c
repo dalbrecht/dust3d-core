@@ -75,5 +75,15 @@ int main(void)
         || dust3d_baked_mesh_tangent_count(NULL) != 0 || dust3d_baked_mesh_payload_bytes(NULL) != 0)
         return 15;
     dust3d_baked_mesh_destroy(baked);
+    Dust3DImportedAssetOptions asset_options = { sizeof(Dust3DImportedAssetOptions), 0 };
+    Dust3DImportedAssets* assets = dust3d_imported_assets_load(NULL, 0, &asset_options, &error);
+    Dust3DImportedMaterialView material = dust3d_imported_assets_material(NULL, SIZE_MAX);
+    Dust3DImportedBindingView binding = dust3d_imported_assets_binding(NULL, SIZE_MAX);
+    if (assets != NULL || error.status != DUST3D_STATUS_INVALID_DOCUMENT
+        || dust3d_imported_assets_model_count(NULL) != 0 || dust3d_imported_assets_binding_count(NULL) != 0
+        || dust3d_imported_assets_payload_bytes(NULL) != 0 || material.model_id != NULL
+        || material.image.bytes != NULL || material.image.byte_count != 0 || binding.part_id != NULL)
+        return 16;
+    dust3d_imported_assets_destroy(assets);
     return 0;
 }

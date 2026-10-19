@@ -280,3 +280,19 @@ destroy it. Cancel/query do not acquire the engine mutex. Inherited generation
 only observes phase boundaries. See `Dust3DBridge.h` and ADR 0015 for precise
 options, status, lifetime and unfinished acceptance gates. A strict Swift 6 smoke
 copies actual Capsule/Sword output; this does not establish renderer parity.
+
+## Imported material inspection (prototype)
+
+`dust3d_imported_assets_load` returns an immutable owner for required imported GLB
+materials and encoded PNG/JPEG storage. Inspect material records and original
+component/part bindings, copy borrowed strings/bytes, then call
+`dust3d_imported_assets_destroy`. Null and out-of-range accessors return empty views.
+Optional output limits cover retained record/string/buffer capacities; input and
+decoded-model quotas apply separately. Empty editor graphs have empty material
+sets. See the public header, [ADR 0018](docs/adr/0018-owned-imported-materials.md)
+and [verification](docs/imported-asset-ownership-verification.md).
+
+This operation does not generate geometry, validate image pixels, apply textures,
+or complete imported UV/bake/PBR support. Existing geometry preview warnings and
+UV/bake import rejection remain explicit until those integrations land. Apple
+decoding belongs at the bounded ImageIO boundary, after copying the C views.

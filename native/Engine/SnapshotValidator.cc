@@ -103,9 +103,9 @@ namespace native {
         }
     }
 
-    void validateSnapshot(Snapshot& snapshot, bool canImportModels)
+    void validateSnapshot(Snapshot& snapshot, bool canImportModels, bool canReadEmptyGeometry)
     {
-        if (snapshot.nodes.empty() || snapshot.parts.empty())
+        if (!canReadEmptyGeometry && (snapshot.nodes.empty() || snapshot.parts.empty()))
             throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "The document contains no procedural geometry.");
         if (snapshot.nodes.size() > 10000 || snapshot.edges.size() > 20000 || snapshot.components.size() > 10000)
             throw DocumentError(DUST3D_STATUS_LIMIT_EXCEEDED, "The model exceeds the native viewer's graph limits.");

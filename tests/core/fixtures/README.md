@@ -44,3 +44,19 @@ unit normals (squared-length tolerance 0.001). Malformed suffixes, duplicate
 separators, nonfinite values, underflow, excessive magnitude and negative comma-
 decimal radii must reject with a typed diagnostic. These compare equivalent
 numeric spellings; they do not prescribe a general triangulation baseline.
+
+`ImportedMaterial.png` and `ImportedMaterial.jpg` are synthetic MIT 2x2 image
+fixtures for core #46 (Codex, 2026-10-18; base core 030074d). The PNG was independently
+encoded for the earlier GLB/ImageIO development probe, with top-to-bottom RGBA
+pixels `[255,0,0,128]`, `[0,255,0,255]`, `[0,0,255,255]`, `[255,255,0,64]`.
+Standalone ImageIO inspection verified its dimensions and raw samples. The JPEG
+was encoded from that source using macOS `sips -s format jpeg`; its dimensions are
+2x2, and its lossy pixel values/removed alpha are not a lossless RGBA oracle.
+
+SHA256:
+- PNG: `16b2ab21aa4c82b1cf5d68309350062d9f3611d85cae9078b7bbc18604a4064a`
+- JPEG: `4b3593d330793b34e5c66636c1cbc0f8c8572b2fc2a40f0b4aa5bbcdac192920`
+
+The C ownership contract builds independent GLB/`.ds3` wrappers at runtime and
+requires exact encoded bytes/material metadata, not rendered pixels. No native
+image decoding, Qt render baseline or screenshot parity follows from that test.
