@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add an owned C surface-source API with float-retained triangle alignment, authored repeat UVs, straight RGBA with explicit linear/sRGB encoding, resolved model/component catalogs and bounded retained ownership. Atlas sampling, baking and Apple adoption remain separate.
+
 - Preserve imported per-corner UV seams and resolved model ownership through spine deformation, mirrored winding, Boolean clipping, recombination, previews and retained caches. Public imported UV/bake rendering integration remains pending.
 
 - Add an opt-in owned C material/image inspection API for required imported models,

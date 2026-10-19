@@ -37,6 +37,82 @@ typedef struct Dust3DError {
     char message[512];
 } Dust3DError;
 
+/** Owned geometry plus unassociated source surface attributes; release with the matching destroy function. */
+typedef struct Dust3DImportedSurfaceMesh Dust3DImportedSurfaceMesh;
+#define DUST3D_DEFAULT_IMPORTED_SURFACE_PAYLOAD_BYTES 67108864
+#define DUST3D_MAX_IMPORTED_SURFACE_PAYLOAD_BYTES 268435456
+
+/** Catalog membership, not a guarantee of unique Boolean surface provenance. */
+typedef enum Dust3DSurfaceComponentKind {
+    DUST3D_SURFACE_COMPONENT_UNKNOWN = 0,
+    DUST3D_SURFACE_COMPONENT_ORIGINAL = 1,
+    DUST3D_SURFACE_COMPONENT_GENERATED = 2
+} Dust3DSurfaceComponentKind;
+
+/** Source-matched options. Zero selects 64 MiB; maximum 256 MiB.
+ * Charges retained roots, geometry/attribute/catalog capacities and identity strings.
+ * Excludes allocator bookkeeping and temporary decoder/generator/lookup workspace;
+ * this is not a process memory cap. struct_size must equal sizeof this structure.
+ */
+typedef struct Dust3DImportedSurfaceOptions {
+    size_t struct_size;
+    size_t maximum_payload_bytes;
+} Dust3DImportedSurfaceOptions;
+
+/** RGB numerical encoding. Alpha is always linear and unassociated. */
+typedef enum Dust3DSurfaceColorEncoding {
+    DUST3D_SURFACE_COLOR_SRGB = 0,
+    DUST3D_SURFACE_COLOR_LINEAR = 1
+} Dust3DSurfaceColorEncoding;
+
+/** One record per exported triangle, in the same expanded corner order.
+ * uv_known is 0/1; unknown UVs are zero. Known UVs are finite authored coordinates,
+ * possibly outside [0,1], not normalized atlas coordinates. color is finite straight
+ * RGBA in [0,1], independent of material factors/image samples and preview opacity.
+ * color_encoding distinguishes glTF linear vertex RGB from inherited sRGB fallback
+ * RGB. Transfer performs no RGB conversion. Mixed uncolored glTF primitives use
+ * neutral white in the model's linear vertex-color channel.
+ * Model/component indices reference this owner's catalogs; SIZE_MAX means unknown.
+ * A known model can have no UVs. Generated bridges never invent model/UV ownership.
+ */
+typedef struct Dust3DImportedSurfaceTriangle {
+    double uv[3][2];
+    double color[3][4];
+    uint8_t uv_known;
+    Dust3DSurfaceColorEncoding color_encoding;
+    size_t model_index;
+    size_t component_index;
+} Dust3DImportedSurfaceTriangle;
+
+/** Generate complete geometry and copy aligned source attributes under the engine lock.
+ * bytes is borrowed only during this call. Returns NULL and an original typed error
+ * for invalid/unsupported input, limits, allocation or generation failure. Exceptions
+ * never cross C. Does not decode pixels, pack UVs, apply material factors or bake.
+ * Example: zero-initialize options, set struct_size, load, inspect, then destroy.
+ */
+Dust3DImportedSurfaceMesh* dust3d_imported_surface_mesh_load(const uint8_t* bytes, size_t size,
+    const Dust3DImportedSurfaceOptions* options, Dust3DError* error);
+/** Release all retained buffers; NULL is safe. */
+void dust3d_imported_surface_mesh_destroy(Dust3DImportedSurfaceMesh* mesh);
+/** Borrowed geometry, never destroy separately; NULL owner returns NULL. */
+const Dust3DMesh* dust3d_imported_surface_mesh_geometry(const Dust3DImportedSurfaceMesh* mesh);
+/** Borrowed immutable records until owner destruction; NULL/empty returns NULL. */
+const Dust3DImportedSurfaceTriangle* dust3d_imported_surface_mesh_triangles(const Dust3DImportedSurfaceMesh* mesh);
+/** Exported triangle count; zero for NULL. */
+size_t dust3d_imported_surface_mesh_triangle_count(const Dust3DImportedSurfaceMesh* mesh);
+/** Resolved GLB model catalog count; zero for NULL. */
+size_t dust3d_imported_surface_mesh_model_count(const Dust3DImportedSurfaceMesh* mesh);
+/** Borrowed terminated, case-preserving resolved model ID; NULL/out-of-range returns NULL. */
+const char* dust3d_imported_surface_mesh_model_id(const Dust3DImportedSurfaceMesh* mesh, size_t index);
+/** Original/generated component catalog count; zero for NULL. */
+size_t dust3d_imported_surface_mesh_component_count(const Dust3DImportedSurfaceMesh* mesh);
+/** Borrowed terminated opaque component key; NULL/out-of-range returns NULL. */
+const char* dust3d_imported_surface_mesh_component_id(const Dust3DImportedSurfaceMesh* mesh, size_t index);
+/** Catalog classification; UNKNOWN for NULL/out-of-range. */
+Dust3DSurfaceComponentKind dust3d_imported_surface_mesh_component_kind(const Dust3DImportedSurfaceMesh* mesh, size_t index);
+/** Conservative retained payload including geometry; zero for NULL. */
+size_t dust3d_imported_surface_mesh_payload_bytes(const Dust3DImportedSurfaceMesh* mesh);
+
 /** Immutable imported material/image metadata owner; no geometry or pixel decoding.
  * Release with dust3d_imported_assets_destroy. Source-matched prototype ABI.
  */

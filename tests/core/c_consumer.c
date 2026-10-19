@@ -85,5 +85,17 @@ int main(void)
         || material.image.bytes != NULL || material.image.byte_count != 0 || binding.part_id != NULL)
         return 16;
     dust3d_imported_assets_destroy(assets);
+    Dust3DImportedSurfaceOptions surface_options = { sizeof(Dust3DImportedSurfaceOptions), 0 };
+    Dust3DImportedSurfaceMesh* surface = dust3d_imported_surface_mesh_load(NULL, 0, &surface_options, &error);
+    if (surface != NULL || error.status != DUST3D_STATUS_INVALID_DOCUMENT
+        || dust3d_imported_surface_mesh_geometry(NULL) != NULL || dust3d_imported_surface_mesh_triangles(NULL) != NULL
+        || dust3d_imported_surface_mesh_triangle_count(NULL) != 0 || dust3d_imported_surface_mesh_model_count(NULL) != 0
+        || dust3d_imported_surface_mesh_component_count(NULL) != 0 || dust3d_imported_surface_mesh_payload_bytes(NULL) != 0
+        || dust3d_imported_surface_mesh_model_id(NULL, SIZE_MAX) != NULL || dust3d_imported_surface_mesh_component_id(NULL, SIZE_MAX) != NULL
+        || dust3d_imported_surface_mesh_component_kind(NULL, SIZE_MAX) != DUST3D_SURFACE_COMPONENT_UNKNOWN)
+        return 17;
+    dust3d_imported_surface_mesh_destroy(surface);
+    if (dust3d_imported_surface_mesh_load(NULL, 0, NULL, NULL) != NULL)
+        return 18;
     return 0;
 }

@@ -32,6 +32,7 @@ target_include_directories(dust3d_core PUBLIC
     third_party/earcut.hpp/include)
 target_link_libraries(dust3d_core PUBLIC dust3d_remesher dust3d_triangle Threads::Threads)
 add_library(dust3d_engine STATIC
+    native/Engine/ImportedSurface.cc
     native/Engine/ImportedAssets.cc
     native/Engine/ImportedModels.cc
     native/Engine/GlbReader.cc
@@ -51,6 +52,10 @@ target_link_libraries(dust3d_engine PRIVATE dust3d_core)
 
 include(CTest)
 if(BUILD_TESTING)
+    add_executable(dust3d_imported_surface_tests tests/core/imported_surface_tests.cc)
+    target_link_libraries(dust3d_imported_surface_tests PRIVATE dust3d_engine)
+    add_test(NAME contract_imported_surfaces COMMAND dust3d_imported_surface_tests ${CMAKE_CURRENT_SOURCE_DIR}/tests/core/fixtures)
+    set_tests_properties(contract_imported_surfaces PROPERTIES TIMEOUT 60)
     add_executable(dust3d_imported_asset_tests tests/core/imported_asset_tests.cc)
     target_include_directories(dust3d_imported_asset_tests PRIVATE third_party)
     target_link_libraries(dust3d_imported_asset_tests PRIVATE dust3d_engine)

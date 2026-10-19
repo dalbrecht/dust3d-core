@@ -296,3 +296,39 @@ This operation does not generate geometry, validate image pixels, apply textures
 or complete imported UV/bake/PBR support. Existing geometry preview warnings and
 UV/bake import rejection remain explicit until those integrations land. Apple
 decoding belongs at the bounded ImageIO boundary, after copying the C views.
+
+### Imported surface source attributes
+
+`dust3d_imported_surface_mesh_load` returns one independent owner for generated
+geometry and parallel source records. Supply `Dust3DImportedSurfaceOptions` with
+`struct_size = sizeof(Dust3DImportedSurfaceOptions)` and zero for the default
+64 MiB retained-payload budget (maximum 256 MiB). Query geometry, triangle records
+and catalogs while that owner lives, copy any buffers needed later, then call
+`dust3d_imported_surface_mesh_destroy` exactly once. Do not destroy its borrowed
+geometry separately. Null queries are safe; load errors return null plus a typed
+`Dust3DError` whose message preserves the cause.
+
+```c
+Dust3DImportedSurfaceOptions options = {sizeof(Dust3DImportedSurfaceOptions), 0};
+Dust3DError error = {0};
+Dust3DImportedSurfaceMesh *owner =
+    dust3d_imported_surface_mesh_load(bytes, byte_count, &options, &error);
+if (owner) {
+    const Dust3DImportedSurfaceTriangle *triangles =
+        dust3d_imported_surface_mesh_triangles(owner);
+    size_t count = dust3d_imported_surface_mesh_triangle_count(owner);
+    /* Copy count records and borrowed geometry before destroying owner. */
+    (void)triangles;
+    (void)count;
+    dust3d_imported_surface_mesh_destroy(owner);
+}
+```
+
+Authored UVs may repeat outside 0–1. They are not packed atlas UVs. Unknown UVs
+are zero with `uv_known == 0`; absent catalog indices are `SIZE_MAX`. RGB encoding
+is explicit: glTF vertex colors are linear, document fallback colors are sRGB;
+alpha is always straight and linear. Values exclude material factors and texture
+samples. Generated catalog membership does not establish unique Boolean
+provenance. This API adds no texture decoding, sampling, atlas/bake integration
+or new renderer behavior. See [design](docs/adr/0020-owned-imported-surfaces.md)
+and [verification](docs/imported-surface-verification.md).
