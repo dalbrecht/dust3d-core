@@ -24,6 +24,8 @@ namespace native {
         void load(Snapshot& snapshot, const std::vector<ModelAssetView>& assets, std::string& warning);
         /// Transfer geometry to one generator; material owners remain alive locally.
         std::map<std::string, MeshGenerator::ImportedModelData> takeGeometry();
+        /// Transfer all decoded owners once; callers may discard geometry for metadata inspection.
+        std::map<std::string, GlbAsset> takeAssets();
 
     private:
         std::map<std::string, GlbAsset> m_assets;

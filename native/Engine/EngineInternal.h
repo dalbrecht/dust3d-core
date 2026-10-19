@@ -60,8 +60,8 @@ namespace native {
         virtual void attribute(std::string_view name, std::string_view value) noexcept = 0;
     };
     std::unique_ptr<Snapshot> readDocument(const uint8_t* bytes, size_t size, std::string& warning,
-        DocumentAssetObserver* observer = nullptr, ImportedModels* imports = nullptr);
-    void validateSnapshot(Snapshot& snapshot, bool canImportModels = false);
+        DocumentAssetObserver* observer = nullptr, ImportedModels* imports = nullptr, bool canReadEmptyGeometry = false);
+    void validateSnapshot(Snapshot& snapshot, bool canImportModels = false, bool canReadEmptyGeometry = false);
 
 }
 }

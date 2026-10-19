@@ -118,7 +118,7 @@ namespace native {
         }
     }
 
-    std::unique_ptr<Snapshot> readDocument(const uint8_t* bytes, size_t size, std::string& warning, DocumentAssetObserver* observer, ImportedModels* imports)
+    std::unique_ptr<Snapshot> readDocument(const uint8_t* bytes, size_t size, std::string& warning, DocumentAssetObserver* observer, ImportedModels* imports, bool canReadEmptyGeometry)
     {
         if (!bytes || !size)
             throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Choose a nonempty .ds3 document.");
@@ -190,7 +190,7 @@ namespace native {
         validateModelXml(modelBytes);
         auto snapshot = std::make_unique<Snapshot>();
         loadSnapshotFromXmlString(snapshot.get(), reinterpret_cast<char*>(modelBytes.data()));
-        validateSnapshot(*snapshot, imports != nullptr);
+        validateSnapshot(*snapshot, imports != nullptr, canReadEmptyGeometry);
         for (const auto& component : snapshot->components) {
             if (!String::valueOrEmpty(component.second, "colorImageId").empty()
                 || !String::valueOrEmpty(component.second, "wrapPattern").empty()

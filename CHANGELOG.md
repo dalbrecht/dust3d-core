@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Add an opt-in owned C material/image inspection API for required imported models,
+  preserving original instance bindings, glTF factors/samplers and encoded storage
+  under a separate output quota; pixel decoding and application adoption remain
+  subsequent stages.
+
+
 - Sweep imported geometry across circular spines' closing edges with periodic cross-section frames and matching normal derivatives.
 
 - Apply authored-versus-smoothed imported normals per component instance, including coincident instances sharing the same part.

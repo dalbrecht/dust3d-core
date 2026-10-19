@@ -91,6 +91,10 @@ namespace native {
             warning += "Imported geometry preview: GLB materials, textures and transparency are not yet applied.";
         }
     }
+    std::map<std::string, GlbAsset> ImportedModels::takeAssets()
+    {
+        return std::move(m_assets);
+    }
     std::map<std::string, MeshGenerator::ImportedModelData> ImportedModels::takeGeometry()
     {
         std::map<std::string, MeshGenerator::ImportedModelData> geometry;

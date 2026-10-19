@@ -1,6 +1,6 @@
 # ADR 0017: Primary embedded-model geometry resolution
 
-Status: locally verified implementation under [core #41](https://github.com/dalbrecht/dust3d-core/issues/41), pending review and CI.
+Status: accepted geometry-preview stage in [core #43](https://github.com/dalbrecht/dust3d-core/pull/43), merged at 030074d. Broader #41/M4 acceptance remains open.
 
 The bounded GLB decoder is now connected to geometry-preview generation. Expanded,
 sourced and session mesh loads resolve required `ImportedModel` parts before any
