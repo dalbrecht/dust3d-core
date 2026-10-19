@@ -300,7 +300,8 @@ namespace native {
                     invalid("unknown material alpha mode");
             }
             if (material.count("alphaCutoff")) {
-                result.alphaCutoff = scalar(material.at("alphaCutoff"));
+                // A material threshold is double metadata, not a bounded spatial coordinate.
+                result.alphaCutoff = scalar(material.at("alphaCutoff"), std::numeric_limits<double>::max());
                 if (result.alphaCutoff < 0)
                     invalid("negative alpha cutoff");
             }

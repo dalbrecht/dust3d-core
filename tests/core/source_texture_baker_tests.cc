@@ -127,6 +127,28 @@ void authoredRepeatAndLod()
     resolved.materials.at("model").colorTexture = nullptr;
     require(dust3d::SourceTextureBaker::bake(source, resolved, options()).color.pixels[0] == 255, "textureless source needs no fabricated UVs");
 }
+
+void fullNonnegativeAlphaCutoffRange()
+{
+    auto resolved = inputs();
+    auto& material = resolved.materials.at("model");
+    material.baseColor[3] = .5;
+    for (auto mode : { dust3d::SourceTextureAlphaMode::opaque, dust3d::SourceTextureAlphaMode::mask, dust3d::SourceTextureAlphaMode::blend }) {
+        material.policy.alphaMode = mode;
+        for (double cutoff : { 0.0, std::numeric_limits<double>::denorm_min(), 1.0, 1.5, std::numeric_limits<double>::max() }) {
+            material.policy.alphaCutoff = cutoff;
+            auto result = dust3d::SourceTextureBaker::bake(atlas(), resolved, options());
+            require(result.trianglePolicies.at(0) && result.trianglePolicies[0]->alphaCutoff == cutoff,
+                "Every finite nonnegative glTF alpha cutoff must remain exact in source policy");
+            require(result.color.pixels[3] == (mode == dust3d::SourceTextureAlphaMode::opaque ? 255 : 128),
+                "Cutoff belongs to rendering; baking must preserve combined straight alpha for mask and blend");
+        }
+    }
+    for (double cutoff : { -1.0, -std::numeric_limits<double>::infinity(), std::numeric_limits<double>::infinity(), std::numeric_limits<double>::quiet_NaN() }) {
+        material.policy.alphaCutoff = cutoff;
+        rejects([&] { dust3d::SourceTextureBaker::bake(atlas(), resolved, options()); }, dust3d::TextureBakeErrorCode::invalidInput);
+    }
+}
 void legacyComposition()
 {
     auto source = atlas();
@@ -445,6 +467,7 @@ int main(int argc, char** argv)
     try {
         verifyChartLocalGutters();
         linearFactorsAndPolicies();
+        fullNonnegativeAlphaCutoffRange();
         authoredRepeatAndLod();
         legacyComposition();
         failures();

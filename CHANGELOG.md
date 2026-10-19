@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Preserve the full finite nonnegative glTF alpha-cutoff range in source baking, including mask cutoffs above one, while retaining raw combined alpha and exact owned policy metadata (#61).
+
 - Add an owned opt-in native source-bake C API with caller-decoded imported images, exact final geometry/UV/material alignment, procedural composition, bounded ownership and explicit atlas LOD metadata. Existing load/bake contracts and Apple pins remain unchanged (#58).
 
 - Add owned CPU source-aware atlas baking with linear imported color factors, derivative mip selection, per-triangle alpha/sidedness policies, PBR maps and legacy-map composition. Isolate chart gutters, require bilinear padding and expose the output LOD-zero limit; chart-isolated atlas mips remain #59. Native/Apple adoption remains pending (#56).

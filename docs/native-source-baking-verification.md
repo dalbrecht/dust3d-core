@@ -1,5 +1,23 @@
 # Native source-aware baking verification
 
+## Alpha cutoff compatibility (#61)
+
+The glTF material contract accepts every finite nonnegative alpha cutoff, without
+an upper unit bound. MASK cutoffs above one make all fragments transparent;
+OPAQUE/BLEND ignore the cutoff. See the
+[Khronos schema](https://raw.githubusercontent.com/KhronosGroup/glTF/main/specification/2.0/schema/material.schema.json).
+The GLB reader must use a metadata bound rather than its default spatial-coordinate
+bound. Source policy validation must likewise avoid unit-range admission.
+
+Portable tests cover zero, a positive subnormal, one, 1.5 and the largest finite
+double across all modes, retaining exact policy and raw combined alpha. Negative
+and nonfinite policy inputs still reject. Real `.ds3` C-API regressions change
+only same-length JSON cutoff tokens to 1.500 and 1e300, leaving the GLB/archive
+layout intact, and verify exact owned cutoff metadata and unchanged baked pixels.
+Both regression contracts failed before the fix. Swift consumers must adopt the
+reviewed core revision and widen their copy/render validation separately; GPU
+threshold conversion must preserve the original double comparison.
+
 Scope: core #58 and ADR 0024. This is an opt-in C owner; Apple dependency/SDK/render
 adoption, safe atlas minification (#59) and textured export/re-import remain pending.
 
