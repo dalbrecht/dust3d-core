@@ -22,8 +22,11 @@ namespace native {
         std::vector<Dust3DTextureTangent> tangents;
         size_t payloadBytes = 0;
 
-    private:
+        /// Shared pure input resolution for source-aware composition. Borrowed views stay call-local.
         TextureBakeInputs resolvedInputs(const Snapshot& snapshot) const;
+        const Dust3DBakeOptions& options() const { return m_options; }
+
+    private:
         Dust3DBakeOptions m_options;
         std::map<Uuid, UvAtlasImage> m_images;
         std::map<Uuid, TextureImageView> m_pixels;

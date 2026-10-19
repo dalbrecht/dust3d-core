@@ -9,6 +9,7 @@ namespace dust3d {
 namespace native {
     Color normalizedUvColor(const std::string& text);
     void validateUvVisuals(const Snapshot& snapshot, const std::map<Uuid, UvAtlasImage>& images);
+    std::map<Uuid, UvAtlasComponent> resolvedUvComponents(const Snapshot& generated, const std::map<Uuid, UvAtlasImage>& images);
     // Original identity membership is captured before generator preprocessing.
     class UvMetadata {
     public:

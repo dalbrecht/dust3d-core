@@ -2,6 +2,7 @@
 #include "GenerationPipeline.h"
 #include "ImportedModels.h"
 #include "ImportedSurface.h"
+#include "SourceBakedMesh.h"
 #include "SourceProvenance.h"
 #include "UvMetadata.h"
 #include <array>
@@ -45,6 +46,13 @@ namespace native {
         auto* uvs = outputs.uvs;
         auto* baked = outputs.baked;
         auto* surfaces = outputs.surfaces;
+        auto* sourceBaked = outputs.sourceBaked;
+        auto checkGenerationCancellation = [&] {
+            if (baked)
+                checkCancellation(baked->cancellation());
+            if (sourceBaked)
+                checkCancellation(sourceBaked->cancellation());
+        };
         const std::map<Uuid, UvAtlasImage> emptyImages;
         const auto& images = outputs.images ? *outputs.images : emptyImages;
         const size_t textureSize = outputs.textureSize;
@@ -59,11 +67,9 @@ namespace native {
             generator.setImportedModelData(imports->takeGeometry());
         if (cache)
             generator.setGeneratedCacheContext(cache);
-        if (baked)
-            checkCancellation(baked->cancellation());
+        checkGenerationCancellation();
         generator.generate();
-        if (baked)
-            checkCancellation(baked->cancellation());
+        checkGenerationCancellation();
         if (metrics)
             *metrics = generator.generationMetrics();
         std::unique_ptr<dust3d::Object> object(generator.takeObject());
@@ -76,17 +82,18 @@ namespace native {
         if (surfaces)
             surfaces->prepare(*object, mesh->warning);
         std::unique_ptr<Snapshot> generated;
-        if (uvs) {
+        if (uvs || sourceBaked) {
             generated.reset(generator.takeSnapshot());
             if (!generated)
                 throw DocumentError(DUST3D_STATUS_GENERATION_FAILED, "The generator returned no UV material snapshot.");
-            uvs->prepare(*object, *generated, images, textureSize);
+            if (uvs)
+                uvs->prepare(*object, *generated, images, textureSize);
         }
         mesh->vertices.reserve(object->triangles.size() * 3);
         const auto* normals = object->triangleVertexNormals();
         for (size_t triangleIndex = 0; triangleIndex < object->triangles.size(); ++triangleIndex) {
-            if (baked && triangleIndex % 256 == 0)
-                checkCancellation(baked->cancellation());
+            if (triangleIndex % 256 == 0)
+                checkGenerationCancellation();
             const auto& triangle = object->triangles[triangleIndex];
             if (triangle.size() != 3)
                 throw dust3d::native::DocumentError(DUST3D_STATUS_GENERATION_FAILED, "The engine returned an invalid triangle.");
@@ -134,6 +141,8 @@ namespace native {
                 uvs->appendTriangle(triangleIndex);
             if (baked)
                 baked->appendTriangle(triangleIndex);
+            if (sourceBaked)
+                sourceBaked->appendTriangle(triangleIndex);
             if (sources) {
                 for (const auto vertexIndex : triangle)
                     sources->appendCorner(*object, object->vertices[vertexIndex], triangleIndex);
@@ -149,6 +158,11 @@ namespace native {
         }
         if (surfaces)
             surfaces->finish(*mesh);
+        if (sourceBaked) {
+            if (!surfaces || !generated)
+                throw DocumentError(DUST3D_STATUS_GENERATION_FAILED, "Source baking requires retained surface and generated metadata.");
+            sourceBaked->prepare(*object, *generated, *mesh, *surfaces);
+        }
         return mesh;
     }
 }
