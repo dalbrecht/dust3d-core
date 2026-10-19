@@ -39,6 +39,7 @@ set(DUST3D_CORE_SOURCES
     dust3d/uv/color_texture_sampler.cc
     dust3d/uv/cloth_folds.cc
     dust3d/uv/max_rectangles.cc
+    dust3d/uv/source_texture_baker.cc
     dust3d/uv/source_uv_atlas.cc
     dust3d/uv/surface_pattern.cc
     dust3d/uv/texture_baker.cc
