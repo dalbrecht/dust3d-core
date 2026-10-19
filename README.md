@@ -342,3 +342,12 @@ space; alpha stays straight. Pass decoded top-to-bottom sRGB pixels through
 Source buffers are borrowed only during construction. See
 [ADR 0021](docs/adr/0021-cpu-imported-color-sampling.md) for quota semantics and
 remaining imported atlas/baking integration. No image decoder dependency is added.
+
+### Source-aware atlas layout
+
+`SourceUvAtlasBuilder::build(object, legacyAtlas, options)` packs imported triangles
+by original ordinal and preserves authored UVs separately from packed UVs. An optional
+legacy region transforms existing procedural output without changing its internal
+policy. Results own model/component identity strings and support repeated source UVs
+and coincident imports. See [ADR 0022](docs/adr/0022-ordinal-source-uv-atlas.md) for
+chart-count/payload bounds, cancellation limits and remaining bake integration.
