@@ -22,6 +22,8 @@ namespace native {
         /// Resolve required ImportedModel parts and normalize brace aliases only in
         /// the derived generation snapshot. Throws DocumentError with original cause.
         void load(Snapshot& snapshot, const std::vector<ModelAssetView>& assets, std::string& warning);
+        /// Inspect before takeGeometry: true when decoded glTF provides a linear vertex-color channel.
+        bool hasVertexColors(const std::string& identity) const;
         /// Transfer geometry to one generator; material owners remain alive locally.
         std::map<std::string, MeshGenerator::ImportedModelData> takeGeometry();
         /// Transfer all decoded owners once; callers may discard geometry for metadata inspection.

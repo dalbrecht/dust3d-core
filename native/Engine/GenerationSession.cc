@@ -179,8 +179,10 @@ struct Dust3DGenerationSession {
         std::unique_ptr<Dust3DMesh> mesh;
         bool isEmpty = false;
         try {
+            dust3d::native::GenerationOutputs outputs;
+            outputs.sources = sources ? sources->get() : nullptr;
             mesh = dust3d::native::generateMesh(cache ? std::move(transient) : std::move(source), warning, &imports,
-                cache ? &cache->context : nullptr, &metrics, sources ? sources->get() : nullptr);
+                cache ? &cache->context : nullptr, &metrics, outputs);
         } catch (const dust3d::native::DocumentError& exception) {
             if (exception.status() != DUST3D_STATUS_NO_GEOMETRY)
                 throw;

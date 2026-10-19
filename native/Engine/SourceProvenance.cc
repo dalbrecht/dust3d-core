@@ -125,7 +125,9 @@ Dust3DSourcedMesh* dust3d_sourced_mesh_load(const uint8_t* bytes, size_t size, c
         auto snapshot = readDocument(bytes, size, warning, nullptr, &imports);
         auto owner = std::make_unique<Dust3DSourcedMesh>();
         owner->sources = std::make_unique<SourceProvenance>(*snapshot, maximumBytes);
-        owner->geometry = generateMesh(std::move(snapshot), warning, &imports, nullptr, nullptr, owner->sources.get());
+        GenerationOutputs outputs;
+        outputs.sources = owner->sources.get();
+        owner->geometry = generateMesh(std::move(snapshot), warning, &imports, nullptr, nullptr, outputs);
         return owner.release();
     } catch (const DocumentError& exception) {
         setError(error, exception.status(), exception.what());

@@ -91,6 +91,13 @@ namespace native {
             warning += "Imported geometry preview: GLB materials, textures and transparency are not yet applied.";
         }
     }
+    bool ImportedModels::hasVertexColors(const std::string& identity) const
+    {
+        const auto found = m_assets.find(identity);
+        if (found == m_assets.end())
+            throw DocumentError(DUST3D_STATUS_GENERATION_FAILED, "Unknown model while resolving source color encoding.");
+        return !found->second.model.vertexColors.empty();
+    }
     std::map<std::string, GlbAsset> ImportedModels::takeAssets()
     {
         return std::move(m_assets);

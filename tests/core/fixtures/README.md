@@ -60,3 +60,13 @@ SHA256:
 The C ownership contract builds independent GLB/`.ds3` wrappers at runtime and
 requires exact encoded bytes/material metadata, not rendered pixels. No native
 image decoding, Qt render baseline or screenshot parity follows from that test.
+
+ImportedSurface.ds3 is a synthetic MIT fixture for core issue #50, derived from
+Apple PR #154's independently generated ImportedPreview.ds3. The original closed
+four-face GLB, two-node spine, UVs and embedded PNG are retained. A Python binary
+writer appends normalized unsigned-byte COLOR_0 values: red/128 alpha, green/255,
+blue/64 and yellow/192. Each source vertex occurs in three triangles. The separate
+GLB base-color factor is (0.25, 0.5, 0.75, 0.5); source RGBA must not absorb that
+factor or the ordinary preview's forced opacity. Archive offsets/chunk lengths are
+recomputed. This is an encoded input fixture, not a rendered snapshot baseline.
+SHA256: 78d9e6a94cceccc4b5814692d25e8ca97ca01968c14927880a5e6a5837f715d6.

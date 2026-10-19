@@ -1,6 +1,7 @@
 #include "BakedMesh.h"
 #include "GenerationPipeline.h"
 #include "ImportedModels.h"
+#include "ImportedSurface.h"
 #include "SourceProvenance.h"
 #include "UvMetadata.h"
 #include <array>
@@ -29,10 +30,24 @@ namespace native {
         return mutex;
     }
 
-    std::unique_ptr<Dust3DMesh> generateMesh(std::unique_ptr<dust3d::Snapshot> snapshot, const std::string& warning, ImportedModels* imports,
-        MeshGenerator::GeneratedCacheContext* cache, MeshGenerator::GenerationMetrics* metrics, SourceProvenance* sources,
-        UvMetadata* uvs, const std::map<Uuid, UvAtlasImage>& images, size_t textureSize, BakedMeshData* baked)
+    Color sourceCornerColor(const Object& object, size_t triangleIndex, size_t corner)
     {
+        const auto vertexIndex = object.triangles.at(triangleIndex).at(corner);
+        if (triangleIndex < object.triangleVertexColors.size() && object.triangleVertexColors[triangleIndex])
+            return object.triangleVertexColors[triangleIndex]->at(corner);
+        return vertexIndex < object.vertexColors.size() ? object.vertexColors[vertexIndex] : Color(0.65, 0.7, 0.8);
+    }
+
+    std::unique_ptr<Dust3DMesh> generateMesh(std::unique_ptr<dust3d::Snapshot> snapshot, const std::string& warning, ImportedModels* imports,
+        MeshGenerator::GeneratedCacheContext* cache, MeshGenerator::GenerationMetrics* metrics, GenerationOutputs outputs)
+    {
+        auto* sources = outputs.sources;
+        auto* uvs = outputs.uvs;
+        auto* baked = outputs.baked;
+        auto* surfaces = outputs.surfaces;
+        const std::map<Uuid, UvAtlasImage> emptyImages;
+        const auto& images = outputs.images ? *outputs.images : emptyImages;
+        const size_t textureSize = outputs.textureSize;
         auto mesh = std::make_unique<Dust3DMesh>();
         mesh->nodeCount = snapshot->nodes.size();
         mesh->partCount = snapshot->parts.size();
@@ -58,6 +73,8 @@ namespace native {
             throw dust3d::native::DocumentError(DUST3D_STATUS_NO_GEOMETRY, "Generation completed with no mesh-producing geometry.");
         if (object->triangles.size() > 5000000)
             throw dust3d::native::DocumentError(DUST3D_STATUS_LIMIT_EXCEEDED, "The generated mesh exceeds the five million triangle limit.");
+        if (surfaces)
+            surfaces->prepare(*object, mesh->warning);
         std::unique_ptr<Snapshot> generated;
         if (uvs) {
             generated.reset(generator.takeSnapshot());
@@ -85,9 +102,7 @@ namespace native {
                 if (normal.length() < 0.000001)
                     normal = dust3d::Vector3(0, 1, 0);
                 normal.normalize();
-                const auto color = triangleIndex < object->triangleVertexColors.size() && object->triangleVertexColors[triangleIndex] ? (*object->triangleVertexColors[triangleIndex])[corner]
-                    : vertexIndex < object->vertexColors.size()                                                                       ? object->vertexColors[vertexIndex]
-                                                                                                                                      : dust3d::Color(0.65, 0.7, 0.8);
+                const auto color = sourceCornerColor(*object, triangleIndex, corner);
                 Dust3DVertex vertex {};
                 for (size_t axis = 0; axis < 3; ++axis) {
                     if (!std::isfinite(position[axis]) || !std::isfinite(normal[axis]))
@@ -113,6 +128,8 @@ namespace native {
             // ABI's float coordinates. Validate first so invalid geometry is never hidden.
             if (dust3d::Vector3::crossProduct(second - first, third - first).lengthSquared() == 0)
                 continue;
+            if (surfaces)
+                surfaces->appendTriangle(triangleIndex);
             if (uvs)
                 uvs->appendTriangle(triangleIndex);
             if (baked)
@@ -130,6 +147,8 @@ namespace native {
                 throw DocumentError(DUST3D_STATUS_GENERATION_FAILED, "Baking requires locally retained UV generation metadata.");
             baked->prepare(*object, *generated, uvs->atlas());
         }
+        if (surfaces)
+            surfaces->finish(*mesh);
         return mesh;
     }
 }
