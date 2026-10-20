@@ -45,5 +45,6 @@ jobs:
       - name: Verify SwiftPM source product on macOS
         if: runner.os == 'macOS'
         run: |
+          cmake -P cmake/CheckGlbCatalogQuarantine.cmake
           xcrun swift-format lint --strict Package.swift
           swift build --build-system native -j 4

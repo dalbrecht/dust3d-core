@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.20)
 project(Dust3DCore VERSION 0.1.0 LANGUAGES C CXX)
 
+include(cmake/CheckGlbCatalogQuarantine.cmake)
+
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -53,6 +55,11 @@ target_link_libraries(dust3d_engine PRIVATE dust3d_core)
 
 include(CTest)
 if(BUILD_TESTING)
+    add_test(NAME contract_glb_catalog_quarantine COMMAND "${CMAKE_COMMAND}"
+        "-DQUARANTINE_CHECK=${CMAKE_CURRENT_SOURCE_DIR}/cmake/CheckGlbCatalogQuarantine.cmake"
+        "-DTEST_WORK_ROOT=${CMAKE_CURRENT_BINARY_DIR}/quarantine-tests"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/cmake/glb_catalog_quarantine_tests.cmake")
+    set_tests_properties(contract_glb_catalog_quarantine PROPERTIES TIMEOUT 30)
     add_executable(dust3d_source_bake_composition_tests tests/core/source_bake_composition_tests.cc)
     target_link_libraries(dust3d_source_bake_composition_tests PRIVATE dust3d_engine dust3d_core)
     add_test(NAME source_bake_composition COMMAND dust3d_source_bake_composition_tests)
