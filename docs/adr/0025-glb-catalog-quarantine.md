@@ -5,23 +5,29 @@ build. Re-enablement remains blocked in #67.
 
 ## Evidence
 
-The unfinished material-catalog C API, exercised after the narrow JSON parser
-ownership fix, still terminated with an uncaught `std::bad_alloc`. The remaining
-cause is unconfirmed. The parser transitions repaired for that fix do not
-establish safety of the catalog load path. An outer exception handler cannot
-contain termination when another allocation fails during unwinding.
+The catalog load reached `document.at("asset").at("version") != "2.0"`.
+nlohmann JSON 3.1.2 treated every scalar, including `const char*`, as a
+no-throw comparison operand. A string literal is a pointer, so the operator
+constructed an owning JSON string inside `noexcept` and `std::bad_alloc`
+terminated the process before the catalog handler could report it. Parser
+ownership repairs do not cover that comparison. The scalar overloads now
+exclude pointers, so the caller converts the literal and allocation failure
+propagates. Object, array, and string parse results also commit their payload
+before their type, so a failed allocation does not reach the no-throw
+destructor with a null owner.
 
-The implementation and its fault-injection test stay out of active sources.
-This change does not restore them, rerun allocation-failure probes, or change
-the Apple production pin.
+The unfinished catalog implementation and its fault-injection test stay out of
+active sources. This change does not restore them or change the Apple production
+pin. A separate comparison test injects allocation failure around the glTF
+version literal and requires `std::bad_alloc` to propagate.
 
 ## Decision
 
 CMake configuration fails closed if the public bridge header is missing, catalog
 C declarations reappear, `native/Engine/GlbMaterialCatalog.cc` is restored, or
 `Package.swift` / the root `CMakeLists.txt` names that file. A contract tests
-harmless temporary source fixtures. This guards accidental restoration. It is
-not a sandbox or a proof that the parser survives allocation failure.
+harmless temporary source fixtures. This guards accidental restoration. The
+allocation regression covers JSON parsing and string comparison.
 
 Run the same check with `cmake -P cmake/CheckGlbCatalogQuarantine.cmake` before
 the SwiftPM source build. SwiftPM does not execute CMake, so the Apple package

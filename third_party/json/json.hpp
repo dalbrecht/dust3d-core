@@ -3280,8 +3280,11 @@ class parser
                     if (not callback or keep)
                     {
                         // explicitly set result to object to cope with {}
-                        result.m_type = value_t::object;
+                        // Publish the type only after the payload exists. A failed
+                        // allocation must leave the previous value intact for its
+                        // no-throw destructor.
                         result.m_value = value_t::object;
+                        result.m_type = value_t::object;
                     }
                 }
 
@@ -3384,8 +3387,8 @@ class parser
                     if (not callback or keep)
                     {
                         // explicitly set result to array to cope with []
-                        result.m_type = value_t::array;
                         result.m_value = value_t::array;
+                        result.m_type = value_t::array;
                     }
                 }
 
@@ -3454,8 +3457,8 @@ class parser
 
             case token_type::value_string:
             {
-                result.m_type = value_t::string;
                 result.m_value = m_lexer.move_string();
+                result.m_type = value_t::string;
                 break;
             }
 
@@ -15174,8 +15177,10 @@ class basic_json
     @brief comparison: equal
     @copydoc operator==(const_reference, const_reference)
     */
+    // Pointers are scalar, but a string literal builds an owning JSON string.
+    // Doing that inside these no-throw operators terminates on allocation failure.
     template<typename ScalarType, typename std::enable_if<
-                 std::is_scalar<ScalarType>::value, int>::type = 0>
+                 std::is_scalar<ScalarType>::value and not std::is_pointer<ScalarType>::value, int>::type = 0>
     friend bool operator==(const_reference lhs, const ScalarType rhs) noexcept
     {
         return (lhs == basic_json(rhs));
@@ -15186,7 +15191,7 @@ class basic_json
     @copydoc operator==(const_reference, const_reference)
     */
     template<typename ScalarType, typename std::enable_if<
-                 std::is_scalar<ScalarType>::value, int>::type = 0>
+                 std::is_scalar<ScalarType>::value and not std::is_pointer<ScalarType>::value, int>::type = 0>
     friend bool operator==(const ScalarType lhs, const_reference rhs) noexcept
     {
         return (basic_json(lhs) == rhs);
@@ -15220,7 +15225,7 @@ class basic_json
     @copydoc operator!=(const_reference, const_reference)
     */
     template<typename ScalarType, typename std::enable_if<
-                 std::is_scalar<ScalarType>::value, int>::type = 0>
+                 std::is_scalar<ScalarType>::value and not std::is_pointer<ScalarType>::value, int>::type = 0>
     friend bool operator!=(const_reference lhs, const ScalarType rhs) noexcept
     {
         return (lhs != basic_json(rhs));
@@ -15231,7 +15236,7 @@ class basic_json
     @copydoc operator!=(const_reference, const_reference)
     */
     template<typename ScalarType, typename std::enable_if<
-                 std::is_scalar<ScalarType>::value, int>::type = 0>
+                 std::is_scalar<ScalarType>::value and not std::is_pointer<ScalarType>::value, int>::type = 0>
     friend bool operator!=(const ScalarType lhs, const_reference rhs) noexcept
     {
         return (basic_json(lhs) != rhs);
@@ -15336,7 +15341,7 @@ class basic_json
     @copydoc operator<(const_reference, const_reference)
     */
     template<typename ScalarType, typename std::enable_if<
-                 std::is_scalar<ScalarType>::value, int>::type = 0>
+                 std::is_scalar<ScalarType>::value and not std::is_pointer<ScalarType>::value, int>::type = 0>
     friend bool operator<(const_reference lhs, const ScalarType rhs) noexcept
     {
         return (lhs < basic_json(rhs));
@@ -15347,7 +15352,7 @@ class basic_json
     @copydoc operator<(const_reference, const_reference)
     */
     template<typename ScalarType, typename std::enable_if<
-                 std::is_scalar<ScalarType>::value, int>::type = 0>
+                 std::is_scalar<ScalarType>::value and not std::is_pointer<ScalarType>::value, int>::type = 0>
     friend bool operator<(const ScalarType lhs, const_reference rhs) noexcept
     {
         return (basic_json(lhs) < rhs);
@@ -15382,7 +15387,7 @@ class basic_json
     @copydoc operator<=(const_reference, const_reference)
     */
     template<typename ScalarType, typename std::enable_if<
-                 std::is_scalar<ScalarType>::value, int>::type = 0>
+                 std::is_scalar<ScalarType>::value and not std::is_pointer<ScalarType>::value, int>::type = 0>
     friend bool operator<=(const_reference lhs, const ScalarType rhs) noexcept
     {
         return (lhs <= basic_json(rhs));
@@ -15393,7 +15398,7 @@ class basic_json
     @copydoc operator<=(const_reference, const_reference)
     */
     template<typename ScalarType, typename std::enable_if<
-                 std::is_scalar<ScalarType>::value, int>::type = 0>
+                 std::is_scalar<ScalarType>::value and not std::is_pointer<ScalarType>::value, int>::type = 0>
     friend bool operator<=(const ScalarType lhs, const_reference rhs) noexcept
     {
         return (basic_json(lhs) <= rhs);
@@ -15428,7 +15433,7 @@ class basic_json
     @copydoc operator>(const_reference, const_reference)
     */
     template<typename ScalarType, typename std::enable_if<
-                 std::is_scalar<ScalarType>::value, int>::type = 0>
+                 std::is_scalar<ScalarType>::value and not std::is_pointer<ScalarType>::value, int>::type = 0>
     friend bool operator>(const_reference lhs, const ScalarType rhs) noexcept
     {
         return (lhs > basic_json(rhs));
@@ -15439,7 +15444,7 @@ class basic_json
     @copydoc operator>(const_reference, const_reference)
     */
     template<typename ScalarType, typename std::enable_if<
-                 std::is_scalar<ScalarType>::value, int>::type = 0>
+                 std::is_scalar<ScalarType>::value and not std::is_pointer<ScalarType>::value, int>::type = 0>
     friend bool operator>(const ScalarType lhs, const_reference rhs) noexcept
     {
         return (basic_json(lhs) > rhs);
@@ -15474,7 +15479,7 @@ class basic_json
     @copydoc operator>=(const_reference, const_reference)
     */
     template<typename ScalarType, typename std::enable_if<
-                 std::is_scalar<ScalarType>::value, int>::type = 0>
+                 std::is_scalar<ScalarType>::value and not std::is_pointer<ScalarType>::value, int>::type = 0>
     friend bool operator>=(const_reference lhs, const ScalarType rhs) noexcept
     {
         return (lhs >= basic_json(rhs));
@@ -15485,7 +15490,7 @@ class basic_json
     @copydoc operator>=(const_reference, const_reference)
     */
     template<typename ScalarType, typename std::enable_if<
-                 std::is_scalar<ScalarType>::value, int>::type = 0>
+                 std::is_scalar<ScalarType>::value and not std::is_pointer<ScalarType>::value, int>::type = 0>
     friend bool operator>=(const ScalarType lhs, const_reference rhs) noexcept
     {
         return (basic_json(lhs) >= rhs);
