@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Propagate allocation failure from glTF JSON parsing and string comparisons instead of terminating the process. Object, array, and string payloads are published before their type, and string literals are no longer no-throw numeric scalars (#69).
+
+- Block accidental restoration of the quarantined experimental GLB material C API, including its SwiftPM and CMake source-list entries, during configuration (#69).
+
 - Preserve the full finite nonnegative glTF alpha-cutoff range in source baking, including mask cutoffs above one, while retaining raw combined alpha and exact owned policy metadata (#61).
 
 - Add an owned opt-in native source-bake C API with caller-decoded imported images, exact final geometry/UV/material alignment, procedural composition, bounded ownership and explicit atlas LOD metadata. Existing load/bake contracts and Apple pins remain unchanged (#58).
