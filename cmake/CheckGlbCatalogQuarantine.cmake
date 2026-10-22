@@ -27,13 +27,18 @@ foreach(quarantine_manifest IN ITEMS Package.swift CMakeLists.txt)
     endif()
 endforeach()
 
-# Core #84: known embedded fault cases stay in history, not default contracts.
-foreach(quarantine_fault_source IN ITEMS imported_asset_tests.cc imported_surface_tests.cc source_baked_mesh_tests.cc generation_session_tests.cc)
-    set(quarantine_fault_path "${DUST3D_QUARANTINE_ROOT}/tests/core/${quarantine_fault_source}")
-    if(EXISTS "${quarantine_fault_path}")
-        file(READ "${quarantine_fault_path}" quarantine_fault_text)
-        if(quarantine_fault_text MATCHES "operator[ \t\r\n]+new|testOutputAllocationFailures|verifyLateAllocationFailures|allocationFailuresStayInsideC|cacheAllocationFailure|allocationBoundaries|failSnapshotAllocation")
-            message(FATAL_ERROR "GLB catalog quarantine (#84): embedded allocation-failure cases were restored")
+# Core #84: inspect future test sources too, not only historical target names.
+file(GLOB quarantine_fault_paths "${DUST3D_QUARANTINE_ROOT}/tests/core/*.cc")
+foreach(quarantine_fault_path IN LISTS quarantine_fault_paths)
+    file(READ "${quarantine_fault_path}" quarantine_fault_text)
+    if(quarantine_fault_text MATCHES "operator[ \t\r\n]+new|bad_alloc|set_new_handler|testOutputAllocationFailures|verifyLateAllocationFailures|allocationFailuresStayInsideC|cacheAllocationFailure|allocationBoundaries|failSnapshotAllocation")
+        get_filename_component(quarantine_fault_source "${quarantine_fault_path}" NAME)
+        file(SHA256 "${quarantine_fault_path}" quarantine_fault_hash)
+        # This reviewed observer counts successful allocations without forcing failure.
+        # Pin its bytes so the filename cannot exempt a substituted fault probe.
+        if(NOT quarantine_fault_source STREQUAL "retained_payload_tests.cc" OR
+            NOT quarantine_fault_hash STREQUAL "efad96e91abdf846d84b0a68a84fdd6feea9f64c0a283baf49ba730ceec47729")
+            message(FATAL_ERROR "GLB catalog quarantine (#84): allocation fault markers require source review")
         endif()
     endif()
 endforeach()

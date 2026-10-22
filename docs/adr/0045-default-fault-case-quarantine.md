@@ -29,8 +29,7 @@ historical implementation. Numeric scalar comparisons retain their no-throw
 contract. These checks do not prove parser allocation-failure containment.
 
 The source quarantine guard rejects restored standalone probe files or manifest
-registrations, and known allocator overrides/fault identifiers in the four
-affected default sources. Regression fixtures are inert text read by CMake;
+registrations, and known allocator overrides/fault identifiers in all core test sources. Regression fixtures are inert text read by CMake;
 they are never compiled or executed. This is a known-case restoration guard,
 not a general C++ parser or sandbox. The retained-payload allocation observer
 remains: it counts successful allocations and never deliberately fails them.
@@ -53,3 +52,5 @@ Do not launch pre-containment test binaries. Any later ordinary gate must use
 a fresh build after auditing source and CTest registration. Allocation-failure
 and exception-path coverage is explicitly deferred. Ordinary test passes do not
 establish full inherited-core coverage, memory safety, or safe GLB re-enablement.
+
+The source guard scans every `tests/core/*.cc`, including future filenames. Its sole allocator-marker exception pins the reviewed successful-allocation observer by SHA-256 and filename; substitution is rejected. Inert fixtures cover renamed probes, observer substitution, and the exact permitted observer. This token guard is not a C++ parser or sandbox: source inspection remains required before executing a fresh suite.

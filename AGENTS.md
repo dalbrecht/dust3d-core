@@ -128,3 +128,5 @@ Track all work as GitHub Issues. Every `TODO`/`FIXME` must reference an issue: `
 - Existing seven contracts establish initial coverage only. The standards coverage targets are adoption goals until separately instrumented C++ CI gates are implemented; never claim full inherited coverage.
 - `upstream-sync` is upstream-only. Incorporate updates with reviewed merge PRs; never force-reset master. Keep reusable fixes separate from adapter features.
 - There is no UI in this target, so screenshot validation does not apply. No distribution binary/ABI stability claim until the documented release gates pass.
+
+- While #84/#69/#67 remain quarantined, never run allocation-failure, crash, signal or resource-exhaustion probes, replay the #83 writer fixture, or reuse pre-containment binaries. Before CTest, run the source quarantine guard and inspect registered test source contents, then build fresh. The byte-pinned retained-payload observer counts successful allocations only; it does not authorize deliberate failure injection.
