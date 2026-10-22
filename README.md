@@ -401,3 +401,14 @@ is added. See [ADR 0024](docs/adr/0024-owned-native-source-baking.md) for aggreg
 quota, workspace/cancellation limits and [verification](docs/native-source-baking-verification.md).
 Apple SDK/rendering/export adoption and chart-isolated atlas minification (#59)
 remain required stages; no full material/editor parity is claimed.
+
+### Default fault-probe containment (#84)
+
+Ordinary CMake/CTest builds exclude intentional allocation-failure probes. The
+four legacy contract executables retain normal validation, ownership and cache
+behavior, while JSON comparisons use ordinary inputs and compile-time signature
+checks. Removed probes remain in Git history, not behind a runtime opt-in. The
+source guard rejects their known restoration paths. Use a fresh build for
+verification; do not run pre-containment binaries or replay historical fault
+cases. Allocation-failure coverage is deferred, not claimed passing. GLB #69 and
+#67 remain quarantined/blocked. See ADR 0045 for the audit correction and limits.

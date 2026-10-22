@@ -9,48 +9,11 @@
 #include <iostream>
 #include <json/json.hpp>
 #include <memory>
-#include <new>
 #include <sstream>
 #include <stdexcept>
 #include <string>
 #include <tuple>
 #include <vector>
-
-namespace {
-thread_local size_t allocationCountdown = SIZE_MAX;
-thread_local size_t allocationsObserved = 0;
-thread_local bool isCountingAllocations = false;
-thread_local bool hasInjectedAllocationFailure = false;
-}
-void* operator new(size_t size)
-{
-    if (isCountingAllocations)
-        ++allocationsObserved;
-    if (allocationCountdown != SIZE_MAX && allocationCountdown-- == 0) {
-        allocationCountdown = SIZE_MAX;
-        hasInjectedAllocationFailure = true;
-        throw std::bad_alloc();
-    }
-    if (void* value = std::malloc(std::max(size, size_t(1))))
-        return value;
-    throw std::bad_alloc();
-}
-void* operator new[](size_t size) { return ::operator new(size); }
-void operator delete(void* value) noexcept { std::free(value); }
-void operator delete[](void* value) noexcept { std::free(value); }
-void operator delete(void* value, size_t) noexcept { std::free(value); }
-void operator delete[](void* value, size_t) noexcept { std::free(value); }
-void* operator new(size_t size, const std::nothrow_t&) noexcept
-{
-    try {
-        return ::operator new(size);
-    } catch (...) {
-        return nullptr;
-    }
-}
-void* operator new[](size_t size, const std::nothrow_t& tag) noexcept { return ::operator new(size, tag); }
-void operator delete(void* value, const std::nothrow_t&) noexcept { std::free(value); }
-void operator delete[](void* value, const std::nothrow_t&) noexcept { std::free(value); }
 
 namespace {
 using Bytes = std::vector<uint8_t>;
@@ -315,31 +278,6 @@ void testAbsentDataAndErrors(const Bytes& png)
     auto notPixels = load(archive(document(), { { "models/" + modelA + ".glb", opaque.bytes() }, { "models/" + modelB + ".glb", opaque.bytes() } }));
     require(material(notPixels.get(), modelA).image.byte_count == 4, "Encoded ownership improperly claimed pixel decoding");
 }
-void testOutputAllocationFailures(const Bytes& png)
-{
-    ModelFixture model(png, "image/png", true);
-    const auto bytes = archive(document(), { { "models/" + modelA + ".glb", model.bytes() }, { "models/" + modelB + ".glb", model.bytes() } });
-    Dust3DError error {};
-    allocationsObserved = 0;
-    isCountingAllocations = true;
-    auto* pointer = dust3d_imported_assets_load(bytes.data(), bytes.size(), nullptr, &error);
-    isCountingAllocations = false;
-    const size_t successfulCount = allocationsObserved;
-    Owner baseline(pointer, dust3d_imported_assets_destroy);
-    require(baseline && error.status == DUST3D_STATUS_OK && successfulCount >= 32, "Allocation baseline did not exercise real ownership construction");
-    // Fail actual late allocations, covering partial output construction without
-    // adding production failure switches or substituting a mock decoder.
-    for (size_t tail = 0; tail < 32; ++tail) {
-        hasInjectedAllocationFailure = false;
-        allocationCountdown = successfulCount - 1 - tail;
-        auto* failed = dust3d_imported_assets_load(bytes.data(), bytes.size(), nullptr, &error);
-        allocationCountdown = SIZE_MAX;
-        Owner rejected(failed, dust3d_imported_assets_destroy);
-        require(hasInjectedAllocationFailure && !rejected && error.status == DUST3D_STATUS_LIMIT_EXCEEDED && std::string(error.message) == std::bad_alloc().what(),
-            "Output allocation failure crossed the C boundary or lost its primary cause");
-    }
-    require(material(baseline.get(), modelA).image.byte_count == png.size(), "Failed later loads invalidated an existing material owner");
-}
 void testBoundaryContract()
 {
     Dust3DError error {};
@@ -376,7 +314,6 @@ int main(int argc, char** argv)
         testBoundaryContract();
         testFieldsBindingsAndLifetime(png, jpeg);
         testAbsentDataAndErrors(png);
-        testOutputAllocationFailures(png);
         std::cout << "Imported material ownership contracts passed\n";
         return 0;
     } catch (const std::exception& cause) {

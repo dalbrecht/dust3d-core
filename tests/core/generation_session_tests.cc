@@ -13,51 +13,12 @@
 #include <iterator>
 #include <limits>
 #include <memory>
-#include <new>
 #include <pthread.h>
 #include <set>
 #include <sstream>
 #include <stdexcept>
 #include <string>
 #include <vector>
-
-namespace {
-thread_local size_t failSnapshotAllocation = 0;
-thread_local size_t failingAllocationSize = sizeof(dust3d::Snapshot);
-thread_local size_t observedSnapshotAllocations = 0;
-}
-
-// Test-only failure injection at real C++ allocation boundaries. There are no
-// production cache-failure switches or test branches in the engine.
-void* operator new(std::size_t bytes)
-{
-    if ((!failingAllocationSize || bytes == failingAllocationSize) && failSnapshotAllocation) {
-        ++observedSnapshotAllocations;
-        if (--failSnapshotAllocation == 0)
-            throw std::bad_alloc();
-    }
-    if (void* result = std::malloc(bytes ? bytes : 1))
-        return result;
-    throw std::bad_alloc();
-}
-void* operator new[](std::size_t bytes) { return ::operator new(bytes); }
-// libstdc++ stable_sort uses nothrow allocation but sized delete. Keep both
-// allocation forms in the same test-owned malloc/free family under ASan.
-void* operator new(std::size_t bytes, const std::nothrow_t&) noexcept
-{
-    try {
-        return ::operator new(bytes);
-    } catch (...) {
-        return nullptr;
-    }
-}
-void* operator new[](std::size_t bytes, const std::nothrow_t& tag) noexcept { return ::operator new(bytes, tag); }
-void operator delete(void* value, const std::nothrow_t&) noexcept { std::free(value); }
-void operator delete[](void* value, const std::nothrow_t&) noexcept { std::free(value); }
-void operator delete(void* value) noexcept { std::free(value); }
-void operator delete[](void* value) noexcept { std::free(value); }
-void operator delete(void* value, std::size_t) noexcept { std::free(value); }
-void operator delete[](void* value, std::size_t) noexcept { std::free(value); }
 
 namespace {
 using MeshOwner = std::unique_ptr<Dust3DMesh, decltype(&dust3d_mesh_destroy)>;
@@ -358,68 +319,6 @@ void profileAndWrappingEdits(const std::string& directory)
     require(successfulWrapping >= 6, "The wrapping corpus must exercise real successful cached generation");
 }
 
-void cacheAllocationFailure(const std::string& directory)
-{
-    const auto bytes = fixture(directory, "Capsule");
-    auto owner = session();
-    load(owner.get(), bytes);
-    observedSnapshotAllocations = 0;
-    failSnapshotAllocation = 2; // Decoded source succeeds; transient cache input clone fails.
-    Dust3DError error {};
-    MeshOwner mesh(dust3d_generation_session_load(owner.get(), bytes.data(), bytes.size(), &error), dust3d_mesh_destroy);
-    const auto observations = observedSnapshotAllocations;
-    failSnapshotAllocation = 0;
-    require(observations == 2, "Allocation failure must exercise the decoded-source/cache-clone sequence");
-    require(mesh && error.status == DUST3D_STATUS_OK, "Cache allocation failure cannot break valid primary generation");
-    const auto state = stats(owner.get());
-    require(state.cache_outcome == DUST3D_CACHE_BYPASSED && state.retained_payload_bytes == 0
-            && state.cache_status == DUST3D_STATUS_LIMIT_EXCEEDED && state.cache_message[0],
-        "Cache allocation failure must release state and preserve its cause separately");
-    requireFreshEquivalent(mesh.get(), bytes);
-    requireFreshEquivalent(load(owner.get(), bytes).get(), bytes);
-    require(stats(owner.get()).reused_components == 0, "Cache allocation recovery must rebuild from fresh state");
-}
-
-void allocationBoundaries(const std::string& directory)
-{
-    // The create call has exactly one allocation and must translate its failure.
-    failingAllocationSize = 0;
-    failSnapshotAllocation = 1;
-    Dust3DError error {};
-    auto* failed = dust3d_generation_session_create(DUST3D_DEFAULT_CACHE_PAYLOAD_BYTES, &error);
-    failSnapshotAllocation = 0;
-    require(!failed && error.status == DUST3D_STATUS_LIMIT_EXCEEDED, "Session creation allocation failures must stay within the C ABI");
-    failingAllocationSize = sizeof(dust3d::Snapshot);
-    const auto original = fixture(directory, "Capsule");
-    auto owner = session();
-    failSnapshotAllocation = 1;
-    MeshOwner mesh(dust3d_generation_session_load(owner.get(), original.data(), original.size(), &error), dust3d_mesh_destroy);
-    failSnapshotAllocation = 0;
-    require(!mesh && error.status == DUST3D_STATUS_LIMIT_EXCEEDED && stats(owner.get()).cache_outcome == DUST3D_CACHE_RESET_AFTER_FAILURE,
-        "Primary decoded-source allocation failure must preserve its own error and reset state");
-    const auto xml = model(original);
-    const auto longAttribute = archive(xml, "opaque", "revision='" + std::string(3333, 'v') + "'");
-    const auto longType = archive(xml, "opaque", "revision='one'", false, std::string(2027, 't'));
-    for (size_t index = 0; index < 2; ++index) {
-        load(owner.get(), original);
-        failingAllocationSize = index == 0 ? std::string(3333, 'v').capacity() + 1 : std::string(2027, 't').capacity() + 1;
-        failSnapshotAllocation = index == 0 ? 1 : 2;
-        observedSnapshotAllocations = 0;
-        const auto& bytes = index == 0 ? longAttribute : longType;
-        mesh.reset(dust3d_generation_session_load(owner.get(), bytes.data(), bytes.size(), &error));
-        const auto remaining = failSnapshotAllocation;
-        failSnapshotAllocation = 0;
-        failingAllocationSize = sizeof(dust3d::Snapshot);
-        require(remaining == 0, "The targeted metadata allocation must actually fail (case " + std::to_string(index) + ")");
-        require(mesh && error.status == DUST3D_STATUS_OK, "Optional metadata collection failures cannot break primary generation");
-        const auto state = stats(owner.get());
-        require(state.cache_outcome == DUST3D_CACHE_BYPASSED && state.cache_status == DUST3D_STATUS_LIMIT_EXCEEDED
-                && state.retained_payload_bytes == 0 && state.cache_message[0],
-            "Metadata failure must clear old cache and preserve its cause");
-        requireFreshEquivalent(mesh.get(), bytes);
-    }
-}
-
 void successfulEmpty(const std::string& directory)
 {
     auto owner = session();
@@ -611,21 +510,6 @@ void sourcedSessions(const std::string& directory)
         hasMultipleWeights = hasMultipleWeights || (wrappedCorners[index].kind == DUST3D_SOURCE_WEIGHTED_HINT && wrappedCorners[index].influence_count > 1);
     require(hasMultipleWeights, "Cache hits preserve complete multi-node wrapping influences");
     requireFreshEquivalent(dust3d_sourced_mesh_geometry(cachedWrap.get()), wrappedBytes);
-    auto allocationSession = session();
-    failSnapshotAllocation = 1;
-    SourceOwner failedSource(dust3d_generation_session_load_sourced(allocationSession.get(), bytes.data(), bytes.size(), &options, &error), dust3d_sourced_mesh_destroy);
-    const auto remainingFailure = failSnapshotAllocation;
-    failSnapshotAllocation = 0;
-    require(remainingFailure == 0 && !failedSource && error.status == DUST3D_STATUS_LIMIT_EXCEEDED, "Decoded-source allocation failure stays inside the sourced C boundary");
-    require(stats(allocationSession.get()).cache_outcome == DUST3D_CACHE_RESET_AFTER_FAILURE, "Source primary allocation failure resets partial cache state");
-    failSnapshotAllocation = 2;
-    observedSnapshotAllocations = 0;
-    SourceOwner fallback(dust3d_generation_session_load_sourced(allocationSession.get(), bytes.data(), bytes.size(), &options, &error), dust3d_sourced_mesh_destroy);
-    const auto observations = observedSnapshotAllocations;
-    failSnapshotAllocation = 0;
-    require(observations == 2 && fallback && error.status == DUST3D_STATUS_OK, "Real cache clone allocation failure must preserve sourced generation");
-    require(stats(allocationSession.get()).cache_outcome == DUST3D_CACHE_BYPASSED && stats(allocationSession.get()).cache_status == DUST3D_STATUS_LIMIT_EXCEEDED, "Cache-only failure remains separate from successful source export");
-    requireFreshEquivalent(dust3d_sourced_mesh_geometry(fallback.get()), bytes);
     require(!sourced(archive(change(xml, "node", "x", "abc"))) && error.status == DUST3D_STATUS_INVALID_DOCUMENT && error.message[0], "Cached source parser failures preserve invalid-document classification and cause");
     require(!dust3d_generation_session_load_sourced(nullptr, nullptr, 0, &options, nullptr), "Null session/diagnostic must be safe");
 }
@@ -643,8 +527,6 @@ int main(int argc, char** argv)
         assetRevisions(argv[1]);
         linkedProfilesAndSiblingReuse(argv[1]);
         profileAndWrappingEdits(argv[1]);
-        cacheAllocationFailure(argv[1]);
-        allocationBoundaries(argv[1]);
         successfulEmpty(argv[1]);
         concurrentCalls(argv[1]);
         std::cout << "Generation session contracts passed\n";

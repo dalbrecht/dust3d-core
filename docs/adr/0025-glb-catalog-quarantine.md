@@ -56,3 +56,14 @@ separate reviewed change, ordinary-input protocol and termination-handling tests
 without intentional parser crashes, all required CI and explicit risk acceptance.
 Remove the guard explicitly in that review. Do not bypass it or advance the pin
 in this mitigation.
+
+## Default-test audit correction (#84)
+
+The allocation regression described above records historical #98 evidence. It
+is no longer registered or retained in active test sources during containment.
+A later resumed 47-target gate also included embedded injection in four legacy
+contracts; describing that whole run as ordinary was incorrect. ADR 0045 records
+the correction and removal. Current default verification retains normal parse,
+comparison, ownership and cache behavior without deliberate allocation failures;
+compile-time comparison assertions do not execute the historical fault path.
+This does not re-enable #67 or change the Apple production pin.
