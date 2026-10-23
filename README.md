@@ -598,3 +598,15 @@ it does not execute OS actions. `mayAdmit` still requires independent PendingRep
 exit/frame/revision validation. The existing transport's unbounded cleanup is
 unchanged. See [ADR 0069](docs/adr/0069-worker-lifetime-policy.md) and #123 for
 integration and containment limits. All quarantines and the Apple pin remain.
+
+### Opt-in supervised Unix operation (development)
+
+`runSupervisedWorkerJob` adds elapsed-time retirement, a borrowed atomic
+`WorkerCancellation` flag and post-exit channel-drain policy to the existing
+collector. Retired results throw `WorkerStopped`, preserving owned bounded
+original diagnostics and actual collected outcome; cancellation before spawn has
+no collected value. Require exclusive child-reaping ownership, call off the UI
+thread and still use PendingReply for normal results. Legacy runWorkerJob remains
+unchanged. Active OS stop/escalation is not experimentally verified under current
+probe restrictions; OS reap can still block. See [ADR 0070](docs/adr/0070-supervised-unix-worker.md)
+for remaining resource, sandbox, parent-death and production-adoption gates.

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add an opt-in supervised Unix operation with pre-start cancellation and retained retirement outcomes; active OS termination remains unverified and production adoption is pending (#123).
+
 - Add a pure bounded worker-lifetime decision policy with single-use stop/drain actions and publication retirement; process integration remains pending (#123).
 
 - Bound worker scheduling to one active request and one latest waiting archive, retiring stale completions before typed reply admission (#115).

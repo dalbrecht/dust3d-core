@@ -11,6 +11,7 @@
 #include <native/Engine/WorkerQueue.h>
 #include <native/Engine/WorkerTransport.h>
 #include <stdexcept>
+#include <utility>
 
 namespace {
 using namespace dust3d::worker;
@@ -69,6 +70,34 @@ void preflight(const std::string& worker)
             limits.maximumCapturedDiagnosticBytes = maximumDiagnosticBytes + 1;
         rejects<TransportError>([&] { runWorkerJob(worker, input, limits); });
     }
+    CollectedJob owned;
+    owned.outcome = { true, 0 };
+    owned.reply = { 1, 2 };
+    owned.diagnostic = { 0, 255, 27 };
+    owned.diagnosticTruncated = true;
+    WorkerStopped retired(LifetimeReason::deadline, std::move(owned));
+    owned.diagnostic = { 7 };
+    require(retired.reason() == LifetimeReason::deadline && retired.collected()
+            && retired.collected()->outcome.exitedNormally && retired.collected()->outcome.exitCode == 0
+            && retired.collected()->reply == std::vector<uint8_t>({ 1, 2 })
+            && retired.collected()->diagnostic == std::vector<uint8_t>({ 0, 255, 27 }) && retired.collected()->diagnosticTruncated,
+        "Retirement error independently owns the original outcome and opaque diagnostics");
+    WorkerCancellation cancelled;
+    require(!cancelled.isCancellationRequested(), "Cancellation starts clear");
+    cancelled.requestCancellation();
+    cancelled.requestCancellation();
+    require(cancelled.isCancellationRequested(), "Cancellation is idempotent and sticky");
+    WorkerSupervision supervision;
+    supervision.cancellation = &cancelled;
+    try {
+        runSupervisedWorkerJob(worker + "/missing-helper", input, {}, supervision);
+        throw std::runtime_error("Cancelled work unexpectedly started");
+    } catch (const WorkerStopped& cause) {
+        require(cause.reason() == LifetimeReason::cancelled && !cause.collected(),
+            "Pre-start cancellation returns a typed cause without any spawned child");
+    }
+    supervision.lifetime.workMilliseconds = 0;
+    rejects<LifetimeError>([&] { runSupervisedWorkerJob(worker, input, {}, supervision); });
     auto invalid = input;
     invalid.header.kind = FrameKind::response;
     rejects<AdmissionError>([&] { runWorkerJob(worker, invalid); });
@@ -89,7 +118,9 @@ void verify(const std::string& worker, const std::vector<uint8_t>& archive, uint
     auto input = request(archive, sequence);
     TransportLimits limits;
     limits.maximumIoChunkBytes = chunk;
-    auto collected = runWorkerJob(worker, input, limits);
+    auto collected = sequence == 1
+        ? runSupervisedWorkerJob(worker, input, limits, WorkerSupervision {})
+        : runWorkerJob(worker, input, limits);
     require(collected.outcome.exitedNormally && collected.outcome.exitCode == 0, "Real helper must exit normally");
     if (!collected.diagnostic.empty() || collected.diagnosticTruncated) {
         // Surface unexpected runtime/sanitizer causes as bounded escaped data, never terminal controls.

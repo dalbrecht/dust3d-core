@@ -6,13 +6,16 @@
 #include <algorithm>
 #include <array>
 #include <cerrno>
+#include <chrono>
 #include <cstring>
 #include <fcntl.h>
 #include <poll.h>
+#include <signal.h>
 #include <spawn.h>
 #include <sys/socket.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#include <utility>
 
 extern char** environ;
 namespace {
@@ -68,17 +71,28 @@ struct Channel {
 };
 class Child {
 public:
-    Child() = default;
+    explicit Child(bool shouldStopOnFailure)
+        : m_shouldStopOnFailure(shouldStopOnFailure)
+    {
+    }
     Child(const Child&) = delete;
     Child& operator=(const Child&) = delete;
     ~Child()
     {
         if (m_pid > 0) {
+            // Only the opt-in supervised owner force-stops on exceptional cleanup.
+            if (m_shouldStopOnFailure)
+                ::kill(m_pid, SIGKILL);
             int status;
             while (::waitpid(m_pid, &status, 0) < 0 && errno == EINTR) { }
         }
     }
     void own(pid_t pid) noexcept { m_pid = pid; }
+    void requestStop(bool force)
+    {
+        if (m_pid > 0 && ::kill(m_pid, force ? SIGKILL : SIGTERM) < 0 && errno != ESRCH)
+            throw TransportError(TransportErrorCode::stop, errno, "stop owned worker");
+    }
     bool collect(ProcessOutcome& outcome)
     {
         if (m_pid <= 0)
@@ -87,8 +101,13 @@ public:
         const auto result = ::waitpid(m_pid, &status, WNOHANG);
         if (result == 0 || (result < 0 && errno == EINTR))
             return false;
-        if (result < 0)
-            throw TransportError(TransportErrorCode::wait, errno, "waitpid");
+        if (result < 0) {
+            const int cause = errno;
+            // Never stop a PID after the OS reports that it is no longer our child.
+            if (cause == ECHILD)
+                m_pid = -1;
+            throw TransportError(TransportErrorCode::wait, cause, "waitpid");
+        }
         m_pid = -1;
         outcome = { WIFEXITED(status), WIFEXITED(status) ? WEXITSTATUS(status) : WIFSIGNALED(status) ? WTERMSIG(status)
                                                                                                      : status };
@@ -97,6 +116,7 @@ public:
 
 private:
     pid_t m_pid = -1;
+    bool m_shouldStopOnFailure;
 };
 void checked(int code, const char* operation)
 {
@@ -161,29 +181,67 @@ namespace worker {
         , m_operatingSystemCode(operatingSystemCode)
     {
     }
-    CollectedJob runWorkerJob(const std::string& executable, const Frame& request, const TransportLimits& limits)
+    WorkerStopped::WorkerStopped(LifetimeReason reason, std::optional<CollectedJob> collected)
+        : std::runtime_error("Worker job retired: reason=" + std::to_string(static_cast<unsigned>(reason)))
+        , m_reason(reason)
+        , m_collected(std::move(collected))
+    {
+    }
+    static CollectedJob runJob(const std::string& executable, const Frame& request, const TransportLimits& limits,
+        const WorkerSupervision* supervision)
     {
         if (executable.empty() || executable[0] != '/' || executable.find('\0') != std::string::npos
             || limits.maximumIoChunkBytes == 0 || limits.maximumIoChunkBytes > 65536
             || limits.maximumCapturedDiagnosticBytes == 0 || limits.maximumCapturedDiagnosticBytes > maximumDiagnosticBytes)
             throw TransportError(TransportErrorCode::invalidConfiguration, EINVAL, "worker configuration");
+        std::optional<WorkerLifetime> lifetime;
+        if (supervision)
+            lifetime.emplace(supervision->lifetime);
         PendingReply preflight(request.header, limits.wire);
+        if (supervision && supervision->cancellation && supervision->cancellation->isCancellationRequested())
+            throw WorkerStopped(LifetimeReason::cancelled, std::nullopt);
         const auto wire = encodeFrame(request, limits.wire);
         CollectedJob result;
         result.reply.reserve(headerBytes);
         result.diagnostic.reserve(limits.maximumCapturedDiagnosticBytes);
         // Declare the owner first: exceptions close every channel before blocking reap.
-        Child child;
+        Child child(supervision != nullptr);
         Channel input;
         Channel output;
         Channel diagnostic;
+        if (supervision && supervision->cancellation && supervision->cancellation->isCancellationRequested())
+            throw WorkerStopped(LifetimeReason::cancelled, std::nullopt);
         spawn(child, executable, input, output, diagnostic);
+        const auto started = std::chrono::steady_clock::now();
         size_t sent = 0;
         uint64_t expectedReplyBytes = headerBytes;
         bool hasHeader = false;
         bool hasExited = false;
         std::array<uint8_t, 65536> bytes;
-        while (input.parent.get() >= 0 || output.parent.get() >= 0 || diagnostic.parent.get() >= 0 || !hasExited) {
+        while (supervision || input.parent.get() >= 0 || output.parent.get() >= 0 || diagnostic.parent.get() >= 0 || !hasExited) {
+            if (supervision) {
+                hasExited = child.collect(result.outcome);
+                const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - started).count();
+                if (elapsed < 0)
+                    throw TransportError(TransportErrorCode::clock, EINVAL, "worker monotonic clock");
+                const auto decision = lifetime->observe({ static_cast<uint64_t>(elapsed),
+                    supervision->cancellation && supervision->cancellation->isCancellationRequested(), hasExited,
+                    input.parent.get() < 0 && output.parent.get() < 0 && diagnostic.parent.get() < 0 });
+                if (decision.action == LifetimeAction::requestStop || decision.action == LifetimeAction::requestForceStop) {
+                    input.parent.close();
+                    child.requestStop(decision.action == LifetimeAction::requestForceStop);
+                }
+                if (decision.action == LifetimeAction::closeChannels) {
+                    input.parent.close();
+                    output.parent.close();
+                    diagnostic.parent.close();
+                }
+                if (decision.finished) {
+                    if (!decision.mayAdmit)
+                        throw WorkerStopped(decision.reason, std::move(result));
+                    break;
+                }
+            }
             std::array<pollfd, 3> channels { pollfd { input.parent.get(), POLLOUT, 0 },
                 pollfd { output.parent.get(), POLLIN, 0 }, pollfd { diagnostic.parent.get(), POLLIN, 0 } };
             if (::poll(channels.data(), channels.size(), 50) < 0) {
@@ -234,6 +292,15 @@ namespace worker {
             hasExited = child.collect(result.outcome);
         }
         return result;
+    }
+    CollectedJob runWorkerJob(const std::string& executable, const Frame& request, const TransportLimits& limits)
+    {
+        return runJob(executable, request, limits, nullptr);
+    }
+    CollectedJob runSupervisedWorkerJob(const std::string& executable, const Frame& request,
+        const TransportLimits& limits, const WorkerSupervision& supervision)
+    {
+        return runJob(executable, request, limits, &supervision);
     }
 }
 }
