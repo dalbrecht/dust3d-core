@@ -53,7 +53,7 @@ add_library(dust3d_engine STATIC
 target_include_directories(dust3d_engine PUBLIC native/Engine/include)
 target_link_libraries(dust3d_engine PRIVATE dust3d_core)
 
-add_library(dust3d_worker_protocol STATIC native/Engine/WorkerProtocol.cc native/Engine/WorkerMesh.cc native/Engine/WorkerFailure.cc native/Engine/WorkerAdmission.cc)
+add_library(dust3d_worker_protocol STATIC native/Engine/WorkerProtocol.cc native/Engine/WorkerMesh.cc native/Engine/WorkerFailure.cc native/Engine/WorkerAdmission.cc native/Engine/WorkerQueue.cc)
 target_include_directories(dust3d_worker_protocol PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
 add_library(dust3d_worker_operation STATIC native/Engine/WorkerOperation.cc)
@@ -82,6 +82,10 @@ endif()
 
 include(CTest)
 if(BUILD_TESTING)
+    add_executable(dust3d_worker_queue_tests tests/core/worker_queue_tests.cc)
+    target_link_libraries(dust3d_worker_queue_tests PRIVATE dust3d_worker_protocol)
+    add_test(NAME worker_queue_contracts COMMAND dust3d_worker_queue_tests)
+    set_tests_properties(worker_queue_contracts PROPERTIES TIMEOUT 30)
     if(TARGET dust3d_worker_transport)
         add_executable(dust3d_worker_transport_tests tests/core/worker_transport_tests.cc)
         target_link_libraries(dust3d_worker_transport_tests PRIVATE dust3d_worker_transport dust3d_engine)
