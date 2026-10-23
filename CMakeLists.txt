@@ -56,8 +56,31 @@ target_link_libraries(dust3d_engine PRIVATE dust3d_core)
 add_library(dust3d_worker_protocol STATIC native/Engine/WorkerProtocol.cc native/Engine/WorkerMesh.cc native/Engine/WorkerFailure.cc)
 target_include_directories(dust3d_worker_protocol PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
+add_library(dust3d_worker_operation STATIC native/Engine/WorkerOperation.cc)
+target_link_libraries(dust3d_worker_operation PUBLIC dust3d_worker_protocol dust3d_engine)
+
+if(UNIX)
+    add_executable(dust3d_worker native/Engine/WorkerMain.cc)
+    target_link_libraries(dust3d_worker PRIVATE dust3d_worker_operation)
+endif()
+
 include(CTest)
 if(BUILD_TESTING)
+    add_executable(dust3d_worker_operation_tests tests/core/worker_operation_tests.cc)
+    target_link_libraries(dust3d_worker_operation_tests PRIVATE dust3d_worker_operation)
+    add_test(NAME worker_operation_contracts COMMAND dust3d_worker_operation_tests ${CMAKE_CURRENT_SOURCE_DIR}/tests/core/fixtures)
+    set_tests_properties(worker_operation_contracts PROPERTIES TIMEOUT 60)
+    if(UNIX)
+        add_executable(dust3d_worker_process_tests tests/core/worker_process_tests.cc)
+        target_link_libraries(dust3d_worker_process_tests PRIVATE dust3d_engine dust3d_worker_protocol)
+        add_test(NAME worker_process_contracts COMMAND "${CMAKE_COMMAND}"
+            "-DWORKER=$<TARGET_FILE:dust3d_worker>"
+            "-DVERIFIER=$<TARGET_FILE:dust3d_worker_process_tests>"
+            "-DFIXTURES=${CMAKE_CURRENT_SOURCE_DIR}/tests/core/fixtures"
+            "-DSCRATCH=${CMAKE_CURRENT_BINARY_DIR}/worker-process-tests"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/cmake/worker_process_tests.cmake")
+        set_tests_properties(worker_process_contracts PROPERTIES TIMEOUT 180)
+    endif()
     add_executable(dust3d_worker_failure_tests tests/core/worker_failure_tests.cc)
     target_link_libraries(dust3d_worker_failure_tests PRIVATE dust3d_worker_protocol dust3d_engine)
     add_test(NAME worker_failure_contracts COMMAND dust3d_worker_failure_tests)

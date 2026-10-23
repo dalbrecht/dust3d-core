@@ -50,6 +50,10 @@ namespace worker {
     private:
         MeshPayloadErrorCode m_code;
     };
+    /// Validate positive supported output-policy limits without executing an engine.
+    /// Throws MeshPayloadError with invalidLimits on an unsupported policy.
+    void validateMeshPayloadLimits(const MeshPayloadLimits& limits);
+
     /// Encode base triangle geometry with an explicit version-one, big-endian IEEE-754 schema.
     /// Validates quotas, finite/unit/range/area invariants and UTF-8 before output allocation.
     /// Throws MeshPayloadError or an ordinary allocation exception. No native object dump is used.

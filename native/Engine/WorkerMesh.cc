@@ -143,6 +143,10 @@ namespace worker {
         , m_code(code)
     {
     }
+    void validateMeshPayloadLimits(const MeshPayloadLimits& limits)
+    {
+        validateLimits(limits);
+    }
     std::vector<uint8_t> encodeMeshPayload(const MeshPayload& mesh, const MeshPayloadLimits& limits)
     {
         const auto layout = plan(mesh.vertices.size(), mesh.nodeCount, mesh.partCount, mesh.warning.size(), limits);
