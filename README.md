@@ -446,3 +446,31 @@ with the full build and CTest; `dust3d_source_baked_mip_swift` is the focused bu
 target. It requires Xcode command-line tools and swift-format. Linux and sanitizer
 configurations retain the C/C++ mip contracts; this macOS Swift consumer is excluded
 there. It does not establish app renderer or full material/export acceptance.
+
+### Portable worker framing (preparation only)
+
+The CMake target `dust3d_worker_protocol` provides a standard-library-only C++17
+version-one frame codec and document/request/revision response checks. It does not
+launch a worker, validate a mesh payload or change the production engine pin.
+`cmake --build build --target dust3d_worker_protocol_tests` and
+`ctest --test-dir build -R worker_protocol_contracts --output-on-failure` exercise
+small independent wire fixtures. Full CMake/CTest includes this contract.
+
+Include `native/Engine/WorkerProtocol.h` and link the target. For example:
+
+```cpp
+dust3d::worker::Header request;
+request.identity.document[0] = 1; // Substitute a parent-issued live-document identity.
+request.identity.request = 1;
+request.identity.revision = 0;
+request.payloadBytes = archive.size();
+auto wire = dust3d::worker::encodeFrame({ request, archive }, {});
+```
+
+Here `archive` is an owned byte vector. Header decoding rejects unsupported fields
+and advertised lengths before body allocation; complete decoding copies owned
+bytes and rejects fragments/trailing bytes. ProtocolError preserves a typed cause,
+and ordinary allocation exceptions propagate. Parent transport must check the
+pending identity before reading a body and separately validate result semantics
+before publication. See [ADR 0062](docs/adr/0062-portable-worker-framing.md) for the
+wire layout, limits and required containment follow-ups (#109).

@@ -53,8 +53,15 @@ add_library(dust3d_engine STATIC
 target_include_directories(dust3d_engine PUBLIC native/Engine/include)
 target_link_libraries(dust3d_engine PRIVATE dust3d_core)
 
+add_library(dust3d_worker_protocol STATIC native/Engine/WorkerProtocol.cc)
+target_include_directories(dust3d_worker_protocol PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+
 include(CTest)
 if(BUILD_TESTING)
+    add_executable(dust3d_worker_protocol_tests tests/core/worker_protocol_tests.cc)
+    target_link_libraries(dust3d_worker_protocol_tests PRIVATE dust3d_worker_protocol)
+    add_test(NAME worker_protocol_contracts COMMAND dust3d_worker_protocol_tests)
+    set_tests_properties(worker_protocol_contracts PROPERTIES TIMEOUT 30)
     # Verify the real C importer and owned Sendable copies on native macOS hosts.
     # Sanitized C++ contracts remain separate because swiftc does not link UBSan.
     if(APPLE AND NOT DUST3D_ENABLE_SANITIZERS AND NOT CMAKE_CROSSCOMPILING)

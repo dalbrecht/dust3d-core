@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add a separately tested portable worker frame codec with versioned byte order, bounded lengths and document/request/revision checks (#109). Process isolation and result-schema admission remain pending; quarantines and pins are unchanged.
+
 - Stop debug stitching generation from automatically creating or overwriting a global SVG outside caller-owned outputs (#101). Geometry and explicit exports are unchanged.
 
 - Expose opt-in owned native atlas mip levels with borrowed per-level views, preserved procedural island ownership and aggregate output accounting (#59). The existing loader stays base-only; Apple adoption remains pending.
