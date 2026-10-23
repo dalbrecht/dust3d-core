@@ -73,3 +73,43 @@ containment or parent-death handling. Active termination/reap acceptance, signed
 trusted helper packaging, source-aware result contracts and Apple integration
 remain open. #123/M8 and full parity remain incomplete. Production pin and all
 GLB/writer/fault/animation/rig-pose quarantines remain unchanged.
+
+## Ordinary small-workload baseline (2026-10-23)
+
+A fresh Debug, sanitizers-OFF helper built from clean source
+`c2da52cadb75ad48ea8c4f34d762338a6e5ac421` was observed on macOS 27.0.1
+(build 26A434), arm64. These are single runs, not percentile or worst-case bounds.
+No resource adapter was activated and no limits were changed. Each response passed
+the existing real-process verifier: normal exit, bounded empty diagnostic channel,
+PendingReply admission, native source counts/warning and every geometry float bit.
+
+| Licensed fixture | Archive bytes | Reply bytes | User CPU seconds | System CPU seconds | Wall seconds | Peak resident bytes |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Capsule.ds3 | 1451 | 9704 | 0.010270 | 0.004958 | 0.030470084 | 6160384 |
+| Sword.ds3 | 8297 | 38504 | 0.041900 | 0.003697 | 0.068886791 | 9568256 |
+
+The parent collected the owned child's normal wait4 usage, not a cumulative usage
+estimate for multiple children. The installed SDK getrusage manual specifies
+ru_maxrss bytes on this macOS platform. Wall time includes process launch and
+collection; it is not engine-only CPU time. The verifier's own later in-process
+comparison is excluded from each helper's usage accounting.
+
+The first /usr/bin/time -l measurement could not query kern.clockrate under the
+sandbox and returned failure after the Capsule helper produced a reply. It is
+retained as incomplete evidence, not used for the table or treated as a helper
+crash. The subsequent ordinary runs used wait4 without changing system settings
+or bypassing that query. No failed workload or crash was deliberately reproduced.
+
+Worker binary SHA-256:
+`30d6b77f5f3abb2aecf531c44921fd9458159279fbe765927f0b2c50111e9241`.
+Fixture SHA-256 values are
+`04095eded18e72a1c373673799fc68a6ec21048235c79086c8b18f450b485866`
+(Capsule) and
+`6553fcb97e9ba6113ea9681bfcd7a79dd4ba41f58c9d152e867ca4c8b05b5206`
+(Sword). Raw measurements, observer script and build logs are retained with the
+recovery checkpoint. Compiled products are cleaned after collection.
+
+Two small fixtures do not characterize complex modifiers, imports, textures,
+large documents, sanitizer overhead, release builds or other OS/architectures.
+No production budgets or RSS enforcement claims are derived from these numbers.
+The separate reviewed launch/profile and containment gates above remain required.
