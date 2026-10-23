@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add a development Unix parent transport with concurrent bounded channel transfer, original diagnostics and observed process completion (#114). Production lifecycle policy remains pending.
+
 - Add single-use worker completion admission requiring clean exit, current identity and validated owned payloads (#113).
 
 - Add a Unix single-job native helper with bounded framed input, isolated binary output and separately testable native execution/status mapping (#112). Parent transport and production containment remain pending; pins and quarantines are unchanged.
