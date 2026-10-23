@@ -24,7 +24,6 @@
 #include <cmath>
 #include <dust3d/base/debug.h>
 #include <dust3d/mesh/stitch_loop_mesh_builder.h>
-#include <fstream>
 #include <functional>
 #include <limits>
 #include <map>
@@ -108,9 +107,6 @@ void StitchLoopMeshBuilder::build()
     fillIsolatedLoops();
     if (m_backClosed)
         closeOuterBoundary();
-#ifndef NDEBUG
-    debugVisualizeCellColors();
-#endif
 }
 
 void StitchLoopMeshBuilder::mirrorClosedLoops()
@@ -1089,106 +1085,6 @@ void StitchLoopMeshBuilder::closeOuterBoundary()
             rings.push_back(std::move(ring));
         }
     }
-}
-
-void StitchLoopMeshBuilder::debugVisualizeCellColors()
-{
-    // Write an SVG showing each BFS-colored cell filled with a color derived from
-    // its assigned loop index, plus the original loop nodes drawn as small circles.
-    // The file is written to /tmp/stitch_loop_debug.svg for easy inspection.
-    static const char* kColors[] = {
-        "#e6194b",
-        "#3cb44b",
-        "#4363d8",
-        "#f58231",
-        "#911eb4",
-        "#42d4f4",
-        "#f032e6",
-        "#bfef45",
-        "#fabed4",
-        "#469990",
-        "#dcbeff",
-        "#9a6324",
-        "#fffac8",
-        "#800000",
-        "#aaffc3",
-    };
-    static constexpr size_t kColorCount = sizeof(kColors) / sizeof(kColors[0]);
-
-    // Map grid coordinates to SVG pixels: use a fixed canvas size.
-    constexpr int kCanvasSize = 800;
-    double scale = static_cast<double>(kCanvasSize) / m_squareSide;
-
-    auto toSvgX = [&](double worldX) { return (worldX - m_minX) * scale; };
-    auto toSvgY = [&](double worldY) { return kCanvasSize - (worldY - m_minY) * scale; };
-
-    std::ofstream out("/tmp/stitch_loop_debug.svg");
-    out << "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"" << kCanvasSize
-        << "\" height=\"" << kCanvasSize << "\">\n";
-    out << "<rect width=\"100%\" height=\"100%\" fill=\"#222\"/>\n";
-
-    double cellSvg = m_targetGridCellLength * scale;
-    for (size_t r = 0; r < m_gridRows; ++r) {
-        for (size_t c = 0; c < m_gridCols; ++c) {
-            const CellColor& cc = m_cellColor[r * m_gridCols + c];
-            if (!cc.valid())
-                continue;
-            double worldX = m_minX + static_cast<double>(c) * m_targetGridCellLength;
-            double worldY = m_minY + static_cast<double>(r) * m_targetGridCellLength;
-            double svgX = toSvgX(worldX);
-            double svgY = toSvgY(worldY) - cellSvg; // top-left corner in SVG coords
-            const char* fill = kColors[cc.loopIndex % kColorCount];
-            out << "<rect x=\"" << svgX << "\" y=\"" << svgY
-                << "\" width=\"" << cellSvg << "\" height=\"" << cellSvg
-                << "\" fill=\"" << fill << "\" fill-opacity=\"0.45\" stroke=\"none\"/>\n";
-        }
-    }
-
-    // Draw loop nodes as labeled circles.
-    double nodeRadius = std::max(2.0, cellSvg * 1.5);
-    for (size_t li = 0; li < m_loops.size(); ++li) {
-        const char* stroke = kColors[li % kColorCount];
-        const auto& loop = m_loops[li];
-        for (size_t ni = 0; ni < loop.nodes.size(); ++ni) {
-            double sx = toSvgX(loop.nodes[ni].origin.x());
-            double sy = toSvgY(loop.nodes[ni].origin.y());
-            out << "<circle cx=\"" << sx << "\" cy=\"" << sy
-                << "\" r=\"" << nodeRadius
-                << "\" fill=\"" << stroke << "\" stroke=\"white\" stroke-width=\"0.5\"/>\n";
-            out << "<text x=\"" << sx + nodeRadius + 1 << "\" y=\"" << sy + 4
-                << "\" font-size=\"8\" fill=\"white\">" << li << "," << ni << "</text>\n";
-        }
-        // Draw loop edges.
-        size_t n = loop.nodes.size();
-        size_t edgeEnd = loop.closed ? n : n - 1;
-        for (size_t ni = 0; ni < edgeEnd; ++ni) {
-            double x1 = toSvgX(loop.nodes[ni].origin.x());
-            double y1 = toSvgY(loop.nodes[ni].origin.y());
-            double x2 = toSvgX(loop.nodes[(ni + 1) % n].origin.x());
-            double y2 = toSvgY(loop.nodes[(ni + 1) % n].origin.y());
-            out << "<line x1=\"" << x1 << "\" y1=\"" << y1
-                << "\" x2=\"" << x2 << "\" y2=\"" << y2
-                << "\" stroke=\"" << stroke << "\" stroke-width=\"1.5\"/>\n";
-        }
-    }
-
-    // Draw adjacency connections between nodes of different loops.
-    for (const auto& [nodeA, neighbors] : m_nodeAdjacency) {
-        double x1 = toSvgX(m_loops[nodeA.first].nodes[nodeA.second].origin.x());
-        double y1 = toSvgY(m_loops[nodeA.first].nodes[nodeA.second].origin.y());
-        for (const auto& nodeB : neighbors) {
-            if (nodeB < nodeA)
-                continue; // draw each pair once
-            double x2 = toSvgX(m_loops[nodeB.first].nodes[nodeB.second].origin.x());
-            double y2 = toSvgY(m_loops[nodeB.first].nodes[nodeB.second].origin.y());
-            out << "<line x1=\"" << x1 << "\" y1=\"" << y1
-                << "\" x2=\"" << x2 << "\" y2=\"" << y2
-                << "\" stroke=\"white\" stroke-width=\"0.8\" stroke-dasharray=\"3,2\" stroke-opacity=\"0.6\"/>\n";
-        }
-    }
-
-    out << "</svg>\n";
-    dust3dDebug << "debugVisualizeCellColors: wrote /tmp/stitch_loop_debug.svg";
 }
 
 std::map<Uuid, std::map<std::array<PositionKey, 3>, std::array<Vector2, 3>>> StitchLoopMeshBuilder::buildPerLoopTriangleUvs() const

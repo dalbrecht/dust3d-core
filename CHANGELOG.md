@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Stop debug stitching generation from automatically creating or overwriting a global SVG outside caller-owned outputs (#101). Geometry and explicit exports are unchanged.
+
 - Expose opt-in owned native atlas mip levels with borrowed per-level views, preserved procedural island ownership and aggregate output accounting (#59). The existing loader stays base-only; Apple adoption remains pending.
 
 - Add opt-in owned atlas mip chains with isolated imported and procedural islands, linear-light color filtering, normalized normals, actual per-map LOD admission and cumulative quotas (#59). Existing native sampling limits and Apple pins remain unchanged.

@@ -114,7 +114,6 @@ private:
     void buildFaces();
     void fillIsolatedLoops();
     void closeOuterBoundary();
-    void debugVisualizeCellColors();
 };
 
 }
