@@ -493,3 +493,22 @@ malformed text reject. Full CTest includes `worker_mesh_contracts`, including a
 licensed Capsule through the ordinary native C API, framing and semantic codec.
 See [ADR 0063](docs/adr/0063-worker-mesh-payloads.md) for the versioned layout and
 remaining worker/source-aware/release work (#110).
+
+### Typed worker failures
+
+`native/Engine/WorkerFailure.h` provides `encodeFailurePayload` and
+`decodeFailurePayload` in the same CMake library. For example,
+`auto bytes = dust3d::worker::encodeFailurePayload({ dust3d::worker::FailureStatus::cancelled, {} }, {});`
+encodes a typed cancellation with an originally empty cause. Decode with
+`decodeFailurePayload(bytes.data(), bytes.size(), {})` to obtain owned original
+bytes; malformed schemas, success/unknown statuses, limits and incomplete/extra
+spans throw FailurePayloadError. Ordinary allocation errors propagate.
+
+All six native non-success outcomes remain distinct. Opaque causes preserve
+non-UTF-8 and control bytes without interpretation or logging. Validate outer frame
+kind and pending identity first, then apply safe presentation and application
+state policy. Default total failure payload is at most 4096 bytes including its
+16-byte prefix. Full CTest includes `worker_failure_contracts`, with an ordinary
+invalid archive through the existing C ABI. See
+[ADR 0064](docs/adr/0064-worker-failure-payloads.md) for exact wire IDs, quotas and
+remaining process/transport acceptance (#111).

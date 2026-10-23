@@ -53,11 +53,15 @@ add_library(dust3d_engine STATIC
 target_include_directories(dust3d_engine PUBLIC native/Engine/include)
 target_link_libraries(dust3d_engine PRIVATE dust3d_core)
 
-add_library(dust3d_worker_protocol STATIC native/Engine/WorkerProtocol.cc native/Engine/WorkerMesh.cc)
+add_library(dust3d_worker_protocol STATIC native/Engine/WorkerProtocol.cc native/Engine/WorkerMesh.cc native/Engine/WorkerFailure.cc)
 target_include_directories(dust3d_worker_protocol PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
 include(CTest)
 if(BUILD_TESTING)
+    add_executable(dust3d_worker_failure_tests tests/core/worker_failure_tests.cc)
+    target_link_libraries(dust3d_worker_failure_tests PRIVATE dust3d_worker_protocol dust3d_engine)
+    add_test(NAME worker_failure_contracts COMMAND dust3d_worker_failure_tests)
+    set_tests_properties(worker_failure_contracts PROPERTIES TIMEOUT 30)
     add_executable(dust3d_worker_mesh_tests tests/core/worker_mesh_tests.cc)
     target_link_libraries(dust3d_worker_mesh_tests PRIVATE dust3d_worker_protocol dust3d_engine)
     add_test(NAME worker_mesh_contracts COMMAND dust3d_worker_mesh_tests ${CMAKE_CURRENT_SOURCE_DIR}/tests/core/fixtures)

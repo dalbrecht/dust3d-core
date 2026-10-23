@@ -430,3 +430,13 @@ release, framing/identity checks and bit-exact semantic transport. See
 [ADR 0063](adr/0063-worker-mesh-payloads.md). Failure schemas, pending-state retirement,
 worker transport/resource isolation, source-aware UV/material/rig/animation results
 and full release acceptance remain pending. No production pin or quarantine change.
+
+### Typed worker non-success payloads (#111)
+
+A separate failure schema preserves all six existing non-success outcomes and
+bounded original diagnostic bytes without assuming UTF-8, logging or replacing
+causes. Real ordinary native-error framing/identity/ownership contracts pass. See
+[ADR 0064](adr/0064-worker-failure-payloads.md). The next stage must exercise these
+codecs in a real single-job helper and parent transport; queue/time/resource/exit
+admission, cancellation, parent-death and sandbox/source-aware acceptance remain
+required. No process containment, production pin change or full parity is claimed.
