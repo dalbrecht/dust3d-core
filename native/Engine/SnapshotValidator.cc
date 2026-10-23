@@ -29,7 +29,14 @@ namespace native {
                     normalized += character;
             }
             size_t consumed = 0;
-            double value = std::stod(normalized, &consumed);
+            double value = 0;
+            try {
+                value = std::stod(normalized, &consumed);
+            } catch (const std::invalid_argument& error) {
+                throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Invalid geometry value: " + key + ". " + error.what());
+            } catch (const std::out_of_range& error) {
+                throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Out-of-range geometry value: " + key + ". " + error.what());
+            }
             if (consumed != normalized.size() || !std::isfinite(value) || std::abs(value) > 1000000)
                 throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Invalid or nonfinite geometry value: " + key + ".");
             return value;
