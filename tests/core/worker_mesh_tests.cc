@@ -128,8 +128,9 @@ void boundsAndLayout()
     invalid = limits;
     invalid.maximumWireBytes = maximumPayloadBytes + 1;
     reject(MeshPayloadErrorCode::invalidLimits, [&] { decodeMeshPayload(wire.data(), wire.size(), invalid); });
+    using LimitField = uint64_t MeshPayloadLimits::*;
     struct LimitCase {
-        uint64_t MeshPayloadLimits::* field;
+        LimitField field;
         uint64_t maximum;
     };
     for (const auto& field : { LimitCase { &MeshPayloadLimits::maximumWireBytes, maximumPayloadBytes },
