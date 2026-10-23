@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add typed worker non-success payloads that preserve bounded original diagnostic bytes, including non-UTF-8 causes, and distinguish no-geometry/cancellation outcomes (#111). Process transport remains pending; pins and quarantines are unchanged.
+
 - Add explicit owned worker base-mesh payload encoding and semantic admission for geometry, source counts and bounded UTF-8 warnings (#110). Process transport and source-aware results remain separate; no pin or quarantine changes.
 
 - Add a separately tested portable worker frame codec with versioned byte order, bounded lengths and document/request/revision checks (#109). Process isolation and result-schema admission remain pending; quarantines and pins are unchanged.
