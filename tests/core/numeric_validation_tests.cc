@@ -46,13 +46,14 @@ MeshOwner load(const std::string& xml)
     return mesh;
 }
 
-void reject(const std::string& xml)
+void reject(const std::string& xml, const std::string& field = {})
 {
     const std::string bytes = archive(xml);
     Dust3DError error {};
     MeshOwner mesh(dust3d_mesh_load(reinterpret_cast<const uint8_t*>(bytes.data()), bytes.size(), &error), dust3d_mesh_destroy);
     require(!mesh && error.status == DUST3D_STATUS_INVALID_DOCUMENT, "Invalid numeric fixture was accepted");
     require(error.message[0] != '\0', "Numeric rejection lost its diagnostic");
+    require(std::string(error.message).find(field) != std::string::npos, "Numeric rejection lost its field context at the C boundary");
 }
 
 std::string replaceValue(std::string xml, const std::string& oldValue, const std::string& newValue)
@@ -67,6 +68,7 @@ std::string replaceValue(std::string xml, const std::string& oldValue, const std
 int main()
 {
     try {
+        reject(replaceValue(model(), "cutRotation='0.25'", "cutRotation='bad'"), "cutRotation");
         const auto dot = load(model());
         std::string commaXml = model();
         // The synthetic model contains decimal points only in numeric attributes.

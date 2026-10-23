@@ -55,6 +55,10 @@ target_link_libraries(dust3d_engine PRIVATE dust3d_core)
 
 include(CTest)
 if(BUILD_TESTING)
+    add_executable(dust3d_snapshot_numeric_tests tests/core/snapshot_numeric_tests.cc native/Engine/SnapshotValidator.cc)
+    target_include_directories(dust3d_snapshot_numeric_tests PRIVATE . native/Engine native/Engine/include)
+    add_test(NAME contract_snapshot_numeric COMMAND dust3d_snapshot_numeric_tests)
+    set_tests_properties(contract_snapshot_numeric PROPERTIES TIMEOUT 30)
     add_test(NAME contract_glb_catalog_quarantine COMMAND "${CMAKE_COMMAND}"
         "-DQUARANTINE_CHECK=${CMAKE_CURRENT_SOURCE_DIR}/cmake/CheckGlbCatalogQuarantine.cmake"
         "-DTEST_WORK_ROOT=${CMAKE_CURRENT_BINARY_DIR}/quarantine-tests"

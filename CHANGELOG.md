@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Preserve typed invalid-document errors, geometry field names and original numeric conversion diagnostics for malformed or out-of-range scalar metadata (#104).
+
 - Quarantine standalone and embedded allocation-failure probes from default builds, retaining ordinary ownership checks and non-injecting JSON comparison contracts with compile-time signature checks (#84).
 
 - Propagate allocation failure from glTF JSON parsing and string comparisons instead of terminating the process. Object, array, and string payloads are published before their type, and string literals are no longer no-throw numeric scalars (#69).
