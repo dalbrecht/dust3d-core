@@ -1,6 +1,6 @@
 # ADR 0061: Native owned chart-isolated mip levels
 
-Status: implemented locally; review and hosted CI pending.
+Status: accepted in core #107 after completed exact-head clean automated review and all six CI checks passed.
 
 ## Decision
 
@@ -43,3 +43,26 @@ No whole-engine coverage claim is made. All gates reuse one shared build root.
 Swift SDK copying, renderer upload/partial-chain sampling, export behavior and
 independent end-to-end material acceptance remain separate. No Apple production
 pin changes or UI changes are included. Existing quarantines stay in force.
+
+## Automated Swift consumer follow-up
+
+Normal native macOS CMake builds now compile the real C import consumer under
+Swift 6 complete strict concurrency and warnings as errors, then register it with
+CTest. Its owned immutable Sendable value contains all available map levels,
+dimensions, copied Data and producer cap. Two independent Capsule bakes agree
+after both native owners are destroyed and the first copy crosses a detached
+task boundary. No opaque handle or borrowed pointer crosses that boundary, and no
+unchecked Sendable is used. The licensed fixture produces 80 triangles and a real
+512-to-256 level with cap 1.0.
+
+The focused target initially did not exist (test automation red); the standalone
+consumer already passed against the fresh #107 SwiftPM product. CMake integration
+then caught formatting differences between repositories, corrected with the local
+formatter configuration. The final full normal suite passes 52/52 in 30.67s, with
+the new Swift test in 0.93s. No C++ implementation changes are included. Sanitizer
+and Linux configurations retain the existing 51 C/C++ contracts; swiftc does not
+link the C++ UBSan contract in this build. The reviewed #107 sanitizer evidence
+above remains historical, not a rerun for this test-only change.
+
+This improves core boundary coverage without changing the Apple production pin or
+claiming SDK binding, native app mip adoption or independent export acceptance.

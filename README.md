@@ -433,3 +433,16 @@ source guard rejects their known restoration paths. Use a fresh build for
 verification; do not run pre-containment binaries or replay historical fault
 cases. Allocation-failure coverage is deferred, not claimed passing. GLB #69 and
 #67 remain quarantined/blocked. See ADR 0045 for the audit correction and limits.
+
+### Strict Swift mip ownership contract
+
+Normal native macOS CMake test builds compile `tests/swift/SourceBakedMipSmoke.swift`
+with Swift 6 complete concurrency checking and warnings as errors. The
+`source_baked_mip_swift` CTest copies actual Capsule atlas levels before destroying
+the native owner, verifies per-level dimensions/caps, and transfers immutable
+owned data across actors. This exercises the C importer against the same CMake
+engine libraries, without changing an Apple dependency pin. It runs automatically
+with the full build and CTest; `dust3d_source_baked_mip_swift` is the focused build
+target. It requires Xcode command-line tools and swift-format. Linux and sanitizer
+configurations retain the C/C++ mip contracts; this macOS Swift consumer is excluded
+there. It does not establish app renderer or full material/export acceptance.
