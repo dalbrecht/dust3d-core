@@ -364,6 +364,16 @@ lands in #59. Source-image mip sampling remains supported. See [ADR 0023](docs/a
 linear color, mip footprint, normal-transposition and resource/coverage requirements.
 Native document loading and Apple adoption remain separate; no image decoder is added.
 
+`SourceTextureBaker::bakeMipChain(atlas, inputs, options)` additionally owns safe
+floor-halved atlas levels. Set `SourceTextureMipBakeOptions::legacyAtlas` to the
+original procedural `UvAtlas` when a legacy region exists: its internal islands
+must remain separate owners. Missing island metadata retains LOD zero. Color and
+emission filter in linear light, scalar maps linearly, and normal vectors normalize
+after averaging. Honor the returned common `maximumSamplingLod`; partial chains
+must not be extended with global filtering. Base `bake()` and native accessors
+remain unchanged. See [ADR 0060](docs/adr/0060-chart-isolated-owned-mip-chains.md)
+for footprint, quota, validation and remaining native/Swift/export requirements.
+
 ### Native source-aware bake owner
 
 `dust3d_source_baked_mesh_load` opts into imported/procedural composition without
