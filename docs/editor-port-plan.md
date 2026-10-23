@@ -410,3 +410,13 @@ global diagnostic path; ordinary normal and sanitizer suites pass. See
 [verification](stitching-output-containment-verification.md). This is filesystem
 containment preparation, not a worker sandbox or full M8 acceptance. The Apple
 production pin and every existing quarantine remain unchanged.
+
+### Portable worker framing foundation (#109)
+
+A separate C++17 frame codec now validates versioned fixed-endian envelopes,
+per-kind wire limits, exact spans and response identity. No process or engine is
+launched by this library. See [ADR 0062](adr/0062-portable-worker-framing.md) for
+measured tests/coverage and wire semantics. Semantic result codecs, parent queue
+and revision retirement, worker/transport, cancellation and resource/exit/sandbox
+acceptance remain required. This does not remove quarantines, advance an Apple
+pin, establish containment or close M8/full parity.
