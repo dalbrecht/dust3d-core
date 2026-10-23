@@ -503,3 +503,14 @@ unforced under current restrictions. [ADR 0070](adr/0070-supervised-unix-worker.
 records measured coverage gaps, exclusive reaping ownership, possible uninterruptible
 OS reap, and missing resource/sandbox/parent-death containment. This does not close
 #123/M8, enable production documents or change the Apple pin.
+
+### Helper resource-policy implementation contract (#123)
+
+[ADR 0071](adr/0071-helper-resource-policy.md) specifies a helper-only resource
+adapter, pure profile validation, effective inherited-limit handling and fail-closed
+setup errors before archive work. It separates virtual address limits from resident
+memory, requires explicit sanitizer/profile compatibility and identifies descriptor
+inheritance and launch-version gates. This is a proposed contract only: no resource
+caps are installed, no production profile is selected, and no exhaustion or signal
+probe is authorized. Filesystem/descendant/parent-death containment, active OS
+lifecycle evidence and Apple adoption remain open; M8 is not complete.
