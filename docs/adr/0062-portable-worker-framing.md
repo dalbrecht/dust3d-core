@@ -87,9 +87,13 @@ arrays/vectors and null inputs, never fabricated non-null pointers.
 
 The full normal macOS suite passes 54/54 in 31.84 seconds. ASan/UBSan passes all
 53 registered C/C++ contracts in 166.40 seconds; the Swift consumer remains
-normal-only. A focused sanitizer/coverage run also passes. WorkerProtocol.cc
-measures 110/110 lines, 90/90 regions, 14/14 functions and 71/72 branch outcomes.
+normal-only. A focused sanitizer/coverage run also passes. At the initial framing checkpoint afe16817, WorkerProtocol.cc
+measured 110/110 lines, 90/90 regions, 14/14 functions and 71/72 branch outcomes.
 The unhit branch is the defensive size_t address-space guard, unreachable under
 the hard cap on this 64-bit host. No artificial probe is added to reach it.
 These are file-scoped measurements, not inherited-engine or full release coverage.
 All builds reuse the shared folder and clean instrumented products afterward.
+
+The later semantic payload stage extracts shared integer helpers into WorkerWire.h
+without changing the independent frame fixture; ADR 0063 records that stage's
+scoped measurements. Initial file coverage above remains historical.

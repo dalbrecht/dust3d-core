@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 #include "WorkerProtocol.h"
+#include "WorkerWire.h"
 #include <algorithm>
 #include <limits>
 
@@ -36,20 +37,7 @@ namespace worker {
             if (header.payloadBytes > maximum || header.payloadBytes > std::numeric_limits<size_t>::max() - headerBytes)
                 reject(ProtocolErrorCode::limitExceeded, "Worker advertised payload exceeds its configured limit.");
         }
-        void write(uint8_t* output, uint64_t value, size_t count)
-        {
-            for (size_t index = 0; index < count; ++index) {
-                output[count - index - 1] = static_cast<uint8_t>(value & 255);
-                value >>= 8;
-            }
-        }
-        uint64_t read(const uint8_t* input, size_t count)
-        {
-            uint64_t result = 0;
-            for (size_t index = 0; index < count; ++index)
-                result = (result << 8) | input[index];
-            return result;
-        }
+
     }
     ProtocolError::ProtocolError(ProtocolErrorCode code, const char* message)
         : std::runtime_error(message)
@@ -65,14 +53,14 @@ namespace worker {
         validate(header, limits);
         std::array<uint8_t, headerBytes> result {};
         std::copy(magic.begin(), magic.end(), result.begin());
-        write(result.data() + 8, 1, 2);
-        write(result.data() + 10, headerBytes, 2);
-        write(result.data() + 16, static_cast<uint16_t>(header.kind), 2);
-        write(result.data() + 18, static_cast<uint16_t>(header.operation), 2);
-        write(result.data() + 24, header.identity.request, 8);
-        write(result.data() + 32, header.identity.revision, 8);
+        detail::writeUnsigned(result.data() + 8, 1, 2);
+        detail::writeUnsigned(result.data() + 10, headerBytes, 2);
+        detail::writeUnsigned(result.data() + 16, static_cast<uint16_t>(header.kind), 2);
+        detail::writeUnsigned(result.data() + 18, static_cast<uint16_t>(header.operation), 2);
+        detail::writeUnsigned(result.data() + 24, header.identity.request, 8);
+        detail::writeUnsigned(result.data() + 32, header.identity.revision, 8);
         std::copy(header.identity.document.begin(), header.identity.document.end(), result.begin() + 40);
-        write(result.data() + 56, header.payloadBytes, 8);
+        detail::writeUnsigned(result.data() + 56, header.payloadBytes, 8);
         return result;
     }
     Header decodeHeader(const uint8_t* bytes, size_t size, const Limits& limits)
@@ -86,17 +74,17 @@ namespace worker {
             reject(ProtocolErrorCode::trailingData, "Worker header span contains extra bytes.");
         if (!std::equal(magic.begin(), magic.end(), bytes))
             reject(ProtocolErrorCode::invalidHeader, "Worker frame magic is invalid.");
-        if (read(bytes + 8, 2) != 1)
+        if (detail::readUnsigned(bytes + 8, 2) != 1)
             reject(ProtocolErrorCode::unsupportedVersion, "Worker protocol version is unsupported.");
-        if (read(bytes + 10, 2) != headerBytes || read(bytes + 12, 4) || read(bytes + 20, 4))
+        if (detail::readUnsigned(bytes + 10, 2) != headerBytes || detail::readUnsigned(bytes + 12, 4) || detail::readUnsigned(bytes + 20, 4))
             reject(ProtocolErrorCode::invalidHeader, "Worker header size, flags or reserved fields are invalid.");
         Header result;
-        result.kind = static_cast<FrameKind>(read(bytes + 16, 2));
-        result.operation = static_cast<Operation>(read(bytes + 18, 2));
-        result.identity.request = read(bytes + 24, 8);
-        result.identity.revision = read(bytes + 32, 8);
+        result.kind = static_cast<FrameKind>(detail::readUnsigned(bytes + 16, 2));
+        result.operation = static_cast<Operation>(detail::readUnsigned(bytes + 18, 2));
+        result.identity.request = detail::readUnsigned(bytes + 24, 8);
+        result.identity.revision = detail::readUnsigned(bytes + 32, 8);
         std::copy(bytes + 40, bytes + 56, result.identity.document.begin());
-        result.payloadBytes = read(bytes + 56, 8);
+        result.payloadBytes = detail::readUnsigned(bytes + 56, 8);
         validate(result, limits);
         return result;
     }
