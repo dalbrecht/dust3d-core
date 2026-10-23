@@ -440,3 +440,16 @@ causes. Real ordinary native-error framing/identity/ownership contracts pass. Se
 codecs in a real single-job helper and parent transport; queue/time/resource/exit
 admission, cancellation, parent-death and sandbox/source-aware acceptance remain
 required. No process containment, production pin change or full parity is claimed.
+
+### Working single-job native helper (#112)
+
+A real Unix helper now executes one admitted archive request and emits an owned
+base-mesh or typed native failure, with complete-input EOF policy and binary output
+separated from backend diagnostics. A portable operation adapter provides explicit
+status mapping and validated consumer budgets. Fifteen ordinary subprocess cases
+include Capsule/Sword parity, actual seam diagnostics and real read-error recovery.
+See [ADR 0065](adr/0065-single-job-native-worker.md) for measured gates, coverage
+gaps and exit semantics. Parent queue/revision/exit admission and transport, hard
+resource/time/cancellation/sandbox/parent-death acceptance, source-aware results
+and distribution remain required. This does not close M4/M7/M8 or change a pin or
+quarantine.

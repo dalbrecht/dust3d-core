@@ -81,7 +81,7 @@ destroyed, framed with matching parent identity, decoded and compared bit-for-bi
 240 vertices plus exact source counts and warning. No worker or quarantined parser
 is launched. No allocation-failure, crash, signal or resource-exhaustion probe runs.
 
-Final normal CMake/CTest passes 55/55 in 29.71 seconds. Final ASan/UBSan passes all
+At the initial semantic checkpoint 8cde28ee, normal CMake/CTest passed 55/55 in 29.71 seconds. ASan/UBSan passed all
 54 C/C++ contracts in 80.95 seconds; the macOS Swift consumer remains normal-only.
 Focused instrumented sanitizer execution also passes. Coverage of WorkerMesh.cc,
 its inline error accessor and WorkerWire.h is 194/195 lines, 179/180 regions,
@@ -98,3 +98,7 @@ filesystem isolation and source-aware result schemas remain required. Existing
 quarantines and the Apple production pin remain unchanged. Parent mesh adaptation,
 GPU/render behavior, broad corpus performance and full editor/export parity are
 not established by this codec.
+
+The later helper stage exposes pure output-policy validation for its testable
+native operation adapter. ADR 0065 records that stage; the scoped measurements
+above remain historical for the initial semantic codec.

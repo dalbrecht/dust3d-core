@@ -512,3 +512,37 @@ state policy. Default total failure payload is at most 4096 bytes including its
 invalid archive through the existing C ABI. See
 [ADR 0064](docs/adr/0064-worker-failure-payloads.md) for exact wire IDs, quotas and
 remaining process/transport acceptance (#111).
+
+### Single-job native worker prototype (Unix)
+
+Build the headless helper with `cmake --build build --target dust3d_worker`. It
+accepts no command-line arguments: feed one complete framed request, then EOF,
+and receive one framed base-mesh or typed native failure:
+
+```sh
+build/dust3d_worker < request.frame > reply.frame 2> transport-diagnostics.txt
+```
+
+The request envelope is [ADR 0062](docs/adr/0062-portable-worker-framing.md), with
+generateMesh operation and raw `.ds3` body (default 128 MiB input maximum). Responses
+use [mesh](docs/adr/0063-worker-mesh-payloads.md) or
+[failure](docs/adr/0064-worker-failure-payloads.md) schemas and echo pending identity.
+Exit zero means a complete reply, including ordinary non-success outcomes; exits
+64/65/70/74 distinguish usage/protocol/internal/I/O errors. Never publish a partial
+reply or a reply from a nonzero/abnormal exit. Native causes remain owned protocol
+data, not stderr logs. Runtime sanitizer stderr stays observable. Treat all child
+stderr as bounded untrusted data in a future parent.
+
+The portable `dust3d_worker_operation` adapter can also execute
+`generateMeshReply(request, limits)` through the serialized native ABI or map
+`copyNativeFailure(error)` into owned data. Public limits validate before execution;
+consumer copy budgets can reject ordinary generated output without resource
+exhaustion. It changes no global streams and invokes no save API. The executable
+keeps OS descriptor handling separate and suppresses backend stdout corruption.
+
+Full CTest includes `worker_operation_contracts` and `worker_process_contracts`,
+with Capsule/Sword, existing seam diagnostics, typed failure, bounded data and real
+ordinary I/O rejection. This is a development prototype: parent admission, real
+pipe/queue/deadline/resource/cancellation/sandbox acceptance, source-aware results
+and signed application packaging remain pending. It changes no production pin or
+quarantine. See [ADR 0065](docs/adr/0065-single-job-native-worker.md) (#112).

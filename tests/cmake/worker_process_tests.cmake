@@ -1,0 +1,42 @@
+# SPDX-License-Identifier: MIT
+foreach(required WORKER VERIFIER FIXTURES SCRATCH)
+    if(NOT DEFINED ${required})
+        message(FATAL_ERROR "Missing worker process test argument: ${required}")
+    endif()
+endforeach()
+if(NOT EXISTS "${WORKER}")
+    message(FATAL_ERROR "The single-job worker does not exist")
+endif()
+execute_process(COMMAND "${VERIFIER}" prepare "${FIXTURES}" "${SCRATCH}"
+    RESULT_VARIABLE prepared TIMEOUT 30)
+if(NOT prepared EQUAL 0)
+    message(FATAL_ERROR "Could not prepare bounded worker requests: ${prepared}")
+endif()
+foreach(scenario capsule sword seam badArchive emptyArchive emptyStream shortHeader shortBody trailing wrongKind version quota identity inputDirectory usage)
+    set(expected 65)
+    set(command "${WORKER}")
+    if(scenario STREQUAL "capsule" OR scenario STREQUAL "sword" OR scenario STREQUAL "seam" OR scenario STREQUAL "badArchive" OR scenario STREQUAL "emptyArchive")
+        set(expected 0)
+    elseif(scenario STREQUAL "inputDirectory")
+        set(expected 74)
+    elseif(scenario STREQUAL "usage")
+        set(expected 64)
+        list(APPEND command unexpected)
+    endif()
+    if(scenario STREQUAL "seam")
+        set(command "${CMAKE_COMMAND}" -E env DUST3D_SEAM_REPORT=1 "${WORKER}")
+    endif()
+    execute_process(COMMAND ${command}
+        INPUT_FILE "${SCRATCH}/${scenario}.request"
+        OUTPUT_FILE "${SCRATCH}/${scenario}.reply"
+        ERROR_FILE "${SCRATCH}/${scenario}.error"
+        RESULT_VARIABLE status TIMEOUT 30)
+    if(NOT "${status}" STREQUAL "${expected}")
+        message(FATAL_ERROR "Worker ${scenario}: expected controlled exit ${expected}, received ${status}")
+    endif()
+    execute_process(COMMAND "${VERIFIER}" verify "${FIXTURES}" "${SCRATCH}" "${scenario}"
+        RESULT_VARIABLE verified TIMEOUT 30)
+    if(NOT verified EQUAL 0)
+        message(FATAL_ERROR "Worker ${scenario}: response admission failed (${verified})")
+    endif()
+endforeach()
