@@ -34,8 +34,10 @@ namespace worker {
     /// stable order. Returns effective caps only after every apply succeeds.
     /// Propagates the original ResourceError/ResourceSetupError. No retries or
     /// rollback on partial setup. Caller must prevent document work on exception.
+    /// minimumDescriptorCeiling rejects an unusable inherited/requested ceiling
+    /// before any application call. Zero supplies no startup descriptor constraint.
     /// This function is not a sandbox or a helper launch/profile protocol.
-    std::vector<PlannedResourceLimit> prepareWorkerResources(const ResourceProfile& profile, ResourceRuntime runtime, ResourceSystem& system);
+    std::vector<PlannedResourceLimit> prepareWorkerResources(const ResourceProfile& profile, ResourceRuntime runtime, ResourceSystem& system, uint64_t minimumDescriptorCeiling = 0);
 }
 }
 #endif

@@ -10,12 +10,13 @@
 #include <native/Engine/WorkerAdmission.h>
 #include <native/Engine/WorkerFailure.h>
 #include <native/Engine/WorkerMesh.h>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 
 namespace {
 using namespace dust3d::worker;
-const std::vector<std::string> cases { "capsule", "sword", "seam", "badArchive", "emptyArchive", "emptyStream", "shortHeader", "shortBody", "trailing", "wrongKind", "version", "quota", "identity", "inputDirectory", "usage" };
+const std::vector<std::string> cases { "capsule", "sword", "seam", "badArchive", "emptyArchive", "emptyStream", "shortHeader", "shortBody", "trailing", "wrongKind", "version", "quota", "identity", "inputDirectory", "usage", "resourceCapsule", "resourceSword" };
 void require(bool condition, const char* message)
 {
     if (!condition)
@@ -61,9 +62,9 @@ void prepare(const std::filesystem::path& fixtures, const std::filesystem::path&
             std::filesystem::create_directories(scratch / (name + ".request"));
             continue;
         }
-        const std::vector<uint8_t> body = name == "capsule" || name == "seam" || name == "usage" ? capsule : name == "sword" ? sword
-            : name == "emptyArchive"                                                                                         ? std::vector<uint8_t> {}
-                                                                                                                             : std::vector<uint8_t> { 1, 2, 3 };
+        const std::vector<uint8_t> body = name == "capsule" || name == "seam" || name == "usage" || name == "resourceCapsule" ? capsule : name == "sword" || name == "resourceSword" ? sword
+            : name == "emptyArchive"                                                                                                                                                 ? std::vector<uint8_t> {}
+                                                                                                                                                                                     : std::vector<uint8_t> { 1, 2, 3 };
         auto header = request(name);
         header.payloadBytes = body.size();
         auto bytes = encodeFrame({ header, body }, {});
@@ -91,11 +92,11 @@ void prepare(const std::filesystem::path& fixtures, const std::filesystem::path&
         writeFile(scratch / (name + ".request"), bytes);
     }
 }
-void verify(const std::filesystem::path& fixtures, const std::filesystem::path& scratch, const std::string& name)
+void verify(const std::filesystem::path& fixtures, const std::filesystem::path& scratch, const std::string& name, const std::string& runtime = {})
 {
     auto wire = readFile(scratch / (name + ".reply"));
     const auto diagnostic = readFile(scratch / (name + ".error"));
-    const bool isMesh = name == "capsule" || name == "seam" || name == "sword";
+    const bool isMesh = name == "capsule" || name == "seam" || name == "sword" || name == "resourceCapsule" || name == "resourceSword";
     const bool isNativeFailure = name == "badArchive" || name == "emptyArchive";
     if (!isMesh && !isNativeFailure) {
         require(wire.empty(), "Rejected request must not publish a partial/forged response");
@@ -107,7 +108,26 @@ void verify(const std::filesystem::path& fixtures, const std::filesystem::path& 
         require(std::all_of(text.begin(), text.end(), [](unsigned char byte) { return byte == '\n' || (byte >= 32 && byte <= 126); }), "Transport diagnostics contain static printable descriptions only");
         return;
     }
-    require(diagnostic.empty(), "Engine/native diagnostic content must not leak to stderr");
+    if (name == "resourceCapsule" || name == "resourceSword") {
+        const std::string report(diagnostic.begin(), diagnostic.end());
+        require(report.size() <= 1024 && !report.empty() && report.back() == '\n', "Resource report must be bounded and complete");
+        std::istringstream fields(report);
+        std::string version, observedRuntime;
+        fields >> version >> observedRuntime;
+        require(version == "resource-profile-v1" && observedRuntime == runtime, "Compiled runtime/version must match requested resource profile");
+        const uint64_t caps[] = { 600, 16777216, 0, 128 };
+        for (size_t index = 0; index < 4; ++index) {
+            uint64_t soft = 0, hard = 0;
+            require(bool(fields >> soft >> hard) && soft <= hard && hard <= caps[index], "Observed effective limits must match or be stricter than requested");
+            if (index == 2)
+                require(soft == 0 && hard == 0, "Core dump limit must be observed disabled");
+            else
+                require(soft > 0, "Ordinary fixture requires a positive effective budget");
+        }
+        fields >> std::ws;
+        require(fields.eof(), "Resource report cannot contain opaque document diagnostics or extra entries");
+    } else
+        require(diagnostic.empty(), "Engine/native diagnostic content must not leak to stderr");
     PendingReply pending(request(name));
     auto admitted = pending.complete(request(name).identity, { true, 0 }, wire.data(), wire.size());
     require(pending.isRetired(), "Actual process completion retires after admission");
@@ -115,11 +135,11 @@ void verify(const std::filesystem::path& fixtures, const std::filesystem::path& 
         require(std::holds_alternative<MeshPayload>(admitted), "Valid archive must produce a mesh response");
         const auto mesh = std::get<MeshPayload>(std::move(admitted));
         wire.clear();
-        const auto archive = readFile(fixtures / (name == "sword" ? "Sword.ds3" : "Capsule.ds3"));
+        const auto archive = readFile(fixtures / (name == "sword" || name == "resourceSword" ? "Sword.ds3" : "Capsule.ds3"));
         Dust3DError error {};
         std::unique_ptr<Dust3DMesh, decltype(&dust3d_mesh_destroy)> expected(dust3d_mesh_load(archive.data(), archive.size(), &error), dust3d_mesh_destroy);
         require(expected != nullptr, error.message);
-        require((name == "sword" || mesh.vertices.size() == 240) && mesh.vertices.size() == dust3d_mesh_vertex_count(expected.get())
+        require((name == "sword" || name == "resourceSword" || mesh.vertices.size() == 240) && mesh.vertices.size() == dust3d_mesh_vertex_count(expected.get())
                 && mesh.nodeCount == dust3d_mesh_node_count(expected.get()) && mesh.partCount == dust3d_mesh_part_count(expected.get())
                 && mesh.warning == dust3d_mesh_warning(expected.get()),
             "Subprocess result must match actual native counts/warning");
@@ -151,6 +171,8 @@ int main(int argc, char** argv)
             prepare(argv[2], argv[3]);
         else if (mode == "verify" && argc == 5)
             verify(argv[2], argv[3], argv[4]);
+        else if (mode == "verifyResource" && argc == 6)
+            verify(argv[2], argv[3], argv[4], argv[5]);
         else
             throw std::runtime_error("Unknown worker subprocess test invocation");
         return 0;

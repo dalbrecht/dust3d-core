@@ -53,7 +53,7 @@ add_library(dust3d_engine STATIC
 target_include_directories(dust3d_engine PUBLIC native/Engine/include)
 target_link_libraries(dust3d_engine PRIVATE dust3d_core)
 
-add_library(dust3d_worker_protocol STATIC native/Engine/WorkerProtocol.cc native/Engine/WorkerMesh.cc native/Engine/WorkerFailure.cc native/Engine/WorkerAdmission.cc native/Engine/WorkerQueue.cc native/Engine/WorkerLifetime.cc native/Engine/WorkerResources.cc)
+add_library(dust3d_worker_protocol STATIC native/Engine/WorkerProtocol.cc native/Engine/WorkerMesh.cc native/Engine/WorkerFailure.cc native/Engine/WorkerAdmission.cc native/Engine/WorkerQueue.cc native/Engine/WorkerLifetime.cc native/Engine/WorkerResources.cc native/Engine/WorkerResourceLaunch.cc)
 target_include_directories(dust3d_worker_protocol PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
 add_library(dust3d_worker_operation STATIC native/Engine/WorkerOperation.cc)
@@ -68,7 +68,11 @@ endif()
 
 if(UNIX)
     add_executable(dust3d_worker native/Engine/WorkerMain.cc)
-    target_link_libraries(dust3d_worker PRIVATE dust3d_worker_operation)
+    target_link_libraries(dust3d_worker PRIVATE dust3d_worker_operation dust3d_worker_resource_setup)
+    if(TARGET dust3d_worker_unix_resources)
+        target_compile_definitions(dust3d_worker PRIVATE DUST3D_WORKER_HAS_RESOURCE_SETUP=1)
+        target_link_libraries(dust3d_worker PRIVATE dust3d_worker_unix_resources)
+    endif()
 endif()
 
 # Linux needs glibc's close-from spawn action to avoid inheriting unrelated application descriptors.
@@ -89,6 +93,10 @@ endif()
 
 include(CTest)
 if(BUILD_TESTING)
+    add_executable(dust3d_worker_resource_launch_tests tests/core/worker_resource_launch_tests.cc)
+    target_link_libraries(dust3d_worker_resource_launch_tests PRIVATE dust3d_worker_protocol)
+    add_test(NAME worker_resource_launch_contracts COMMAND dust3d_worker_resource_launch_tests)
+    set_tests_properties(worker_resource_launch_contracts PROPERTIES TIMEOUT 30)
     if(TARGET dust3d_worker_unix_resources)
         add_executable(dust3d_worker_resource_setup_tests tests/core/worker_resource_setup_tests.cc)
         target_link_libraries(dust3d_worker_resource_setup_tests PRIVATE dust3d_worker_unix_resources)
@@ -131,6 +139,21 @@ if(BUILD_TESTING)
             "-DSCRATCH=${CMAKE_CURRENT_BINARY_DIR}/worker-process-tests"
             -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/cmake/worker_process_tests.cmake")
         set_tests_properties(worker_process_contracts PROPERTIES TIMEOUT 180)
+        if(TARGET dust3d_worker_unix_resources)
+            if(DUST3D_ENABLE_SANITIZERS)
+                set(DUST3D_RESOURCE_RUNTIME "asan")
+            else()
+                set(DUST3D_RESOURCE_RUNTIME "ordinary")
+            endif()
+            add_test(NAME worker_resource_process_contracts COMMAND "${CMAKE_COMMAND}"
+                "-DWORKER=$<TARGET_FILE:dust3d_worker>"
+                "-DVERIFIER=$<TARGET_FILE:dust3d_worker_process_tests>"
+                "-DFIXTURES=${CMAKE_CURRENT_SOURCE_DIR}/tests/core/fixtures"
+                "-DSCRATCH=${CMAKE_CURRENT_BINARY_DIR}/worker-resource-process-tests"
+                "-DRUNTIME=${DUST3D_RESOURCE_RUNTIME}"
+                -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/cmake/worker_resource_process_tests.cmake")
+            set_tests_properties(worker_resource_process_contracts PROPERTIES TIMEOUT 180)
+        endif()
     endif()
     add_executable(dust3d_worker_failure_tests tests/core/worker_failure_tests.cc)
     target_link_libraries(dust3d_worker_failure_tests PRIVATE dust3d_worker_protocol dust3d_engine)

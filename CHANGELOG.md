@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add an explicit versioned helper resource launch with compiled-runtime checks, helper-only limit installation/readback and ordinary fixture acceptance; production profiles and Apple adoption remain pending (#123).
+
 - Add private worker resource setup and checked Unix conversion libraries with original OS-error preservation; helper activation remains pending (#123).
 
 - Add pure worker resource-profile planning with explicit finite units, inherited-limit preservation and sanitizer compatibility checks; OS application and production adoption remain pending (#123).
