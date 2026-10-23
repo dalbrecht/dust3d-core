@@ -514,3 +514,14 @@ inheritance and launch-version gates. This is a proposed contract only: no resou
 caps are installed, no production profile is selected, and no exhaustion or signal
 probe is authorized. Filesystem/descendant/parent-death containment, active OS
 lifecycle evidence and Apple adoption remain open; M8 is not complete.
+
+
+### Pure worker resource-profile planner (#123)
+
+[ADR 0072](adr/0072-worker-resource-planning.md) implements the pure policy portion
+of ADR 0071: finite budgets, explicit capability/runtime compatibility and stricter
+inherited-limit preservation. Final normal contracts pass 63/63; focused
+ASan/UBSan and scoped planner coverage pass. No getrlimit/setrlimit adapter,
+helper launch/profile contract, enforced cap or production adoption is included.
+Actual startup viability and containment remain subsequent acceptance gates; this
+does not close M8 or change a production pin or quarantine.
