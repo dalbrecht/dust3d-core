@@ -53,7 +53,7 @@ add_library(dust3d_engine STATIC
 target_include_directories(dust3d_engine PUBLIC native/Engine/include)
 target_link_libraries(dust3d_engine PRIVATE dust3d_core)
 
-add_library(dust3d_worker_protocol STATIC native/Engine/WorkerProtocol.cc native/Engine/WorkerMesh.cc native/Engine/WorkerFailure.cc)
+add_library(dust3d_worker_protocol STATIC native/Engine/WorkerProtocol.cc native/Engine/WorkerMesh.cc native/Engine/WorkerFailure.cc native/Engine/WorkerAdmission.cc)
 target_include_directories(dust3d_worker_protocol PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
 add_library(dust3d_worker_operation STATIC native/Engine/WorkerOperation.cc)
@@ -66,6 +66,10 @@ endif()
 
 include(CTest)
 if(BUILD_TESTING)
+    add_executable(dust3d_worker_admission_tests tests/core/worker_admission_tests.cc)
+    target_link_libraries(dust3d_worker_admission_tests PRIVATE dust3d_worker_protocol)
+    add_test(NAME worker_admission_contracts COMMAND dust3d_worker_admission_tests)
+    set_tests_properties(worker_admission_contracts PROPERTIES TIMEOUT 30)
     add_executable(dust3d_worker_operation_tests tests/core/worker_operation_tests.cc)
     target_link_libraries(dust3d_worker_operation_tests PRIVATE dust3d_worker_operation)
     add_test(NAME worker_operation_contracts COMMAND dust3d_worker_operation_tests ${CMAKE_CURRENT_SOURCE_DIR}/tests/core/fixtures)

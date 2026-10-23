@@ -7,6 +7,7 @@
 #include <iostream>
 #include <iterator>
 #include <memory>
+#include <native/Engine/WorkerAdmission.h>
 #include <native/Engine/WorkerFailure.h>
 #include <native/Engine/WorkerMesh.h>
 #include <stdexcept>
@@ -107,13 +108,13 @@ void verify(const std::filesystem::path& fixtures, const std::filesystem::path& 
         return;
     }
     require(diagnostic.empty(), "Engine/native diagnostic content must not leak to stderr");
-    auto frame = decodeFrame(wire.data(), wire.size(), {});
-    validateResponseIdentity(frame.header, request(name));
+    PendingReply pending(request(name));
+    auto admitted = pending.complete(request(name).identity, { true, 0 }, wire.data(), wire.size());
+    require(pending.isRetired(), "Actual process completion retires after admission");
     if (isMesh) {
-        require(frame.header.kind == FrameKind::response, "Valid archive must produce a mesh response");
-        const auto mesh = decodeMeshPayload(frame.payload.data(), frame.payload.size(), {});
+        require(std::holds_alternative<MeshPayload>(admitted), "Valid archive must produce a mesh response");
+        const auto mesh = std::get<MeshPayload>(std::move(admitted));
         wire.clear();
-        frame.payload.clear();
         const auto archive = readFile(fixtures / (name == "sword" ? "Sword.ds3" : "Capsule.ds3"));
         Dust3DError error {};
         std::unique_ptr<Dust3DMesh, decltype(&dust3d_mesh_destroy)> expected(dust3d_mesh_load(archive.data(), archive.size(), &error), dust3d_mesh_destroy);
@@ -129,8 +130,8 @@ void verify(const std::filesystem::path& fixtures, const std::filesystem::path& 
                     && std::memcmp(mesh.vertices[index].color.data(), vertices[index].color, 4 * sizeof(float)) == 0,
                 "Subprocess geometry must preserve every admitted native float bit");
     } else {
-        require(frame.header.kind == FrameKind::failure, "Native input error must remain a typed operation outcome");
-        const auto failure = decodeFailurePayload(frame.payload.data(), frame.payload.size(), {});
+        require(std::holds_alternative<FailurePayload>(admitted), "Native input error must remain a typed operation outcome");
+        const auto failure = std::get<FailurePayload>(std::move(admitted));
         const auto archive = name == "emptyArchive" ? std::vector<uint8_t> {} : std::vector<uint8_t> { 1, 2, 3 };
         Dust3DError error {};
         std::unique_ptr<Dust3DMesh, decltype(&dust3d_mesh_destroy)> expected(dust3d_mesh_load(archive.data(), archive.size(), &error), dust3d_mesh_destroy);

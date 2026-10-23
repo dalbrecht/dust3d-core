@@ -453,3 +453,12 @@ gaps and exit semantics. Parent queue/revision/exit admission and transport, har
 resource/time/cancellation/sandbox/parent-death acceptance, source-aware results
 and distribution remain required. This does not close M4/M7/M8 or change a pin or
 quarantine.
+
+### Parent response admission (#113)
+
+A single-use portable pending owner retires every completion before parsing and
+requires observed normal exit zero, active document/request/revision identity,
+exact framing and semantic mesh/failure validation. Existing real subprocess
+verification uses it. See [ADR 0066](adr/0066-worker-response-admission.md). Actual
+pipe collection, queue/revision orchestration, deadlines/resources/sandbox and app
+adoption remain required; production pin and quarantines are unchanged.
