@@ -55,6 +55,32 @@ target_link_libraries(dust3d_engine PRIVATE dust3d_core)
 
 include(CTest)
 if(BUILD_TESTING)
+    # Verify the real C importer and owned Sendable copies on native macOS hosts.
+    # Sanitized C++ contracts remain separate because swiftc does not link UBSan.
+    if(APPLE AND NOT DUST3D_ENABLE_SANITIZERS AND NOT CMAKE_CROSSCOMPILING)
+        find_program(DUST3D_XCRUN xcrun REQUIRED)
+        set(DUST3D_SWIFT_MODULE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/swift-module")
+        file(GENERATE OUTPUT "${DUST3D_SWIFT_MODULE_DIRECTORY}/module.modulemap"
+            CONTENT "module Dust3DEngine { header \"${CMAKE_CURRENT_SOURCE_DIR}/native/Engine/include/Dust3DBridge.h\" export * }\n")
+        set(DUST3D_SWIFT_MIP_CONSUMER "${CMAKE_CURRENT_BINARY_DIR}/source-baked-mip-swift")
+        add_custom_command(OUTPUT "${DUST3D_SWIFT_MIP_CONSUMER}"
+            COMMAND "${DUST3D_XCRUN}" swift-format lint --strict "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/SourceBakedMipSmoke.swift"
+            COMMAND "${DUST3D_XCRUN}" swiftc -swift-version 6 -strict-concurrency=complete
+                -warnings-as-errors -parse-as-library
+                -module-cache-path "${CMAKE_CURRENT_BINARY_DIR}/swift-module-cache"
+                -I "${DUST3D_SWIFT_MODULE_DIRECTORY}"
+                "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/SourceBakedMipSmoke.swift"
+                "$<TARGET_FILE:dust3d_engine>" "$<TARGET_FILE:dust3d_core>"
+                "$<TARGET_FILE:dust3d_remesher>" "$<TARGET_FILE:dust3d_triangle>"
+                -lc++ -o "${DUST3D_SWIFT_MIP_CONSUMER}"
+            DEPENDS tests/swift/SourceBakedMipSmoke.swift native/Engine/include/Dust3DBridge.h
+                dust3d_engine dust3d_core dust3d_remesher dust3d_triangle
+            VERBATIM)
+        add_custom_target(dust3d_source_baked_mip_swift ALL DEPENDS "${DUST3D_SWIFT_MIP_CONSUMER}")
+        add_test(NAME source_baked_mip_swift
+            COMMAND "${DUST3D_SWIFT_MIP_CONSUMER}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/core/fixtures/Capsule.ds3")
+        set_tests_properties(source_baked_mip_swift PROPERTIES TIMEOUT 60)
+    endif()
     add_executable(dust3d_source_baked_mip_tests tests/core/source_baked_mip_tests.cc)
     target_link_libraries(dust3d_source_baked_mip_tests PRIVATE dust3d_engine)
     add_test(NAME source_baked_mip_contracts COMMAND dust3d_source_baked_mip_tests ${CMAKE_CURRENT_SOURCE_DIR}/tests/core/fixtures)
