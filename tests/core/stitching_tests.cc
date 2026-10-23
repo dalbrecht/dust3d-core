@@ -2,13 +2,17 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <filesystem>
+#include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <iterator>
 #include <map>
 #include <memory>
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -204,6 +208,43 @@ void loops()
         load(model(true, attributes), 8, 2);
 }
 
+struct DebugFileSnapshot {
+    bool exists = false;
+    std::filesystem::file_time_type modified {};
+    std::string bytes;
+};
+
+DebugFileSnapshot debugFileSnapshot()
+{
+    const std::filesystem::path path("/tmp/stitch_loop_debug.svg");
+    std::error_code cause;
+    const auto status = std::filesystem::symlink_status(path, cause);
+    if (cause == std::errc::no_such_file_or_directory)
+        return {};
+    require(!cause, "Cannot inspect existing stitching diagnostic: " + cause.message());
+    if (!std::filesystem::exists(status))
+        return {};
+    require(std::filesystem::is_regular_file(status), "Refuse stitching generation beside a nonregular diagnostic path");
+    const auto size = std::filesystem::file_size(path);
+    require(size <= 1024 * 1024, "Refuse an oversized preexisting stitching diagnostic");
+    const auto modified = std::filesystem::last_write_time(path);
+    std::ifstream input(path, std::ios::binary);
+    require(bool(input), "Cannot read existing stitching diagnostic");
+    std::string bytes { std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>() };
+    require(!input.bad() && bytes.size() == size && std::filesystem::last_write_time(path) == modified,
+        "Existing stitching diagnostic changed while inspecting it");
+    return { true, modified, std::move(bytes) };
+}
+
+void outputContainment()
+{
+    const auto before = debugFileSnapshot();
+    load(model(true, "backClosed='true'"), 8, 2);
+    const auto after = debugFileSnapshot();
+    require(before.exists == after.exists && before.modified == after.modified && before.bytes == after.bytes,
+        "Ordinary connected-loop generation must not create or overwrite a global diagnostic file");
+}
+
 void fill()
 {
     const auto isolated = load(model(true, "", true, true), 5, 2);
@@ -219,12 +260,14 @@ int main(int argc, char** argv)
 {
     try {
         verifyPositionComparison();
-        require(argc == 2, "Expected lines, loops or fill scenario");
+        require(argc == 2, "Expected lines, loops, fill or output_containment scenario");
         const std::string scenario = argv[1];
         if (scenario == "lines")
             lines();
         else if (scenario == "loops")
             loops();
+        else if (scenario == "output_containment")
+            outputContainment();
         else if (scenario == "fill")
             fill();
         else

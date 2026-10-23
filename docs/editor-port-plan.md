@@ -401,3 +401,12 @@ cover ownership, quotas, cancellation and geometry/UV/policy alignment. See
 [ADR 0061](adr/0061-native-owned-atlas-mips.md). Swift copying, renderer partial-chain
 sampling, textured export/re-import and independent M4 acceptance remain pending.
 No production dependency pin changes in this stage.
+
+### Default stitching output containment (#101)
+
+Remove the private automatic Debug SVG writer while retaining connected-loop
+geometry. A behavioral regression preserves the existence/time/bytes of the
+global diagnostic path; ordinary normal and sanitizer suites pass. See
+[verification](stitching-output-containment-verification.md). This is filesystem
+containment preparation, not a worker sandbox or full M8 acceptance. The Apple
+production pin and every existing quarantine remain unchanged.
