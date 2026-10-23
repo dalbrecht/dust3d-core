@@ -390,3 +390,14 @@ borrowed for the call; absent metadata preserves LOD zero. See
 validation limits. Prepared locally after #104; public review and serial delivery
 remain pending behind core #102. Native metadata/ownership, Swift copies, renderer
 adoption, textured export/re-import and broad M4 acceptance remain required.
+
+### Native isolated mip ownership (#59)
+
+An opt-in source-matched C loader now retains chart-isolated mip levels under the
+native aggregate output quota. Procedural atlas layouts survive until portable
+mip generation completes. Per-map counts and borrowed views expose actual levels;
+the old loader remains base-only. Trusted imported/procedural fixture contracts
+cover ownership, quotas, cancellation and geometry/UV/policy alignment. See
+[ADR 0061](adr/0061-native-owned-atlas-mips.md). Swift copying, renderer partial-chain
+sampling, textured export/re-import and independent M4 acceptance remain pending.
+No production dependency pin changes in this stage.

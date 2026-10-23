@@ -757,6 +757,28 @@ typedef struct Dust3DSourceBakeOptions {
     size_t maximum_chart_count;
     size_t maximum_raster_samples;
 } Dust3DSourceBakeOptions;
+
+/** Opt-in mip baking. Initialize both nested option sizes as for base baking.
+ * maximum_levels includes level zero; zero selects 14, and values above 14 fail.
+ * The baker stops earlier when chart isolation cannot be preserved.
+ */
+typedef struct Dust3DSourceBakeMipOptions {
+    size_t struct_size;
+    Dust3DSourceBakeOptions source;
+    size_t maximum_levels;
+} Dust3DSourceBakeMipOptions;
+
+/** Like source_baked_mesh_load, with owned isolated mip levels. Errors use the
+ * same status mapping. Destroy the returned owner with source_baked_mesh_destroy.
+ */
+Dust3DSourceBakedMesh* dust3d_source_baked_mesh_load_with_mips(const uint8_t* bytes, size_t size, const Dust3DSourceBakeMipOptions* options, Dust3DError* error);
+/** Number of retained levels, including base; zero for absent/invalid maps or NULL. */
+size_t dust3d_source_baked_mesh_texture_level_count(const Dust3DSourceBakedMesh* mesh, uint32_t map);
+/** Borrowed RGBA view valid until owner destruction; level zero aliases texture().
+ * Returns an empty view for NULL, absent maps, or an out-of-range level.
+ */
+Dust3DTextureView dust3d_source_baked_mesh_texture_level(const Dust3DSourceBakedMesh* mesh, uint32_t map, size_t level);
+
 /** Final float-retained triangle order; uv is packed, not authored. Indices refer
  * to this owner's exact catalogs; SIZE_MAX means unknown. Unknown mapping/policy
  * stays explicit. Tangents use top-down image V. Color maps already include source
@@ -784,8 +806,8 @@ typedef struct Dust3DSourceBakedTriangle {
  * visuals, LIMIT_EXCEEDED quotas/resolution, CANCELLED cooperative cancellation;
  * other parse/generation failures retain their original cause. Never throws into C.
  * Returns NULL on failure. Image decoding remains the caller's responsibility.
- * Output atlas sampling must honor maximum_sampling_lod (currently zero); global
- * mixed-chart mip generation is unsafe until a chart-isolated mip policy exists.
+ * This base-only loader returns maximum_sampling_lod zero. For isolated additional
+ * levels use load_with_mips and honor its returned sampling cap.
  */
 Dust3DSourceBakedMesh* dust3d_source_baked_mesh_load(const uint8_t* bytes, size_t size, const Dust3DSourceBakeOptions* options, Dust3DError* error);
 /** NULL accepted. All borrowed views below expire on owner destruction. */

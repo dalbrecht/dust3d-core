@@ -409,8 +409,19 @@ Known mapped geometry has neutral vertex modulation. Direct imported component
 color-image overrides reject explicitly until supported. No decoder or dependency
 is added. See [ADR 0024](docs/adr/0024-owned-native-source-baking.md) for aggregate
 quota, workspace/cancellation limits and [verification](docs/native-source-baking-verification.md).
-Apple SDK/rendering/export adoption and chart-isolated atlas minification (#59)
-remain required stages; no full material/editor parity is claimed.
+The opt-in `dust3d_source_baked_mesh_load_with_mips` accepts
+`Dust3DSourceBakeMipOptions`. Initialize `struct_size`, `source.struct_size` and
+`source.legacy.struct_size`; `source` contains the same settings as above.
+`maximum_levels` includes base level zero (zero defaults to 14, explicit one
+retains only the base). Chart isolation can stop the chain earlier. Query
+`dust3d_source_baked_mesh_texture_level_count(owner, map)` and borrow each
+`dust3d_source_baked_mesh_texture_level(owner, map, level)` before destroying the
+owner. Level zero aliases the existing map getter. Never generate a global mixed
+atlas chain or sample beyond `maximum_sampling_lod`. Additional image records and
+pixel capacities count toward the aggregate output quota; workspace is excluded.
+See [ADR 0061](docs/adr/0061-native-owned-atlas-mips.md).
+Apple SDK/rendering/export adoption remains required; no full material/editor
+parity is claimed.
 
 ### Default fault-probe containment (#84)
 

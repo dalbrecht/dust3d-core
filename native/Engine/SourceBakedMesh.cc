@@ -131,11 +131,14 @@ namespace native {
             return { image.width, image.height, image.width * 4, image.pixels.size(), image.pixels.data() };
         }
     }
-    SourceBakedData::SourceBakedData(const Dust3DSourceBakeOptions& options, ImportedModels& imports)
+    SourceBakedData::SourceBakedData(const Dust3DSourceBakeOptions& options, ImportedModels& imports, size_t maximumMipLevels)
         : m_options(options)
         , m_maximumOutputBytes(quota(options.maximum_output_payload_bytes, maximumBytes))
+        , m_maximumMipLevels(maximumMipLevels)
         , m_imports(&imports)
     {
+        if (maximumMipLevels < 1 || maximumMipLevels > 14)
+            invalid("Source bake mip level limit must be in 1..14.");
         if (options.struct_size != sizeof(options))
             invalid("Source baking requires correctly sized options.");
         m_options.maximum_output_payload_bytes = m_maximumOutputBytes;
@@ -306,6 +309,8 @@ namespace native {
                 if (legacyBake->emissive)
                     inputs.legacy.emissive = borrowed(*legacyBake->emissive);
             }
+            if (m_maximumMipLevels > 1)
+                legacy.layouts = std::move(proceduralAtlas.layouts);
         }
         SourceUvAtlasOptions atlasOptions;
         atlasOptions.textureSize = m_options.legacy.atlas_texture_size;
@@ -328,7 +333,24 @@ namespace native {
         // C++ policies are temporary workspace; account actual final pixel capacities
         // against the native aggregate instead of guessing STL growth behavior.
         bakeOptions.maximumPayloadBytes = maximumBytes;
-        auto result = SourceTextureBaker::bake(atlas, inputs, bakeOptions);
+        SourceTextureBakeResult result;
+        if (m_maximumMipLevels > 1) {
+            SourceTextureMipBakeOptions mipOptions;
+            mipOptions.bake = bakeOptions;
+            mipOptions.maximumLevels = m_maximumMipLevels;
+            mipOptions.legacyAtlas = &legacy;
+            auto chain = SourceTextureBaker::bakeMipChain(atlas, inputs, mipOptions);
+            maximumSamplingLod = chain.maximumSamplingLod;
+            result = std::move(chain.base);
+            mipLevels[0] = std::move(chain.colorLevels);
+            mipLevels[1] = std::move(chain.normalLevels);
+            mipLevels[2] = std::move(chain.metallicLevels);
+            mipLevels[3] = std::move(chain.roughnessLevels);
+            mipLevels[4] = std::move(chain.emissiveLevels);
+        } else {
+            result = SourceTextureBaker::bake(atlas, inputs, bakeOptions);
+            maximumSamplingLod = result.maximumSamplingLod;
+        }
         inputs = {};
         samplers.clear();
         assets.clear();
@@ -375,7 +397,6 @@ namespace native {
                     for (size_t channel = 0; channel < 4; ++channel)
                         geometry.vertices[index * 3 + corner].color[channel] = 1;
         }
-        maximumSamplingLod = result.maximumSamplingLod;
         maps[0] = std::move(result.color);
         maps[1] = std::move(result.normal);
         maps[2] = std::move(result.metallic);
@@ -384,6 +405,11 @@ namespace native {
         for (const auto& image : maps)
             if (image)
                 charge(output, image->pixels.capacity());
+        for (const auto& levels : mipLevels) {
+            charge(output, levels.capacity(), sizeof(TextureImage));
+            for (const auto& image : levels)
+                charge(output, image.pixels.capacity());
+        }
         payloadBytes = output.usedBytes();
         const std::string obsolete = "Imported geometry preview: GLB materials, textures and transparency are not yet applied.";
         const auto notice = geometry.warning.find(obsolete);
@@ -400,7 +426,7 @@ namespace native {
     }
 }
 }
-Dust3DSourceBakedMesh* dust3d_source_baked_mesh_load(const uint8_t* bytes, size_t size, const Dust3DSourceBakeOptions* options, Dust3DError* error)
+static Dust3DSourceBakedMesh* loadSourceBakedMesh(const uint8_t* bytes, size_t size, const Dust3DSourceBakeOptions* options, size_t maximumLevels, Dust3DError* error)
 {
     using namespace dust3d::native;
     setError(error, DUST3D_STATUS_OK, "");
@@ -410,7 +436,7 @@ Dust3DSourceBakedMesh* dust3d_source_baked_mesh_load(const uint8_t* bytes, size_
         std::lock_guard<std::mutex> lock(engineMutex());
         ImportedModels imports;
         auto owner = std::make_unique<Dust3DSourceBakedMesh>();
-        owner->data = std::make_unique<SourceBakedData>(*options, imports);
+        owner->data = std::make_unique<SourceBakedData>(*options, imports, maximumLevels);
         std::string warning;
         auto snapshot = readDocument(bytes, size, warning, nullptr, &imports);
         owner->data->validateVisuals(*snapshot);
@@ -442,6 +468,31 @@ Dust3DSourceBakedMesh* dust3d_source_baked_mesh_load(const uint8_t* bytes, size_
         setError(error, DUST3D_STATUS_GENERATION_FAILED, "Unknown native source-bake failure.");
     }
     return nullptr;
+}
+Dust3DSourceBakedMesh* dust3d_source_baked_mesh_load(const uint8_t* bytes, size_t size, const Dust3DSourceBakeOptions* options, Dust3DError* error)
+{
+    return loadSourceBakedMesh(bytes, size, options, 1, error);
+}
+Dust3DSourceBakedMesh* dust3d_source_baked_mesh_load_with_mips(const uint8_t* bytes, size_t size, const Dust3DSourceBakeMipOptions* options, Dust3DError* error)
+{
+    if (!options || options->struct_size != sizeof(*options)) {
+        dust3d::native::setError(error, DUST3D_STATUS_INVALID_DOCUMENT, "Source mip baking requires correctly sized options.");
+        return nullptr;
+    }
+    return loadSourceBakedMesh(bytes, size, &options->source, options->maximum_levels ? options->maximum_levels : 14, error);
+}
+size_t dust3d_source_baked_mesh_texture_level_count(const Dust3DSourceBakedMesh* mesh, uint32_t map)
+{
+    return mesh && map < mesh->data->maps.size() && mesh->data->maps[map] ? 1 + mesh->data->mipLevels[map].size() : 0;
+}
+Dust3DTextureView dust3d_source_baked_mesh_texture_level(const Dust3DSourceBakedMesh* mesh, uint32_t map, size_t level)
+{
+    if (level >= dust3d_source_baked_mesh_texture_level_count(mesh, map))
+        return {};
+    if (!level)
+        return dust3d_source_baked_mesh_texture(mesh, map);
+    const auto& image = mesh->data->mipLevels[map][level - 1];
+    return { image.width, image.height, image.width * 4, image.pixels.size(), image.pixels.data() };
 }
 void dust3d_source_baked_mesh_destroy(Dust3DSourceBakedMesh* mesh) { delete mesh; }
 const Dust3DMesh* dust3d_source_baked_mesh_geometry(const Dust3DSourceBakedMesh* mesh) { return mesh ? mesh->source->geometry.get() : nullptr; }
