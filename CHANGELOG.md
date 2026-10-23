@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add single-use worker completion admission requiring clean exit, current identity and validated owned payloads (#113).
+
 - Add a Unix single-job native helper with bounded framed input, isolated binary output and separately testable native execution/status mapping (#112). Parent transport and production containment remain pending; pins and quarantines are unchanged.
 
 - Add typed worker non-success payloads that preserve bounded original diagnostic bytes, including non-UTF-8 causes, and distinguish no-geometry/cancellation outcomes (#111). Process transport remains pending; pins and quarantines are unchanged.

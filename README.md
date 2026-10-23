@@ -546,3 +546,11 @@ ordinary I/O rejection. This is a development prototype: parent admission, real
 pipe/queue/deadline/resource/cancellation/sandbox acceptance, source-aware results
 and signed application packaging remain pending. It changes no production pin or
 quarantine. See [ADR 0065](docs/adr/0065-single-job-native-worker.md) (#112).
+
+The portable `PendingReply` gate in `WorkerAdmission.h` admits a collected helper
+reply only once, after the caller supplies observed normal exit zero and the
+current document/request/revision identity. It validates framing and payload
+semantics and returns independent mesh/failure data. Call `retire()` when work is
+cancelled, replaced or its document closes. Serialize all access; do not infer exit
+from output bytes. This API does not launch or sandbox a child or collect pipes.
+See [ADR 0066](docs/adr/0066-worker-response-admission.md).
