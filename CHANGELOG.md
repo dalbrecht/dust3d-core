@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Expose opt-in owned native atlas mip levels with borrowed per-level views, preserved procedural island ownership and aggregate output accounting (#59). The existing loader stays base-only; Apple adoption remains pending.
+
 - Add opt-in owned atlas mip chains with isolated imported and procedural islands, linear-light color filtering, normalized normals, actual per-map LOD admission and cumulative quotas (#59). Existing native sampling limits and Apple pins remain unchanged.
 
 - Preserve typed invalid-document errors, geometry field names and original numeric conversion diagnostics for malformed or out-of-range scalar metadata (#104).

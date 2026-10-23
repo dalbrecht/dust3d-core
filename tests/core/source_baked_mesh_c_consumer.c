@@ -16,6 +16,14 @@ int main(void)
         || dust3d_source_baked_mesh_component_kind(owner, 0) != DUST3D_SURFACE_COMPONENT_UNKNOWN
         || dust3d_source_baked_mesh_maximum_sampling_lod(owner) != 0)
         return 2;
+    Dust3DSourceBakeMipOptions mip = { 0 };
+    mip.struct_size = sizeof(mip);
+    mip.source = options;
+    owner = dust3d_source_baked_mesh_load_with_mips(NULL, 0, &mip, &error);
+    if (owner != NULL || error.status != DUST3D_STATUS_INVALID_DOCUMENT
+        || dust3d_source_baked_mesh_texture_level_count(owner, DUST3D_TEXTURE_COLOR) != 0
+        || dust3d_source_baked_mesh_texture_level(owner, DUST3D_TEXTURE_COLOR, 0).pixels != NULL)
+        return 3;
     dust3d_source_baked_mesh_destroy(owner);
     return 0;
 }
