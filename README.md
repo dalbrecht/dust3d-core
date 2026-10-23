@@ -450,7 +450,7 @@ there. It does not establish app renderer or full material/export acceptance.
 ### Portable worker framing (preparation only)
 
 The CMake target `dust3d_worker_protocol` provides a standard-library-only C++17
-version-one frame codec and document/request/revision response checks. It does not
+version-one frame codec and document/request/revision response checks. The frame codec does not
 launch a worker, validate a mesh payload or change the production engine pin.
 `cmake --build build --target dust3d_worker_protocol_tests` and
 `ctest --test-dir build -R worker_protocol_contracts --output-on-failure` exercise
@@ -474,3 +474,22 @@ and ordinary allocation exceptions propagate. Parent transport must check the
 pending identity before reading a body and separately validate result semantics
 before publication. See [ADR 0062](docs/adr/0062-portable-worker-framing.md) for the
 wire layout, limits and required containment follow-ups (#109).
+
+### Worker base-mesh payloads
+
+The same CMake library also provides `encodeMeshPayload` and `decodeMeshPayload`
+in `native/Engine/WorkerMesh.h`. These separately validate owned expanded triangle
+geometry and bounded UTF-8 warnings using an explicit integer/IEEE-754 wire format.
+For example, `auto bytes = dust3d::worker::encodeMeshPayload(mesh, {});` encodes an
+owned `MeshPayload`; `decodeMeshPayload(bytes.data(), bytes.size(), {})` returns an
+independent owned value or throws a typed MeshPayloadError. Ordinary allocation
+exceptions propagate. Neither function launches an engine or process.
+
+Validate framing and pending identity before semantic decoding and publication.
+Wire, decoded-record, source-count and warning limits are independent; logical
+quotas exclude roots/capacities/allocator overhead and do not cap RSS. Empty meshes,
+nonfinite coordinates, nonunit normals, invalid RGBA, degenerate triangles and
+malformed text reject. Full CTest includes `worker_mesh_contracts`, including a
+licensed Capsule through the ordinary native C API, framing and semantic codec.
+See [ADR 0063](docs/adr/0063-worker-mesh-payloads.md) for the versioned layout and
+remaining worker/source-aware/release work (#110).

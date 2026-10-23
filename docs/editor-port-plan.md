@@ -420,3 +420,13 @@ measured tests/coverage and wire semantics. Semantic result codecs, parent queue
 and revision retirement, worker/transport, cancellation and resource/exit/sandbox
 acceptance remain required. This does not remove quarantines, advance an Apple
 pin, establish containment or close M8/full parity.
+
+### Worker base-mesh semantic codec (#110)
+
+A separate version-one payload codec validates the existing untextured triangle
+result, bounded source counts and warnings, with exact spans, finite/unit/range/area
+checks and independently owned output. The licensed Capsule passes native-owner
+release, framing/identity checks and bit-exact semantic transport. See
+[ADR 0063](adr/0063-worker-mesh-payloads.md). Failure schemas, pending-state retirement,
+worker transport/resource isolation, source-aware UV/material/rig/animation results
+and full release acceptance remain pending. No production pin or quarantine change.
