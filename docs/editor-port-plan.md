@@ -379,3 +379,14 @@ coverage is 98.69% lines, 100% functions and 100% measured branches, with the
 defensive catch-all exception handler uncovered. Automated review and hosted CI
 remain required; Swift/ImageIO, imported UV/bake/PBR integration, the Apple pin,
 file previews and textured export acceptance are still required.
+### Local chart-isolated mip stage (#59)
+
+The portable baker now has an opt-in owned mip chain with separate imported and
+procedural-island ownership, actual per-map center/collar LOD admission, odd-area
+linear-light filtering, independent straight alpha, scalar/normal semantics and
+cumulative retained/work limits. Original procedural layouts are explicitly
+borrowed for the call; absent metadata preserves LOD zero. See
+[ADR 0060](adr/0060-chart-isolated-owned-mip-chains.md) for regression evidence and
+validation limits. Prepared locally after #104; public review and serial delivery
+remain pending behind core #102. Native metadata/ownership, Swift copies, renderer
+adoption, textured export/re-import and broad M4 acceptance remain required.

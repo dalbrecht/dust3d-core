@@ -70,7 +70,7 @@ namespace {
         size_t ordinal;
         bool starts;
     };
-    void rejectOverlaps(const std::vector<SourceUvChart>& charts, const SourceTextureBakeOptions& options, double padding = 0)
+    bool hasChartOverlap(const std::vector<SourceUvChart>& charts, const SourceTextureBakeOptions& options, double padding)
     {
         std::vector<Event> events;
         events.reserve(charts.size() * 2);
@@ -103,12 +103,19 @@ namespace {
             }
             auto next = active.lower_bound(key);
             if ((next != active.end() && next->first.first < event.bottom) || (next != active.begin() && std::prev(next)->second > event.top)) {
-                if (padding > 0)
-                    limit("Output texture resolution cannot reserve one texel of chart padding; increase map dimensions");
-                invalid("Source texture charts overlap");
+                return true;
             }
             active.emplace(key, event.bottom);
         }
+        return false;
+    }
+    void rejectOverlaps(const std::vector<SourceUvChart>& charts, const SourceTextureBakeOptions& options, double padding = 0)
+    {
+        if (!hasChartOverlap(charts, options, padding))
+            return;
+        if (padding > 0)
+            limit("Output texture resolution cannot reserve one texel of chart padding; increase map dimensions");
+        invalid("Source texture charts overlap");
     }
     struct Geometry {
         std::array<Vector2, 3> pixels;
@@ -258,23 +265,17 @@ namespace {
         return { encode(value[0]), encode(value[1]), encode(value[2]), byte(value[3]) };
     }
     void put(TextureImage& image, size_t index, const Pixel& pixel) { std::copy(pixel.begin(), pixel.end(), image.pixels.begin() + index * 4); }
-    std::vector<uint32_t> chartOwnership(size_t size, const SourceUvAtlas& atlas, Work& work)
+    std::vector<uint32_t> chartOwnershipForCharts(size_t size, const std::vector<const SourceUvChart*>& charts, Work& work, double margin, bool shouldSpread)
     {
         constexpr uint32_t unknown = std::numeric_limits<uint32_t>::max();
         std::vector<uint32_t> owners(size * size, unknown);
         std::vector<uint32_t> queue;
-        queue.reserve(size * size);
-        std::vector<const SourceUvChart*> charts;
-        if (atlas.legacyChart)
-            charts.push_back(&*atlas.legacyChart);
-        for (const auto& triangle : atlas.triangles)
-            if (triangle.importedChart)
-                charts.push_back(&*triangle.importedChart);
+        if (shouldSpread)
+            queue.reserve(size * size);
         for (size_t ordinal = 0; ordinal < charts.size(); ++ordinal) {
             auto chart = *charts[ordinal];
-            // Reserve the complete bilinear collar before assigning more distant
-            // gaps, so Manhattan flood distance cannot steal a diagonal corner.
-            const double margin = 1.0 / size;
+            // When requested, reserve complete bilinear collars before assigning
+            // distant gaps so Manhattan ties cannot steal diagonal corners.
             const double right = std::min(1.0, chart.left + chart.width + margin);
             const double bottom = std::min(1.0, chart.top + chart.height + margin);
             chart.left = std::max(0.0, chart.left - margin);
@@ -297,10 +298,13 @@ namespace {
                     if (owners[index] != unknown)
                         invalid("Packed charts claim the same output texel ownership");
                     owners[index] = static_cast<uint32_t>(ordinal);
-                    queue.push_back(static_cast<uint32_t>(index));
+                    if (shouldSpread)
+                        queue.push_back(static_cast<uint32_t>(index));
                 }
             }
         }
+        if (!shouldSpread)
+            return owners;
         // Seed entire rectangles, not colored triangle pixels: even distant uncovered
         // chart corners and nearby padding must belong to their own material.
         for (size_t cursor = 0; cursor < queue.size(); ++cursor) {
@@ -322,6 +326,17 @@ namespace {
                 spread(index + size);
         }
         return owners;
+    }
+
+    std::vector<uint32_t> chartOwnership(size_t size, const SourceUvAtlas& atlas, Work& work)
+    {
+        std::vector<const SourceUvChart*> charts;
+        if (atlas.legacyChart)
+            charts.push_back(&*atlas.legacyChart);
+        for (const auto& triangle : atlas.triangles)
+            if (triangle.importedChart)
+                charts.push_back(&*triangle.importedChart);
+        return chartOwnershipForCharts(size, charts, work, 1.0 / size, true);
     }
 
     void dilate(TextureImage& image, std::vector<uint8_t>& coverage, const std::vector<uint32_t>& owners, Work& work)
@@ -463,6 +478,73 @@ namespace {
         dilate(image, coverage, owners, work);
         return image;
     }
+
+    TextureImage filterMip(const TextureImage& source, int kind, const std::vector<const SourceUvChart*>& charts, const std::vector<uint32_t>& previousOwners, Work& work)
+    {
+        const size_t size = source.width / 2;
+        const auto owners = chartOwnershipForCharts(size, charts, work, 1.0 / size, true);
+        TextureImage image { size, size, std::vector<uint8_t>(size * size * 4) };
+        std::vector<uint8_t> coverage(size * size);
+        const double scale = double(source.width) / size;
+        for (size_t y = 0; y < size; ++y) {
+            checkCancellation(work.options);
+            const double top = y * scale, bottom = (y + 1) * scale;
+            for (size_t x = 0; x < size; ++x) {
+                work.step();
+                const size_t destination = y * size + x;
+                const double left = x * scale, right = (x + 1) * scale;
+                Channels sum {};
+                double weight = 0;
+                const size_t endY = std::min(source.height, static_cast<size_t>(std::ceil(bottom)));
+                const size_t endX = std::min(source.width, static_cast<size_t>(std::ceil(right)));
+                for (size_t sourceY = static_cast<size_t>(std::floor(top)); sourceY < endY; ++sourceY)
+                    for (size_t sourceX = static_cast<size_t>(std::floor(left)); sourceX < endX; ++sourceX) {
+                        work.step();
+                        const size_t origin = sourceY * source.width + sourceX;
+                        if (previousOwners[origin] != owners[destination])
+                            continue;
+                        const double area = (std::min(right, double(sourceX + 1)) - std::max(left, double(sourceX)))
+                            * (std::min(bottom, double(sourceY + 1)) - std::max(top, double(sourceY)));
+                        if (area <= 0)
+                            continue;
+                        for (size_t channel = 0; channel < 4; ++channel) {
+                            double value = source.pixels[origin * 4 + channel] / 255.0;
+                            if (channel < 3) {
+                                if (kind == 0 || kind == 3)
+                                    value = decode(value);
+                                else if (kind == 4)
+                                    value = value * 2 - 1;
+                            }
+                            sum[channel] += value * area;
+                        }
+                        weight += area;
+                    }
+                if (!weight)
+                    continue;
+                for (auto& value : sum)
+                    value /= weight;
+                if (kind == 4) {
+                    const double length = std::sqrt(sum[0] * sum[0] + sum[1] * sum[1] + sum[2] * sum[2]);
+                    for (size_t channel = 0; channel < 3; ++channel)
+                        sum[channel] = .5 + .5 * (length > 1e-12 ? sum[channel] / length : (channel == 2 ? 1 : 0));
+                }
+                Pixel pixel {};
+                for (size_t channel = 0; channel < 4; ++channel)
+                    pixel[channel] = channel < 3 && (kind == 0 || kind == 3) ? encode(sum[channel]) : byte(sum[channel]);
+                put(image, destination, pixel);
+                coverage[destination] = 1;
+            }
+        }
+        // Lower-resolution collars may claim gaps outside the previous collar.
+        // Fill those texels from their own chart, never a neighboring material.
+        dilate(image, coverage, owners, work);
+        for (auto covered : coverage) {
+            work.step();
+            if (!covered)
+                throw TextureBakeError(TextureBakeErrorCode::bakingFailed, "Mip chart has no retained source coverage");
+        }
+        return image;
+    }
 }
 SourceTextureBakeResult SourceTextureBaker::bake(const SourceUvAtlas& atlas, const SourceTextureBakeInputs& inputs, const SourceTextureBakeOptions& options)
 {
@@ -504,6 +586,184 @@ SourceTextureBakeResult SourceTextureBaker::bake(const SourceUvAtlas& atlas, con
     if (result.normal)
         charge(retained, result.normal->pixels.capacity(), 1);
     checkCancellation(options);
+    result.payloadBytes = retained.usedBytes();
+    result.rasterSamples = work.samples;
+    return result;
+}
+
+SourceTextureMipBakeResult SourceTextureBaker::bakeMipChain(const SourceUvAtlas& atlas, const SourceTextureBakeInputs& inputs, const SourceTextureMipBakeOptions& options)
+{
+    if (!options.maximumLevels || options.maximumLevels > 14)
+        invalid("Source texture mip level count must be in 1..14");
+    SourceTextureMipBakeResult result;
+    result.base = bake(atlas, inputs, options.bake);
+    Work work { options.bake, result.base.rasterSamples };
+    std::vector<SourceUvChart> charts;
+    bool hasLegacyOwnership = !atlas.legacyChart;
+    if (atlas.legacyChart && options.legacyAtlas && !options.legacyAtlas->layouts.empty()) {
+        const auto& legacy = *options.legacyAtlas;
+        if (legacy.layouts.size() > options.bake.maximumChartCount)
+            limit("Procedural mip chart count exceeds its work limit");
+        for (const auto& layout : legacy.layouts) {
+            checkCancellation(options.bake);
+            SourceUvChart local { layout.left, layout.top, layout.width, layout.height, false };
+            validateChart(local);
+            const auto first = atlas.legacyChart->map(local.map({ 0, 0 }));
+            const auto last = atlas.legacyChart->map(local.map({ 1, 1 }));
+            charts.push_back({ first.x(), first.y(), last.x() - first.x(), last.y() - first.y(), false });
+            validateChart(charts.back());
+        }
+        for (size_t index = 0; index < atlas.triangles.size(); ++index) {
+            checkCancellation(options.bake);
+            const auto& triangle = atlas.triangles[index];
+            if (!triangle.modelKey.empty() || !triangle.known)
+                continue;
+            if (legacy.triangleUvs.size() != atlas.triangles.size() || legacy.triangleUvKnown.size() != atlas.triangles.size() || legacy.triangleUvKnown[index] != 1)
+                invalid("Procedural mip atlas does not match known source triangles");
+            for (size_t corner = 0; corner < 3; ++corner) {
+                const auto& local = legacy.triangleUvs[index][corner];
+                if (!unit(local.x()) || !unit(local.y()))
+                    invalid("Procedural mip source UVs must be normalized and finite");
+                const auto expected = atlas.legacyChart->map(local);
+                if (std::abs(expected.x() - triangle.packedUvs[corner].x()) > 1e-7 || std::abs(expected.y() - triangle.packedUvs[corner].y()) > 1e-7)
+                    invalid("Procedural mip atlas UVs do not match the packed source");
+            }
+            bool hasOwner = false;
+            for (const auto& chart : charts) {
+                work.step();
+                if (std::all_of(triangle.packedUvs.begin(), triangle.packedUvs.end(), [&](const Vector2& uv) { return contains(chart, uv); })) {
+                    hasOwner = true;
+                    break;
+                }
+            }
+            if (!hasOwner)
+                invalid("Known procedural mip triangle has no single owning island");
+        }
+        hasLegacyOwnership = true;
+    }
+    for (const auto& triangle : atlas.triangles) {
+        checkCancellation(options.bake);
+        if (triangle.importedChart) {
+            if (charts.size() == options.bake.maximumChartCount)
+                limit("Combined mip chart count exceeds its work limit");
+            charts.push_back(*triangle.importedChart);
+        }
+    }
+    size_t minimumSize = std::min(result.base.color.width, result.base.metallic.width);
+    if (result.base.normal)
+        minimumSize = std::min(minimumSize, result.base.normal->width);
+    std::array<size_t, 5> mapSizes { result.base.color.width, result.base.metallic.width, result.base.roughness.width, result.base.emissive.width, result.base.normal ? result.base.normal->width : 0 };
+    size_t additional = 0;
+    auto hasInteriorCenters = [&](size_t size) {
+        for (const auto& chart : charts) {
+            checkCancellation(options.bake);
+            const double x = std::max(0.0, std::ceil(chart.left * size - .5));
+            const double y = std::max(0.0, std::ceil(chart.top * size - .5));
+            if (x >= size || y >= size || x + .5 >= (chart.left + chart.width) * size || y + .5 >= (chart.top + chart.height) * size)
+                return false;
+        }
+        return true;
+    };
+    auto hasAllInteriorCenters = [&] {
+        for (size_t size : mapSizes)
+            if (size && !hasInteriorCenters(size))
+                return false;
+        return true;
+    };
+    rejectOverlaps(charts, options.bake);
+    const bool canFilter = hasLegacyOwnership && hasAllInteriorCenters() && !hasChartOverlap(charts, options.bake, 1.0 / minimumSize);
+    while (canFilter && minimumSize > 1 && additional + 1 < options.maximumLevels) {
+        minimumSize /= 2;
+        for (auto& size : mapSizes)
+            size /= 2;
+        if (!hasAllInteriorCenters() || hasChartOverlap(charts, options.bake, 1.0 / minimumSize))
+            break;
+        ++additional;
+    }
+    std::vector<const SourceUvChart*> chartViews;
+    for (const auto& chart : charts)
+        chartViews.push_back(&chart);
+    const size_t maximum = options.bake.maximumPayloadBytes ? options.bake.maximumPayloadBytes : 256 * 1024 * 1024;
+    auto charge = [](RetainedPayloadBudget& budget, size_t count, size_t width = 1) {
+        if (!budget.tryAdd(count, width))
+            limit("Source texture mip chain exceeds its retained payload quota");
+    };
+    auto accountBase = [&](RetainedPayloadBudget& budget) {
+        charge(budget, 1, sizeof(SourceTextureMipBakeResult));
+        charge(budget, result.base.trianglePolicies.capacity(), sizeof(std::optional<SourceTexturePolicy>));
+        for (const auto* image : { &result.base.color, &result.base.metallic, &result.base.roughness, &result.base.emissive })
+            charge(budget, image->pixels.capacity());
+        if (result.base.normal)
+            charge(budget, result.base.normal->pixels.capacity());
+    };
+    RetainedPayloadBudget planned(maximum);
+    accountBase(planned);
+    auto planLevels = [&](size_t size) {
+        charge(planned, additional, sizeof(TextureImage));
+        for (size_t level = 0; level < additional; ++level) {
+            size /= 2;
+            charge(planned, size * size, 4);
+        }
+    };
+    planLevels(result.base.color.width);
+    for (size_t map = 0; map < 3; ++map)
+        planLevels(result.base.metallic.width);
+    if (result.base.normal)
+        planLevels(result.base.normal->width);
+    auto admitBaseSamples = [&](std::vector<uint32_t>& owners, size_t size, int kind) {
+        if (!atlas.legacyChart || !options.legacyAtlas)
+            return;
+        const auto& view = kind == 0 ? inputs.legacy.color : kind == 1 ? inputs.legacy.metallic
+            : kind == 2                                                ? inputs.legacy.roughness
+            : kind == 3                                                ? inputs.legacy.emissive
+                                                                       : inputs.legacy.normal;
+        if (!view)
+            return;
+        const auto& packed = *atlas.legacyChart;
+        for (size_t index = 0; index < owners.size(); ++index) {
+            work.step();
+            if (owners[index] >= options.legacyAtlas->layouts.size())
+                continue;
+            double u = ((index % size + .5) / size - packed.left) / packed.width;
+            double v = ((index / size + .5) / size - packed.top) / packed.height;
+            if (packed.flipped)
+                std::swap(u, v);
+            const size_t x = std::min(view->width - 1, static_cast<size_t>(std::clamp(u, 0.0, 1.0) * view->width));
+            const size_t y = std::min(view->height - 1, static_cast<size_t>(std::clamp(v, 0.0, 1.0) * view->height));
+            const auto& layout = options.legacyAtlas->layouts[owners[index]];
+            const SourceUvChart original { layout.left, layout.top, layout.width, layout.height, false };
+            // Base resampling can land just beyond an island's original texel
+            // centers. Such pixels cannot seed new collars, even if inside its
+            // transformed rectangle; their nearest source sample belongs to a gap.
+            if (!contains(original, { (x + .5) / view->width, (y + .5) / view->height }))
+                owners[index] = std::numeric_limits<uint32_t>::max();
+        }
+    };
+    auto appendLevels = [&](std::vector<TextureImage>& levels, const TextureImage& base, int kind) {
+        levels.reserve(additional);
+        for (size_t level = 0; level < additional; ++level) {
+            const auto& source = levels.empty() ? base : levels.back();
+            auto previousOwners = chartOwnershipForCharts(source.width, chartViews, work, 0, false);
+            if (!level)
+                admitBaseSamples(previousOwners, source.width, kind);
+            levels.push_back(filterMip(source, kind, chartViews, previousOwners, work));
+        }
+    };
+    appendLevels(result.colorLevels, result.base.color, 0);
+    appendLevels(result.metallicLevels, result.base.metallic, 1);
+    appendLevels(result.roughnessLevels, result.base.roughness, 2);
+    appendLevels(result.emissiveLevels, result.base.emissive, 3);
+    if (result.base.normal)
+        appendLevels(result.normalLevels, *result.base.normal, 4);
+    RetainedPayloadBudget retained(maximum);
+    accountBase(retained);
+    for (const auto* levels : { &result.colorLevels, &result.metallicLevels, &result.roughnessLevels, &result.emissiveLevels, &result.normalLevels }) {
+        charge(retained, levels->capacity(), sizeof(TextureImage));
+        for (const auto& image : *levels)
+            charge(retained, image.pixels.capacity());
+    }
+    checkCancellation(options.bake);
+    result.maximumSamplingLod = additional;
     result.payloadBytes = retained.usedBytes();
     result.rasterSamples = work.samples;
     return result;

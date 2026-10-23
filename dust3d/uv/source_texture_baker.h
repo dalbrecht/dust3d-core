@@ -60,8 +60,50 @@ struct SourceTextureBakeResult {
     size_t payloadBytes = 0;
     size_t rasterSamples = 0;
 };
+struct SourceTextureMipBakeOptions {
+    SourceTextureBakeOptions bake;
+    size_t maximumLevels = 14; // Includes the base; supported range 1..14.
+    /// Borrow the original procedural atlas throughout bakeMipChain(). Its layouts
+    /// identify the islands inside the packed legacy region; absence keeps LOD zero
+    /// when a legacy region exists. Known triangle UVs must match that same atlas.
+    const UvAtlas* legacyAtlas = nullptr;
+};
+struct SourceTextureMipBakeResult {
+    SourceTextureBakeResult base;
+    // Additional floor-halved levels only; level zero is retained once in base.
+    std::vector<TextureImage> colorLevels;
+    std::vector<TextureImage> metallicLevels;
+    std::vector<TextureImage> roughnessLevels;
+    std::vector<TextureImage> emissiveLevels;
+    std::vector<TextureImage> normalLevels; // Empty when the base normal is absent.
+    double maximumSamplingLod = 0;
+    size_t payloadBytes = 0;
+    size_t rasterSamples = 0;
+};
 class SourceTextureBaker {
 public:
+    /// Bake owned base maps and chart-isolated, area-filtered additional mip levels.
+    /// @param atlas Coherent source chart layout, subject to the same admission as bake().
+    /// @param inputs Exact resolved materials and borrowed images, valid for this call.
+    /// @param options Base dimensions, cumulative retained/work quotas, cancellation and level cap.
+    /// @return Base maps plus additional levels and a common safe LOD. Every map has
+    /// that many additional levels; dimensions floor halve. The chain stops before
+    /// any map reaches an overlapping one-texel chart collar, loses an island's
+    /// interior texel center or has dimension one. Procedural regions require
+    /// options.legacyAtlas so distinct internal islands never become one owner.
+    /// Box footprints use only matching chart-interior samples; uncovered collars dilate
+    /// within that owner. Both bilinear footprints of trilinear sampling stay isolated.
+    /// Color/emission average in linear light, scalars linearly, normals as normalized
+    /// decoded vectors. Straight alpha and hidden RGB remain independent.
+    /// Original triangle policies and base-only bake() behavior remain unchanged.
+    /// @throws TextureBakeError Invalid inputs, retained/work quota or cancellation.
+    /// Allocation failures propagate. Payload includes root and retained capacities;
+    /// temporary ownership/coverage/filtering storage and allocator overhead are excluded.
+    /// This is not an RSS limit or native/renderer/export adoption. Callers must honor
+    /// maximumSamplingLod; never append globally filtered levels beyond this chain.
+    /// Example: `auto maps = SourceTextureBaker::bakeMipChain(atlas, resolvedInputs);`
+    static SourceTextureMipBakeResult bakeMipChain(const SourceUvAtlas& atlas, const SourceTextureBakeInputs& inputs, const SourceTextureMipBakeOptions& options = {});
+
     /// Rasterize independently packed source charts and compose an existing procedural bake.
     /// @param atlas Coherent ordinal layout from SourceUvAtlasBuilder; overlapping charts are rejected.
     /// @param inputs Exact-key resolved materials, aligned source colors and borrowed sampler/image owners.
