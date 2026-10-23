@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add private worker resource setup and checked Unix conversion libraries with original OS-error preservation; helper activation remains pending (#123).
+
 - Add pure worker resource-profile planning with explicit finite units, inherited-limit preservation and sanitizer compatibility checks; OS application and production adoption remain pending (#123).
 
 - Add an opt-in supervised Unix operation with pre-start cancellation and retained retirement outcomes; active OS termination remains unverified and production adoption is pending (#123).
