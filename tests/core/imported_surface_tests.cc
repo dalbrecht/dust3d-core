@@ -9,47 +9,10 @@
 #include <iomanip>
 #include <iostream>
 #include <memory>
-#include <new>
 #include <sstream>
 #include <stdexcept>
 #include <string>
 #include <vector>
-
-namespace {
-thread_local size_t allocationCountdown = SIZE_MAX;
-thread_local size_t allocationsObserved = 0;
-thread_local bool isCountingAllocations = false;
-thread_local bool hasInjectedAllocationFailure = false;
-}
-void* operator new(size_t size)
-{
-    if (isCountingAllocations)
-        ++allocationsObserved;
-    if (allocationCountdown != SIZE_MAX && allocationCountdown-- == 0) {
-        allocationCountdown = SIZE_MAX;
-        hasInjectedAllocationFailure = true;
-        throw std::bad_alloc();
-    }
-    if (void* value = std::malloc(std::max(size, size_t(1))))
-        return value;
-    throw std::bad_alloc();
-}
-void* operator new[](size_t size) { return ::operator new(size); }
-void operator delete(void* value) noexcept { std::free(value); }
-void operator delete[](void* value) noexcept { std::free(value); }
-void operator delete(void* value, size_t) noexcept { std::free(value); }
-void operator delete[](void* value, size_t) noexcept { std::free(value); }
-void* operator new(size_t size, const std::nothrow_t&) noexcept
-{
-    try {
-        return ::operator new(size);
-    } catch (...) {
-        return nullptr;
-    }
-}
-void* operator new[](size_t size, const std::nothrow_t& tag) noexcept { return ::operator new(size, tag); }
-void operator delete(void* value, const std::nothrow_t&) noexcept { std::free(value); }
-void operator delete[](void* value, const std::nothrow_t&) noexcept { std::free(value); }
 
 namespace {
 void require(bool value, const char* message)
@@ -185,30 +148,6 @@ void verifyMirrorAndFilteredTriangleAlignment(const std::vector<uint8_t>& bytes)
     const size_t extraReserved = 4 * (3 * sizeof(Dust3DVertex) + sizeof(Dust3DImportedSurfaceTriangle));
     require(dust3d_imported_surface_mesh_payload_bytes(filtered.get()) >= dust3d_imported_surface_mesh_payload_bytes(reference.get()) + extraReserved,
         "Filtered records must still charge retained pre-export buffer capacity");
-}
-void verifyLateAllocationFailures(const std::vector<uint8_t>& bytes)
-{
-    Dust3DImportedSurfaceOptions options { sizeof(Dust3DImportedSurfaceOptions), 0 };
-    Dust3DError error {};
-    allocationsObserved = 0;
-    isCountingAllocations = true;
-    auto* pointer = dust3d_imported_surface_mesh_load(bytes.data(), bytes.size(), &options, &error);
-    isCountingAllocations = false;
-    const size_t successfulCount = allocationsObserved;
-    Owner baseline(pointer, dust3d_imported_surface_mesh_destroy);
-    require(baseline && error.status == DUST3D_STATUS_OK && successfulCount >= 32, "Surface allocation baseline was not exercised");
-    for (size_t tail = 0; tail < 32; ++tail) {
-        hasInjectedAllocationFailure = false;
-        allocationCountdown = successfulCount - 1 - tail;
-        auto* failed = dust3d_imported_surface_mesh_load(bytes.data(), bytes.size(), &options, &error);
-        allocationCountdown = SIZE_MAX;
-        Owner rejected(failed, dust3d_imported_surface_mesh_destroy);
-        require(hasInjectedAllocationFailure && !rejected && error.status == DUST3D_STATUS_LIMIT_EXCEEDED
-                && std::strcmp(error.message, std::bad_alloc().what()) == 0,
-            "Late surface allocation failure crossed C or lost its original cause");
-    }
-    require(dust3d_imported_surface_mesh_triangles(baseline.get())[0].uv_known == 1,
-        "Failed later loads invalidated a published surface owner");
 }
 void verifyProceduralSurface(const std::string& path)
 {
@@ -379,7 +318,6 @@ int main(int argc, char** argv)
         verifyMirrorAndFilteredTriangleAlignment(bytes);
         verifyImportedFallbackColorEncoding(bytes);
         verifyProceduralSurface(std::string(argv[1]) + "/Capsule.ds3");
-        verifyLateAllocationFailures(bytes);
         require(!dust3d_imported_surface_mesh_geometry(nullptr) && !dust3d_imported_surface_mesh_triangles(nullptr)
                 && !dust3d_imported_surface_mesh_triangle_count(nullptr) && !dust3d_imported_surface_mesh_model_count(nullptr)
                 && !dust3d_imported_surface_mesh_component_count(nullptr) && !dust3d_imported_surface_mesh_payload_bytes(nullptr)

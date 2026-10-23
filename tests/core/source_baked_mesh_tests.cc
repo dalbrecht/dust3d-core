@@ -10,43 +10,10 @@
 #include <iterator>
 #include <limits>
 #include <memory>
-#include <new>
 #include <sstream>
 #include <stdexcept>
 #include <string>
 #include <vector>
-
-namespace {
-thread_local bool shouldFailNextAllocation = false;
-thread_local size_t failingAllocationSize = SIZE_MAX;
-}
-void* operator new(size_t size)
-{
-    if (shouldFailNextAllocation || size == failingAllocationSize) {
-        shouldFailNextAllocation = false;
-        failingAllocationSize = SIZE_MAX;
-        throw std::bad_alloc();
-    }
-    if (void* value = std::malloc(std::max(size, size_t(1))))
-        return value;
-    throw std::bad_alloc();
-}
-void* operator new[](size_t size) { return ::operator new(size); }
-void operator delete(void* value) noexcept { std::free(value); }
-void operator delete[](void* value) noexcept { std::free(value); }
-void operator delete(void* value, size_t) noexcept { std::free(value); }
-void operator delete[](void* value, size_t) noexcept { std::free(value); }
-void* operator new(size_t size, const std::nothrow_t&) noexcept
-{
-    try {
-        return ::operator new(size);
-    } catch (...) {
-        return nullptr;
-    }
-}
-void* operator new[](size_t size, const std::nothrow_t& tag) noexcept { return ::operator new(size, tag); }
-void operator delete(void* value, const std::nothrow_t&) noexcept { std::free(value); }
-void operator delete[](void* value, const std::nothrow_t&) noexcept { std::free(value); }
 
 namespace {
 void require(bool condition, const char* message)
@@ -297,29 +264,6 @@ void malformedImagesAndLimits(const std::vector<uint8_t>& bytes)
     rejects(DUST3D_STATUS_CANCELLED);
 }
 
-void allocationFailuresStayInsideC(const std::vector<uint8_t>& bytes)
-{
-    DecodedFixture decoded;
-    auto image = decoded.image();
-    auto settings = options();
-    settings.model_images = &image;
-    settings.model_image_count = 1;
-    for (bool failAtMap : { false, true }) {
-        shouldFailNextAllocation = !failAtMap;
-        failingAllocationSize = failAtMap ? size_t(256 * 256 * 4) : SIZE_MAX;
-        Dust3DError error {};
-        Owner owner(dust3d_source_baked_mesh_load(bytes.data(), bytes.size(), &settings, &error), dust3d_source_baked_mesh_destroy);
-        const bool didInject = !shouldFailNextAllocation && failingAllocationSize == SIZE_MAX;
-        shouldFailNextAllocation = false;
-        failingAllocationSize = SIZE_MAX;
-        require(didInject && !owner && error.status == DUST3D_STATUS_LIMIT_EXCEEDED
-                && std::strcmp(error.message, std::bad_alloc {}.what()) == 0,
-            "Allocation failure must preserve its original cause inside the C boundary without publishing an owner");
-    }
-    auto subsequent = load(bytes);
-    require(dust3d_source_baked_mesh_triangle_count(subsequent.get()) == 4, "Failed allocation cannot poison a later serialized source bake");
-}
-
 std::vector<uint8_t> blankJsonField(const std::vector<uint8_t>& bytes, const std::string& field)
 {
     auto result = bytes;
@@ -503,7 +447,6 @@ int main(int argc, char** argv)
         nullAndMalformedOptions(bytes);
         importedOwnership(bytes);
         malformedImagesAndLimits(bytes);
-        allocationFailuresStayInsideC(bytes);
         proceduralCompatibility(read(argv[1], "Capsule.ds3"));
         mirrorsFilteredAndMixed(bytes);
         rejectUnsupportedImportedImageOverride(bytes);

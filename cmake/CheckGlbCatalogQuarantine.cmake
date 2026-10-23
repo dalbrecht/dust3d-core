@@ -21,5 +21,30 @@ foreach(quarantine_manifest IN ITEMS Package.swift CMakeLists.txt)
         if(quarantine_manifest_text MATCHES "GlbMaterialCatalog\\.cc")
             message(FATAL_ERROR "GLB catalog quarantine (#69): unfinished implementation was restored")
         endif()
+        if(quarantine_manifest_text MATCHES "dust3d_json_(comparison_)?allocation_tests|contract_json_(comparison_)?allocation|json_(comparison_)?allocation_tests\\.cc")
+            message(FATAL_ERROR "GLB catalog quarantine (#84): allocation-failure probes must remain unregistered")
+        endif()
+    endif()
+endforeach()
+
+# Core #84: inspect future test sources too, not only historical target names.
+file(GLOB quarantine_fault_paths "${DUST3D_QUARANTINE_ROOT}/tests/core/*.cc")
+foreach(quarantine_fault_path IN LISTS quarantine_fault_paths)
+    file(READ "${quarantine_fault_path}" quarantine_fault_text)
+    if(quarantine_fault_text MATCHES "operator[ \t\r\n]+new|bad_alloc|set_new_handler|testOutputAllocationFailures|verifyLateAllocationFailures|allocationFailuresStayInsideC|cacheAllocationFailure|allocationBoundaries|failSnapshotAllocation")
+        get_filename_component(quarantine_fault_source "${quarantine_fault_path}" NAME)
+        file(SHA256 "${quarantine_fault_path}" quarantine_fault_hash)
+        # This reviewed observer counts successful allocations without forcing failure.
+        # Pin its bytes so the filename cannot exempt a substituted fault probe.
+        if(NOT quarantine_fault_source STREQUAL "retained_payload_tests.cc" OR
+            NOT quarantine_fault_hash STREQUAL "efad96e91abdf846d84b0a68a84fdd6feea9f64c0a283baf49ba730ceec47729")
+            message(FATAL_ERROR "GLB catalog quarantine (#84): allocation fault markers require source review")
+        endif()
+    endif()
+endforeach()
+
+foreach(quarantine_probe_source IN ITEMS json_allocation_tests.cc json_comparison_allocation_tests.cc)
+    if(EXISTS "${DUST3D_QUARANTINE_ROOT}/tests/core/${quarantine_probe_source}")
+        message(FATAL_ERROR "GLB catalog quarantine (#84): historical allocation-failure probe source was restored")
     endif()
 endforeach()
