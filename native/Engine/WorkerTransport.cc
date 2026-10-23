@@ -139,7 +139,7 @@ public:
     SpawnAttributes& operator=(const SpawnAttributes&) = delete;
     posix_spawnattr_t value;
 };
-void spawn(Child& child, const std::string& executable, Channel& input, Channel& output, Channel& diagnostic)
+void spawn(Child& child, const std::string& executable, Channel& input, Channel& output, Channel& diagnostic, const std::vector<std::string>& resourceArguments)
 {
     SpawnActions actions;
     SpawnAttributes attributes;
@@ -153,9 +153,14 @@ void spawn(Child& child, const std::string& executable, Channel& input, Channel&
 #else
 #error Worker transport supports macOS and Linux only
 #endif
-    char* arguments[] = { const_cast<char*>(executable.c_str()), nullptr };
+    std::vector<char*> arguments;
+    arguments.reserve(resourceArguments.size() + 2);
+    arguments.push_back(const_cast<char*>(executable.c_str()));
+    for (const auto& argument : resourceArguments)
+        arguments.push_back(const_cast<char*>(argument.c_str()));
+    arguments.push_back(nullptr);
     pid_t pid;
-    const int code = posix_spawn(&pid, executable.c_str(), &actions.value, &attributes.value, arguments, environ);
+    const int code = posix_spawn(&pid, executable.c_str(), &actions.value, &attributes.value, arguments.data(), environ);
     if (code != 0)
         throw TransportError(TransportErrorCode::spawn, code, "posix_spawn");
     child.own(pid);
@@ -188,12 +193,20 @@ namespace worker {
     {
     }
     static CollectedJob runJob(const std::string& executable, const Frame& request, const TransportLimits& limits,
-        const WorkerSupervision* supervision)
+        const WorkerSupervision* supervision, const ResourceLaunch* resourceLaunch)
     {
         if (executable.empty() || executable[0] != '/' || executable.find('\0') != std::string::npos
             || limits.maximumIoChunkBytes == 0 || limits.maximumIoChunkBytes > 65536
             || limits.maximumCapturedDiagnosticBytes == 0 || limits.maximumCapturedDiagnosticBytes > maximumDiagnosticBytes)
             throw TransportError(TransportErrorCode::invalidConfiguration, EINVAL, "worker configuration");
+        std::vector<std::string> resourceArguments;
+        if (resourceLaunch) {
+            if (limits.maximumCapturedDiagnosticBytes < maximumResourceObservationBytes)
+                throw TransportError(TransportErrorCode::invalidConfiguration, EINVAL, "worker resource diagnostic capture");
+            if (resourceLaunch->profile.addressBytes)
+                throw ResourceError(ResourceErrorCode::unsupportedResource, ResourceKind::addressBytes, "Worker virtual address activation is unsupported");
+            resourceArguments = encodeResourceLaunch(*resourceLaunch);
+        }
         std::optional<WorkerLifetime> lifetime;
         if (supervision)
             lifetime.emplace(supervision->lifetime);
@@ -211,7 +224,7 @@ namespace worker {
         Channel diagnostic;
         if (supervision && supervision->cancellation && supervision->cancellation->isCancellationRequested())
             throw WorkerStopped(LifetimeReason::cancelled, std::nullopt);
-        spawn(child, executable, input, output, diagnostic);
+        spawn(child, executable, input, output, diagnostic, resourceArguments);
         const auto started = std::chrono::steady_clock::now();
         size_t sent = 0;
         uint64_t expectedReplyBytes = headerBytes;
@@ -295,12 +308,36 @@ namespace worker {
     }
     CollectedJob runWorkerJob(const std::string& executable, const Frame& request, const TransportLimits& limits)
     {
-        return runJob(executable, request, limits, nullptr);
+        return runJob(executable, request, limits, nullptr, nullptr);
     }
     CollectedJob runSupervisedWorkerJob(const std::string& executable, const Frame& request,
         const TransportLimits& limits, const WorkerSupervision& supervision)
     {
-        return runJob(executable, request, limits, &supervision);
+        return runJob(executable, request, limits, &supervision, nullptr);
     }
+    ResourceJobError::ResourceJobError(CollectedJob collected, std::optional<ResourceObservationError> observationFailure)
+        : std::runtime_error(observationFailure ? std::string(observationFailure->what())
+                                                : "Worker resource completion: normal=" + std::to_string(collected.outcome.exitedNormally) + " code=" + std::to_string(collected.outcome.exitCode))
+        , m_collected(std::move(collected))
+        , m_observationFailure(std::move(observationFailure))
+    {
+    }
+    ResourceCollectedJob admitResourceCompletion(CollectedJob collected, const ResourceLaunch& requested)
+    {
+        if (!collected.outcome.exitedNormally || collected.outcome.exitCode != 0)
+            throw ResourceJobError(std::move(collected));
+        try {
+            const auto observation = decodeResourceObservation(collected.diagnostic.data(), collected.diagnostic.size(), requested);
+            return { std::move(collected), observation };
+        } catch (const ResourceObservationError& cause) {
+            throw ResourceJobError(std::move(collected), cause);
+        }
+    }
+    ResourceCollectedJob runResourceLimitedWorkerJob(const std::string& executable, const Frame& request,
+        const ResourceLaunch& launch, const TransportLimits& limits, const WorkerSupervision& supervision)
+    {
+        return admitResourceCompletion(runJob(executable, request, limits, &supervision, &launch), launch);
+    }
+
 }
 }

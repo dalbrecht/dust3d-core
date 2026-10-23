@@ -634,7 +634,7 @@ on failure and must not process an archive. The macOS/Linux UnixResourceSystem
 uses an explicit syscall seam and checked finite/infinity conversion. Actual
 SystemUnixResourceCalls must only be constructed in a fresh helper. These private
 libraries are used only by the helper's explicit opt-in resource launch. The
-parent transport and Apple app do not yet adopt that launch.
+parent exposes a separate opt-in resource operation; Apple adoption remains open.
 Recording tests never change limits in the test runner. See
 [ADR 0073](docs/adr/0073-helper-resource-setup.md) for activation and evidence gaps.
 
@@ -656,6 +656,34 @@ Input is the existing binary request frame, not a raw `.ds3` archive. Successful
 setup emits a bounded `resource-profile-v1` line with read-back effective limits
 on stderr; the response remains framed on stdout. Invalid metadata/runtime and
 virtual-cap activation are rejected before archive handling. Legacy no-argument
-launch does not select these limits. Parent resource-report admission, production
-budgets, signed helper identity, memory/sandbox/parent-death containment and Apple
-adoption remain required. See [ADR 0074](docs/adr/0074-opt-in-helper-resource-launch.md).
+launch does not select these limits. The parent resource API below verifies the
+report; production budgets, signed helper identity, memory/sandbox/parent-death
+containment and Apple adoption remain required. See [ADR 0074](docs/adr/0074-opt-in-helper-resource-launch.md).
+
+
+### Parent resource completion admission (development)
+
+`runResourceLimitedWorkerJob` passes the explicit profile to the helper under the
+existing supervision policy. It requires normal exit zero and a bounded matching
+resource report before returning ResourceCollectedJob. ResourceJobError retains
+the original collected outcome/reply/opaque diagnostics, truncation state and typed
+metadata cause. It never retries as an unrestricted helper. For a trusted compatible
+ordinary helper and the test-only budgets shown above:
+
+```cpp
+PendingReply pending(request.header);
+ResourceLaunch launch { ResourceRuntime::ordinary,
+    { { 600, 600 }, { 16777216, 16777216 }, { 128, 128 }, std::nullopt } };
+auto result = runResourceLimitedWorkerJob(absoluteHelperPath, request, launch);
+// Obtain current authoritative identity from the serialized application owner.
+auto admitted = pending.complete(activeIdentity, result.collected.outcome,
+    result.collected.reply.data(), result.collected.reply.size());
+```
+
+Run transport off the UI thread, serialize state/admission and retire failed or
+replaced work through its owner. Resource observations preserve the original
+binary diagnostic tail by offset; render causes safely rather than assuming UTF-8
+or logging document data. Early transport failures retain their existing typed OS
+causes; the new owned context applies after collection. Apple integration and
+strong containment remain separate. See
+[ADR 0075](docs/adr/0075-parent-resource-admission.md).

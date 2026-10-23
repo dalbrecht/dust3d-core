@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 #include <Dust3DBridge.h>
 #include <algorithm>
+#include <array>
 #include <cerrno>
 #include <cstring>
 #include <filesystem>
@@ -8,9 +9,11 @@
 #include <iostream>
 #include <iterator>
 #include <memory>
+#include <native/Engine/WorkerBuild.h>
 #include <native/Engine/WorkerQueue.h>
 #include <native/Engine/WorkerTransport.h>
 #include <stdexcept>
+#include <sys/resource.h>
 #include <utility>
 
 namespace {
@@ -113,16 +116,25 @@ void preflight(const std::string& worker)
     }
     throw std::runtime_error("Missing executable unexpectedly started");
 }
-void verify(const std::string& worker, const std::vector<uint8_t>& archive, uint64_t sequence, size_t chunk)
+void verify(const std::string& worker, const std::vector<uint8_t>& archive, uint64_t sequence, size_t chunk, bool resourceLimited = false)
 {
     auto input = request(archive, sequence);
     TransportLimits limits;
     limits.maximumIoChunkBytes = chunk;
-    auto collected = sequence == 1
-        ? runSupervisedWorkerJob(worker, input, limits, WorkerSupervision {})
-        : runWorkerJob(worker, input, limits);
+    std::optional<ResourceObservation> observation;
+    CollectedJob collected;
+    if (resourceLimited) {
+        ResourceLaunch launch { compiledResourceRuntime(), { { 600, 600 }, { 16777216, 16777216 }, { 128, 128 }, std::nullopt } };
+        auto result = runResourceLimitedWorkerJob(worker, input, launch, limits);
+        observation = result.observation;
+        collected = std::move(result.collected);
+        require(observation->runtime == launch.runtime && observation->diagnosticPrefixBytes == collected.diagnostic.size()
+                && !collected.diagnosticTruncated && observation->effective[2].soft == 0 && observation->effective[2].hard == 0,
+            "Actual resource helper reports matching complete bounded setup before result admission");
+    } else
+        collected = sequence == 1 ? runSupervisedWorkerJob(worker, input, limits, WorkerSupervision {}) : runWorkerJob(worker, input, limits);
     require(collected.outcome.exitedNormally && collected.outcome.exitCode == 0, "Real helper must exit normally");
-    if (!collected.diagnostic.empty() || collected.diagnosticTruncated) {
+    if (!observation && (!collected.diagnostic.empty() || collected.diagnosticTruncated)) {
         // Surface unexpected runtime/sanitizer causes as bounded escaped data, never terminal controls.
         constexpr char digits[] = "0123456789abcdef";
         std::cerr << "Unexpected child diagnostic bytes (hex, truncated=" << collected.diagnosticTruncated << "): ";
@@ -159,6 +171,103 @@ void verify(const std::string& worker, const std::vector<uint8_t>& archive, uint
                 && std::memcmp(mesh.vertices[index].color.data(), vertices[index].color, 4 * sizeof(float)) == 0,
             "Pipe transport preserves every native vertex bit");
 }
+std::array<std::pair<rlim_t, rlim_t>, 5> parentResourceLimits()
+{
+    std::array<std::pair<rlim_t, rlim_t>, 5> values {};
+    const int resources[] = { RLIMIT_CPU, RLIMIT_FSIZE, RLIMIT_CORE, RLIMIT_NOFILE, RLIMIT_AS };
+    for (size_t index = 0; index < values.size(); ++index) {
+        rlimit value {};
+        if (::getrlimit(static_cast<decltype(RLIMIT_CPU)>(resources[index]), &value) != 0) {
+            const int cause = errno;
+            throw std::runtime_error(std::string("Cannot inspect parent resource limit: ") + std::strerror(cause));
+        }
+        values[index] = { value.rlim_cur, value.rlim_max };
+    }
+    return values;
+}
+void resourcePreflight(const std::string& worker)
+{
+    const auto input = request({}, 100);
+    ResourceLaunch launch { compiledResourceRuntime(), { { 600, 600 }, { 16777216, 16777216 }, { 128, 128 }, std::nullopt } };
+    TransportLimits limits;
+    limits.maximumCapturedDiagnosticBytes = maximumResourceObservationBytes - 1;
+    try {
+        runResourceLimitedWorkerJob(worker + "/missing-helper", input, launch, limits);
+        throw std::runtime_error("Undersized resource diagnostic capture admitted");
+    } catch (const TransportError& error) {
+        require(error.code() == TransportErrorCode::invalidConfiguration && error.operatingSystemCode() == EINVAL, "Resource capture rejects before spawn");
+    }
+    launch.profile.addressBytes = ResourceBudget { 100, 200 };
+    try {
+        runResourceLimitedWorkerJob(worker + "/missing-helper", input, launch);
+        throw std::runtime_error("Unsupported virtual profile started");
+    } catch (const ResourceError& error) {
+        require(error.code() == ResourceErrorCode::unsupportedResource && error.resource() == ResourceKind::addressBytes, "Unsupported resource profile rejects before spawn");
+    }
+    launch.profile.addressBytes.reset();
+    WorkerCancellation cancelled;
+    cancelled.requestCancellation();
+    WorkerSupervision supervision;
+    supervision.cancellation = &cancelled;
+    try {
+        runResourceLimitedWorkerJob(worker + "/missing-helper", input, launch, {}, supervision);
+        throw std::runtime_error("Pre-cancelled resource work started");
+    } catch (const WorkerStopped& error) {
+        require(error.reason() == LifetimeReason::cancelled && !error.collected(), "Resource launch preserves pre-start cancellation without spawning");
+    }
+    CollectedJob failed;
+    failed.outcome = { true, 64 };
+    failed.reply = { 1, 2 };
+    failed.diagnostic = { 0, 255, 27 };
+    failed.diagnosticTruncated = true;
+    try {
+        admitResourceCompletion(std::move(failed), launch);
+        throw std::runtime_error("Synthetic nonzero resource outcome admitted");
+    } catch (const ResourceJobError& error) {
+        failed.diagnostic = { 7 };
+        require(error.code() == ResourceJobErrorCode::unsuccessfulExit && !error.observationFailure()
+                && error.collected().outcome.exitCode == 64 && error.collected().reply == std::vector<uint8_t>({ 1, 2 })
+                && error.collected().diagnostic == std::vector<uint8_t>({ 0, 255, 27 }) && error.collected().diagnosticTruncated,
+            "Original synthetic failure owns all outcome/reply/binary diagnostic bytes, without parsing as success");
+    }
+    // Synthetic terminal-state data only; no OS signal or failing-helper probe.
+    CollectedJob nonNormal;
+    nonNormal.outcome = { false, 0 };
+    try {
+        admitResourceCompletion(std::move(nonNormal), launch);
+        throw std::runtime_error("Synthetic non-normal resource outcome admitted");
+    } catch (const ResourceJobError& error) {
+        require(error.code() == ResourceJobErrorCode::unsuccessfulExit && !error.collected().outcome.exitedNormally,
+            "Non-normal completion rejects before any metadata parsing");
+    }
+    const std::string prefix = std::string("resource-profile-v1 ") + (launch.runtime == ResourceRuntime::ordinary ? "ordinary" : "asan") + " 600 600 16777216 16777216 0 0 128 128\n";
+    CollectedJob opaque;
+    opaque.outcome = { true, 0 };
+    opaque.reply = { 42 };
+    opaque.diagnostic.assign(prefix.begin(), prefix.end());
+    opaque.diagnostic.insert(opaque.diagnostic.end(), { 0, 255, 27 });
+    opaque.diagnosticTruncated = true;
+    auto admitted = admitResourceCompletion(std::move(opaque), launch);
+    require(admitted.observation.diagnosticPrefixBytes == prefix.size() && admitted.collected.diagnosticTruncated
+            && admitted.collected.diagnostic.size() == prefix.size() + 3 && admitted.collected.diagnostic.back() == 27,
+        "Complete resource metadata preserves opaque binary tail and truncation state");
+    PendingReply pending(input.header);
+    rejects<ProtocolError>([&] { pending.complete(input.header.identity, admitted.collected.outcome, admitted.collected.reply.data(), admitted.collected.reply.size()); });
+    require(pending.isRetired(), "Resource admission cannot replace normal frame/revision admission");
+    CollectedJob malformed;
+    malformed.outcome = { true, 0 };
+    malformed.diagnostic = { 0, 255, 27 };
+    try {
+        admitResourceCompletion(std::move(malformed), launch);
+        throw std::runtime_error("Malformed synthetic resource report admitted");
+    } catch (const ResourceJobError& error) {
+        require(error.code() == ResourceJobErrorCode::invalidObservation && error.observationFailure()
+                && error.observationFailure()->code() == ResourceObservationErrorCode::invalidReport
+                && std::strcmp(error.what(), error.observationFailure()->what()) == 0
+                && error.collected().diagnostic == std::vector<uint8_t>({ 0, 255, 27 }),
+            "Resource report rejection surfaces the original typed metadata cause and preserves opaque bytes");
+    }
+}
 void queuedTransport(const std::string& worker, const std::vector<uint8_t>& archive)
 {
     RequestQueue queue;
@@ -184,12 +293,18 @@ int main(int argc, char** argv)
 {
     try {
         require(argc == 3, "Expected worker and trusted fixture directory");
+        const auto parentLimits = parentResourceLimits();
         preflight(argv[1]);
+        resourcePreflight(argv[1]);
         verify(argv[1], readFixture(std::filesystem::path(argv[2]) / "Capsule.ds3"), 1, 7);
         verify(argv[1], readFixture(std::filesystem::path(argv[2]) / "Sword.ds3"), 2, 4096);
         verify(argv[1], { 1, 2, 3 }, 3, 1);
         verify(argv[1], {}, 4, 64);
+        verify(argv[1], readFixture(std::filesystem::path(argv[2]) / "Capsule.ds3"), 1, 7, true);
+        verify(argv[1], readFixture(std::filesystem::path(argv[2]) / "Sword.ds3"), 2, 4096, true);
+        verify(argv[1], { 1, 2, 3 }, 3, 1, true);
         queuedTransport(argv[1], readFixture(std::filesystem::path(argv[2]) / "Capsule.ds3"));
+        require(parentResourceLimits() == parentLimits, "Resource worker launches must not alter the parent process limits");
         return 0;
     } catch (const std::exception& cause) {
         std::cerr << cause.what() << '\n';
