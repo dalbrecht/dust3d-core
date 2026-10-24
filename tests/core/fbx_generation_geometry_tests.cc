@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: MIT
+#include "BakedMesh.h"
 #include "FbxGeometrySelection.h"
 #include "FbxMeshScene.h"
 #include "GenerationPipeline.h"
+#include "UvMetadata.h"
 #include <cmath>
 #include <fstream>
 #include <iostream>
@@ -62,6 +64,45 @@ int main(int argc, char** argv)
         outputs.maximumFbxGeometryBytes = 0;
         auto replacement = generateMesh(snapshot(bytes), "", nullptr, nullptr, nullptr, outputs);
         require(geometry.get() != previous && replacement->vertices.size() == 240, "Successful generation did not replace output owner");
+        outputs.useFbxAtlasUvs = true;
+        previous = geometry.get();
+        GenerationOutputs missingGeometry;
+        missingGeometry.useFbxAtlasUvs = true;
+        try {
+            generateMesh(snapshot(bytes), "", nullptr, nullptr, nullptr, missingGeometry);
+            throw std::runtime_error("Atlas export without geometry owner accepted");
+        } catch (const DocumentError& cause) {
+            require(cause.status() == DUST3D_STATUS_INVALID_DOCUMENT, "Missing geometry output lost typed cause");
+        }
+        try {
+            generateMesh(snapshot(bytes), "", nullptr, nullptr, nullptr, outputs);
+            throw std::runtime_error("Atlas export without UV generation accepted");
+        } catch (const DocumentError& cause) {
+            require(cause.status() == DUST3D_STATUS_INVALID_DOCUMENT && geometry.get() == previous, "Missing UV metadata lost original owner/cause");
+        }
+        auto original = snapshot(bytes);
+        UvMetadata metadata(*original, 64 * 1024 * 1024);
+        Dust3DBakeOptions settings {};
+        settings.struct_size = sizeof(settings);
+        settings.atlas_texture_size = settings.color_size = settings.normal_size = settings.material_size = 64;
+        BakedMeshData bake(settings);
+        bake.validateVisuals(*original);
+        outputs.uvs = &metadata;
+        outputs.baked = &bake;
+        outputs.textureSize = bake.textureSize();
+        auto texturedPreview = generateMesh(std::move(original), "", nullptr, nullptr, nullptr, outputs);
+        require(texturedPreview->vertices.size() == 240 && geometry->object().triangleVertexUvs(), "Atlas export not generated");
+        require(bake.maps[0] && bake.maps[0]->width == 64 && bake.maps[0]->height == 64, "Aligned procedural color bake missing");
+        const auto& packed = *geometry->object().triangleVertexUvs();
+        const auto& atlas = metadata.atlas();
+        require(packed.size() == atlas.triangleUvs.size(), "Atlas source face count lost");
+        for (size_t triangle = 0; triangle < packed.size(); ++triangle) {
+            for (size_t corner = 0; corner < 3; ++corner) {
+                require(packed[triangle][corner].x() == atlas.triangleUvs[triangle][corner].x()
+                        && packed[triangle][corner].y() == atlas.triangleUvs[triangle][corner].y(),
+                    "Export used local or float UVs instead of original packed atlas doubles");
+            }
+        }
         std::cout << "Original FBX generation geometry contracts passed\n";
         return 0;
     } catch (const std::exception& cause) {

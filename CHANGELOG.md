@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Align opt-in original FBX geometry with complete packed procedural atlas UVs, rejecting unknown mappings explicitly (#99).
+
 - Add an opt-in original double-geometry generation output for static FBX, preserving prior ownership on rejection (#99).
 
 - Add bounded owned static FBX face selections with source correspondence, double-precision positions and optional replacement atlas UVs (#99).
