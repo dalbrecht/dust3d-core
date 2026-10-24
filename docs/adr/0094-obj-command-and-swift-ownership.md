@@ -58,3 +58,23 @@ python3 -B -O tests/core/verify_generated_obj_import.py "$FIXTURE_DIR/model.obj"
 The output directory is caller-owned and empty before this controlled acceptance
 run. The text oracle does not independently establish generator precision or
 unused-vertex preservation by the importer; those are separate boundaries.
+
+
+## Review correction: require a referenced scene mesh
+
+A connected pre-review found that mesh storage and two identity matrices did not
+prove a node referenced the mesh. A regression reproduced eleven false acceptances
+in the original verifier. The positive synthetic dump now models Assimp's real
+root/NodeList/child structure and MeshRefs binding. The verifier requires that
+controlled hierarchy, one identity transform on each node, and exactly one mesh-0
+reference on the child, with consistent declared counts. Missing/invalid/misplaced
+references and disconnected/extra nodes reject, also under optimized Python.
+
+All nine verifier methods pass normally and optimized. Fresh Debug CMake build
+and all98 ordinary CTest contracts pass19.08s. A freshly built CLI produces the
+known-positive Capsule OBJ; a fresh Assimp dump passes the strengthened optimized
+verifier. Negative mutations stay in synthetic Python XML and never reach a native
+importer. Source/binary/output hashes and red/green logs are retained locally. No
+C++ runtime, production pin or quarantined path changes. Completed exact-head
+GitHub automated review and green CI are still required before merge; a cached
+pre-review does not replace that gate.

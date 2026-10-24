@@ -59,6 +59,19 @@ def verify(source, imported):
                                      abs_tol=FLOAT_IMPORT_TOLERANCE)
                         for expected, actual in zip(vertices[source_index], imported_vertices[imported_index])),
                     'source corner position, polygon order or winding changed')
+    roots = scene.findall('./Node')
+    require(len(roots) == 1, 'expected one scene root node')
+    child_lists = roots[0].findall('./NodeList')
+    require(len(child_lists) == 1 and child_lists[0].get('num') == '1', 'source node hierarchy changed')
+    children = child_lists[0].findall('./Node')
+    require(len(children) == 1 and scene.findall('.//Node') == [roots[0], children[0]],
+            'source mesh node is missing, disconnected or duplicated')
+    references = scene.findall('.//MeshRefs')
+    require(len(references) == 1 and children[0].find('./MeshRefs') is references[0]
+            and references[0].get('num') == '1' and (references[0].text or '').split() == ['0'],
+            'source mesh must be referenced exactly once by its scene node')
+    for node in [roots[0], children[0]]:
+        require(len(node.findall('./Matrix4')) == 1, 'each source node requires its own transform')
     identity = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]
     matrices = scene.findall('.//Matrix4')
     require(len(matrices) == 2 and all([float(value) for value in (item.text or '').split()] == identity
