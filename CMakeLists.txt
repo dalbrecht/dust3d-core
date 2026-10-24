@@ -34,6 +34,7 @@ target_include_directories(dust3d_core PUBLIC
     third_party/earcut.hpp/include)
 target_link_libraries(dust3d_core PUBLIC dust3d_remesher dust3d_triangle Threads::Threads)
 add_library(dust3d_engine STATIC
+    native/Engine/FbxAnimationMath.cc
     native/Engine/SourceBakedMesh.cc
     native/Engine/ImportedSurface.cc
     native/Engine/ImportedAssets.cc
@@ -116,6 +117,12 @@ if(BUILD_TESTING)
     target_link_libraries(dust3d_snapshot_writer_tests PRIVATE dust3d_core)
     add_test(NAME snapshot_writer_contracts COMMAND dust3d_snapshot_writer_tests)
     set_tests_properties(snapshot_writer_contracts PROPERTIES TIMEOUT 30)
+
+    add_executable(dust3d_fbx_animation_math_tests tests/core/fbx_animation_math_tests.cc)
+    target_include_directories(dust3d_fbx_animation_math_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} native/Engine)
+    target_link_libraries(dust3d_fbx_animation_math_tests PRIVATE dust3d_engine)
+    add_test(NAME fbx_animation_math_contracts COMMAND dust3d_fbx_animation_math_tests)
+    set_tests_properties(fbx_animation_math_contracts PROPERTIES TIMEOUT 30)
     add_executable(dust3d_worker_lifetime_tests tests/core/worker_lifetime_tests.cc)
     target_link_libraries(dust3d_worker_lifetime_tests PRIVATE dust3d_worker_protocol)
     add_test(NAME worker_lifetime_contracts COMMAND dust3d_worker_lifetime_tests)
