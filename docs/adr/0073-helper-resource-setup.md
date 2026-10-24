@@ -125,3 +125,14 @@ and unenforced by these tests. Formatting and the source quarantine guard pass.
 This is scoped sanitizer evidence, not a fresh whole-engine sanitizer run.
 Products are cleaned and the original SVG side effect restored after terminal
 gates. No production activation, pin or quarantine change is made.
+
+## Public delivery after resource policy merge
+
+Reparented the three saved setup commits onto merged master adb4bd70 after core
+PR127 completed clean exact-head review and all six CI checks. Fresh full normal
+CMake/CTest passed64/64 (18.24s); strict-warning standalone ASan/UBSan setup/adapter
+contracts passed using RecordingCalls exclusively. New implementation/test sources
+are unchanged from the saved stage. Real getrlimit/setrlimit wrappers are compiled
+but unexecuted by these contracts. No production activation, pin or quarantine
+change is included. Earlier baseline/sanitizer evidence remains historical and is
+not relabeled as this delivery gate.
