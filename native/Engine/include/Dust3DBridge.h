@@ -938,6 +938,22 @@ typedef struct Dust3DAnimationParameterInfo {
     double value;
 } Dust3DAnimationParameterInfo;
 
+/** Borrowed ordered dynamic-control descriptor, valid until its catalog owner is destroyed.
+ * Nominal default and discrete slider projection are distinct. Forward conversion is
+ * index / slider_divisor * parameter_multiplier; inverse truncates toward zero.
+ * This is not evaluated animation data or the separate common timing/audio widget schema.
+ */
+typedef struct Dust3DAnimationControlInfo {
+    const char* name;
+    const char* display_name;
+    int default_slider_value;
+    int minimum_slider_value;
+    int maximum_slider_value;
+    double default_parameter_value;
+    double slider_divisor;
+    double parameter_multiplier;
+} Dust3DAnimationControlInfo;
+
 /** Copy the fixed inherited catalog under the shared engine lock; no document input is accepted.
  * Returns NULL on construction failure. Optional error is cleared first and retains the original cause.
  * Allocation errors report LIMIT_EXCEEDED; other construction errors report GENERATION_FAILED.
@@ -962,6 +978,23 @@ const char* dust3d_animation_catalog_rig_name(const Dust3DAnimationCatalog* cata
 size_t dust3d_animation_catalog_bone_count(const Dust3DAnimationCatalog* catalog, size_t rig_index);
 /** Borrow one lexicographically ordered standard bone name until destroy; NULL for invalid indices. */
 const char* dust3d_animation_catalog_bone_name(const Dust3DAnimationCatalog* catalog, size_t rig_index, size_t bone_index);
+
+/** Number of source-ordered dynamic controls for this clip; zero for invalid owner/index.
+ * Independent of parameter_count, which counts preset overrides rather than control definitions.
+ */
+size_t dust3d_animation_catalog_control_count(const Dust3DAnimationCatalog* catalog, size_t clip_index);
+/** Borrow one control view; return 1 on success. Invalid owner/indices/output return 0 and clear provided output. */
+int dust3d_animation_catalog_control_at(const Dust3DAnimationCatalog* catalog, size_t clip_index, size_t control_index, Dust3DAnimationControlInfo* output);
+/** Checked index-to-value conversion; no document mutation or generation.
+ * Returns 1 and clears optional error on success. Invalid arguments or typed definition/range errors
+ * return 0 with INVALID_DOCUMENT and original diagnostic; allocation/other errors use existing status policy.
+ * Non-NULL output clears before rejection. Keep owner alive for the complete call.
+ */
+int dust3d_animation_catalog_control_value(const Dust3DAnimationCatalog* catalog, size_t clip_index, size_t control_index, int slider_value, double* output, Dust3DError* error);
+/** Checked finite value-to-index conversion, preserving truncation then widget bounds.
+ * Same result/clearing/diagnostic/lifetime rules as control_value; integer representability is checked before cast.
+ */
+int dust3d_animation_catalog_control_slider(const Dust3DAnimationCatalog* catalog, size_t clip_index, size_t control_index, double parameter_value, int* output, Dust3DError* error);
 
 #ifdef __cplusplus
 }

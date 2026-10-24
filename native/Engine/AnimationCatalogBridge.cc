@@ -2,6 +2,7 @@
 #include "EngineSupport.h"
 #include <cmath>
 #include <dust3d/animation/animation_catalog.h>
+#include <dust3d/animation/parameter_catalog.h>
 #include <memory>
 #include <set>
 #include <stdexcept>
@@ -28,6 +29,7 @@ struct ClipRecord {
     bool loop;
     bool alias;
     std::vector<std::pair<std::string, double>> parameters;
+    std::vector<dust3d::animation::ParameterDefinition> controls;
 };
 struct RigRecord {
     std::string name;
@@ -55,13 +57,20 @@ Dust3DAnimationCatalog* dust3d_animation_catalog_load(Dust3DError* error)
             validateIdentity(info.generator);
             if (!std::isfinite(info.duration) || info.duration <= 0 || info.samples <= 0)
                 throw CatalogMetadataError("Animation catalog timing must be finite and positive.");
-            ClipRecord clip { entry.first, info.rig, info.generator, info.duration, static_cast<size_t>(info.samples), info.loop, info.alias, {} };
+            ClipRecord clip { entry.first, info.rig, info.generator, info.duration, static_cast<size_t>(info.samples), info.loop, info.alias, {}, {} };
             clip.parameters.reserve(info.parameters.size());
             for (const auto& parameter : info.parameters) {
                 validateIdentity(parameter.first);
                 if (!std::isfinite(parameter.second))
                     throw CatalogMetadataError("Animation catalog override must be finite.");
                 clip.parameters.push_back(parameter);
+            }
+            clip.controls = dust3d::animation::parameterDefinitions(entry.first);
+            for (const auto& control : clip.controls) {
+                validateIdentity(control.parameterName);
+                validateIdentity(control.displayName);
+                (void)dust3d::animation::parameterValue(control, control.minimumSliderValue);
+                (void)dust3d::animation::parameterValue(control, control.maximumSliderValue);
             }
             owner->clips.push_back(std::move(clip));
             rigs.insert(info.rig);
@@ -128,4 +137,70 @@ const char* dust3d_animation_catalog_bone_name(const Dust3DAnimationCatalog* cat
         return nullptr;
     const auto& bones = catalog->rigs[rigIndex].bones;
     return boneIndex < bones.size() ? bones[boneIndex].c_str() : nullptr;
+}
+
+namespace {
+const dust3d::animation::ParameterDefinition* controlAt(const Dust3DAnimationCatalog* catalog, size_t clipIndex, size_t controlIndex)
+{
+    if (!catalog || clipIndex >= catalog->clips.size())
+        return nullptr;
+    const auto& controls = catalog->clips[clipIndex].controls;
+    return controlIndex < controls.size() ? &controls[controlIndex] : nullptr;
+}
+template <typename Output, typename Operation>
+int convertControl(const Dust3DAnimationCatalog* catalog, size_t clipIndex, size_t controlIndex,
+    Output* output, Dust3DError* error, Operation operation)
+{
+    using namespace dust3d::native;
+    setError(error, DUST3D_STATUS_OK, "");
+    if (output)
+        *output = {};
+    const auto* control = controlAt(catalog, clipIndex, controlIndex);
+    if (!output || !control) {
+        setError(error, DUST3D_STATUS_INVALID_DOCUMENT, "Animation control conversion requires valid owner, indices and output.");
+        return 0;
+    }
+    try {
+        *output = operation(*control);
+        return 1;
+    } catch (const dust3d::animation::ParameterConversionError& cause) {
+        setError(error, DUST3D_STATUS_INVALID_DOCUMENT, cause.what());
+    } catch (const std::bad_alloc& cause) {
+        setError(error, DUST3D_STATUS_LIMIT_EXCEEDED, cause.what());
+    } catch (const std::exception& cause) {
+        setError(error, DUST3D_STATUS_GENERATION_FAILED, cause.what());
+    } catch (...) {
+        setError(error, DUST3D_STATUS_GENERATION_FAILED, "Unknown non-standard animation control conversion failure.");
+    }
+    return 0;
+}
+}
+size_t dust3d_animation_catalog_control_count(const Dust3DAnimationCatalog* catalog, size_t clipIndex)
+{
+    return catalog && clipIndex < catalog->clips.size() ? catalog->clips[clipIndex].controls.size() : 0;
+}
+int dust3d_animation_catalog_control_at(const Dust3DAnimationCatalog* catalog, size_t clipIndex, size_t controlIndex, Dust3DAnimationControlInfo* output)
+{
+    if (!output)
+        return 0;
+    *output = {};
+    const auto* control = controlAt(catalog, clipIndex, controlIndex);
+    if (!control)
+        return 0;
+    *output = { control->parameterName.c_str(), control->displayName.c_str(), control->defaultSliderValue,
+        control->minimumSliderValue, control->maximumSliderValue, control->defaultParameterValue,
+        control->sliderDivisor, control->parameterMultiplier };
+    return 1;
+}
+int dust3d_animation_catalog_control_value(const Dust3DAnimationCatalog* catalog, size_t clipIndex, size_t controlIndex,
+    int slider, double* output, Dust3DError* error)
+{
+    return convertControl(catalog, clipIndex, controlIndex, output, error,
+        [slider](const auto& control) { return dust3d::animation::parameterValue(control, slider); });
+}
+int dust3d_animation_catalog_control_slider(const Dust3DAnimationCatalog* catalog, size_t clipIndex, size_t controlIndex,
+    double value, int* output, Dust3DError* error)
+{
+    return convertControl(catalog, clipIndex, controlIndex, output, error,
+        [value](const auto& control) { return dust3d::animation::sliderValue(control, value); });
 }

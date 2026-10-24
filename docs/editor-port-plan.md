@@ -759,3 +759,6 @@ descriptor transport, native UI adoption, common timing/audio controls, Qt/runti
 interoperability, sampling/playback/audio and complete M6 acceptance remain open.
 No production pin or quarantine is changed. Earlier catalog publication still
 requires its qmake dependency backport before that foundation PR ships.
+
+
+ADR0102 adds owned C descriptor transport for all 1592 dynamic control definitions, preserving clip ABI and preset overrides. The Swift 6 smoke consumer copies strings/scalars before owner destruction and transfers immutable values across actors. Full Debug CMake/106 CTest, scoped ASan/UBSan and SwiftPM checks pass. Production SDK/UI adoption, separate common timing/audio widgets and full M6 runtime acceptance remain open; pin and quarantines are unchanged.
