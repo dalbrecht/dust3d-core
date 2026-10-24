@@ -51,7 +51,8 @@ namespace animation {
     /** Convert finite stored value with inherited truncation toward zero, then reject indices outside range.
      * @param definition Valid descriptor; raw defaults can be outside widget range and are not silently clamped.
      * @param value Numerical value to convert, not arbitrary stored text.
-     * @return In-range index; throws typed nonfinite/representation/range/definition cause before integer cast.
+     * @return In-range index; typed definition/nonfinite/representation checks precede the cast.
+     * Widget bounds are checked on the representable truncated index.
      * Quantization is not an exact numerical round trip. Example: `sliderValue(definition, 0.15)`.
      */
     int sliderValue(const ParameterDefinition& definition, double value);
