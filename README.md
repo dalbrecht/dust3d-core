@@ -733,3 +733,9 @@ or logging document data. Early transport failures retain their existing typed O
 causes; the new owned context applies after collection. Apple integration and
 strong containment remain separate. See
 [ADR 0075](docs/adr/0075-parent-resource-admission.md).
+
+`native/Engine/FbxGeometrySelection.h` copies ordered source-face subsets into
+independent geometry owners while preserving double positions and shared vertex
+identities. It supports replacement corner UVs and bounded count/capacity
+admission. Other Object/document metadata is excluded. See ADR0084 for measured
+coverage, independent selected-face import and remaining export integration.

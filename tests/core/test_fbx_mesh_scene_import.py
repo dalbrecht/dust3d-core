@@ -101,3 +101,34 @@ class FbxMeshSceneImportTests(unittest.TestCase):
         result = subprocess.run([sys.executable, '-B', '-O', str(SCRIPT), str(self.path)],
                                 capture_output=True, text=True, timeout=10)
         self.assertEqual(result.returncode, 0, result.stderr)
+
+
+    def selected_fixture(self):
+        self.root.find('.//Positions').text = '0 0 0 0 0 4 2 0 0'
+        self.root.find('.//Normals').text = '0 1 0 0 1 0 0 1 0'
+        self.root.find('.//TextureCoords').text = '.125 .75 .5 .25 .875 0'
+        faces = self.root.find('.//FaceList')
+        faces.remove(faces.findall('Face')[1])
+
+    def test_should_accept_selected_face_with_replacement_uvs(self):
+        self.selected_fixture()
+        self.write()
+        self.module.verify(self.path, selected_face=True)
+
+    def test_should_reject_selected_face_with_changed_uv(self):
+        self.selected_fixture()
+        self.root.find('.//TextureCoords').text = '.25 .75 .5 .25 .875 0'
+        self.write()
+        with self.assertRaises(ValueError):
+            self.module.verify(self.path, selected_face=True)
+
+    def test_should_verify_selected_face_with_optimized_python(self):
+        self.selected_fixture()
+        self.write()
+        command = [sys.executable, '-B', '-O', str(SCRIPT), str(self.path), '--selected-face']
+        result = subprocess.run(command, capture_output=True, text=True, timeout=10)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.root.find('.//Normals').text = '0 0 1 0 0 1 0 0 1'
+        self.write()
+        result = subprocess.run(command, capture_output=True, text=True, timeout=10)
+        self.assertNotEqual(result.returncode, 0)
