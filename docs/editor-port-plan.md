@@ -697,3 +697,6 @@ ADR0095 adds bounded serial headless batch export with cross-job source protecti
 
 
 ADR0096 adds upstream single-source -o/-output argument expansion, bounded target admission and aggregate status compatibility through the shared serial export use case. Tests cover actual OBJ/FBX success and recoverable unsupported-format failure. Paste-XML/color-toggle/one-generation parity and the rest of M7 remain open.
+
+
+ADR0097 adds serial ordinary static-export timing receipts with fixture/executable hashes and failure-aware sample admission. Fresh Debug contracts pass 100/100; six ordinary Release samples on the licensed Capsule and Sword fixtures qualify with stable hashes. These single samples include process startup and IO, not statistical production budgets. Phase/peak-memory/GPU/editor-latency, larger-document and cross-hardware acceptance remain required; M8 is incomplete.
