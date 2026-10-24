@@ -73,3 +73,26 @@ Parser:43/43 lines and64/64 regions100%,47/50 branch outcomes94%. Batch executio
 interruption, cleanup and generic-exception paths remain gaps. These measurements
 are not whole-core coverage. Pins and all quarantines remain unchanged; native
 editor adoption and full M7 acceptance are still open.
+
+
+## Delivery on the reviewed OBJ command parent
+
+PR149 merged at fa3d8616 after completed clean exact-head Codex review and all
+six CI checks green. Replay this stage onto that accepted parent, retaining its
+mesh-reference verifier correction. Full-tree equality proves the ancestry-only
+rebase preserves batch source. A post-rebase build precedes all fresh execution.
+
+Fresh Debug CMake/98 CTest pass19.42s. All16 CLI filesystem contracts pass against
+both CMake and SwiftPM commands. SwiftPM builds7.70s. A fresh strict-warning scoped
+ASan/UBSan command instruments the CLI and OBJ boundary; all16 filesystem contracts
+pass1.195s. Inherited libraries and system zlib remain outside that instrumentation.
+Fresh mixed batches from both commands produce equal2492-byte OBJ and9706-byte
+FBX files. Fresh positive Assimp OBJ dumps pass the strengthened optimized verifier,
+including node-to-mesh binding. This compares emitted text and does not independently
+prove generator precision or new complete FBX/material parity. No malformed scene
+reaches a native importer. Source/binary/output hashes and logs are retained.
+
+No production pin, quarantined path or protected app changes. No new scoped
+coverage measurement or full M7 acceptance claim. This is headless core behavior;
+there is no UI screenshot to validate. The new PR still requires completed clean
+exact-head automated review and every CI check green before merge.
