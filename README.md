@@ -591,6 +591,12 @@ included. See [ADR 0068](docs/adr/0068-bounded-worker-scheduling.md) (#115).
 
 ### FBX convention foundation (development)
 
+`native/Engine/FbxNode.h` supplies move-only immutable property/child trees with
+checked aggregate depth, count, retained capacity and exact FBX7400 record sizes.
+It does not emit a complete document or file. Child/property arguments may be
+consumed on construction failure; borrowed values expire on move/destruction.
+See [ADR 0080](docs/adr/0080-recovered-fbx-nodes.md).
+
 `native/Engine/FbxPropertyBlock.h` supplies a move-only bounded property buffer
 for FBX7400 scalars, binary strings/raw values and uncompressed arrays. It checks
 byte/count admission before growth, preserves prior bytes/count on rejection and
