@@ -810,3 +810,32 @@ The headless command now also accepts one source with repeated -o/-output target
 
 
 Use tools/benchmark_static_exports.py after a fresh source-audited Release build to collect ordinary Capsule/Sword static-export process wall times. tools/benchmark-static-exports.md documents hashes, diagnostic receipts and the limits: this is not peak-memory/GPU/large-model or full M8 acceptance.
+
+## Generator-free animation metadata
+
+The C++17 core compiles `dust3d/animation/animation_catalog.h` and the additional
+biped declaration metadata without linking animation generators. `clipCatalog()`
+returns the inherited 180 types (176 current choices plus four legacy aliases),
+including rig/generator identity, duration, sample count, loop flag and numeric
+default overrides. `standardBones(rig)` retains case-sensitive lookup and an empty
+result for unknown rigs. References are immutable and valid until static shutdown;
+C++ construction errors propagate to the C++ caller. This is not yet a C ABI or
+Swift catalog API, and it does not establish native sampling/playback acceptance.
+
+```cpp
+#include <dust3d/animation/animation_catalog.h>
+const auto& catalog = dust3d::animation::clipCatalog();
+auto found = catalog.find("BipedWalk");
+if (found != catalog.end()) {
+    const double seconds = found->second.duration;
+    const int samples = found->second.samples;
+    // Metadata only; no generator is invoked.
+}
+```
+
+See [catalog verification](docs/animation-catalog-metadata-verification.md) for
+inventory/provenance and [ADR 0098](docs/adr/0098-generator-free-animation-catalog.md)
+for the shared declaration design. Per-parameter editor descriptors, C/Swift
+owned-copy adapters, Qt/native interoperability and runtime acceptance remain open
+under [Apple #145](https://github.com/dalbrecht/dust3d-swiftui/issues/145). Core #95
+and all other quarantines and the Apple production pin remain unchanged.

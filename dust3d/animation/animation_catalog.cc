@@ -21,7 +21,7 @@
  */
 
 #include <dust3d/animation/animation_catalog.h>
-#include <dust3d/animation/biped/clip_catalog.h>
+#include <dust3d/animation/biped/clip_metadata.h>
 #include <utility>
 #include <vector>
 
@@ -166,7 +166,7 @@ namespace animation {
             std::map<std::string, ClipInfo> result;
             for (const auto& clip : clips())
                 result[clip.name] = { clip.rig, clip.name, false, clip.duration, clip.samples, clip.loop, clip.parameters };
-            for (const auto& clip : biped::additionalClips())
+            for (const auto& clip : biped::additionalClipMetadata())
                 result[clip.type] = { "Biped", clip.type, false, clip.duration, clip.samples, clip.loop, {} };
             for (const auto& alias : g_aliases) {
                 ClipInfo info = result.at(alias.second);

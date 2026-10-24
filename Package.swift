@@ -33,7 +33,9 @@ let package = Package(
             name: "Dust3DCore",
             dependencies: ["AutoRemesher", "TriangleIntersection"],
             path: "dust3d",
-            sources: ["base", "mesh", "rig", "uv"],
+            sources: [
+                "base", "mesh", "rig", "uv", "animation/animation_catalog.cc", "animation/biped/clip_metadata.cc",
+            ],
             publicHeadersPath: "include",
             cxxSettings: [
                 .headerSearchPath("../third_party/autoremesher/tbbshim"),
