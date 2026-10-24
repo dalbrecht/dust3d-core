@@ -64,7 +64,8 @@ editor/file-preview adoption and full import/export parity remain separate stage
 
 ## Build and test without Qt
 
-Requires CMake 3.20+, a C/C++17 compiler and platform thread support. No Swift,
+Requires CMake 3.20+, a C/C++17 compiler, platform thread support and system zlib
+headers/library (for example `zlib1g-dev` on Debian/Ubuntu; macOS SDK provides it). No Swift,
 Qt, display server or external geometry download is needed.
 
 ```bash
@@ -78,7 +79,7 @@ ctest --test-dir build --output-on-failure
 For ASan/UBSan, configure a separate build with `-DDUST3D_ENABLE_SANITIZERS=ON`.
 The `dust3d_engine` CMake target links the required core/remesher dependencies;
 its public header is `native/Engine/include/Dust3DBridge.h`. Direct static-library
-consumers must link those transitive archives too. No installable SDK or stable
+consumers must link those transitive archives and system zlib (`-lz`) too. No installable SDK or stable
 binary ABI release is promised by this initial source setup.
 
 The current API provides procedural/imported geometry previews, optional source
@@ -749,3 +750,8 @@ is not yet a C API or app export command.
 call's `UvMetadata` when retaining original export geometry. Missing outputs or
 unknown atlas mappings reject explicitly. ADR0086 records real procedural-bake
 alignment, scoped coverage and remaining source-aware export integration.
+
+`native/Engine/PngEncoding.h` encodes tightly packed baked RGBA8 pixels as owned
+PNG bytes through system zlib. It validates dimensions/spans and bounds encoded
+output without full filtered-image staging. See ADR0087 for independent pixel/
+CRC validation, dependency/license rationale and unforced boundary coverage gaps.

@@ -17,6 +17,7 @@ endif()
 
 include(cmake/CoreSources.cmake)
 find_package(Threads REQUIRED)
+find_package(ZLIB REQUIRED)
 add_library(dust3d_triangle STATIC third_party/GuigueDevillers03/tri_tri_intersect.c)
 target_include_directories(dust3d_triangle PUBLIC third_party/GuigueDevillers03)
 add_library(dust3d_remesher STATIC ${DUST3D_REMESHER_SOURCES})
@@ -34,6 +35,7 @@ target_include_directories(dust3d_core PUBLIC
     third_party/earcut.hpp/include)
 target_link_libraries(dust3d_core PUBLIC dust3d_remesher dust3d_triangle Threads::Threads)
 add_library(dust3d_engine STATIC
+    native/Engine/PngEncoding.cc
     native/Engine/FbxAtlasGeometry.cc
     native/Engine/FbxGeometrySelection.cc
     native/Engine/FbxMaterialImagePlan.cc
@@ -61,7 +63,7 @@ add_library(dust3d_engine STATIC
     native/Engine/DocumentReader.cc
     native/Engine/SnapshotValidator.cc)
 target_include_directories(dust3d_engine PUBLIC native/Engine/include)
-target_link_libraries(dust3d_engine PRIVATE dust3d_core)
+target_link_libraries(dust3d_engine PRIVATE dust3d_core ZLIB::ZLIB)
 
 add_library(dust3d_worker_protocol STATIC native/Engine/WorkerProtocol.cc native/Engine/WorkerMesh.cc native/Engine/WorkerFailure.cc native/Engine/WorkerAdmission.cc native/Engine/WorkerQueue.cc native/Engine/WorkerLifetime.cc native/Engine/WorkerResources.cc native/Engine/WorkerResourceLaunch.cc)
 target_include_directories(dust3d_worker_protocol PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
@@ -130,6 +132,11 @@ if(BUILD_TESTING)
 
 
 
+    add_executable(dust3d_png_encoding_tests tests/core/png_encoding_tests.cc)
+    target_include_directories(dust3d_png_encoding_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} native/Engine)
+    target_link_libraries(dust3d_png_encoding_tests PRIVATE dust3d_engine)
+    add_test(NAME png_encoding_contracts COMMAND dust3d_png_encoding_tests)
+    set_tests_properties(png_encoding_contracts PROPERTIES TIMEOUT 30)
     add_executable(dust3d_fbx_generation_geometry_tests tests/core/fbx_generation_geometry_tests.cc)
     target_include_directories(dust3d_fbx_generation_geometry_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} native/Engine)
     target_link_libraries(dust3d_fbx_generation_geometry_tests PRIVATE dust3d_engine)
@@ -153,6 +160,10 @@ if(BUILD_TESTING)
     # Optional standard-library acceptance tooling does not add a production dependency.
     find_package(Python3 QUIET COMPONENTS Interpreter)
     if(Python3_Interpreter_FOUND)
+        add_test(NAME png_encoding_independent_contracts COMMAND "${Python3_EXECUTABLE}" -B -O
+            "${CMAKE_CURRENT_SOURCE_DIR}/tests/core/verify_png_encoding.py" $<TARGET_FILE:dust3d_png_encoding_tests>)
+        set_tests_properties(png_encoding_independent_contracts PROPERTIES TIMEOUT 90
+            ENVIRONMENT "DUST3D_BUILD_ROOT=${CMAKE_CURRENT_BINARY_DIR}")
         add_test(NAME fbx_mesh_scene_verifier_contracts COMMAND "${Python3_EXECUTABLE}" -B -m unittest discover
             -s "${CMAKE_CURRENT_SOURCE_DIR}/tests/core" -p test_fbx_mesh_scene_import.py)
         set_tests_properties(fbx_mesh_scene_verifier_contracts PROPERTIES TIMEOUT 30

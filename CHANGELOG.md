@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add bounded portable RGBA PNG encoding through system zlib for baked export maps, with independent pixel/alpha/CRC verification (#99).
+
 - Align opt-in original FBX geometry with complete packed procedural atlas UVs, rejecting unknown mappings explicitly (#99).
 
 - Add an opt-in original double-geometry generation output for static FBX, preserving prior ownership on rejection (#99).
