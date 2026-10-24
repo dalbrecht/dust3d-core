@@ -807,3 +807,6 @@ The Qt-free command accepts --batch followed by at most64 explicit input/output 
 
 
 The headless command now also accepts one source with repeated -o/-output targets. These share batch source-protection/publication checks; aggregate legacy failure returns1. ADR0096 documents argument/status compatibility and the remaining Qt workflow gaps.
+
+
+Use tools/benchmark_static_exports.py after a fresh source-audited Release build to collect ordinary Capsule/Sword static-export process wall times. tools/benchmark-static-exports.md documents hashes, diagnostic receipts and the limits: this is not peak-memory/GPU/large-model or full M8 acceptance.

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add serial known-positive static-export timing receipts with executable/input hashes and explicit acceptance limits (#99).
+
 - Accept bounded upstream-style single-source -o/-output expansion with recoverable per-target failures and legacy aggregate exit status (#99).
 
 - Add bounded serial OBJ/FBX batch exports with cross-job source protection,

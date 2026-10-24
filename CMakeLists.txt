@@ -197,6 +197,12 @@ if(BUILD_TESTING)
             -s "${CMAKE_CURRENT_SOURCE_DIR}/tests/core" -p test_generated_obj_import.py)
         set_tests_properties(generated_obj_verifier_contracts generated_obj_verifier_optimized_contracts PROPERTIES TIMEOUT 30
             ENVIRONMENT "DUST3D_BUILD_ROOT=${CMAKE_CURRENT_BINARY_DIR}")
+        add_test(NAME static_export_benchmark_contracts COMMAND "${Python3_EXECUTABLE}" -B -m unittest discover
+            -s "${CMAKE_CURRENT_SOURCE_DIR}/tests/core" -p test_static_export_benchmark.py)
+        add_test(NAME static_export_benchmark_optimized_contracts COMMAND "${Python3_EXECUTABLE}" -B -O -m unittest discover
+            -s "${CMAKE_CURRENT_SOURCE_DIR}/tests/core" -p test_static_export_benchmark.py)
+        set_tests_properties(static_export_benchmark_contracts static_export_benchmark_optimized_contracts PROPERTIES TIMEOUT 30
+            ENVIRONMENT "DUST3D_BUILD_ROOT=${CMAKE_CURRENT_BINARY_DIR}")
         add_test(NAME obj_scene_verifier_contracts COMMAND "${Python3_EXECUTABLE}" -B -m unittest discover
             -s "${CMAKE_CURRENT_SOURCE_DIR}/tests/core" -p test_obj_scene_import.py)
         add_test(NAME obj_scene_verifier_optimized_contracts COMMAND "${Python3_EXECUTABLE}" -B -O -m unittest discover
