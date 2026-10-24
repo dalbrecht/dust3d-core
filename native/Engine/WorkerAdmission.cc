@@ -8,10 +8,10 @@ namespace worker {
         , m_code(code)
     {
     }
-    PendingReply::PendingReply(const Header& request)
+    PendingReply::PendingReply(const Header& request, const Limits& requestLimits)
         : m_request(request)
     {
-        encodeHeader(request, {});
+        encodeHeader(request, requestLimits);
         if (request.kind != FrameKind::request)
             throw AdmissionError(AdmissionErrorCode::invalidRequest, "Pending work requires a request header");
     }

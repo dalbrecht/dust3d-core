@@ -2,6 +2,17 @@
 
 Status: local implementation for #115; public review and hosted CI pending.
 
+## PR #124 review correction
+
+Request admission now receives the queue/transport's configured wire limits rather
+than silently applying the default input quota a second time. The constructor's
+default remains source-compatible. A header-only regression advertises one byte
+above the default 128 MiB input limit, rejects default/too-small/invalid limits,
+and admits a tiny typed failure reply using the configured limit. No large payload
+is allocated and no large archive/helper or resource-exhaustion probe is run.
+Actual helper dispatch still requires a helper configured for compatible quotas;
+this change does not increase the production helper's default input limit.
+
 ## Decision
 
 Add a standard-library-only RequestQueue beside the existing worker codecs and

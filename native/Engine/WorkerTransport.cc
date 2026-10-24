@@ -167,7 +167,7 @@ namespace worker {
             || limits.maximumIoChunkBytes == 0 || limits.maximumIoChunkBytes > 65536
             || limits.maximumCapturedDiagnosticBytes == 0 || limits.maximumCapturedDiagnosticBytes > maximumDiagnosticBytes)
             throw TransportError(TransportErrorCode::invalidConfiguration, EINVAL, "worker configuration");
-        PendingReply preflight(request.header);
+        PendingReply preflight(request.header, limits.wire);
         const auto wire = encodeFrame(request, limits.wire);
         CollectedJob result;
         result.reply.reserve(headerBytes);

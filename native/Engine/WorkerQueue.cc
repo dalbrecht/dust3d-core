@@ -68,7 +68,7 @@ namespace worker {
             throw QueueError(QueueErrorCode::unexpectedCompletion, "Worker completion has no matching active request");
         const auto request = *m_active;
         m_active.reset();
-        PendingReply pending(request);
+        PendingReply pending(request, m_limits);
         if (!m_current)
             pending.retire();
         return pending.complete(m_current.value_or(request.identity), outcome, bytes, size,
