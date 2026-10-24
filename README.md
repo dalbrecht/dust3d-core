@@ -623,3 +623,16 @@ finite effective caps never raise inherited limits. Planning is pure and makes n
 OS calls; zero inherited caps can still make actual helper startup impossible.
 This is not RSS, filesystem or descendant containment and is not wired into the
 helper or Apple app. See [ADR 0072](docs/adr/0072-worker-resource-planning.md) (#123).
+
+
+### Private helper resource setup (development)
+
+`prepareWorkerResources` gathers requested resource observations, validates the
+whole profile and applies finite effective caps in order. ResourceSetupError
+preserves the original OS code, operation and resource; a caller must exit setup
+on failure and must not process an archive. The macOS/Linux UnixResourceSystem
+uses an explicit syscall seam and checked finite/infinity conversion. Actual
+SystemUnixResourceCalls must only be constructed in a fresh helper. These private
+libraries are built but not activated in the helper, transport or Apple app.
+Recording tests never change limits in the test runner. See
+[ADR 0073](docs/adr/0073-helper-resource-setup.md) for activation and evidence gaps.

@@ -525,3 +525,23 @@ ASan/UBSan and scoped planner coverage pass. No getrlimit/setrlimit adapter,
 helper launch/profile contract, enforced cap or production adoption is included.
 Actual startup viability and containment remain subsequent acceptance gates; this
 does not close M8 or change a production pin or quarantine.
+
+
+### Private helper resource setup adapter (#123)
+
+[ADR 0073](adr/0073-helper-resource-setup.md) adds complete-profile validation before
+ordered application, captured original OS errors and a checked private macOS/Linux
+adapter. Final ordinary contracts pass 64/64 and focused ASan/UBSan passes using a
+recording syscall backend. Real getrlimit/setrlimit wrappers compile but are not
+executed in tests or wired into the helper; no caps are installed. Trusted launch
+identity, startup viability, reviewed budgets, ordinary effective-limit evidence
+and broader containment/Apple adoption remain required. M8 remains incomplete.
+
+### Ordinary helper resource observation
+
+ADR 0073 records fresh Capsule/Sword child CPU and peak-resident measurements
+with exact binary/source/fixture and macOS provenance; both results pass native
+float-bit verification. These two single-run observations install no caps and do
+not establish production budgets, larger-document behavior, RSS containment or
+full M8 acceptance. The initial denied timing query is recorded separately from
+the successful normal wait4 observations, without a crash or exhaustion probe.
