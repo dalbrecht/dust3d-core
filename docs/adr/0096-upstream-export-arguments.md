@@ -55,3 +55,26 @@ whole-core coverage claim is made.
 Production dependency pins, GLB/animation/rig quarantines and native app behavior
 are unchanged. Reviewed native binding/UI adoption, remaining format workflows
 and full M7 acceptance remain open.
+
+
+## Delivery preparation on the serial batch PR
+
+Replay this stage onto publicPR150 head f5a6eafb, preserving PR149's scene-binding
+verifier correction and the batch delivery evidence. Runtime/CLI test sources
+remain byte-identical to the original audited be82245b stage. The parent is still
+review-gated; this preparation is not another public PR or merged functionality.
+
+Fresh Debug CMake build and all98 ordinary CTest contracts pass19.02s. All20 CLI
+cases pass against CMake and SwiftPM products. SwiftPM builds0.80s. Fresh strict-
+warning scoped CLI/OBJ-boundary ASan/UBSan passes20 cases1.426s; inherited libraries
+and system zlib are not instrumented. New positive expansions place one output
+flag before the source and another after it, produce equal2492-byte OBJ/9706-byte
+FBX across products, and pass the strengthened optimized verifier on both fresh
+Assimp OBJ dumps. These compare emitted text, not independent generator precision
+or a new full FBX acceptance. All negative scene mutations remain Python-only.
+
+No new coverage measurement, production pin change, protected app control or
+quarantined runtime work. Before publication, place the stage on accepted master,
+verify tree/source provenance and rerun the delivery gate if anything changes.
+Completed exact-head automated review and all green CI remain mandatory; full
+M7 and native editor integration are still incomplete.
