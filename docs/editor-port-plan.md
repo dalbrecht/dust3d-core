@@ -608,3 +608,8 @@ no rig, animation, GLB or Apple production path is enabled by this foundation.
 Immutable owned FBX node trees are recovered under ADR 0080, with aggregate
 depth/count/capacity and record-size contracts. Complete document serialization,
 real scenes and independent consumers remain required before M7 acceptance.
+
+Owned FBX7400 container encoding is recovered under ADR 0081, including checked
+absolute offsets and a test-only known-positive reference-codec comparison.
+Actual scene construction and independent geometry/material re-import remain
+open; structural container agreement does not establish full export parity.

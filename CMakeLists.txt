@@ -34,6 +34,7 @@ target_include_directories(dust3d_core PUBLIC
     third_party/earcut.hpp/include)
 target_link_libraries(dust3d_core PUBLIC dust3d_remesher dust3d_triangle Threads::Threads)
 add_library(dust3d_engine STATIC
+    native/Engine/FbxDocument.cc
     native/Engine/FbxNode.cc
     native/Engine/FbxPropertyBlock.cc
     native/Engine/FbxAnimationMath.cc
@@ -123,6 +124,24 @@ if(BUILD_TESTING)
 
 
 
+    # Existing MIT codec is an ordinary known-positive test oracle, never a product dependency.
+    add_library(dust3d_fbx_reference STATIC
+        application/third_party/fbx/src/fbxdocument.cpp
+        application/third_party/fbx/src/fbxnode.cpp
+        application/third_party/fbx/src/fbxproperty.cpp
+        application/third_party/fbx/src/fbxutil.cpp
+        application/third_party/miniz/miniz.c)
+    target_include_directories(dust3d_fbx_reference PUBLIC application/third_party/fbx/src PRIVATE application/third_party/miniz)
+    add_executable(dust3d_fbx_reference_tests tests/core/fbx_reference_tests.cc)
+    target_include_directories(dust3d_fbx_reference_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} native/Engine)
+    target_link_libraries(dust3d_fbx_reference_tests PRIVATE dust3d_engine dust3d_fbx_reference)
+    add_test(NAME fbx_reference_contracts COMMAND dust3d_fbx_reference_tests "${CMAKE_CURRENT_BINARY_DIR}")
+    set_tests_properties(fbx_reference_contracts PROPERTIES TIMEOUT 30)
+    add_executable(dust3d_fbx_document_tests tests/core/fbx_document_tests.cc)
+    target_include_directories(dust3d_fbx_document_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} native/Engine)
+    target_link_libraries(dust3d_fbx_document_tests PRIVATE dust3d_engine)
+    add_test(NAME fbx_document_contracts COMMAND dust3d_fbx_document_tests)
+    set_tests_properties(fbx_document_contracts PROPERTIES TIMEOUT 30)
     add_executable(dust3d_fbx_node_tests tests/core/fbx_node_tests.cc)
     target_include_directories(dust3d_fbx_node_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} native/Engine)
     target_link_libraries(dust3d_fbx_node_tests PRIVATE dust3d_engine)

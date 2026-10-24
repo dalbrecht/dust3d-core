@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Restore bounded owned FBX7400 container encoding and known-positive structural compatibility tests against the existing reference codec (#99).
+
 - Restore immutable owned FBX node trees with checked depth, count, retained capacity and encoded-size metadata (#99).
 
 - Restore bounded, owned FBX7400 property encoding with explicit little-endian bytes and append-state preservation (#99).
