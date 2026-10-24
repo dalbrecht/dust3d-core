@@ -113,3 +113,15 @@ Two small fixtures do not characterize complex modifiers, imports, textures,
 large documents, sanitizer overhead, release builds or other OS/architectures.
 No production budgets or RSS enforcement claims are derived from these numbers.
 The separate reviewed launch/profile and containment gates above remain required.
+
+## Rebased setup verification
+
+Rebased onto resource-policy stage 5f0a92be, preserving reviewed request limits
+and supervised ownership. Setup/adapter/test sources remain byte-identical to
+saved f92d5cb8. Fresh normal CMake/CTest on ecc396b2 passes 64/64 in 34.22s.
+A fresh strict-warning ASan/UBSan standalone setup/Unix-adapter contract suite
+passes using RecordingCalls exclusively; real syscall wrappers remain unexecuted
+and unenforced by these tests. Formatting and the source quarantine guard pass.
+This is scoped sanitizer evidence, not a fresh whole-engine sanitizer run.
+Products are cleaned and the original SVG side effect restored after terminal
+gates. No production activation, pin or quarantine change is made.
