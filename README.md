@@ -591,6 +591,14 @@ included. See [ADR 0068](docs/adr/0068-bounded-worker-scheduling.md) (#115).
 
 ### FBX convention foundation (development)
 
+`native/Engine/FbxMeshScene.h` encodes a geometry-only static scene from a bounded
+`Object`, preserving source indexing, winding, optional corner normals/UVs and
+reference axis/unit metadata. The pure `FbxMeshScenePlan.h` admits scalar counts
+and staging bytes before allocation. Materials, rig/animation, full-document and
+Apple UI/CLI export remain separate work. The optional Assimp fixture verifier
+uses only Python's standard library; its value regressions join CTest when Python
+is available. See [ADR 0082](docs/adr/0082-recovered-fbx-mesh-scenes.md).
+
 `native/Engine/FbxDocument.h` preflights immutable node forests and returns owned
 FBX7400 container bytes with checked absolute offsets, terminators and the MIT
 reference footer. Source nodes remain unchanged; no destination file is written.

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Restore geometry-only FBX scene encoding with indexed positions, corner normals/UVs, pure staging admission and optimization-safe importer verification (#99).
+
 - Restore bounded owned FBX7400 container encoding and known-positive structural compatibility tests against the existing reference codec (#99).
 
 - Restore immutable owned FBX node trees with checked depth, count, retained capacity and encoded-size metadata (#99).

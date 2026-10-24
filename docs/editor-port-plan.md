@@ -613,3 +613,8 @@ Owned FBX7400 container encoding is recovered under ADR 0081, including checked
 absolute offsets and a test-only known-positive reference-codec comparison.
 Actual scene construction and independent geometry/material re-import remain
 open; structural container agreement does not establish full export parity.
+
+The static geometry scene builder is recovered under ADR 0082, with pure count/
+staging admission, immutable source ownership and an optimization-safe optional
+import verifier. Geometry-only output leaves materials, rig/animation, full
+document/export orchestration and broad independent-consumer acceptance open.
