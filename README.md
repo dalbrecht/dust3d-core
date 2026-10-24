@@ -755,3 +755,9 @@ alignment, scoped coverage and remaining source-aware export integration.
 PNG bytes through system zlib. It validates dimensions/spans and bounds encoded
 output without full filtered-image staging. See ADR0087 for independent pixel/
 CRC validation, dependency/license rationale and unforced boundary coverage gaps.
+
+`native/Engine/FbxBakedMaterial.h` turns borrowed baked map views into owned PNG
+channels with an aggregate retained-buffer quota and neutral material factors.
+ADR0088 records a generated procedural scene re-import, comparing original
+corners, packed UVs and raw baked pixels independently. This remains an internal
+building block; the export C ABI and editor command are not yet exposed.

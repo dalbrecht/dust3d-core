@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Connect baked RGBA maps to owned FBX atlas materials with aggregate PNG capacity admission and independent generated-scene pixel/geometry verification (#99).
+
 - Add bounded portable RGBA PNG encoding through system zlib for baked export maps, with independent pixel/alpha/CRC verification (#99).
 
 - Align opt-in original FBX geometry with complete packed procedural atlas UVs, rejecting unknown mappings explicitly (#99).

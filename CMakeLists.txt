@@ -35,6 +35,7 @@ target_include_directories(dust3d_core PUBLIC
     third_party/earcut.hpp/include)
 target_link_libraries(dust3d_core PUBLIC dust3d_remesher dust3d_triangle Threads::Threads)
 add_library(dust3d_engine STATIC
+    native/Engine/FbxBakedMaterial.cc
     native/Engine/PngEncoding.cc
     native/Engine/FbxAtlasGeometry.cc
     native/Engine/FbxGeometrySelection.cc
@@ -132,6 +133,11 @@ if(BUILD_TESTING)
 
 
 
+    add_executable(dust3d_fbx_baked_material_tests tests/core/fbx_baked_material_tests.cc)
+    target_include_directories(dust3d_fbx_baked_material_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} native/Engine)
+    target_link_libraries(dust3d_fbx_baked_material_tests PRIVATE dust3d_engine)
+    add_test(NAME fbx_baked_material_contracts COMMAND dust3d_fbx_baked_material_tests)
+    set_tests_properties(fbx_baked_material_contracts PROPERTIES TIMEOUT 30)
     add_executable(dust3d_png_encoding_tests tests/core/png_encoding_tests.cc)
     target_include_directories(dust3d_png_encoding_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} native/Engine)
     target_link_libraries(dust3d_png_encoding_tests PRIVATE dust3d_engine)
@@ -160,6 +166,12 @@ if(BUILD_TESTING)
     # Optional standard-library acceptance tooling does not add a production dependency.
     find_package(Python3 QUIET COMPONENTS Interpreter)
     if(Python3_Interpreter_FOUND)
+        add_test(NAME fbx_baked_scene_verifier_contracts COMMAND "${Python3_EXECUTABLE}" -B -m unittest discover
+            -s "${CMAKE_CURRENT_SOURCE_DIR}/tests/core" -p test_fbx_baked_scene_import.py)
+        add_test(NAME fbx_baked_scene_verifier_optimized_contracts COMMAND "${Python3_EXECUTABLE}" -B -O -m unittest discover
+            -s "${CMAKE_CURRENT_SOURCE_DIR}/tests/core" -p test_fbx_baked_scene_import.py)
+        set_tests_properties(fbx_baked_scene_verifier_contracts fbx_baked_scene_verifier_optimized_contracts PROPERTIES TIMEOUT 30
+            ENVIRONMENT "DUST3D_BUILD_ROOT=${CMAKE_CURRENT_BINARY_DIR}")
         add_test(NAME png_encoding_independent_contracts COMMAND "${Python3_EXECUTABLE}" -B -O
             "${CMAKE_CURRENT_SOURCE_DIR}/tests/core/verify_png_encoding.py" $<TARGET_FILE:dust3d_png_encoding_tests>)
         set_tests_properties(png_encoding_independent_contracts PROPERTIES TIMEOUT 90

@@ -649,3 +649,11 @@ Baked RGBA images can now be encoded as bounded PNGs through system zlib
 (ADR0087), with independent optimized-Python CRC/pixel/alpha/row checks. Actual
 map-to-material orchestration, imported policy groups, C ABI, atomic destinations,
 UI/CLI and generated textured-scene acceptance remain open. M4/M7 remain incomplete.
+
+
+Baked maps now form owned static FBX materials under an aggregate PNG capacity
+budget (ADR0088). One generated procedural Capsule scene independently re-imports
+with original positions/normals/winding, packed UVs, material bindings and exact
+color/metallic/roughness/emissive pixels. Source-aware policy groups, actual baked
+normal/AO and renderer agreement, export C ABI, atomic output and native UI/CLI
+remain open; this evidence does not complete M4/M7 or full editor parity.
