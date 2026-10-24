@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Expose common timing limits and precision-preserving checked edits through C, verified by a Swift 6 value-copy consumer ([Apple #145](https://github.com/dalbrecht/dust3d-swiftui/issues/145)).
+
 - Share reference animation timing limits and validate explicit timing edits without rounding stored duration or evaluating frames ([Apple #145](https://github.com/dalbrecht/dust3d-swiftui/issues/145)).
 
 - Expose owned animation control descriptors and checked conversion through the C API, with Swift 6 owned-copy verification ([Apple #145](https://github.com/dalbrecht/dust3d-swiftui/issues/145)).
