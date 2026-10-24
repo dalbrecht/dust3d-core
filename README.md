@@ -591,6 +591,12 @@ included. See [ADR 0068](docs/adr/0068-bounded-worker-scheduling.md) (#115).
 
 ### FBX convention foundation (development)
 
+`native/Engine/FbxDocument.h` preflights immutable node forests and returns owned
+FBX7400 container bytes with checked absolute offsets, terminators and the MIT
+reference footer. Source nodes remain unchanged; no destination file is written.
+The existing vendor codec is linked only by a known-positive test oracle. Complete
+scene/importer acceptance remains required; see [ADR 0081](docs/adr/0081-recovered-fbx-documents.md).
+
 `native/Engine/FbxNode.h` supplies move-only immutable property/child trees with
 checked aggregate depth, count, retained capacity and exact FBX7400 record sizes.
 It does not emit a complete document or file. Child/property arguments may be

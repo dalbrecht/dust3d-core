@@ -9,7 +9,9 @@ a GitHub fork and can host focused upstream contribution branches.
 Initial upstream revision: `3fbcaa7a3e8792d1c2ca31ca2ade442dcd21b222`.
 `upstream-sync` is untouched upstream history. `master` contains maintained core
 additions. Original source paths, copyright, MIT license and third-party license
-files are retained. The Qt tree is reference-only and never compiled by CMake.
+files are retained. Qt application sources remain reference-only. The existing
+portable FBX vendor codec is compiled only by a known-positive compatibility
+test target; native products never link that test-only codec or Qt.
 
 After cloning:
 
