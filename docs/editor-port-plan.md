@@ -594,3 +594,8 @@ reference truncation/tie semantics (ADR 0077). This does not restore serializers
 animation evaluation, Apple adoption or independent-consumer acceptance. Recover
 the remaining archived export stages through separate audits and review gates;
 M7 remains incomplete.
+
+Rigid matrix validation and reference XYZ Euler extraction are recovered as pure
+value operations under ADR 0078, with a standalone fixed matrix type and no rig
+generation or pose evaluation. Remaining saved serializers and owners require
+their own source audits, ordinary contracts and review gates before adoption.

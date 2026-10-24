@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Restore checked rigid-transform validation and FBX XYZ Euler extraction as pure value operations, with explicit column-major matrix ownership (#99).
+
 - Restore source-audited, bounded FBX time and Euler-angle conventions independently of serializers and quarantined animation evaluation (#99).
 
 - Bound snapshot XML component traversal and encoded output, preserve ordinary bytes, and stage writes before publication; quarantined writer failure fixtures remain disabled (#83).

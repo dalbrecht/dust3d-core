@@ -45,6 +45,7 @@ let package = Package(
             path: "native/Engine",
             sources: [
                 "FbxAnimationMath.cc",
+                "RigTransformValidation.cc",
                 "SourceBakedMesh.cc", "ImportedSurface.cc", "ImportedAssets.cc", "ImportedModels.cc", "GlbReader.cc",
                 "BakedMesh.cc",
                 "Cancellation.cc",
