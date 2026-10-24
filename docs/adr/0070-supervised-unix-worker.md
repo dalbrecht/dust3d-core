@@ -63,3 +63,14 @@ sandbox, parent-death handling, signed trusted-helper packaging and full lifecyc
 acceptance remain required. Never run this on a UI actor or adopt unrestricted
 production documents based on these tests. The Apple pin and all GLB #67/#69,
 writer #83, fault #84, animation #95 and Apple #199 quarantines are unchanged.
+
+## Rebased delivery verification
+
+Rebased onto reviewed core master 69b428bd; retained #124 request-limit
+propagation in transport preflight. On f9a23f7b, fresh normal CMake/CTest
+passes 62/62 in 34.55s and fresh ASan/UBSan passes 61/61 in 102.54s.
+The source quarantine guard and changed-file formatting pass. No leak-sanitizer
+claim is made on macOS. These reruns use only the ordinary registered contracts;
+the unforced OS paths and production-adoption limitations above remain open.
+CMake products are cleaned after the terminal gates while retaining the single
+shared Swift compiler cache and live QA bundle.
