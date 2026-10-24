@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add bounded owned static FBX face selections with source correspondence, double-precision positions and optional replacement atlas UVs (#99).
+
 - Restore static FBX atlas materials and six embedded PNG channels with pure image-byte admission and optimization-safe material verification (#99).
 
 - Restore geometry-only FBX scene encoding with indexed positions, corner normals/UVs, pure staging admission and optimization-safe importer verification (#99).

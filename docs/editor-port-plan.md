@@ -623,3 +623,10 @@ The single-atlas static material extension is recovered under ADR 0083, with six
 embedded caller-validated PNG channels, pure encoded-byte admission and an
 optimization-safe optional importer verifier. Source baking/grouping, shader and
 alpha compatibility, rig/animation and full native export acceptance remain open.
+
+
+Static source-face selection is implemented under ADR0084 with independent
+geometry ownership, unchanged shared vertex identities and replacement atlas UVs.
+This enables later material grouping; original source geometry retention, C ABI,
+atomic writes and native export integration remain open. No rig/animation or
+quarantined GLB adoption is implied by this static subset foundation.

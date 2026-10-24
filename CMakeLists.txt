@@ -34,6 +34,7 @@ target_include_directories(dust3d_core PUBLIC
     third_party/earcut.hpp/include)
 target_link_libraries(dust3d_core PUBLIC dust3d_remesher dust3d_triangle Threads::Threads)
 add_library(dust3d_engine STATIC
+    native/Engine/FbxGeometrySelection.cc
     native/Engine/FbxMaterialImagePlan.cc
     native/Engine/FbxMeshScene.cc
     native/Engine/FbxMeshScenePlan.cc
@@ -127,6 +128,12 @@ if(BUILD_TESTING)
 
 
 
+
+    add_executable(dust3d_fbx_geometry_selection_tests tests/core/fbx_geometry_selection_tests.cc)
+    target_include_directories(dust3d_fbx_geometry_selection_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} native/Engine)
+    target_link_libraries(dust3d_fbx_geometry_selection_tests PRIVATE dust3d_engine)
+    add_test(NAME fbx_geometry_selection_contracts COMMAND dust3d_fbx_geometry_selection_tests)
+    set_tests_properties(fbx_geometry_selection_contracts PROPERTIES TIMEOUT 30)
     add_executable(dust3d_fbx_material_scene_tests tests/core/fbx_material_scene_tests.cc)
     target_include_directories(dust3d_fbx_material_scene_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} native/Engine)
     target_link_libraries(dust3d_fbx_material_scene_tests PRIVATE dust3d_engine)
@@ -143,6 +150,10 @@ if(BUILD_TESTING)
         add_test(NAME fbx_mesh_scene_verifier_contracts COMMAND "${Python3_EXECUTABLE}" -B -m unittest discover
             -s "${CMAKE_CURRENT_SOURCE_DIR}/tests/core" -p test_fbx_mesh_scene_import.py)
         set_tests_properties(fbx_mesh_scene_verifier_contracts PROPERTIES TIMEOUT 30
+            ENVIRONMENT "DUST3D_BUILD_ROOT=${CMAKE_CURRENT_BINARY_DIR}")
+        add_test(NAME fbx_mesh_scene_verifier_optimized_contracts COMMAND "${Python3_EXECUTABLE}" -B -O -m unittest discover
+            -s "${CMAKE_CURRENT_SOURCE_DIR}/tests/core" -p test_fbx_mesh_scene_import.py)
+        set_tests_properties(fbx_mesh_scene_verifier_optimized_contracts PROPERTIES TIMEOUT 30
             ENVIRONMENT "DUST3D_BUILD_ROOT=${CMAKE_CURRENT_BINARY_DIR}")
         add_test(NAME fbx_material_scene_verifier_contracts COMMAND "${Python3_EXECUTABLE}" -B -m unittest discover
             -s "${CMAKE_CURRENT_SOURCE_DIR}/tests/core" -p test_fbx_material_scene_import.py)
