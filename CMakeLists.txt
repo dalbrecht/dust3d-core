@@ -35,6 +35,8 @@ target_include_directories(dust3d_core PUBLIC
     third_party/earcut.hpp/include)
 target_link_libraries(dust3d_core PUBLIC dust3d_remesher dust3d_triangle Threads::Threads)
 add_library(dust3d_engine STATIC
+    native/Engine/ObjDocument.cc
+    native/Engine/ObjGeometryPlan.cc
     native/Engine/FbxExportBridge.cc
     native/Engine/FbxBakedMaterial.cc
     native/Engine/PngEncoding.cc
@@ -137,6 +139,11 @@ if(BUILD_TESTING)
 
 
 
+    add_executable(dust3d_obj_document_tests tests/core/obj_document_tests.cc)
+    target_include_directories(dust3d_obj_document_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} native/Engine)
+    target_link_libraries(dust3d_obj_document_tests PRIVATE dust3d_engine)
+    add_test(NAME obj_document_contracts COMMAND dust3d_obj_document_tests ${CMAKE_CURRENT_SOURCE_DIR}/tests/core/fixtures)
+    set_tests_properties(obj_document_contracts PROPERTIES TIMEOUT 60)
     add_executable(dust3d_fbx_export_api_tests tests/core/fbx_export_api_tests.cc)
     target_link_libraries(dust3d_fbx_export_api_tests PRIVATE dust3d_engine)
     add_test(NAME fbx_export_api_contracts COMMAND dust3d_fbx_export_api_tests ${CMAKE_CURRENT_SOURCE_DIR}/tests/core/fixtures)
@@ -174,6 +181,12 @@ if(BUILD_TESTING)
     # Optional standard-library acceptance tooling does not add a production dependency.
     find_package(Python3 QUIET COMPONENTS Interpreter)
     if(Python3_Interpreter_FOUND)
+        add_test(NAME obj_scene_verifier_contracts COMMAND "${Python3_EXECUTABLE}" -B -m unittest discover
+            -s "${CMAKE_CURRENT_SOURCE_DIR}/tests/core" -p test_obj_scene_import.py)
+        add_test(NAME obj_scene_verifier_optimized_contracts COMMAND "${Python3_EXECUTABLE}" -B -O -m unittest discover
+            -s "${CMAKE_CURRENT_SOURCE_DIR}/tests/core" -p test_obj_scene_import.py)
+        set_tests_properties(obj_scene_verifier_contracts obj_scene_verifier_optimized_contracts PROPERTIES TIMEOUT 30
+            ENVIRONMENT "DUST3D_BUILD_ROOT=${CMAKE_CURRENT_BINARY_DIR}")
         if(UNIX)
             add_test(NAME export_cli_contracts COMMAND "${Python3_EXECUTABLE}" -B -m unittest discover
                 -s "${CMAKE_CURRENT_SOURCE_DIR}/tests/core" -p test_export_cli.py)

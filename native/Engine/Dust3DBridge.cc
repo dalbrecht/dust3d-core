@@ -4,6 +4,7 @@
 #include "GenerationPipeline.h"
 #include "ImportedModels.h"
 #include "ImportedSurface.h"
+#include "ObjDocument.h"
 #include "SourceBakedMesh.h"
 #include "SourceProvenance.h"
 #include "UvMetadata.h"
@@ -49,6 +50,8 @@ namespace native {
             throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "FBX atlas export requires geometry and UV generation outputs.");
         if (outputs.fbxGeometry)
             planFbxGeometrySelection(1, 1, 1, false, false, outputs.maximumFbxGeometryBytes);
+        if (outputs.objDocument)
+            planObjGeometry(1, 1, outputs.maximumObjPayloadBytes);
         auto* sources = outputs.sources;
         auto* uvs = outputs.uvs;
         auto* baked = outputs.baked;
@@ -171,8 +174,11 @@ namespace native {
                 throw DocumentError(DUST3D_STATUS_GENERATION_FAILED, "Source baking requires retained surface and generated metadata.");
             sourceBaked->prepare(*object, *generated, *mesh, *surfaces);
         }
+        std::unique_ptr<OwnedObjDocument> objDocument;
+        if (outputs.objDocument)
+            objDocument = std::make_unique<OwnedObjDocument>(encodeObjDocument(*object, outputs.maximumObjPayloadBytes));
+        std::unique_ptr<FbxGeometrySelection> geometry;
         if (outputs.fbxGeometry) {
-            std::unique_ptr<FbxGeometrySelection> geometry;
             if (outputs.useFbxAtlasUvs) {
                 geometry = std::make_unique<FbxGeometrySelection>(selectFbxAtlasGeometry(*object, uvs->atlas(), outputs.maximumFbxGeometryBytes));
             } else {
@@ -182,9 +188,12 @@ namespace native {
                 std::iota(originalFaces.begin(), originalFaces.end(), size_t { 0 });
                 geometry = std::make_unique<FbxGeometrySelection>(selectFbxGeometry(*object, originalFaces, nullptr, outputs.maximumFbxGeometryBytes));
             }
-            checkGenerationCancellation();
-            *outputs.fbxGeometry = std::move(geometry);
         }
+        checkGenerationCancellation();
+        if (outputs.fbxGeometry)
+            *outputs.fbxGeometry = std::move(geometry);
+        if (outputs.objDocument)
+            *outputs.objDocument = std::move(objDocument);
         return mesh;
     }
 }

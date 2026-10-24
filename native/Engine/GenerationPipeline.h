@@ -14,6 +14,7 @@ namespace native {
     class ImportedSurfaceData;
     class SourceBakedData;
     class FbxGeometrySelection;
+    class OwnedObjDocument;
     /// Named borrowed output hooks. All pointees outlive this synchronous generation call.
     struct GenerationOutputs {
         SourceProvenance* sources = nullptr;
@@ -34,6 +35,10 @@ namespace native {
         bool useFbxAtlasUvs = false;
         /// Optional whole-generation token, borrowed throughout this serialized call.
         const Dust3DCancellationToken* cancellation = nullptr;
+        /// Optional original polygon OBJ, published only after every requested output succeeds.
+        std::unique_ptr<OwnedObjDocument>* objDocument = nullptr;
+        /// OBJ root/capacity quota; zero64MiB, maximum256MiB. Ignored without objDocument.
+        size_t maximumObjPayloadBytes = 0;
     };
     Color sourceCornerColor(const Object& object, size_t triangleIndex, size_t corner);
     // Every native entry point shares this lock because inherited globals are not thread-safe.

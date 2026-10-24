@@ -48,6 +48,7 @@ let package = Package(
             dependencies: ["Dust3DCore"],
             path: "native/Engine",
             sources: [
+                "ObjDocument.cc", "ObjGeometryPlan.cc",
                 "FbxMaterialImagePlan.cc",
                 "FbxMeshScene.cc",
                 "FbxMeshScenePlan.cc",
