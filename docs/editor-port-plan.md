@@ -571,3 +571,16 @@ fixtures and pure rejection data. Metadata coverage is scoped at 100%; incomplet
 OS/transport coverage and active lifecycle acceptance remain explicit. Production
 profiles, trusted packaging, strong containment, source-aware results and Apple
 integration remain open. No production pin or quarantine changes; M8 is incomplete.
+
+
+### Snapshot XML writer mitigation (#83)
+
+A local iterative writer replaces recursive component emission with bounded
+hierarchy planning, exact escaped-size accounting and staged publication. The
+non-serializing validator is the only target of invalid-metadata tests; the
+quarantined writer fixture remains disabled. Ordinary writer compatibility is
+tested separately. See ADR 0076. Delivery revalidation on reviewed master passed
+68/68 ordinary CTest contracts, fresh scoped ASan/UBSan writer contracts and the
+SwiftPM static-product build. Earlier 63/63 and scoped coverage results remain
+historical evidence in the ADR. Automated review and dependency adoption remain required; this does not
+establish universal XML validity or complete M1/M8 safety.

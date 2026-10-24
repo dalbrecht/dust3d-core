@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Bound snapshot XML component traversal and encoded output, preserve ordinary bytes, and stage writes before publication; quarantined writer failure fixtures remain disabled (#83).
+
 - Add parent-side supervised resource launch and bounded report admission with owned original completion errors; Apple adoption and strong containment remain pending (#123).
 
 - Add an explicit versioned helper resource launch with compiled-runtime checks, helper-only limit installation/readback and ordinary fixture acceptance; production profiles and Apple adoption remain pending (#123).
