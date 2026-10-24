@@ -117,3 +117,16 @@ sources remain byte-identical to saved 38baea83. Fresh normal CMake/CTest on
 quarantine and changed-file formatting checks pass. Only ordinary licensed
 workloads and pre-installation metadata rejections ran, with no virtual cap.
 No active limit exhaustion, crash, signal or allocation-failure probes were added.
+
+## Public delivery after setup merge
+
+Reparented the saved launch stage onto merged core PR128 (f2d52986), verifying
+that its complete tree equals the locally validated cd197de4 before this evidence
+note. Fresh normal CMake/CTest passed66/66 (21.04s), including ordinary Capsule/
+Sword child-only setup/readback and full geometry reply checks. Fresh strict-
+warning standalone ASan/UBSan launch-codec and recording setup/Unix-adapter
+contracts passed. This is scoped sanitizer evidence, not a new whole-engine
+sanitizer run. Historical broad sanitizer/coverage measurements above remain
+labeled as earlier evidence. No resource-exhaustion, signal-delivery, allocation-
+failure, crash or broken-pipe probes ran. Apple pin and all quarantines remain
+unchanged; parent admission and production containment still require review.
