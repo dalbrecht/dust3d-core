@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Separate inherited preset construction from sampler linkage and restore qmake metadata source dependencies, with reference-manifest regression coverage ([Apple #145](https://github.com/dalbrecht/dust3d-swiftui/issues/145)).
+
 - Add an independently owned animation catalog C API with bounded view access and Swift 6 copy/lifetime verification; sampling remains quarantined ([Apple #145](https://github.com/dalbrecht/dust3d-swiftui/issues/145)).
 
 - Compile inherited animation catalog metadata without generator linkage, sharing biped declarations and preserving aliases/defaults; animation sampling remains quarantined ([Apple #145](https://github.com/dalbrecht/dust3d-swiftui/issues/145)).

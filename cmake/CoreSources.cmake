@@ -1,6 +1,7 @@
 # Explicit lists keep target membership reviewable.
 set(DUST3D_CORE_SOURCES
     dust3d/animation/animation_catalog.cc
+    dust3d/animation/animation_defaults.cc
     dust3d/animation/biped/clip_metadata.cc
     dust3d/base/axis_aligned_bounding_box_tree.cc
     dust3d/base/combine_mode.cc

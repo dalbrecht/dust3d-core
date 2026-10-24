@@ -872,3 +872,27 @@ tags, rig matrices, evaluated poses, animation frames or audio. See
 [owned catalog verification](docs/owned-animation-catalog-verification.md) and
 [ADR 0099](docs/adr/0099-owned-animation-catalog.md). Core #95 and all other
 quarantines remain unchanged.
+
+## Generator-free preset values
+
+`dust3d/animation/animation_defaults.h` exposes `animation::defaultTiming(type)`
+and `animation::defaultParameters(type)` without linking sampler code. The latter
+returns an independently owned `AnimationParams` value using the original numeric
+string representation. Unknown types retain the legacy timing fallback (3 seconds,
+90 samples) and an empty parameter map; this does not indicate sampling support.
+The reference `AnimationGenerator` static methods delegate to these helpers. Its
+sampling implementation remains excluded from native products.
+
+`AnimationParams` moved unchanged to a pure-data header. Its getters retain legacy
+fallback behavior and are not validators for arbitrary stored input. The reference
+parameter table still contains unchecked inverse slider casts; those callbacks
+remain outside native products. The descriptor port must add finite/range/checked
+integer conversion before native controls adopt them. No unsafe conversion was
+probed or sampler invoked by this extraction.
+
+The qmake manifest now registers the generator-free metadata/default sources.
+A source-membership regression guards those dependencies; a full Qt app build/run
+was not performed. See [preset verification](docs/animation-defaults-verification.md)
+and [ADR 0100](docs/adr/0100-generator-free-animation-defaults.md). Parameter schemas,
+C/Swift descriptor transport, catalog-guided controls and complete M6 runtime
+acceptance remain pending under [Apple #145](https://github.com/dalbrecht/dust3d-swiftui/issues/145).

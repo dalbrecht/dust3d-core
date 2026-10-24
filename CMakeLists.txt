@@ -115,6 +115,14 @@ endif()
 
 include(CTest)
 if(BUILD_TESTING)
+    add_executable(dust3d_animation_defaults_tests
+        tests/core/animation_defaults_tests.cc
+        dust3d/animation/animation_defaults.cc
+        dust3d/animation/animation_catalog.cc
+        dust3d/animation/biped/clip_metadata.cc)
+    target_include_directories(dust3d_animation_defaults_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    add_test(NAME animation_defaults_contracts COMMAND dust3d_animation_defaults_tests)
+    set_tests_properties(animation_defaults_contracts PROPERTIES TIMEOUT 10)
     # The owning C API stays independently linkable without generation code.
     add_executable(dust3d_animation_catalog_api_tests
         tests/core/animation_catalog_api_tests.cc

@@ -34,7 +34,8 @@ let package = Package(
             dependencies: ["AutoRemesher", "TriangleIntersection"],
             path: "dust3d",
             sources: [
-                "base", "mesh", "rig", "uv", "animation/animation_catalog.cc", "animation/biped/clip_metadata.cc",
+                "base", "mesh", "rig", "uv", "animation/animation_catalog.cc", "animation/animation_defaults.cc",
+                "animation/biped/clip_metadata.cc",
             ],
             publicHeadersPath: "include",
             cxxSettings: [
