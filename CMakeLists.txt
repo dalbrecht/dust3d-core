@@ -139,6 +139,11 @@ if(BUILD_TESTING)
 
 
 
+    add_executable(dust3d_original_export_preparation_tests tests/core/original_export_preparation_tests.cc)
+    target_include_directories(dust3d_original_export_preparation_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} native/Engine)
+    target_link_libraries(dust3d_original_export_preparation_tests PRIVATE dust3d_engine)
+    add_test(NAME original_export_preparation_contracts COMMAND dust3d_original_export_preparation_tests)
+    set_tests_properties(original_export_preparation_contracts PROPERTIES TIMEOUT 30)
     add_executable(dust3d_obj_document_tests tests/core/obj_document_tests.cc)
     target_include_directories(dust3d_obj_document_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} native/Engine)
     target_link_libraries(dust3d_obj_document_tests PRIVATE dust3d_engine)

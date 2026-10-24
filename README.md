@@ -790,3 +790,8 @@ polygons using the reference OBJ geometry semantics. It preserves shared indices
 and winding and has an opt-in original-object generation hook. ADR0091 records
 scoped coverage, independent polygon re-import and the remaining preview-validity
 coupling. This internal path is not yet exposed by the C API or export command.
+
+Original export preparation now skips float preview conversion and vertex storage;
+static FBX geometry/baked API and CLI callers use it. Default preview behavior is
+unchanged. See ADR0092 for the controlled precision regression, independent baked
+re-import, scoped coverage and remaining OBJ/app integration.

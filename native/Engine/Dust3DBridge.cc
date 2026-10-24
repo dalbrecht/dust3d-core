@@ -43,125 +43,151 @@ namespace native {
         return vertexIndex < object.vertexColors.size() ? object.vertexColors[vertexIndex] : Color(0.65, 0.7, 0.8);
     }
 
-    std::unique_ptr<Dust3DMesh> generateMesh(std::unique_ptr<dust3d::Snapshot> snapshot, const std::string& warning, ImportedModels* imports,
-        MeshGenerator::GeneratedCacheContext* cache, MeshGenerator::GenerationMetrics* metrics, GenerationOutputs outputs)
+    namespace {
+        void validateGenerationOutputs(const GenerationOutputs& outputs)
+        {
+            if (outputs.purpose != GenerationPurpose::preview && outputs.purpose != GenerationPurpose::originalExport)
+                throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Unknown generation output purpose.");
+            if (outputs.purpose == GenerationPurpose::originalExport) {
+                if ((!outputs.fbxGeometry && !outputs.objDocument) || outputs.sources || outputs.surfaces || outputs.sourceBaked)
+                    throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Original exports require an export owner and cannot return render source descriptors.");
+                if ((outputs.uvs && !outputs.fbxGeometry) || (outputs.baked && (!outputs.uvs || !outputs.useFbxAtlasUvs)))
+                    throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Original baked export requires aligned FBX atlas outputs.");
+            }
+            if (outputs.useFbxAtlasUvs && (!outputs.fbxGeometry || !outputs.uvs))
+                throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "FBX atlas export requires geometry and UV generation outputs.");
+            if (outputs.fbxGeometry)
+                planFbxGeometrySelection(1, 1, 1, false, false, outputs.maximumFbxGeometryBytes);
+            if (outputs.objDocument)
+                planObjGeometry(1, 1, outputs.maximumObjPayloadBytes);
+        }
+        void checkOutputCancellation(const GenerationOutputs& outputs)
+        {
+            checkCancellation(outputs.cancellation);
+            if (outputs.baked)
+                checkCancellation(outputs.baked->cancellation());
+            if (outputs.sourceBaked)
+                checkCancellation(outputs.sourceBaked->cancellation());
+        }
+        struct PreparedExports {
+            std::unique_ptr<OwnedObjDocument> obj;
+            std::unique_ptr<FbxGeometrySelection> fbx;
+        };
+        PreparedExports prepareExports(const Object& object, const GenerationOutputs& outputs)
+        {
+            PreparedExports prepared;
+            if (outputs.objDocument)
+                prepared.obj = std::make_unique<OwnedObjDocument>(encodeObjDocument(object, outputs.maximumObjPayloadBytes));
+            if (outputs.fbxGeometry) {
+                if (outputs.useFbxAtlasUvs) {
+                    prepared.fbx = std::make_unique<FbxGeometrySelection>(selectFbxAtlasGeometry(object, outputs.uvs->atlas(), outputs.maximumFbxGeometryBytes));
+                } else {
+                    planFbxGeometrySelection(object.vertices.size(), object.triangles.size(), object.triangles.size(),
+                        object.triangleVertexNormals() != nullptr, object.triangleVertexUvs() != nullptr, outputs.maximumFbxGeometryBytes);
+                    std::vector<size_t> originalFaces(object.triangles.size());
+                    std::iota(originalFaces.begin(), originalFaces.end(), size_t { 0 });
+                    prepared.fbx = std::make_unique<FbxGeometrySelection>(selectFbxGeometry(object, originalFaces, nullptr, outputs.maximumFbxGeometryBytes));
+                }
+            }
+            return prepared;
+        }
+    }
+    void prepareGeneratedObject(const Object& original, const Snapshot* generated, Dust3DMesh& result, GenerationOutputs outputs)
     {
-        if (outputs.useFbxAtlasUvs && (!outputs.fbxGeometry || !outputs.uvs))
-            throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "FBX atlas export requires geometry and UV generation outputs.");
-        if (outputs.fbxGeometry)
-            planFbxGeometrySelection(1, 1, 1, false, false, outputs.maximumFbxGeometryBytes);
-        if (outputs.objDocument)
-            planObjGeometry(1, 1, outputs.maximumObjPayloadBytes);
+        validateGenerationOutputs(outputs);
+        checkOutputCancellation(outputs);
+        if (!result.vertices.empty())
+            throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Output preparation requires fresh preview storage.");
+        if (original.triangles.size() > 5000000)
+            throw DocumentError(DUST3D_STATUS_LIMIT_EXCEEDED, "The generated mesh exceeds the five million triangle limit.");
+        if (original.triangles.empty() && (outputs.purpose == GenerationPurpose::preview || !outputs.objDocument))
+            throw DocumentError(DUST3D_STATUS_NO_GEOMETRY, "Generation completed with no mesh-producing geometry.");
+        const auto* object = &original;
+        auto* mesh = &result;
         auto* sources = outputs.sources;
         auto* uvs = outputs.uvs;
         auto* baked = outputs.baked;
         auto* surfaces = outputs.surfaces;
         auto* sourceBaked = outputs.sourceBaked;
-        auto checkGenerationCancellation = [&] {
-            checkCancellation(outputs.cancellation);
-            if (baked)
-                checkCancellation(baked->cancellation());
-            if (sourceBaked)
-                checkCancellation(sourceBaked->cancellation());
-        };
         const std::map<Uuid, UvAtlasImage> emptyImages;
         const auto& images = outputs.images ? *outputs.images : emptyImages;
         const size_t textureSize = outputs.textureSize;
-        auto mesh = std::make_unique<Dust3DMesh>();
-        mesh->nodeCount = snapshot->nodes.size();
-        mesh->partCount = snapshot->parts.size();
-        mesh->warning = warning;
-        // MeshGenerator owns the raw Snapshot constructor argument.
-        dust3d::MeshGenerator generator(snapshot.get());
-        snapshot.release();
-        if (imports)
-            generator.setImportedModelData(imports->takeGeometry());
-        if (cache)
-            generator.setGeneratedCacheContext(cache);
-        checkGenerationCancellation();
-        generator.generate();
-        checkGenerationCancellation();
-        if (metrics)
-            *metrics = generator.generationMetrics();
-        std::unique_ptr<dust3d::Object> object(generator.takeObject());
-        if (!generator.isSuccessful() || !object)
-            throw dust3d::native::DocumentError(DUST3D_STATUS_GENERATION_FAILED, "Dust3D could not generate a complete mesh from this document.");
-        if (object->triangles.empty())
-            throw dust3d::native::DocumentError(DUST3D_STATUS_NO_GEOMETRY, "Generation completed with no mesh-producing geometry.");
-        if (object->triangles.size() > 5000000)
-            throw dust3d::native::DocumentError(DUST3D_STATUS_LIMIT_EXCEEDED, "The generated mesh exceeds the five million triangle limit.");
         if (surfaces)
             surfaces->prepare(*object, mesh->warning);
-        std::unique_ptr<Snapshot> generated;
         if (uvs || sourceBaked) {
-            generated.reset(generator.takeSnapshot());
             if (!generated)
                 throw DocumentError(DUST3D_STATUS_GENERATION_FAILED, "The generator returned no UV material snapshot.");
             if (uvs)
                 uvs->prepare(*object, *generated, images, textureSize);
         }
-        mesh->vertices.reserve(object->triangles.size() * 3);
-        const auto* normals = object->triangleVertexNormals();
-        for (size_t triangleIndex = 0; triangleIndex < object->triangles.size(); ++triangleIndex) {
-            if (triangleIndex % 256 == 0)
-                checkGenerationCancellation();
-            const auto& triangle = object->triangles[triangleIndex];
-            if (triangle.size() != 3)
-                throw dust3d::native::DocumentError(DUST3D_STATUS_GENERATION_FAILED, "The engine returned an invalid triangle.");
-            std::array<Dust3DVertex, 3> exportedTriangle {};
-            for (size_t corner = 0; corner < 3; ++corner) {
-                const auto vertexIndex = triangle[corner];
-                if (vertexIndex >= object->vertices.size())
-                    throw dust3d::native::DocumentError(DUST3D_STATUS_GENERATION_FAILED, "The engine returned an invalid vertex index.");
-                const auto& position = object->vertices[vertexIndex];
-                auto normal = normals && triangleIndex < normals->size() && (*normals)[triangleIndex].size() == 3
-                    ? (*normals)[triangleIndex][corner]
-                    : dust3d::Vector3(0, 1, 0);
-                if (normal.length() < 0.000001)
-                    normal = dust3d::Vector3(0, 1, 0);
-                normal.normalize();
-                const auto color = sourceCornerColor(*object, triangleIndex, corner);
-                Dust3DVertex vertex {};
-                for (size_t axis = 0; axis < 3; ++axis) {
-                    if (!std::isfinite(position[axis]) || !std::isfinite(normal[axis]))
-                        throw dust3d::native::DocumentError(DUST3D_STATUS_GENERATION_FAILED, "The engine produced nonfinite geometry.");
-                    vertex.position[axis] = static_cast<float>(position[axis]);
-                    vertex.normal[axis] = static_cast<float>(normal[axis]);
-                    if (!std::isfinite(vertex.position[axis]))
-                        throw dust3d::native::DocumentError(DUST3D_STATUS_GENERATION_FAILED, "The geometry exceeds the renderer's coordinate range.");
+        PreparedExports prepared;
+        // Validate/copy original geometry before any bake now that float validation is skipped.
+        if (outputs.purpose == GenerationPurpose::originalExport)
+            prepared = prepareExports(*object, outputs);
+        if (outputs.purpose == GenerationPurpose::preview) {
+            mesh->vertices.reserve(object->triangles.size() * 3);
+            const auto* normals = object->triangleVertexNormals();
+            for (size_t triangleIndex = 0; triangleIndex < object->triangles.size(); ++triangleIndex) {
+                if (triangleIndex % 256 == 0)
+                    checkOutputCancellation(outputs);
+                const auto& triangle = object->triangles[triangleIndex];
+                if (triangle.size() != 3)
+                    throw dust3d::native::DocumentError(DUST3D_STATUS_GENERATION_FAILED, "The engine returned an invalid triangle.");
+                std::array<Dust3DVertex, 3> exportedTriangle {};
+                for (size_t corner = 0; corner < 3; ++corner) {
+                    const auto vertexIndex = triangle[corner];
+                    if (vertexIndex >= object->vertices.size())
+                        throw dust3d::native::DocumentError(DUST3D_STATUS_GENERATION_FAILED, "The engine returned an invalid vertex index.");
+                    const auto& position = object->vertices[vertexIndex];
+                    auto normal = normals && triangleIndex < normals->size() && (*normals)[triangleIndex].size() == 3
+                        ? (*normals)[triangleIndex][corner]
+                        : dust3d::Vector3(0, 1, 0);
+                    if (normal.length() < 0.000001)
+                        normal = dust3d::Vector3(0, 1, 0);
+                    normal.normalize();
+                    const auto color = sourceCornerColor(*object, triangleIndex, corner);
+                    Dust3DVertex vertex {};
+                    for (size_t axis = 0; axis < 3; ++axis) {
+                        if (!std::isfinite(position[axis]) || !std::isfinite(normal[axis]))
+                            throw dust3d::native::DocumentError(DUST3D_STATUS_GENERATION_FAILED, "The engine produced nonfinite geometry.");
+                        vertex.position[axis] = static_cast<float>(position[axis]);
+                        vertex.normal[axis] = static_cast<float>(normal[axis]);
+                        if (!std::isfinite(vertex.position[axis]))
+                            throw dust3d::native::DocumentError(DUST3D_STATUS_GENERATION_FAILED, "The geometry exceeds the renderer's coordinate range.");
+                    }
+                    vertex.color[0] = static_cast<float>(color.r());
+                    vertex.color[1] = static_cast<float>(color.g());
+                    vertex.color[2] = static_cast<float>(color.b());
+                    vertex.color[3] = 1.0f; // Opaque preview; material transparency is a later feature.
+                    exportedTriangle[corner] = vertex;
                 }
-                vertex.color[0] = static_cast<float>(color.r());
-                vertex.color[1] = static_cast<float>(color.g());
-                vertex.color[2] = static_cast<float>(color.b());
-                vertex.color[3] = 1.0f; // Opaque preview; material transparency is a later feature.
-                exportedTriangle[corner] = vertex;
+                auto exportedPosition = [](const Dust3DVertex& vertex) {
+                    return dust3d::Vector3(vertex.position[0], vertex.position[1], vertex.position[2]);
+                };
+                const auto first = exportedPosition(exportedTriangle[0]);
+                const auto second = exportedPosition(exportedTriangle[1]);
+                const auto third = exportedPosition(exportedTriangle[2]);
+                // Double-precision surface slivers can collapse only when converted to the
+                // ABI's float coordinates. Validate first so invalid geometry is never hidden.
+                if (dust3d::Vector3::crossProduct(second - first, third - first).lengthSquared() == 0)
+                    continue;
+                if (surfaces)
+                    surfaces->appendTriangle(triangleIndex);
+                if (uvs)
+                    uvs->appendTriangle(triangleIndex);
+                if (baked)
+                    baked->appendTriangle(triangleIndex);
+                if (sourceBaked)
+                    sourceBaked->appendTriangle(triangleIndex);
+                if (sources) {
+                    for (const auto vertexIndex : triangle)
+                        sources->appendCorner(*object, object->vertices[vertexIndex], triangleIndex);
+                }
+                mesh->vertices.insert(mesh->vertices.end(), exportedTriangle.begin(), exportedTriangle.end());
             }
-            auto exportedPosition = [](const Dust3DVertex& vertex) {
-                return dust3d::Vector3(vertex.position[0], vertex.position[1], vertex.position[2]);
-            };
-            const auto first = exportedPosition(exportedTriangle[0]);
-            const auto second = exportedPosition(exportedTriangle[1]);
-            const auto third = exportedPosition(exportedTriangle[2]);
-            // Double-precision surface slivers can collapse only when converted to the
-            // ABI's float coordinates. Validate first so invalid geometry is never hidden.
-            if (dust3d::Vector3::crossProduct(second - first, third - first).lengthSquared() == 0)
-                continue;
-            if (surfaces)
-                surfaces->appendTriangle(triangleIndex);
-            if (uvs)
-                uvs->appendTriangle(triangleIndex);
-            if (baked)
-                baked->appendTriangle(triangleIndex);
-            if (sourceBaked)
-                sourceBaked->appendTriangle(triangleIndex);
-            if (sources) {
-                for (const auto vertexIndex : triangle)
-                    sources->appendCorner(*object, object->vertices[vertexIndex], triangleIndex);
-            }
-            mesh->vertices.insert(mesh->vertices.end(), exportedTriangle.begin(), exportedTriangle.end());
+            if (mesh->vertices.empty())
+                throw dust3d::native::DocumentError(DUST3D_STATUS_GENERATION_FAILED, "All generated triangles collapse at the exported coordinate precision.");
         }
-        if (mesh->vertices.empty())
-            throw dust3d::native::DocumentError(DUST3D_STATUS_GENERATION_FAILED, "All generated triangles collapse at the exported coordinate precision.");
         if (baked) {
             if (!uvs || !generated)
                 throw DocumentError(DUST3D_STATUS_GENERATION_FAILED, "Baking requires locally retained UV generation metadata.");
@@ -174,28 +200,52 @@ namespace native {
                 throw DocumentError(DUST3D_STATUS_GENERATION_FAILED, "Source baking requires retained surface and generated metadata.");
             sourceBaked->prepare(*object, *generated, *mesh, *surfaces);
         }
-        std::unique_ptr<OwnedObjDocument> objDocument;
-        if (outputs.objDocument)
-            objDocument = std::make_unique<OwnedObjDocument>(encodeObjDocument(*object, outputs.maximumObjPayloadBytes));
-        std::unique_ptr<FbxGeometrySelection> geometry;
-        if (outputs.fbxGeometry) {
-            if (outputs.useFbxAtlasUvs) {
-                geometry = std::make_unique<FbxGeometrySelection>(selectFbxAtlasGeometry(*object, uvs->atlas(), outputs.maximumFbxGeometryBytes));
-            } else {
-                planFbxGeometrySelection(object->vertices.size(), object->triangles.size(), object->triangles.size(),
-                    object->triangleVertexNormals() != nullptr, object->triangleVertexUvs() != nullptr, outputs.maximumFbxGeometryBytes);
-                std::vector<size_t> originalFaces(object->triangles.size());
-                std::iota(originalFaces.begin(), originalFaces.end(), size_t { 0 });
-                geometry = std::make_unique<FbxGeometrySelection>(selectFbxGeometry(*object, originalFaces, nullptr, outputs.maximumFbxGeometryBytes));
-            }
-        }
-        checkGenerationCancellation();
+        if (outputs.purpose == GenerationPurpose::preview)
+            prepared = prepareExports(*object, outputs);
+        checkOutputCancellation(outputs);
         if (outputs.fbxGeometry)
-            *outputs.fbxGeometry = std::move(geometry);
+            *outputs.fbxGeometry = std::move(prepared.fbx);
         if (outputs.objDocument)
-            *outputs.objDocument = std::move(objDocument);
+            *outputs.objDocument = std::move(prepared.obj);
+    }
+
+    std::unique_ptr<Dust3DMesh> generateMesh(std::unique_ptr<dust3d::Snapshot> snapshot, const std::string& warning, ImportedModels* imports,
+        MeshGenerator::GeneratedCacheContext* cache, MeshGenerator::GenerationMetrics* metrics, GenerationOutputs outputs)
+    {
+        validateGenerationOutputs(outputs);
+        auto mesh = std::make_unique<Dust3DMesh>();
+        mesh->nodeCount = snapshot->nodes.size();
+        mesh->partCount = snapshot->parts.size();
+        mesh->warning = warning;
+        // MeshGenerator owns the raw Snapshot constructor argument.
+        dust3d::MeshGenerator generator(snapshot.get());
+        snapshot.release();
+        if (imports)
+            generator.setImportedModelData(imports->takeGeometry());
+        if (cache)
+            generator.setGeneratedCacheContext(cache);
+        checkOutputCancellation(outputs);
+        generator.generate();
+        checkOutputCancellation(outputs);
+        if (metrics)
+            *metrics = generator.generationMetrics();
+        std::unique_ptr<dust3d::Object> object(generator.takeObject());
+        if (!generator.isSuccessful() || !object)
+            throw dust3d::native::DocumentError(DUST3D_STATUS_GENERATION_FAILED, "Dust3D could not generate a complete mesh from this document.");
+        if (object->triangles.empty())
+            throw dust3d::native::DocumentError(DUST3D_STATUS_NO_GEOMETRY, "Generation completed with no mesh-producing geometry.");
+        if (object->triangles.size() > 5000000)
+            throw dust3d::native::DocumentError(DUST3D_STATUS_LIMIT_EXCEEDED, "The generated mesh exceeds the five million triangle limit.");
+        std::unique_ptr<Snapshot> generated;
+        if (outputs.uvs || outputs.sourceBaked) {
+            generated.reset(generator.takeSnapshot());
+            if (!generated)
+                throw DocumentError(DUST3D_STATUS_GENERATION_FAILED, "The generator returned no UV material snapshot.");
+        }
+        prepareGeneratedObject(*object, generated.get(), *mesh, outputs);
         return mesh;
     }
+
 }
 }
 

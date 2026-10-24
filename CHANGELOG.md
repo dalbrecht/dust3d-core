@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Prepare original OBJ/FBX exports independently of float preview conversion, preserving double geometry and avoiding preview vertex allocation (#99).
+
 - Add bounded original-double OBJ polygon encoding and all-or-nothing generation export hooks, preserving source quads and vertex identities (#99).
 
 - Add a Qt-free static FBX export command with procedural baked-atlas mode, source-alias protection and atomic Unix output publication (#99).

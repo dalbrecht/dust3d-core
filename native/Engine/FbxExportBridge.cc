@@ -51,6 +51,7 @@ Dust3DFbxExport* dust3d_fbx_export_load(const uint8_t* bytes, size_t size, const
         std::unique_ptr<UvMetadata> uvs;
         std::unique_ptr<FbxGeometrySelection> geometry;
         GenerationOutputs outputs;
+        outputs.purpose = GenerationPurpose::originalExport;
         outputs.fbxGeometry = &geometry;
         outputs.maximumFbxGeometryBytes = options->maximum_geometry_payload_bytes;
         outputs.cancellation = options->cancellation;
@@ -63,7 +64,7 @@ Dust3DFbxExport* dust3d_fbx_export_load(const uint8_t* bytes, size_t size, const
             outputs.textureSize = bake->textureSize();
             outputs.useFbxAtlasUvs = true;
         }
-        // Export owns a separate double snapshot; release preview/atlas workspace before encoding.
+        // Original-export preparation returns metadata only; discard it and atlas workspace before encoding.
         (void)generateMesh(std::move(snapshot), warning, nullptr, nullptr, nullptr, outputs);
         uvs.reset();
         checkCancellation(options->cancellation);
