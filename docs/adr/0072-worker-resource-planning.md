@@ -60,3 +60,14 @@ sandboxing, parent-death handling, active stop/reap acceptance and signed helper
 packaging remain unresolved. Apple adoption and its pinned core revision remain
 unchanged, as do all GLB/writer/fault/animation/rig-pose quarantines. #123/M8 and
 full native editor parity remain incomplete.
+
+## Rebased delivery verification
+
+Rebased onto supervised development stage 9a4449f5, retaining reviewed request
+limits and pure lifetime prerequisites. Fresh normal CMake/CTest on 6d35bb5c
+passes 63/63 in 33.40s. A fresh standalone strict-warning ASan/UBSan build of
+WorkerResources.cc and its pure contract suite passes; this is scoped sanitizer
+evidence, not a rerun of the whole sanitized engine. Changed-file formatting and
+the source quarantine guard pass. No OS mutation or forbidden probes were added.
+CMake products and the scoped sanitizer driver are cleaned after the terminal
+gates; the shared Swift caches and protected QA bundle remain intact.
