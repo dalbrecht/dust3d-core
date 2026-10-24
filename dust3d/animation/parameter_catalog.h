@@ -34,6 +34,35 @@ namespace animation {
     private:
         ParameterConversionErrorCode m_code;
     };
+    /// Common reference widget limits; display precision is not stored-value normalization.
+    struct CommonTimingDefinition {
+        double minimumDurationSeconds;
+        double maximumDurationSeconds;
+        int durationDecimalPlaces;
+        double durationStepSeconds;
+        int minimumFrameCount;
+        int maximumFrameCount;
+        int frameCountStep;
+    };
+    /// Validated scalar timing only; constructing this value does not allocate frames or evaluate animation.
+    struct CheckedTiming {
+        double durationSeconds;
+        int frameCount;
+    };
+    /** Return common duration/frame-count widget metadata shared by all clip types.
+     * @return Process-static limits copied from the reference widget; clip defaults remain in defaultTiming.
+     * No input, allocation or runtime evaluation. Example: `commonTimingDefinition().maximumFrameCount`.
+     */
+    const CommonTimingDefinition& commonTimingDefinition() noexcept;
+    /** Validate an explicit timing edit without rounding/clamping or invoking a sampler.
+     * @param durationSeconds Finite duration inside the reference widget's inclusive limits.
+     * @param frameCount Finite integral count inside its inclusive limits, checked before integer conversion.
+     * @return Unchanged duration and exactly represented integer frame count.
+     * @throws ParameterConversionError for nonfinite, out-of-range or fractional input.
+     * This validates edits, not arbitrary stored documents; unknown/raw values must survive display/save.
+     * Example: `auto timing = checkedTiming(3.0, 90.0)`.
+     */
+    CheckedTiming checkedTiming(double durationSeconds, double frameCount);
     /** Return original ordered control definitions, including inherited aliases/variants and preset overrides.
      * @param type Exact retained type identity; undeclared types share an empty result.
      * @return Immutable process-static definitions. No generator, Qt, or callback object is required.

@@ -765,6 +765,24 @@ namespace animation {
         return empty;
     }
 
+    const CommonTimingDefinition& commonTimingDefinition() noexcept
+    {
+        static constexpr CommonTimingDefinition definition { 0.01, 59.99, 2, 0.1, 1, 4999, 5 };
+        return definition;
+    }
+    CheckedTiming checkedTiming(double durationSeconds, double frameCount)
+    {
+        const auto& definition = commonTimingDefinition();
+        if (!std::isfinite(durationSeconds) || !std::isfinite(frameCount))
+            throw ParameterConversionError(ParameterConversionErrorCode::nonFiniteValue, "Animation timing values must be finite.");
+        if (durationSeconds < definition.minimumDurationSeconds || durationSeconds > definition.maximumDurationSeconds
+            || frameCount < definition.minimumFrameCount || frameCount > definition.maximumFrameCount)
+            throw ParameterConversionError(ParameterConversionErrorCode::outsideRange, "Animation timing is outside its declared widget range.");
+        if (std::trunc(frameCount) != frameCount)
+            throw ParameterConversionError(ParameterConversionErrorCode::unrepresentableValue, "Animation frame count must be integral.");
+        return { durationSeconds, static_cast<int>(frameCount) };
+    }
+
     double parameterValue(const ParameterDefinition& definition, int slider)
     {
         validateDefinition(definition);
