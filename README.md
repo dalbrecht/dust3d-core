@@ -591,6 +591,12 @@ included. See [ADR 0068](docs/adr/0068-bounded-worker-scheduling.md) (#115).
 
 ### FBX convention foundation (development)
 
+`native/Engine/FbxPropertyBlock.h` supplies a move-only bounded property buffer
+for FBX7400 scalars, binary strings/raw values and uncompressed arrays. It checks
+byte/count admission before growth, preserves prior bytes/count on rejection and
+keeps source inputs unchanged. This is in-memory encoding only; it does not write
+a complete scene or file. See [ADR 0079](docs/adr/0079-recovered-fbx-properties.md).
+
 `native/Engine/FbxAnimationMath.h` provides checked seconds-to-FBX-ticks conversion
 and bounded Euler normalization, signed shortest differences and continuity
 unwrapping, plus rigid-matrix XYZ Euler extraction. `RigMatrix.h` defines only the

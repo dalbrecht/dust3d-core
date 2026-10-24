@@ -599,3 +599,8 @@ Rigid matrix validation and reference XYZ Euler extraction are recovered as pure
 value operations under ADR 0078, with a standalone fixed matrix type and no rig
 generation or pose evaluation. Remaining saved serializers and owners require
 their own source audits, ordinary contracts and review gates before adoption.
+
+The bounded move-only FBX property block is recovered under ADR 0079, with
+byte-exact in-memory contracts and explicit retained-byte/count admission. Full
+scene serialization, file publication and independent re-import remain open;
+no rig, animation, GLB or Apple production path is enabled by this foundation.
