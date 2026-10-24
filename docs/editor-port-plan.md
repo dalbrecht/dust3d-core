@@ -462,3 +462,12 @@ exact framing and semantic mesh/failure validation. Existing real subprocess
 verification uses it. See [ADR 0066](adr/0066-worker-response-admission.md). Actual
 pipe collection, queue/revision orchestration, deadlines/resources/sandbox and app
 adoption remain required; production pin and quarantines are unchanged.
+
+### Real Unix parent transport (#114)
+
+A CMake development library directly spawns the trusted helper, concurrently sends
+and drains bounded Unix channels, captures original diagnostic bytes and observes
+termination. Actual licensed mesh and ordinary failure replies pass the existing
+single-use admission gate. See [ADR 0067](adr/0067-unix-worker-transport.md). Queue
+orchestration, deadline/termination/resources/sandbox and application adoption
+remain incomplete. Production pins and quarantines are unchanged.

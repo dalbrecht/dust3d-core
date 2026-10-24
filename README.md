@@ -554,3 +554,11 @@ semantics and returns independent mesh/failure data. Call `retire()` when work i
 cancelled, replaced or its document closes. Serialize all access; do not infer exit
 from output bytes. This API does not launch or sandbox a child or collect pipes.
 See [ADR 0066](docs/adr/0066-worker-response-admission.md).
+
+On macOS and supported Linux hosts, CMake also builds `dust3d_worker_transport`.
+`runWorkerJob(trustedAbsoluteHelperPath, request)` sends one request over real Unix
+channels, concurrently drains bounded reply/diagnostic data and returns observed
+process outcome. Use `PendingReply.complete` afterward with current identity;
+transport bytes alone never authorize publication. This synchronous development
+API has no deadline or hard cancellation and cleanup may block; run it off the UI
+thread and keep production adoption gated. See [ADR 0067](docs/adr/0067-unix-worker-transport.md).
