@@ -582,5 +582,15 @@ quarantined writer fixture remains disabled. Ordinary writer compatibility is
 tested separately. See ADR 0076. Delivery revalidation on reviewed master passed
 68/68 ordinary CTest contracts, fresh scoped ASan/UBSan writer contracts and the
 SwiftPM static-product build. Earlier 63/63 and scoped coverage results remain
-historical evidence in the ADR. Automated review and dependency adoption remain required; this does not
-establish universal XML validity or complete M1/M8 safety.
+historical evidence in the ADR. Core #131 merged after completed clean review and
+all CI green; Apple dependency adoption remains required. This does not establish
+universal XML validity or complete M1/M8 safety.
+
+### FBX convention recovery (#99)
+
+The saved pure time/angle helpers are restored as a source-audited foundation
+against the current core, with independent value contracts and unchanged
+reference truncation/tie semantics (ADR 0077). This does not restore serializers,
+animation evaluation, Apple adoption or independent-consumer acceptance. Recover
+the remaining archived export stages through separate audits and review gates;
+M7 remains incomplete.

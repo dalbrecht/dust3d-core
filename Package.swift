@@ -44,6 +44,7 @@ let package = Package(
             dependencies: ["Dust3DCore"],
             path: "native/Engine",
             sources: [
+                "FbxAnimationMath.cc",
                 "SourceBakedMesh.cc", "ImportedSurface.cc", "ImportedAssets.cc", "ImportedModels.cc", "GlbReader.cc",
                 "BakedMesh.cc",
                 "Cancellation.cc",

@@ -589,6 +589,16 @@ serialized. Cancellation retires publication without stopping native work. No
 deadline, forced termination, sandbox, production pin or application adoption is
 included. See [ADR 0068](docs/adr/0068-bounded-worker-scheduling.md) (#115).
 
+### FBX convention foundation (development)
+
+`native/Engine/FbxAnimationMath.h` provides checked seconds-to-FBX-ticks conversion
+and bounded Euler normalization, signed shortest differences and continuity
+unwrapping. It retains the reference exporter’s truncation and half-turn ties,
+with typed invalid-value and limit errors. These pure C++ helpers do not evaluate
+animation, write FBX, expose a C ABI, or change the Apple production pin. Static
+serialization, rig/animation export and independent-consumer acceptance remain
+separate stages under #99. See [ADR 0077](docs/adr/0077-recovered-fbx-conventions.md).
+
 ### Worker lifetime policy (development)
 
 `native/Engine/WorkerLifetime.h` defines an externally serialized pure lifecycle

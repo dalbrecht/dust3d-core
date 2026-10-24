@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Restore source-audited, bounded FBX time and Euler-angle conventions independently of serializers and quarantined animation evaluation (#99).
+
 - Bound snapshot XML component traversal and encoded output, preserve ordinary bytes, and stage writes before publication; quarantined writer failure fixtures remain disabled (#83).
 
 - Add parent-side supervised resource launch and bounded report admission with owned original completion errors; Apple adoption and strong containment remain pending (#123).
