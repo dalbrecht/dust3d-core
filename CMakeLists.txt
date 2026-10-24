@@ -81,6 +81,9 @@ if(APPLE OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
 endif()
 
 if(UNIX)
+    add_executable(dust3d_export native/ExportCli/main.cc)
+    set_target_properties(dust3d_export PROPERTIES OUTPUT_NAME dust3d-export)
+    target_link_libraries(dust3d_export PRIVATE dust3d_engine)
     add_executable(dust3d_worker native/Engine/WorkerMain.cc)
     target_link_libraries(dust3d_worker PRIVATE dust3d_worker_operation dust3d_worker_resource_setup)
     if(TARGET dust3d_worker_unix_resources)
@@ -171,6 +174,12 @@ if(BUILD_TESTING)
     # Optional standard-library acceptance tooling does not add a production dependency.
     find_package(Python3 QUIET COMPONENTS Interpreter)
     if(Python3_Interpreter_FOUND)
+        if(UNIX)
+            add_test(NAME export_cli_contracts COMMAND "${Python3_EXECUTABLE}" -B -m unittest discover
+                -s "${CMAKE_CURRENT_SOURCE_DIR}/tests/core" -p test_export_cli.py)
+            set_tests_properties(export_cli_contracts PROPERTIES TIMEOUT 180
+                ENVIRONMENT "DUST3D_BUILD_ROOT=${CMAKE_CURRENT_BINARY_DIR};DUST3D_CORE_FIXTURES=${CMAKE_CURRENT_SOURCE_DIR}/tests/core/fixtures;DUST3D_EXPORT_EXECUTABLE=$<TARGET_FILE:dust3d_export>")
+        endif()
         add_test(NAME fbx_baked_scene_verifier_contracts COMMAND "${Python3_EXECUTABLE}" -B -m unittest discover
             -s "${CMAKE_CURRENT_SOURCE_DIR}/tests/core" -p test_fbx_baked_scene_import.py)
         add_test(NAME fbx_baked_scene_verifier_optimized_contracts COMMAND "${Python3_EXECUTABLE}" -B -O -m unittest discover

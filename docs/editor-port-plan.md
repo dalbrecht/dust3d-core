@@ -665,3 +665,10 @@ and actual C/Swift6 actor-copy contracts. Its measured boundary coverage remains
 below adoption goals because exception fallbacks/defensive guards are unforced.
 Atomic output, app progress/commands, reviewed pin adoption and broad full-export
 acceptance remain open. No quarantined path or full-parity claim is enabled.
+
+
+A usable Qt-free headless static FBX command now reads .ds3 and atomically
+publishes geometry or a procedural baked atlas (ADR0090). Both CMake and SwiftPM
+products independently re-import through Assimp against original corners/pixels.
+Native app adoption, full filesystem/error coverage, imported policies, other
+formats, bulk batch and rig/animation/audio remain open; M7 is not complete.

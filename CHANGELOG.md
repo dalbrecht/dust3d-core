@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add a Qt-free static FBX export command with procedural baked-atlas mode, source-alias protection and atomic Unix output publication (#99).
+
 - Expose owned static geometry/baked-atlas FBX bytes through a sized C API with explicit quotas, cancellation and Swift 6 owned-copy verification (#99).
 
 - Connect baked RGBA maps to owned FBX atlas materials with aggregate PNG capacity admission and independent generated-scene pixel/geometry verification (#99).

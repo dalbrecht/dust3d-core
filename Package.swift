@@ -5,9 +5,13 @@ let package = Package(
     name: "Dust3DCore",
     platforms: [.macOS(.v14)],
     products: [
-        .library(name: "Dust3DEngine", type: .static, targets: ["Dust3DEngine"])
+        .executable(name: "dust3d-export", targets: ["Dust3DExport"]),
+        .library(name: "Dust3DEngine", type: .static, targets: ["Dust3DEngine"]),
     ],
     targets: [
+        .executableTarget(
+            name: "Dust3DExport", dependencies: ["Dust3DEngine"], path: "native/ExportCli", exclude: ["README.md"]
+        ),
         .target(
             name: "TriangleIntersection",
             path: "third_party/GuigueDevillers03",

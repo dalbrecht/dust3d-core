@@ -768,3 +768,19 @@ procedural baked-atlas modes. Copy bytes/warnings before destroy. Imported model
 assets reject before GLB decoding. ADR0089 documents limits, cancellation, the
 real Swift6 actor-copy contract and unforced boundary coverage gaps. This does
 not expose an app command or change the production dependency pin.
+
+## Qt-free static FBX command
+
+Build `dust3d_export` with CMake or `swift build --product dust3d-export` in this
+core package, then run:
+
+```sh
+"$BUILD_DIR/dust3d-export" input.ds3 output.fbx
+"$BUILD_DIR/dust3d-export" --baked --texture-size 256 input.ds3 output.fbx
+```
+
+The Unix command preserves source bytes and stages/flushes output before atomic
+replacement. Geometry is the default; baked mode supports a procedural atlas.
+See [command usage](native/ExportCli/README.md) and ADR0090 for bounds, exit codes,
+independent C API re-import, measured coverage and remaining export acceptance.
+It does not change the Apple pin or enable imported/rigged/animated/GLB export.
