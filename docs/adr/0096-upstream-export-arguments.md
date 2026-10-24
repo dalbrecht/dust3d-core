@@ -61,8 +61,11 @@ and full M7 acceptance remain open.
 
 Replay this stage onto publicPR150 head f5a6eafb, preserving PR149's scene-binding
 verifier correction and the batch delivery evidence. Runtime/CLI test sources
-remain byte-identical to the original audited be82245b stage. The parent is still
-review-gated; this preparation is not another public PR or merged functionality.
+remain byte-identical to the original audited be82245b stage. At initial validation,
+the parent remained review-gated; the preparation did not open another public PR.
+PR150 subsequently merged at ba0b1a36 after completed clean exact-head automated
+review and all six CI green. Full-tree equality before/after the ancestry-only
+rebase proves the final source is unchanged; no native binary executes after it.
 
 Fresh Debug CMake build and all98 ordinary CTest contracts pass19.02s. All20 CLI
 cases pass against CMake and SwiftPM products. SwiftPM builds0.80s. Fresh strict-
