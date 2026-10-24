@@ -471,3 +471,15 @@ termination. Actual licensed mesh and ordinary failure replies pass the existing
 single-use admission gate. See [ADR 0067](adr/0067-unix-worker-transport.md). Queue
 orchestration, deadline/termination/resources/sandbox and application adoption
 remain incomplete. Production pins and quarantines are unchanged.
+
+
+### Bounded worker request scheduling (#115)
+
+Portable scheduling now connects one active header and one latest waiting archive
+to the existing reply admission gate. Monotonic request identity, cancellation,
+close, malformed/replayed/foreign completion rejection and transport-failure
+retirement have pure tests and ordinary real Capsule worker integration. Normal
+61/61 and sanitizer60/60 contracts pass. See [ADR0068](adr/0068-bounded-worker-scheduling.md).
+This is externally serialized scheduling state; application I/O orchestration,
+deadlines, hard cancellation, sandbox/resource/parent-death policy and production
+adoption remain required. No production pin or quarantine changes; M8 remains open.

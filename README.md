@@ -562,3 +562,29 @@ process outcome. Use `PendingReply.complete` afterward with current identity;
 transport bytes alone never authorize publication. This synchronous development
 API has no deadline or hard cancellation and cleanup may block; run it off the UI
 thread and keep production adoption gated. See [ADR 0067](docs/adr/0067-unix-worker-transport.md).
+
+
+### Bounded worker scheduling
+
+`RequestQueue` in `native/Engine/WorkerQueue.h` links portable scheduling state to
+reply admission. Submit an owned request with a globally increasing request
+number; `submit` returns any replaced waiting identity. `begin` transfers the
+latest archive only if no request is active. The serialized owner can replace,
+cancel or close while a separate I/O executor collects the active transport.
+Return collected bytes and actual outcome to `complete`; only its owned admitted
+result can publish. On a transport exception, wait for its cleanup/reaping, call
+`abandon(identity)` on the serialized owner, and surface the original exception.
+Foreign completion/failure cannot release a different active request.
+
+```cpp
+dust3d::worker::RequestQueue queue;
+auto replaced = queue.submit(std::move(requestFrame));
+auto next = queue.begin(); // nullopt while transport is active
+// Transfer next to a separate I/O executor; return completion to this owner.
+```
+
+The queue retains one waiting archive and one active header; caller-owned input,
+transport buffers and process RSS are outside that bound. Access is externally
+serialized. Cancellation retires publication without stopping native work. No
+deadline, forced termination, sandbox, production pin or application adoption is
+included. See [ADR 0068](docs/adr/0068-bounded-worker-scheduling.md) (#115).

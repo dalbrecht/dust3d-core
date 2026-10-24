@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Bound worker scheduling to one active request and one latest waiting archive, retiring stale completions before typed reply admission (#115).
+
 - Add a development Unix parent transport with concurrent bounded channel transfer, original diagnostics and observed process completion (#114). Production lifecycle policy remains pending.
 
 - Add single-use worker completion admission requiring clean exit, current identity and validated owned payloads (#113).

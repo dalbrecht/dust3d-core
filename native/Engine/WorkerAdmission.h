@@ -31,8 +31,9 @@ namespace worker {
     /// Does not spawn, collect, cancel, retry, log, sandbox or enforce transport resource limits.
     class PendingReply {
     public:
-        /// Validate the original request header; throws ProtocolError or AdmissionError.
-        explicit PendingReply(const Header& request);
+        /// Validate the original request header with its configured input limits, without reading its payload.
+        /// Throws ProtocolError or AdmissionError. Defaults preserve the standard wire quotas.
+        explicit PendingReply(const Header& request, const Limits& requestLimits = {});
         PendingReply(const PendingReply&) = delete;
         PendingReply& operator=(const PendingReply&) = delete;
         PendingReply(PendingReply&&) = delete;

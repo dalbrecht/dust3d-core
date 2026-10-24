@@ -8,6 +8,7 @@
 #include <iostream>
 #include <iterator>
 #include <memory>
+#include <native/Engine/WorkerQueue.h>
 #include <native/Engine/WorkerTransport.h>
 #include <stdexcept>
 
@@ -127,6 +128,26 @@ void verify(const std::string& worker, const std::vector<uint8_t>& archive, uint
                 && std::memcmp(mesh.vertices[index].color.data(), vertices[index].color, 4 * sizeof(float)) == 0,
             "Pipe transport preserves every native vertex bit");
 }
+void queuedTransport(const std::string& worker, const std::vector<uint8_t>& archive)
+{
+    RequestQueue queue;
+    queue.submit(request(archive, 1));
+    auto first = queue.begin();
+    auto collected = runWorkerJob(worker, *first);
+    require(collected.diagnostic.empty() && !collected.diagnosticTruncated, "Ordinary queued helper emits no runtime diagnostic");
+    queue.submit(request({ 1, 2, 3 }, 2));
+    queue.submit(request(archive, 3));
+    rejects<AdmissionError>([&] {
+        queue.complete(first->header.identity, collected.outcome, collected.reply.data(), collected.reply.size());
+    });
+    auto latest = queue.begin();
+    require(latest && latest->header.identity.request == 3, "Only latest queued archive launches");
+    collected = runWorkerJob(worker, *latest);
+    require(collected.diagnostic.empty() && !collected.diagnosticTruncated, "Latest queued helper emits no runtime diagnostic");
+    auto admitted = queue.complete(latest->header.identity, collected.outcome, collected.reply.data(), collected.reply.size());
+    require(!std::get<MeshPayload>(admitted).vertices.empty(), "Latest actual helper result passes queue admission");
+    require(!queue.begin(), "Actual sequential transport drains queue");
+}
 }
 int main(int argc, char** argv)
 {
@@ -137,6 +158,7 @@ int main(int argc, char** argv)
         verify(argv[1], readFixture(std::filesystem::path(argv[2]) / "Sword.ds3"), 2, 4096);
         verify(argv[1], { 1, 2, 3 }, 3, 1);
         verify(argv[1], {}, 4, 64);
+        queuedTransport(argv[1], readFixture(std::filesystem::path(argv[2]) / "Capsule.ds3"));
         return 0;
     } catch (const std::exception& cause) {
         std::cerr << cause.what() << '\n';

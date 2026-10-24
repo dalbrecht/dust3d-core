@@ -83,6 +83,24 @@ void meshCompletion()
     PendingReply badFailure(expected);
     rejects<FailurePayloadError>([&] { badFailure.complete(expected.identity, { true, 0 }, wire.data(), wire.size()); });
 }
+void configuredInputLimits()
+{
+    auto expected = request();
+    expected.payloadBytes = Limits {}.maximumInputBytes + 1;
+    Limits limits;
+    limits.maximumInputBytes = expected.payloadBytes;
+    // Only header metadata is large. The ordinary typed failure payload stays tiny.
+    auto wire = reply(expected);
+    rejects<ProtocolError>([&] { PendingReply defaults(expected); });
+    PendingReply configured(expected, limits);
+    auto admitted = configured.complete(expected.identity, { true, 0 }, wire.data(), wire.size(), limits);
+    require(std::get<FailurePayload>(admitted).cause == std::vector<uint8_t>({ 0, 255, 'x' }), "Configured input limits admit a small original failure reply");
+    require(configured.isRetired(), "Configured completion remains single-use");
+    limits.maximumInputBytes--;
+    rejects<ProtocolError>([&] { PendingReply tooSmall(expected, limits); });
+    limits.maximumInputBytes = maximumPayloadBytes + 1;
+    rejects<ProtocolError>([&] { PendingReply invalidLimits(expected, limits); });
+}
 void completion()
 {
     static_assert(!std::is_copy_constructible<PendingReply>::value, "Pending ownership cannot duplicate");
@@ -138,6 +156,7 @@ int main()
     try {
         completion();
         meshCompletion();
+        configuredInputLimits();
         return 0;
     } catch (const std::exception& cause) {
         std::cerr << cause.what() << '\n';
