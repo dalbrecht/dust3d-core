@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Expose owned static geometry/baked-atlas FBX bytes through a sized C API with explicit quotas, cancellation and Swift 6 owned-copy verification (#99).
+
 - Connect baked RGBA maps to owned FBX atlas materials with aggregate PNG capacity admission and independent generated-scene pixel/geometry verification (#99).
 
 - Add bounded portable RGBA PNG encoding through system zlib for baked export maps, with independent pixel/alpha/CRC verification (#99).

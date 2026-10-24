@@ -832,6 +832,52 @@ Dust3DTextureView dust3d_source_baked_mesh_texture(const Dust3DSourceBakedMesh* 
 /** Output LOD clamp, currently zero (also for NULL). Source-image LOD is independent. */
 double dust3d_source_baked_mesh_maximum_sampling_lod(const Dust3DSourceBakedMesh* mesh);
 
+/** Immutable static FBX bytes. No C++ storage crosses this boundary. */
+typedef struct Dust3DFbxExport Dust3DFbxExport;
+#define DUST3D_FBX_EXPORT_GEOMETRY 0
+#define DUST3D_FBX_EXPORT_BAKED 1
+/** Source-matched prototype options; struct_size must equal sizeof this structure.
+ * mode is GEOMETRY or BAKED. Geometry excludes materials/rig/animation; baked uses
+ * one complete procedural atlas. Imported GLB assets are rejected before decoding.
+ * Geometry quota: zero64MiB/max256MiB. PNG capacity quota: zero64MiB/max64MiB.
+ * Output quota: zero64MiB/max256MiB, counting handle, complete FBX byte capacity
+ * and parser warning. These independent budgets exclude source, generator,
+ * scene-node/compressor workspace, allocator costs and total operation RSS/time.
+ * bake is required/sized only in BAKED mode; its decoded image views are borrowed
+ * for this call. bake.cancellation must be NULL or equal cancellation. One outer
+ * token governs the call; geometry mode ignores bake. No hard cancellation
+ * latency guarantee: inherited generation, PNG and scene encoding have phases.
+ */
+typedef struct Dust3DFbxExportOptions {
+    size_t struct_size;
+    uint32_t mode;
+    size_t maximum_geometry_payload_bytes;
+    size_t maximum_png_payload_bytes;
+    size_t maximum_output_payload_bytes;
+    const Dust3DCancellationToken* cancellation;
+    Dust3DBakeOptions bake;
+} Dust3DFbxExportOptions;
+/** Serialize procedural archive generation and static FBX encoding under the engine lock.
+ * @param bytes Complete readable archive, borrowed until return.
+ * @param size Archive byte count; existing archive bounds apply.
+ * @param options Required sized options and optional borrowed decoded pixels/token.
+ * @param error Optional initialized status/cause. Never throws into C.
+ * @return Independent immutable handle, NULL on error/cancellation; no partial bytes.
+ * Typed parser/bake/UV/limit causes survive; bad_alloc maps to LIMIT_EXCEEDED.
+ * No files, rig, animation, source-aware imported materials or app adoption.
+ * Example: zero options, set struct_size, load; copy bytes/count; destroy.
+ */
+Dust3DFbxExport* dust3d_fbx_export_load(const uint8_t* bytes, size_t size, const Dust3DFbxExportOptions* options, Dust3DError* error);
+/** Release all storage. NULL is accepted. */
+void dust3d_fbx_export_destroy(Dust3DFbxExport* output);
+/** Borrowed bytes until destroy; copy before releasing. NULL for NULL/empty owner. */
+const uint8_t* dust3d_fbx_export_bytes(const Dust3DFbxExport* output);
+/** Final byte count / logical retained payload; zero for NULL. */
+size_t dust3d_fbx_export_byte_count(const Dust3DFbxExport* output);
+size_t dust3d_fbx_export_payload_bytes(const Dust3DFbxExport* output);
+/** Borrowed parser diagnostic until destroy; empty string for NULL. Never free. */
+const char* dust3d_fbx_export_warning(const Dust3DFbxExport* output);
+
 #ifdef __cplusplus
 }
 #endif

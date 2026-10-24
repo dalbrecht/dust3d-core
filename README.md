@@ -761,3 +761,10 @@ channels with an aggregate retained-buffer quota and neutral material factors.
 ADR0088 records a generated procedural scene re-import, comparing original
 corners, packed UVs and raw baked pixels independently. This remains an internal
 building block; the export C ABI and editor command are not yet exposed.
+
+The source-matched static FBX C API (`Dust3DFbxExportOptions` and
+`dust3d_fbx_export_load`) returns immutable owned bytes for explicit geometry or
+procedural baked-atlas modes. Copy bytes/warnings before destroy. Imported model
+assets reject before GLB decoding. ADR0089 documents limits, cancellation, the
+real Swift6 actor-copy contract and unforced boundary coverage gaps. This does
+not expose an app command or change the production dependency pin.
