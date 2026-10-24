@@ -591,6 +591,12 @@ included. See [ADR 0068](docs/adr/0068-bounded-worker-scheduling.md) (#115).
 
 ### FBX convention foundation (development)
 
+`encodeFbxTexturedMeshScene` adds one composed atlas material and six optional
+caller-validated PNG channels: color, normal, metallic, roughness, emissive and AO.
+Scalar and pure image-length admission precede embedding; inputs remain owned by
+the caller and output is independent. This does not decode images, bake source
+materials or establish rendered shader parity. See [ADR 0083](docs/adr/0083-recovered-fbx-material-scenes.md).
+
 `native/Engine/FbxMeshScene.h` encodes a geometry-only static scene from a bounded
 `Object`, preserving source indexing, winding, optional corner normals/UVs and
 reference axis/unit metadata. The pure `FbxMeshScenePlan.h` admits scalar counts
