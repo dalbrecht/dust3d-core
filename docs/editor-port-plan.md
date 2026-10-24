@@ -643,3 +643,9 @@ through an opt-in same-generation hook (ADR0086), verified with a real Capsule
 color bake. Actual baked-image encoding, imported/source-aware material groups,
 C ABI, atomic destinations, UI/CLI and independent generated-scene acceptance
 remain required before M4/M7 completion.
+
+
+Baked RGBA images can now be encoded as bounded PNGs through system zlib
+(ADR0087), with independent optimized-Python CRC/pixel/alpha/row checks. Actual
+map-to-material orchestration, imported policy groups, C ABI, atomic destinations,
+UI/CLI and generated textured-scene acceptance remain open. M4/M7 remain incomplete.

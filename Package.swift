@@ -49,6 +49,7 @@ let package = Package(
                 "FbxMeshScenePlan.cc",
                 "FbxGeometrySelection.cc",
                 "FbxAtlasGeometry.cc",
+                "PngEncoding.cc",
                 "FbxDocument.cc",
                 "FbxNode.cc",
                 "FbxPropertyBlock.cc",
@@ -70,7 +71,8 @@ let package = Package(
                 .headerSearchPath("../.."),
                 .headerSearchPath("../../third_party/rapidxml-1.13"),
                 .headerSearchPath("../../third_party"),
-            ]
+            ],
+            linkerSettings: [.linkedLibrary("z")]
         ),
     ],
     cxxLanguageStandard: .cxx17
