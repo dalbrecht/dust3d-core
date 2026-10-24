@@ -679,3 +679,9 @@ implemented under ADR0091, with controlled independent quad/triangle re-import.
 Public OBJ C API/CLI/app adoption remains open. Source inspection also found the
 shared float-preview validity dependency; decouple it from original exports using
 small owned geometry tests before claiming full precision/workflow acceptance.
+
+
+ADR0092 separates original export preparation from float preview validity and
+allocation. Static FBX API/CLI use this mode; controlled original-value tests and
+independent baked CLI re-import pass. Public OBJ ownership/CLI and app adoption
+remain open. This resolves the ADR0091 coupling without claiming M7 completion.
