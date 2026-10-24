@@ -493,3 +493,13 @@ transport's blocking cleanup. Normal 62/62 contracts and scoped policy sanitizer
 pass; [ADR 0069](adr/0069-worker-lifetime-policy.md) records full scoped policy
 coverage and the missing OS/resource/sandbox/parent-death acceptance. M8, Apple
 adoption and full parity remain open; no production pin changes.
+
+### Opt-in supervised worker operation (#123)
+
+The local supervisor integrates lifetime decisions with Unix collection while
+preserving the legacy entry point. Ordinary supervised Capsule and pre-start
+cancellation pass normal/sanitizer contracts; active OS stop/escalation remains
+unforced under current restrictions. [ADR 0070](adr/0070-supervised-unix-worker.md)
+records measured coverage gaps, exclusive reaping ownership, possible uninterruptible
+OS reap, and missing resource/sandbox/parent-death containment. This does not close
+#123/M8, enable production documents or change the Apple pin.
