@@ -25,6 +25,21 @@ class ExportCliTests(unittest.TestCase):
         self.assertEqual(self.source.read_bytes(), self.original)
         self.assertEqual(list(self.directory.glob('.dust3d-export-*')), [])
 
+    def test_should_export_original_obj_polygons_and_reject_baked_obj(self):
+        destination = self.directory / 'original ü.OBJ'
+        result = self.run_export(self.source, destination)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        lines = destination.read_text().splitlines()
+        self.assertTrue(any(line.startswith('v ') for line in lines))
+        self.assertTrue(any(line.startswith('f ') for line in lines))
+        previous = destination.read_bytes()
+        for options in [('--baked',), ('--baked', '--texture-size', '64'), ('--max-output-bytes', '1')]:
+            result = self.run_export(*options, self.source, destination)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertEqual(destination.read_bytes(), previous)
+            self.assertNotIn('Exported', result.stdout)
+        self.assert_unchanged()
+
     def test_should_replace_destination_only_after_geometry_export_succeeds(self):
         self.destination.write_bytes(b'old output')
         result = self.run_export(self.source, self.destination)

@@ -688,3 +688,6 @@ remain open. This resolves the ADR0091 coupling without claiming M7 completion.
 
 
 ADR0093 adds owned original OBJ C API output with ordinary lifetime/quota/cancellation tests. CLI dispatch, Swift owned-copy verification, independent generated-output import and app adoption remain open; M7 is incomplete.
+
+
+ADR0094 delivers OBJ CLI dispatch and a Swift 6 owned-copy consumer, with independent generated OBJ re-import and atomic-output regression checks. Native editor export service/UI and full M7 acceptance remain open.

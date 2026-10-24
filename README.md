@@ -798,3 +798,6 @@ re-import, scoped coverage and remaining OBJ/app integration.
 
 
 The development OBJ C API now exposes independent immutable original polygon bytes via Dust3DObjExportOptions and dust3d_obj_export_load. Copy borrowed bytes before destroy. ADR0093 records quota/lifetime semantics and validation limits. CLI dispatch and app adoption remain pending.
+
+
+The export command also accepts .obj destinations for original double geometry v/f polygons. --baked OBJ rejects explicitly. ADR0094 documents Swift 6 owned-copy verification, independent generated OBJ re-import and remaining app adoption.

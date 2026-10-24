@@ -108,7 +108,7 @@ Arguments parseArguments(int argc, char** argv)
         }
     }
     if (paths.size() != 2 || (hasTextureSize && !result.baked))
-        throw ExportError(ExitCode::usage, "Expected input.ds3 output.fbx; --texture-size requires --baked.");
+        throw ExportError(ExitCode::usage, "Expected input.ds3 output.fbx|output.obj; --texture-size requires --baked.");
     result.source = paths[0];
     result.destination = paths[1];
     return result;
@@ -153,15 +153,20 @@ Archive readArchive(const std::filesystem::path& path)
     }
     return archive;
 }
-void validateDestination(const std::filesystem::path& destination, const struct stat& source)
+std::string destinationExtension(const std::filesystem::path& destination)
 {
     auto extension = destination.extension().string();
     for (auto& letter : extension) {
         if (letter >= 'A' && letter <= 'Z')
             letter = static_cast<char>(letter - 'A' + 'a');
     }
-    if (extension != ".fbx")
-        throw ExportError(ExitCode::usage, "Destination must have the .fbx extension.");
+    return extension;
+}
+void validateDestination(const std::filesystem::path& destination, const struct stat& source)
+{
+    const auto extension = destinationExtension(destination);
+    if (extension != ".fbx" && extension != ".obj")
+        throw ExportError(ExitCode::usage, "Destination must have the .fbx or .obj extension.");
     const auto parent = destination.has_parent_path() ? destination.parent_path() : std::filesystem::path(".");
     struct stat parentInfo {};
     if (::stat(parent.c_str(), &parentInfo) != 0)
@@ -236,6 +241,25 @@ void exportFile(const Arguments& arguments)
 {
     const auto archive = readArchive(arguments.source);
     validateDestination(arguments.destination, archive.identity);
+    if (destinationExtension(arguments.destination) == ".obj") {
+        if (arguments.baked)
+            throw ExportError(ExitCode::usage, "OBJ exports original geometry only; --baked requires FBX.");
+        Dust3DObjExportOptions options {};
+        options.struct_size = sizeof(options);
+        options.maximum_output_payload_bytes = arguments.maximumOutputBytes;
+        Dust3DError error {};
+        std::unique_ptr<Dust3DObjExport, decltype(&dust3d_obj_export_destroy)> owner(
+            dust3d_obj_export_load(archive.bytes.data(), archive.bytes.size(), &options, &error), dust3d_obj_export_destroy);
+        if (!owner)
+            throw ExportError(ExitCode::native, "Native export status " + std::to_string(error.status) + ": " + error.message);
+        const auto count = dust3d_obj_export_byte_count(owner.get());
+        publish(arguments.destination, archive.identity, dust3d_obj_export_bytes(owner.get()), count);
+        std::printf("Exported %zu bytes\n", count);
+        const auto* warning = dust3d_obj_export_warning(owner.get());
+        if (*warning)
+            std::fprintf(stderr, "Source note: %s\n", warning);
+        return;
+    }
     Dust3DFbxExportOptions options {};
     options.struct_size = sizeof(options);
     options.mode = arguments.baked ? DUST3D_FBX_EXPORT_BAKED : DUST3D_FBX_EXPORT_GEOMETRY;
@@ -260,7 +284,7 @@ int main(int argc, char** argv)
 {
     try {
         if (argc == 2 && std::string(argv[1]) == "--help") {
-            std::cout << "dust3d-export [--baked] [--texture-size 1...8192] [--max-output-bytes N] [--] input.ds3 output.fbx\n";
+            std::cout << "dust3d-export [--baked] [--texture-size 1...8192] [--max-output-bytes N] [--] input.ds3 output.fbx|output.obj\n";
             return 0;
         }
         exportFile(parseArguments(argc, argv));

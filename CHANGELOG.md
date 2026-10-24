@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Export original OBJ polygons through the Qt-free command with atomic publication and verify Swift 6 owned copies (#99).
+
 - Expose owned original-double OBJ polygon bytes through a sized, quota-bounded C API with cooperative cancellation (#99).
 
 - Prepare original OBJ/FBX exports independently of float preview conversion, preserving double geometry and avoiding preview vertex allocation (#99).

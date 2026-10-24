@@ -191,6 +191,12 @@ if(BUILD_TESTING)
     # Optional standard-library acceptance tooling does not add a production dependency.
     find_package(Python3 QUIET COMPONENTS Interpreter)
     if(Python3_Interpreter_FOUND)
+        add_test(NAME generated_obj_verifier_contracts COMMAND "${Python3_EXECUTABLE}" -B -m unittest discover
+            -s "${CMAKE_CURRENT_SOURCE_DIR}/tests/core" -p test_generated_obj_import.py)
+        add_test(NAME generated_obj_verifier_optimized_contracts COMMAND "${Python3_EXECUTABLE}" -B -O -m unittest discover
+            -s "${CMAKE_CURRENT_SOURCE_DIR}/tests/core" -p test_generated_obj_import.py)
+        set_tests_properties(generated_obj_verifier_contracts generated_obj_verifier_optimized_contracts PROPERTIES TIMEOUT 30
+            ENVIRONMENT "DUST3D_BUILD_ROOT=${CMAKE_CURRENT_BINARY_DIR}")
         add_test(NAME obj_scene_verifier_contracts COMMAND "${Python3_EXECUTABLE}" -B -m unittest discover
             -s "${CMAKE_CURRENT_SOURCE_DIR}/tests/core" -p test_obj_scene_import.py)
         add_test(NAME obj_scene_verifier_optimized_contracts COMMAND "${Python3_EXECUTABLE}" -B -O -m unittest discover
@@ -372,6 +378,23 @@ if(BUILD_TESTING)
         add_custom_target(dust3d_fbx_export_swift ALL DEPENDS "${DUST3D_SWIFT_FBX_CONSUMER}")
         add_test(NAME fbx_export_swift COMMAND "${DUST3D_SWIFT_FBX_CONSUMER}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/core/fixtures/Capsule.ds3")
         set_tests_properties(fbx_export_swift PROPERTIES TIMEOUT 60)
+        set(DUST3D_SWIFT_OBJ_CONSUMER "${CMAKE_CURRENT_BINARY_DIR}/obj-export-swift")
+        add_custom_command(OUTPUT "${DUST3D_SWIFT_OBJ_CONSUMER}"
+            COMMAND "${DUST3D_XCRUN}" swift-format lint --strict "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/ObjExportSmoke.swift"
+            COMMAND "${DUST3D_XCRUN}" swiftc -swift-version 6 -strict-concurrency=complete
+                -warnings-as-errors -parse-as-library
+                -module-cache-path "${CMAKE_CURRENT_BINARY_DIR}/swift-module-cache"
+                -I "${DUST3D_SWIFT_MODULE_DIRECTORY}"
+                "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/ObjExportSmoke.swift"
+                "$<TARGET_FILE:dust3d_engine>" "$<TARGET_FILE:dust3d_core>"
+                "$<TARGET_FILE:dust3d_remesher>" "$<TARGET_FILE:dust3d_triangle>"
+                -lc++ -lz -o "${DUST3D_SWIFT_OBJ_CONSUMER}"
+            DEPENDS tests/swift/ObjExportSmoke.swift native/Engine/include/Dust3DBridge.h
+                dust3d_engine dust3d_core dust3d_remesher dust3d_triangle
+            VERBATIM)
+        add_custom_target(dust3d_obj_export_swift ALL DEPENDS "${DUST3D_SWIFT_OBJ_CONSUMER}")
+        add_test(NAME obj_export_swift COMMAND "${DUST3D_SWIFT_OBJ_CONSUMER}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/core/fixtures/Capsule.ds3")
+        set_tests_properties(obj_export_swift PROPERTIES TIMEOUT 60)
     endif()
     add_executable(dust3d_source_baked_mip_tests tests/core/source_baked_mip_tests.cc)
     target_link_libraries(dust3d_source_baked_mip_tests PRIVATE dust3d_engine)
