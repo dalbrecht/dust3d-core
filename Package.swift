@@ -56,7 +56,7 @@ let package = Package(
                 "FbxAtlasGeometry.cc",
                 "PngEncoding.cc",
                 "FbxBakedMaterial.cc",
-                "FbxExportBridge.cc",
+                "FbxExportBridge.cc", "ObjExportBridge.cc",
                 "FbxDocument.cc",
                 "FbxNode.cc",
                 "FbxPropertyBlock.cc",

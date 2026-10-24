@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Expose owned original-double OBJ polygon bytes through a sized, quota-bounded C API with cooperative cancellation (#99).
+
 - Prepare original OBJ/FBX exports independently of float preview conversion, preserving double geometry and avoiding preview vertex allocation (#99).
 
 - Add bounded original-double OBJ polygon encoding and all-or-nothing generation export hooks, preserving source quads and vertex identities (#99).

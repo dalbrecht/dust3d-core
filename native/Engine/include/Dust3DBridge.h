@@ -878,6 +878,39 @@ size_t dust3d_fbx_export_payload_bytes(const Dust3DFbxExport* output);
 /** Borrowed parser diagnostic until destroy; empty string for NULL. Never free. */
 const char* dust3d_fbx_export_warning(const Dust3DFbxExport* output);
 
+/** Independent immutable original-double OBJ geometry; copy borrowed views before destroy. */
+typedef struct Dust3DObjExport Dust3DObjExport;
+/** Sized options. Output quota includes owner, warning and actual byte capacity;
+ * zero selects64MiB, maximum256MiB. Excludes generation workspace/allocator overhead.
+ * cancellation is borrowed until return; cooperative checks have no hard latency guarantee.
+ */
+typedef struct Dust3DObjExportOptions {
+    size_t struct_size;
+    size_t maximum_output_payload_bytes;
+    const Dust3DCancellationToken* cancellation;
+} Dust3DObjExportOptions;
+/** Generate serialized procedural original geometry and encode OBJ v/f polygons.
+ * @param bytes Complete readable archive borrowed until return.
+ * @param size Archive byte count; existing archive bounds apply.
+ * @param options Required correctly sized options, borrowed until return.
+ * @param error Optional initialized typed status and original cause; no exceptions cross C.
+ * @return Independent owned handle, NULL on error/cancellation. No partial output.
+ * Preserves original double positions and triangle/quad indices; no float preview,
+ * normals, UVs, materials, rig, animation, imported GLB models or files.
+ * Example: zero options, set struct_size, load, copy bytes/count, destroy.
+ */
+Dust3DObjExport* dust3d_obj_export_load(const uint8_t* bytes, size_t size, const Dust3DObjExportOptions* options, Dust3DError* error);
+/** Release owned storage. NULL accepted. */
+void dust3d_obj_export_destroy(Dust3DObjExport* output);
+/** Borrow bytes until destroy; NULL for NULL owner. Never free separately. */
+const uint8_t* dust3d_obj_export_bytes(const Dust3DObjExport* output);
+/** Byte count; zero for NULL. */
+size_t dust3d_obj_export_byte_count(const Dust3DObjExport* output);
+/** Logical retained owner/warning/byte capacity; zero for NULL. */
+size_t dust3d_obj_export_payload_bytes(const Dust3DObjExport* output);
+/** Borrow parser diagnostic until destroy; empty string for NULL. */
+const char* dust3d_obj_export_warning(const Dust3DObjExport* output);
+
 #ifdef __cplusplus
 }
 #endif

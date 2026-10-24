@@ -795,3 +795,6 @@ Original export preparation now skips float preview conversion and vertex storag
 static FBX geometry/baked API and CLI callers use it. Default preview behavior is
 unchanged. See ADR0092 for the controlled precision regression, independent baked
 re-import, scoped coverage and remaining OBJ/app integration.
+
+
+The development OBJ C API now exposes independent immutable original polygon bytes via Dust3DObjExportOptions and dust3d_obj_export_load. Copy borrowed bytes before destroy. ADR0093 records quota/lifetime semantics and validation limits. CLI dispatch and app adoption remain pending.
