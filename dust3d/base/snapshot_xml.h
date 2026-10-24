@@ -23,13 +23,52 @@
 #ifndef DUST3D_BASE_SNAPSHOT_XML_H_
 #define DUST3D_BASE_SNAPSHOT_XML_H_
 
+#include <cstddef>
 #include <dust3d/base/snapshot.h>
+#include <stdexcept>
 #include <string>
 
 namespace dust3d {
 
 void loadSnapshotFromXmlString(Snapshot* snapshot, char* xmlString);
+enum class SnapshotXmlWriteErrorCode { invalidLimits,
+    invalidHierarchy,
+    limitExceeded };
+
+/// Typed rejection before publication; allocation failures propagate as standard C++ exceptions.
+class SnapshotXmlWriteError : public std::runtime_error {
+public:
+    SnapshotXmlWriteError(SnapshotXmlWriteErrorCode code, const char* message)
+        : std::runtime_error(message)
+        , m_code(code)
+    {
+    }
+    SnapshotXmlWriteErrorCode code() const noexcept { return m_code; }
+
+private:
+    SnapshotXmlWriteErrorCode m_code;
+};
+
+/// Callers may tighten these hard ceilings, not enlarge them.
+struct SnapshotXmlWriteLimits {
+    size_t maximumComponents = 65536;
+    // Reserve two enclosing XML levels within the reader's 128-level bound.
+    size_t maximumDepth = 126;
+    size_t maximumXmlBytes = 16 * 1024 * 1024;
+};
+
+/// Validate hierarchy and exact encoded size without serializing or mutating a snapshot.
+/// Throws SnapshotXmlWriteError for invalid metadata/limits, or standard allocation exceptions.
+/// Example: validateSnapshotForXmlWrite(snapshot) before preparing an ordinary fixture.
+void validateSnapshotForXmlWrite(const Snapshot& snapshot, const SnapshotXmlWriteLimits& limits = {});
+
+/// Append compatible XML under default bounds. The destination is unchanged on any exception.
+/// Throws SnapshotXmlWriteError or standard allocation exceptions; never recurses through components.
 void saveSnapshotToXmlString(const Snapshot& snapshot, std::string& xmlString);
+
+/// Append XML with stricter bounds, including any existing destination prefix in the byte budget.
+/// Throws SnapshotXmlWriteError or standard allocation exceptions without partial publication.
+void saveSnapshotToXmlString(const Snapshot& snapshot, std::string& xmlString, const SnapshotXmlWriteLimits& limits);
 
 }
 

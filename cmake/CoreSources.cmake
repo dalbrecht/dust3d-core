@@ -7,6 +7,7 @@ set(DUST3D_CORE_SOURCES
     dust3d/base/part_target.cc
     dust3d/base/position_key.cc
     dust3d/base/snapshot_xml.cc
+    dust3d/base/snapshot_xml_writer.cc
     dust3d/base/string.cc
     dust3d/base/texture_type.cc
     dust3d/base/retained_payload.cc
