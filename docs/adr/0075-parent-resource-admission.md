@@ -101,3 +101,14 @@ publication integration remain required. Strong RSS/descendant/filesystem/networ
 sandboxing and parent-death containment are absent; virtual-address activation is
 still rejected. Preserve all GLB/writer/fault/animation/rig-pose quarantines and the
 Apple pin. #123/M8 and full native editor parity remain incomplete.
+
+## Rebased delivery verification
+
+Rebased onto saved launch stage 23f7dbb8, preserving the reviewed request-limit
+preflight fix. Fresh normal CMake/CTest on a2fa3e7f passes 67/67 in 35.30s;
+fresh full ASan/UBSan passes 66/66 in 103.62s. Changed-file formatting and the
+source quarantine guard pass. These reruns use the ordinary licensed workloads,
+pre-start rejection and synthetic outcome contracts described above, without
+forbidden probes. CMake products are cleaned and sanitizer mode reset after
+terminal gates. The original SVG bytes and modification time are restored.
+No production pin, quarantine, helper packaging or Apple adoption change is made.
