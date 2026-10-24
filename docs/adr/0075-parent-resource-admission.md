@@ -112,3 +112,18 @@ pre-start rejection and synthetic outcome contracts described above, without
 forbidden probes. CMake products are cleaned and sanitizer mode reset after
 terminal gates. The original SVG bytes and modification time are restored.
 No production pin, quarantine, helper packaging or Apple adoption change is made.
+
+## Public delivery after helper launch merge
+
+Reparented onto merged core PR129 (7cb9e124), verifying the entire source tree
+matches validated1ed33ef9 before this evidence note. Fresh normal CMake/CTest
+passed67/67 (16.59s); a separate fresh full ASan/UBSan configuration in the same
+shared build directory passed66/66 (59.59s). The normal-only Swift consumer is
+excluded by the existing sanitizer build rule. Both parent and child used matching
+instrumented-runtime detection in the sanitizer gate. Ordinary resource-helper
+transport/readback/result tests and unchanged parent caps passed. On macOS,
+ASAN_OPTIONS was unset and UBSAN_OPTIONS retained halt-on-error/stack traces.
+Formatting and source quarantine checks passed. No quarantined input, allocation-
+failure, exhaustion, active-signal, crash or broken-pipe probe ran. Historical
+coverage above is not relabeled as a fresh coverage measurement. Pins, production
+adoption and remaining containment limits are unchanged.
