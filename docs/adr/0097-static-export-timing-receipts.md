@@ -80,6 +80,9 @@ Replay the harness onto PR151 head88e61598, retaining the corrected OBJ scene
 binding verifier and accepted-parent evidence. Runtime/harness sources match the
 original audited ba82aaea stage byte-for-byte; negative benchmark cases remain
 injected callbacks with no native launch, timeout or signal probes.
+PR151 subsequently merged at ee9f658d after completed clean exact-head automated
+review and all six CI green. Full-tree equality before/after the ancestry-only
+rebase proves source identity; no native binary executes after that rebase.
 
 Fresh Debug build and100/100 CTest pass19.11s. A fresh Release build and100/100
 smoke contracts pass6.44s; inherited NDEBUG assertions remain a limitation and
