@@ -801,3 +801,6 @@ The development OBJ C API now exposes independent immutable original polygon byt
 
 
 The export command also accepts .obj destinations for original double geometry v/f polygons. --baked OBJ rejects explicitly. ADR0094 documents Swift 6 owned-copy verification, independent generated OBJ re-import and remaining app adoption.
+
+
+The Qt-free command accepts --batch followed by at most64 explicit input/output pairs. It preflights cross-job source/output aliases, commits jobs independently, continues failures and returns5 with a committed/failed summary. See native/ExportCli/README.md and ADR0095 for retry semantics and compatibility limits.

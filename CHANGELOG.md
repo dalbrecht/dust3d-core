@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Add bounded serial OBJ/FBX batch exports with cross-job source protection,
+  per-job diagnostics and recoverable partial failures. Preserve committed files
+  when later output names resolve to the same filesystem identity (#99).
+
 - Export original OBJ polygons through the Qt-free command with atomic publication and verify Swift 6 owned copies (#99).
 
 - Expose owned original-double OBJ polygon bytes through a sized, quota-bounded C API with cooperative cancellation (#99).

@@ -37,3 +37,25 @@ No UI launch, crash, signal, broken-pipe or resource-exhaustion probes are neede
 POSIX-specific publication stays in this executable; portable library/public
 headers remain Qt/Apple/POSIX-free. Windows publication and complete exporter
 parity remain follow-up work under core#99.
+
+## Recoverable serial batches
+
+Use explicit input/output pairs, with common options applied to every job:
+
+```sh
+"$BUILD_DIR/dust3d-export" --batch first.ds3 first.obj second.ds3 second.fbx
+```
+
+At most64 pairs are accepted. Preflight rejects known output path/inode collisions
+and output aliases of batch inputs before the first commit. Each job also rejects
+aliases of earlier committed outputs, including case-equivalent names whose
+identity becomes visible only after creation. Each job then reads
+and generates its own source snapshot; no preview/cache result is substituted.
+Successful jobs stay committed when another fails. Diagnostics identify the job
+index, preserve its original cause/exit class, and summarize committed/failed
+counts. Exit5 means at least one batch job failed; retry only those failed pairs.
+Exit0 means all batch jobs committed; global argument/preflight errors reject the
+whole invocation before writing. Aliases detected after an earlier commit are
+partial failures and leave that earlier output intact. This is serial, with no parallel memory growth.
+External path mutation remains outside the guarantee. The explicit-pair syntax
+is new: it does not emulate Qt's -o/-output expansion or enable WAV/GLB/animation.
