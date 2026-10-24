@@ -11,7 +11,7 @@ namespace worker {
         , m_systemError(systemError)
     {
     }
-    std::vector<PlannedResourceLimit> prepareWorkerResources(const ResourceProfile& profile, ResourceRuntime runtime, ResourceSystem& system)
+    std::vector<PlannedResourceLimit> prepareWorkerResources(const ResourceProfile& profile, ResourceRuntime runtime, ResourceSystem& system, uint64_t minimumDescriptorCeiling)
     {
         ResourceEnvironment environment {};
         environment.runtime = runtime;
@@ -20,6 +20,8 @@ namespace worker {
         if (profile.addressBytes)
             environment.resources[static_cast<size_t>(ResourceKind::addressBytes)] = system.inspect(ResourceKind::addressBytes);
         auto plan = planWorkerResources(profile, environment);
+        if (plan[3].effective.soft < minimumDescriptorCeiling)
+            throw ResourceError(ResourceErrorCode::invalidPolicy, ResourceKind::descriptors, "Worker descriptor cap is below its startup requirement");
         for (const auto& entry : plan)
             system.apply(entry);
         return plan;

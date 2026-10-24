@@ -1,6 +1,8 @@
 # ADR 0073: Private helper resource setup adapter
 
-Status: local development library; not activated in the worker or Apple app.
+Status: library implemented; subsequent opt-in helper activation is recorded in
+ADR 0074. The pre-activation evidence below remains historical; Apple adoption is
+incomplete.
 Refs #123. Follows the policy and implementation contract in ADRs 0071–0072.
 
 ## Decision

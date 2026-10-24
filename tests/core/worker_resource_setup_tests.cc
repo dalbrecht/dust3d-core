@@ -113,6 +113,8 @@ void failureOrdering()
     policyFailure(ResourceErrorCode::invalidPolicy, ResourceKind::descriptors, [&] { prepareWorkerResources(input, ResourceRuntime::ordinary, system); });
     require(calls.writes.empty(), "Late validation failure precedes every mutation");
     input = profile();
+    policyFailure(ResourceErrorCode::invalidPolicy, ResourceKind::descriptors, [&] { prepareWorkerResources(input, ResourceRuntime::ordinary, system, 17); });
+    require(calls.writes.empty(), "Startup descriptor floor rejects before all mutations");
     input.addressBytes = ResourceBudget { 100, 200 };
     policyFailure(ResourceErrorCode::incompatibleRuntime, ResourceKind::addressBytes, [&] { prepareWorkerResources(input, ResourceRuntime::addressSanitized, system); });
     require(calls.writes.empty(), "Instrumented virtual policy cannot partially apply");

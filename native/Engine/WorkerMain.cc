@@ -1,5 +1,10 @@
 // SPDX-License-Identifier: MIT
 #include "WorkerOperation.h"
+#include "WorkerResourceLaunch.h"
+#include "WorkerResourceSetup.h"
+#ifdef DUST3D_WORKER_HAS_RESOURCE_SETUP
+#include "WorkerUnixResources.h"
+#endif
 #include <algorithm>
 #include <array>
 #include <cerrno>
@@ -102,8 +107,77 @@ void diagnostic(int descriptor, const char* stage, int code, const char* cause, 
         (void)writeAll(descriptor, reinterpret_cast<const uint8_t*>(message), std::min(static_cast<size_t>(length), sizeof(message) - 1));
 }
 
+#ifdef DUST3D_WORKER_HAS_RESOURCE_SETUP
+ResourceRuntime compiledResourceRuntime()
+{
+#if defined(__SANITIZE_ADDRESS__)
+    return ResourceRuntime::addressSanitized;
+#elif defined(__has_feature)
+#if __has_feature(address_sanitizer)
+    return ResourceRuntime::addressSanitized;
+#else
+    return ResourceRuntime::ordinary;
+#endif
+#else
+    return ResourceRuntime::ordinary;
+#endif
 }
-int main(int argc, char**)
+
+#endif
+IoResult prepareResources(int argc, char** argv, int output, int errors, int sink)
+{
+    if (argc == 1)
+        return { true, 0 };
+#ifdef DUST3D_WORKER_HAS_RESOURCE_SETUP
+    if (argc != 9 && argc != 11)
+        throw ResourceLaunchError(ResourceLaunchErrorCode::invalidArguments, "Worker resource launch has an invalid argument count");
+    std::vector<std::string> arguments;
+    for (int index = 1; index < argc; ++index) {
+        const auto length = ::strnlen(argv[index], 33);
+        if (length > 32)
+            throw ResourceLaunchError(ResourceLaunchErrorCode::invalidArguments, "Worker resource launch token exceeds supported bounds");
+        arguments.emplace_back(argv[index], length);
+    }
+    const auto runtime = compiledResourceRuntime();
+    const auto launch = decodeResourceLaunch(arguments, runtime);
+    // Virtual-cap activation requires a separately reviewed OS/runtime policy (#123).
+    if (launch.profile.addressBytes)
+        throw ResourceError(ResourceErrorCode::unsupportedResource, ResourceKind::addressBytes, "Worker virtual address cap activation is not supported by this build");
+    SystemUnixResourceCalls calls;
+    UnixResourceSystem system(calls);
+    const auto descriptorFloor = static_cast<uint64_t>(std::max({ output, errors, sink })) + 1;
+    const auto plan = prepareWorkerResources(launch.profile, runtime, system, descriptorFloor);
+    for (const auto& entry : plan) {
+        const auto actual = system.inspect(entry.resource).inherited;
+        if (actual.soft != entry.effective.soft || actual.hard != entry.effective.hard)
+            throw ResourceError(ResourceErrorCode::invalidInherited, entry.resource, "Worker effective resource caps differ after application");
+    }
+    char report[1024];
+    auto length = std::snprintf(report, sizeof(report), "resource-profile-v1 %s", runtime == ResourceRuntime::ordinary ? "ordinary" : "asan");
+    if (length < 0 || static_cast<size_t>(length) >= sizeof(report))
+        return { false, EIO };
+    for (const auto& entry : plan) {
+        const auto available = sizeof(report) - static_cast<size_t>(length);
+        const int added = std::snprintf(report + length, available, " %llu %llu", static_cast<unsigned long long>(entry.effective.soft), static_cast<unsigned long long>(entry.effective.hard));
+        if (added < 0 || static_cast<size_t>(added) >= available)
+            return { false, EIO };
+        length += added;
+    }
+    if (static_cast<size_t>(length) + 1 >= sizeof(report))
+        return { false, EIO };
+    report[length++] = '\n';
+    return writeAll(errors, reinterpret_cast<const uint8_t*>(report), static_cast<size_t>(length));
+#else
+    (void)argv;
+    (void)output;
+    (void)errors;
+    (void)sink;
+    throw ResourceLaunchError(ResourceLaunchErrorCode::unsupportedVersion, "Worker resource setup is unavailable on this platform");
+#endif
+}
+
+}
+int main(int argc, char** argv)
 {
     // Broken response pipes report ordinary I/O errors; no signal-delivery probe is used.
     if (std::signal(SIGPIPE, SIG_IGN) == SIG_ERR)
@@ -125,13 +199,14 @@ int main(int argc, char**)
         diagnostic(errors.get(), "setup", cause, std::strerror(cause), 0);
         return ioExit;
     }
-    if (argc != 1) {
-        diagnostic(errors.get(), "usage", usageExit, "Worker accepts no command-line arguments.", 0);
-        return usageExit;
-    }
     uint64_t requestIdentity = 0;
     try {
         QuietErrors quiet;
+        const auto prepared = prepareResources(argc, argv, output.get(), errors.get(), sink.get());
+        if (!prepared.complete) {
+            diagnostic(errors.get(), "resource-report", prepared.error, std::strerror(prepared.error), 0);
+            return ioExit;
+        }
         std::array<uint8_t, headerBytes> bytes {};
         auto input = readExactly(STDIN_FILENO, bytes.data(), bytes.size());
         if (!input.complete) {
@@ -171,6 +246,19 @@ int main(int argc, char**)
             return ioExit;
         }
         return 0;
+    } catch (const ResourceLaunchError& cause) {
+        diagnostic(errors.get(), "usage", static_cast<int>(cause.code()), cause.what(), 0);
+        return usageExit;
+    } catch (const ResourceError& cause) {
+        char stage[64];
+        std::snprintf(stage, sizeof(stage), "resource-policy-%u", static_cast<unsigned>(cause.resource()));
+        diagnostic(errors.get(), stage, static_cast<int>(cause.code()), cause.what(), 0);
+        return usageExit;
+    } catch (const ResourceSetupError& cause) {
+        char stage[64];
+        std::snprintf(stage, sizeof(stage), "resource-setup-%u-%u", static_cast<unsigned>(cause.operation()), static_cast<unsigned>(cause.resource()));
+        diagnostic(errors.get(), stage, cause.systemError(), cause.what(), 0);
+        return ioExit;
     } catch (const ProtocolError& cause) {
         diagnostic(errors.get(), "protocol", static_cast<int>(cause.code()), cause.what(), requestIdentity);
         return protocolExit;

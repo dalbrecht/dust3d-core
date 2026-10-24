@@ -621,8 +621,8 @@ also rejected. The trusted platform adapter supplies support, largest convertibl
 finite values and inherited soft/hard limits (`nullopt` means infinity). Returned
 finite effective caps never raise inherited limits. Planning is pure and makes no
 OS calls; zero inherited caps can still make actual helper startup impossible.
-This is not RSS, filesystem or descendant containment and is not wired into the
-helper or Apple app. See [ADR 0072](docs/adr/0072-worker-resource-planning.md) (#123).
+This is not RSS, filesystem or descendant containment. The explicit helper CLI
+can apply a supported development profile; Apple adoption remains separate. See [ADR 0072](docs/adr/0072-worker-resource-planning.md) (#123).
 
 
 ### Private helper resource setup (development)
@@ -633,6 +633,29 @@ preserves the original OS code, operation and resource; a caller must exit setup
 on failure and must not process an archive. The macOS/Linux UnixResourceSystem
 uses an explicit syscall seam and checked finite/infinity conversion. Actual
 SystemUnixResourceCalls must only be constructed in a fresh helper. These private
-libraries are built but not activated in the helper, transport or Apple app.
+libraries are used only by the helper's explicit opt-in resource launch. The
+parent transport and Apple app do not yet adopt that launch.
 Recording tests never change limits in the test runner. See
 [ADR 0073](docs/adr/0073-helper-resource-setup.md) for activation and evidence gaps.
+
+
+### Explicit helper resource launch (development)
+
+The helper accepts a versioned profile on macOS/Linux before reading its framed
+request. Use the exact compiled runtime (`ordinary` or `asan`) and explicit finite
+CPU-second, regular-file-byte and descriptor-number soft/hard budgets. Core dumps
+are always disabled. For example, these are test-only settings, not production
+budget recommendations:
+
+```sh
+dust3d_worker --resource-profile-v1 ordinary 600 600 16777216 16777216 128 128 \
+    < request.frame > reply.frame 2> resources.log
+```
+
+Input is the existing binary request frame, not a raw `.ds3` archive. Successful
+setup emits a bounded `resource-profile-v1` line with read-back effective limits
+on stderr; the response remains framed on stdout. Invalid metadata/runtime and
+virtual-cap activation are rejected before archive handling. Legacy no-argument
+launch does not select these limits. Parent resource-report admission, production
+budgets, signed helper identity, memory/sandbox/parent-death containment and Apple
+adoption remain required. See [ADR 0074](docs/adr/0074-opt-in-helper-resource-launch.md).

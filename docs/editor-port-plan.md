@@ -545,3 +545,16 @@ float-bit verification. These two single-run observations install no caps and do
 not establish production budgets, larger-document behavior, RSS containment or
 full M8 acceptance. The initial denied timing query is recorded separately from
 the successful normal wait4 observations, without a crash or exhaustion probe.
+
+
+### Opt-in helper resource launch (#123)
+
+[ADR 0074](adr/0074-opt-in-helper-resource-launch.md) adds bounded versioned launch
+metadata, exact compiled-runtime checks and helper-only CPU/file/core/descriptor
+installation plus readback before archive work. Ordinary Capsule/Sword fixtures
+pass with explicit test-only settings in normal (66/66 contracts) and ASan/UBSan
+(65/65) builds; rejected launch metadata installs no caps. Codec and setup policy
+coverage is scoped separately from incomplete OS/main coverage. Virtual-address
+activation remains rejected; no production profile, parent resource-report
+admission, memory/sandbox/parent-death containment or Apple adoption is claimed.
+All production pins/quarantines remain unchanged and M8/full parity remain open.
