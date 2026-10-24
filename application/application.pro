@@ -308,6 +308,8 @@ HEADERS += ../dust3d/base/uuid.h
 SOURCES += ../dust3d/base/uuid.cc
 HEADERS += ../dust3d/base/bone_binding.h
 # Animation infrastructure
+HEADERS += ../dust3d/animation/parameter_catalog.h
+SOURCES += ../dust3d/animation/parameter_catalog.cc
 HEADERS += ../dust3d/animation/animation_parameters.h
 HEADERS += ../dust3d/animation/animation_defaults.h
 SOURCES += ../dust3d/animation/animation_defaults.cc

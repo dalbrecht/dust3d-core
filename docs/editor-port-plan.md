@@ -743,3 +743,19 @@ do not publish the known incomplete intermediate reference closure. Parameter
 schema porting must replace unchecked inverse slider casts with checked conversion
 before native adoption. Descriptor/C-Swift/UI/runtime/playback/audio and full M6
 remain open; production pins and all quarantines remain unchanged.
+
+### Checked portable animation parameter definitions (Apple #145)
+
+ADR0101 moves the reference dynamic table into a value-only portable catalog while
+keeping an application compatibility adapter. Source comparison preserves table
+data/derivation and quoted labels, with explicit handling of the two custom scaled
+fish controls. There are 1592 definition instances across the 180 current catalog
+types. New native conversion validates finite coefficients/input, integer
+representability and slider range, preserving truncation and quantization. It does
+not normalize document values merely to display controls. All 105 ordinary Debug
+CTest contracts, scoped native math ASan/UBSan and SwiftPM build pass. The reference
+callback interface is compile-only; full Qt behavior remains unverified. C/Swift
+descriptor transport, native UI adoption, common timing/audio controls, Qt/runtime
+interoperability, sampling/playback/audio and complete M6 acceptance remain open.
+No production pin or quarantine is changed. Earlier catalog publication still
+requires its qmake dependency backport before that foundation PR ships.

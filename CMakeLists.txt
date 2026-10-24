@@ -115,6 +115,18 @@ endif()
 
 include(CTest)
 if(BUILD_TESTING)
+    add_executable(dust3d_animation_parameter_catalog_tests
+        tests/core/animation_parameter_catalog_tests.cc
+        dust3d/animation/parameter_catalog.cc
+        dust3d/animation/animation_defaults.cc
+        dust3d/animation/animation_catalog.cc
+        dust3d/animation/biped/clip_metadata.cc)
+    target_include_directories(dust3d_animation_parameter_catalog_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    add_test(NAME animation_parameter_catalog_contracts COMMAND dust3d_animation_parameter_catalog_tests)
+    set_tests_properties(animation_parameter_catalog_contracts PROPERTIES TIMEOUT 10)
+    # Compile the unchanged reference callback interface, without executing or linking it.
+    add_library(dust3d_animation_parameter_adapter_declarations OBJECT tests/reference/animation_parameter_adapter_compile.cc)
+    target_include_directories(dust3d_animation_parameter_adapter_declarations PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
     add_executable(dust3d_animation_defaults_tests
         tests/core/animation_defaults_tests.cc
         dust3d/animation/animation_defaults.cc
