@@ -739,3 +739,8 @@ independent geometry owners while preserving double positions and shared vertex
 identities. It supports replacement corner UVs and bounded count/capacity
 admission. Other Object/document metadata is excluded. See ADR0084 for measured
 coverage, independent selected-face import and remaining export integration.
+
+The internal `GenerationOutputs::fbxGeometry` hook retains original generated
+double positions and shared topology independently of the float preview. It is
+opt-in, bounded and publishes ownership only after success. See ADR0085; this
+is not yet a C API or app export command.

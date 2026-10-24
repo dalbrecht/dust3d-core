@@ -630,3 +630,9 @@ geometry ownership, unchanged shared vertex identities and replacement atlas UVs
 This enables later material grouping; original source geometry retention, C ABI,
 atomic writes and native export integration remain open. No rig/animation or
 quarantined GLB adoption is implied by this static subset foundation.
+
+
+Original generated geometry can now be retained through an opt-in synchronous
+output (ADR0085), avoiding reconstruction from float preview buffers. Material
+bake/group correspondence, owned C ABI, independent generated-scene acceptance
+and native UI/CLI output remain open; M7 is not complete.

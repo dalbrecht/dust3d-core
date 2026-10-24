@@ -129,6 +129,11 @@ if(BUILD_TESTING)
 
 
 
+    add_executable(dust3d_fbx_generation_geometry_tests tests/core/fbx_generation_geometry_tests.cc)
+    target_include_directories(dust3d_fbx_generation_geometry_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} native/Engine)
+    target_link_libraries(dust3d_fbx_generation_geometry_tests PRIVATE dust3d_engine)
+    add_test(NAME fbx_generation_geometry_contracts COMMAND dust3d_fbx_generation_geometry_tests ${CMAKE_CURRENT_SOURCE_DIR}/tests/core/fixtures)
+    set_tests_properties(fbx_generation_geometry_contracts PROPERTIES TIMEOUT 30)
     add_executable(dust3d_fbx_geometry_selection_tests tests/core/fbx_geometry_selection_tests.cc)
     target_include_directories(dust3d_fbx_geometry_selection_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} native/Engine)
     target_link_libraries(dust3d_fbx_geometry_selection_tests PRIVATE dust3d_engine)

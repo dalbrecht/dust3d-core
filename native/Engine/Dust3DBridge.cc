@@ -1,4 +1,5 @@
 #include "BakedMesh.h"
+#include "FbxGeometrySelection.h"
 #include "GenerationPipeline.h"
 #include "ImportedModels.h"
 #include "ImportedSurface.h"
@@ -10,6 +11,7 @@
 #include <cstdio>
 #include <dust3d/mesh/mesh_generator.h>
 #include <mutex>
+#include <numeric>
 
 namespace dust3d {
 namespace native {
@@ -42,6 +44,8 @@ namespace native {
     std::unique_ptr<Dust3DMesh> generateMesh(std::unique_ptr<dust3d::Snapshot> snapshot, const std::string& warning, ImportedModels* imports,
         MeshGenerator::GeneratedCacheContext* cache, MeshGenerator::GenerationMetrics* metrics, GenerationOutputs outputs)
     {
+        if (outputs.fbxGeometry)
+            planFbxGeometrySelection(1, 1, 1, false, false, outputs.maximumFbxGeometryBytes);
         auto* sources = outputs.sources;
         auto* uvs = outputs.uvs;
         auto* baked = outputs.baked;
@@ -162,6 +166,15 @@ namespace native {
             if (!surfaces || !generated)
                 throw DocumentError(DUST3D_STATUS_GENERATION_FAILED, "Source baking requires retained surface and generated metadata.");
             sourceBaked->prepare(*object, *generated, *mesh, *surfaces);
+        }
+        if (outputs.fbxGeometry) {
+            planFbxGeometrySelection(object->vertices.size(), object->triangles.size(), object->triangles.size(),
+                object->triangleVertexNormals() != nullptr, object->triangleVertexUvs() != nullptr, outputs.maximumFbxGeometryBytes);
+            std::vector<size_t> originalFaces(object->triangles.size());
+            std::iota(originalFaces.begin(), originalFaces.end(), size_t { 0 });
+            auto geometry = std::make_unique<FbxGeometrySelection>(selectFbxGeometry(*object, originalFaces, nullptr, outputs.maximumFbxGeometryBytes));
+            checkGenerationCancellation();
+            *outputs.fbxGeometry = std::move(geometry);
         }
         return mesh;
     }
