@@ -118,6 +118,9 @@ if(BUILD_TESTING)
     target_include_directories(dust3d_animation_dispatch_declarations PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR} third_party third_party/eigen)
     # Only declaration metadata is linked: no generator, rig, mesh or engine test dependency.
+    add_test(NAME animation_reference_source_contracts
+        COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_CURRENT_SOURCE_DIR}
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/cmake/animation_reference_sources_tests.cmake)
     add_executable(dust3d_animation_catalog_metadata_tests
         tests/core/animation_catalog_metadata_tests.cc
         dust3d/animation/animation_catalog.cc

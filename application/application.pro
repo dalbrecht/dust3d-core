@@ -309,6 +309,9 @@ SOURCES += ../dust3d/base/uuid.cc
 HEADERS += ../dust3d/base/bone_binding.h
 # Animation infrastructure
 HEADERS += ../dust3d/animation/animation_generator.h
+HEADERS += ../dust3d/animation/biped/clip_metadata.h
+HEADERS += ../dust3d/animation/biped/clip_definitions.inc
+SOURCES += ../dust3d/animation/biped/clip_metadata.cc
 HEADERS += ../dust3d/animation/animation_catalog.h
 SOURCES += ../dust3d/animation/animation_catalog.cc
 SOURCES += ../dust3d/animation/animation_generator.cc

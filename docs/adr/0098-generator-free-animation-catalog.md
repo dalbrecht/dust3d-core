@@ -46,3 +46,21 @@ core coverage claim. No parser or native ownership boundary is added.
 See ../animation-catalog-metadata-verification.md for inventory and remaining work.
 Core #67/#69, #83, #84, #95 and Apple #199 quarantines remain unchanged. No sampling,
 fault/crash/resource probes, protected app control or production pin change occurs.
+
+
+## Standalone delivery dependency correction
+
+The original local catalog extraction omitted the qmake source registration for
+biped/clip_metadata.cc. Existing reference callers require that definition. The
+corrected catalog-foundation-delivery branch adds the source and metadata/shared
+declaration headers without importing later preset or descriptor implementations.
+A focused manifest regression first fails against the extraction and passes after
+the registration fix. All existing tests remain byte-identical and all 101 prior
+runtime commands remain unchanged; the manifest-only contract is the 102nd case.
+Fresh Debug CMake build/102 CTest contracts pass (19.31s), scoped metadata ASan/UBSan
+passes, and SwiftPM builds in 7.48s. No Qt executable was built/run; this verifies
+source membership and portable linkage, not Qt runtime behavior. Production pin,
+quarantines and protected applications are unchanged. No executable ran after
+checkpoint publication. This correction supersedes the known broken intermediate
+for standalone publication; later preset/schema stages must keep this registration
+and extend its existing regression rather than add a duplicate test target.

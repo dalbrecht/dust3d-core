@@ -713,3 +713,6 @@ dispatch declarations without linking or executing them. Parameter descriptors,
 C/Swift owned-copy APIs, catalog-guided UI and Qt/native runtime interoperability,
 sampling/playback/audio and complete M6 acceptance remain open. No production pin
 or quarantine is changed; metadata success does not release core #95.
+
+
+The catalog foundation delivery now includes the required qmake metadata registration and a failing-then-passing manifest regression. Fresh 102-contract, scoped metadata sanitizer and SwiftPM checks pass. Use this corrected foundation for publication; later stages extend its source-membership regression. Qt runtime acceptance remains open.

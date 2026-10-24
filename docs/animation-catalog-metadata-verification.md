@@ -51,3 +51,21 @@ Not verified: sampling, poses, duration/playback fidelity, audio, Qt execution,
 parameter inspector descriptors/units/ranges, C ABI/Swift owned catalog copies,
 native UI integration or complete M6 acceptance. This stage does not close the
 animation quarantine, claim C++ coverage targets, or authorize excluded probes.
+
+
+## Standalone delivery dependency correction
+
+The original local catalog extraction omitted the qmake source registration for
+biped/clip_metadata.cc. Existing reference callers require that definition. The
+corrected catalog-foundation-delivery branch adds the source and metadata/shared
+declaration headers without importing later preset or descriptor implementations.
+A focused manifest regression first fails against the extraction and passes after
+the registration fix. All existing tests remain byte-identical and all 101 prior
+runtime commands remain unchanged; the manifest-only contract is the 102nd case.
+Fresh Debug CMake build/102 CTest contracts pass (19.31s), scoped metadata ASan/UBSan
+passes, and SwiftPM builds in 7.48s. No Qt executable was built/run; this verifies
+source membership and portable linkage, not Qt runtime behavior. Production pin,
+quarantines and protected applications are unchanged. No executable ran after
+checkpoint publication. This correction supersedes the known broken intermediate
+for standalone publication; later preset/schema stages must keep this registration
+and extend its existing regression rather than add a duplicate test target.
