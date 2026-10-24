@@ -610,3 +610,16 @@ thread and still use PendingReply for normal results. Legacy runWorkerJob remain
 unchanged. Active OS stop/escalation is not experimentally verified under current
 probe restrictions; OS reap can still block. See [ADR 0070](docs/adr/0070-supervised-unix-worker.md)
 for remaining resource, sandbox, parent-death and production-adoption gates.
+
+
+### Worker resource-profile planner (development)
+
+`native/Engine/WorkerResources.h` validates explicit CPU seconds, regular-file byte
+and descriptor-number budgets and always plans disabling core dumps. A virtual
+address byte cap is optional and is rejected for ASan; an unspecified runtime is
+also rejected. The trusted platform adapter supplies support, largest convertible
+finite values and inherited soft/hard limits (`nullopt` means infinity). Returned
+finite effective caps never raise inherited limits. Planning is pure and makes no
+OS calls; zero inherited caps can still make actual helper startup impossible.
+This is not RSS, filesystem or descendant containment and is not wired into the
+helper or Apple app. See [ADR 0072](docs/adr/0072-worker-resource-planning.md) (#123).

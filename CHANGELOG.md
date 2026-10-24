@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add pure worker resource-profile planning with explicit finite units, inherited-limit preservation and sanitizer compatibility checks; OS application and production adoption remain pending (#123).
+
 - Add an opt-in supervised Unix operation with pre-start cancellation and retained retirement outcomes; active OS termination remains unverified and production adoption is pending (#123).
 
 - Add a pure bounded worker-lifetime decision policy with single-use stop/drain actions and publication retirement; process integration remains pending (#123).
