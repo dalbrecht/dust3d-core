@@ -804,3 +804,6 @@ The export command also accepts .obj destinations for original double geometry v
 
 
 The Qt-free command accepts --batch followed by at most64 explicit input/output pairs. It preflights cross-job source/output aliases, commits jobs independently, continues failures and returns5 with a committed/failed summary. See native/ExportCli/README.md and ADR0095 for retry semantics and compatibility limits.
+
+
+The headless command now also accepts one source with repeated -o/-output targets. These share batch source-protection/publication checks; aggregate legacy failure returns1. ADR0096 documents argument/status compatibility and the remaining Qt workflow gaps.

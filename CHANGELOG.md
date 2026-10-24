@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Accept bounded upstream-style single-source -o/-output expansion with recoverable per-target failures and legacy aggregate exit status (#99).
+
 - Add bounded serial OBJ/FBX batch exports with cross-job source protection,
   per-job diagnostics and recoverable partial failures. Preserve committed files
   when later output names resolve to the same filesystem identity (#99).
