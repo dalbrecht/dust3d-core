@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add bounded original-double OBJ polygon encoding and all-or-nothing generation export hooks, preserving source quads and vertex identities (#99).
+
 - Add a Qt-free static FBX export command with procedural baked-atlas mode, source-alias protection and atomic Unix output publication (#99).
 
 - Expose owned static geometry/baked-atlas FBX bytes through a sized C API with explicit quotas, cancellation and Swift 6 owned-copy verification (#99).

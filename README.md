@@ -784,3 +784,9 @@ replacement. Geometry is the default; baked mode supports a procedural atlas.
 See [command usage](native/ExportCli/README.md) and ADR0090 for bounds, exit codes,
 independent C API re-import, measured coverage and remaining export acceptance.
 It does not change the Apple pin or enable imported/rigged/animated/GLB export.
+
+`native/Engine/ObjDocument.h` encodes original double vertices and triangle/quad
+polygons using the reference OBJ geometry semantics. It preserves shared indices
+and winding and has an opt-in original-object generation hook. ADR0091 records
+scoped coverage, independent polygon re-import and the remaining preview-validity
+coupling. This internal path is not yet exposed by the C API or export command.

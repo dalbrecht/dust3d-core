@@ -672,3 +672,10 @@ publishes geometry or a procedural baked atlas (ADR0090). Both CMake and SwiftPM
 products independently re-import through Assimp against original corners/pixels.
 Native app adoption, full filesystem/error coverage, imported policies, other
 formats, bulk batch and rig/animation/audio remain open; M7 is not complete.
+
+
+Original double OBJ polygon encoding and transactional generation outputs are
+implemented under ADR0091, with controlled independent quad/triangle re-import.
+Public OBJ C API/CLI/app adoption remains open. Source inspection also found the
+shared float-preview validity dependency; decouple it from original exports using
+small owned geometry tests before claiming full precision/workflow acceptance.
