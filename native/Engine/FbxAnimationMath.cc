@@ -3,6 +3,8 @@
 // Adapted from application/sources/fbx_file.cc; keep reference tie/truncation semantics.
 #include "FbxAnimationMath.h"
 #include "EngineInternal.h"
+#include "RigTransformValidation.h"
+#include <algorithm>
 #include <cmath>
 namespace dust3d {
 namespace native {
@@ -23,6 +25,22 @@ namespace native {
             throw DocumentError(DUST3D_STATUS_LIMIT_EXCEEDED, "FBX time exceeds the owned animation duration bound.");
         // The admitted maximum yields 2,771,169,480,000, safely representable by int64_t.
         return static_cast<int64_t>(seconds * 46186158000.0);
+    }
+    FbxEulerAngles fbxEulerAngles(const RigMatrix& matrix)
+    {
+        validateRigTransform(matrix, RigTransformUse::worldInput);
+        constexpr double degreesPerRadian = 180.0 / 3.14159265358979323846;
+        const double sineYaw = std::max(-1.0, std::min(1.0, -matrix[2]));
+        FbxEulerAngles result;
+        result.yaw = std::asin(sineYaw) * degreesPerRadian;
+        if (std::abs(sineYaw) > 1.0 - 1e-12) {
+            // Match the reference: roll and pitch are coupled here; absorb roll into pitch.
+            result.pitch = std::atan2(sineYaw > 0 ? matrix[4] : -matrix[4], matrix[5]) * degreesPerRadian;
+        } else {
+            result.pitch = std::atan2(matrix[6], matrix[10]) * degreesPerRadian;
+            result.roll = std::atan2(matrix[1], matrix[0]) * degreesPerRadian;
+        }
+        return result;
     }
     double normalizeFbxAngle(double degrees)
     {

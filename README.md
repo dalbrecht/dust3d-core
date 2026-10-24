@@ -593,11 +593,15 @@ included. See [ADR 0068](docs/adr/0068-bounded-worker-scheduling.md) (#115).
 
 `native/Engine/FbxAnimationMath.h` provides checked seconds-to-FBX-ticks conversion
 and bounded Euler normalization, signed shortest differences and continuity
-unwrapping. It retains the reference exporter’s truncation and half-turn ties,
+unwrapping, plus rigid-matrix XYZ Euler extraction. `RigMatrix.h` defines only the
+fixed column-major value; `RigTransformValidation.h` checks finite affine,
+right-handed unit frames and context-specific translation limits without invoking
+a pose owner. It retains the reference exporter’s truncation and half-turn ties,
 with typed invalid-value and limit errors. These pure C++ helpers do not evaluate
 animation, write FBX, expose a C ABI, or change the Apple production pin. Static
 serialization, rig/animation export and independent-consumer acceptance remain
-separate stages under #99. See [ADR 0077](docs/adr/0077-recovered-fbx-conventions.md).
+separate stages under #99. See [ADR 0077](docs/adr/0077-recovered-fbx-conventions.md)
+and [ADR 0078](docs/adr/0078-recovered-fbx-rigid-transforms.md).
 
 ### Worker lifetime policy (development)
 

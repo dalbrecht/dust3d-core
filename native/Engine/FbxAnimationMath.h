@@ -2,6 +2,7 @@
 // Copyright (c) 2018 Dust3D Project
 #ifndef DUST3D_NATIVE_FBX_ANIMATION_MATH_H_
 #define DUST3D_NATIVE_FBX_ANIMATION_MATH_H_
+#include "RigMatrix.h"
 #include <cstdint>
 namespace dust3d {
 namespace native {
@@ -11,6 +12,17 @@ namespace native {
     /// values or LIMIT_EXCEEDED above 60. Pure, no engine globals or allocations on
     /// success. Example: fbxAnimationTime(1) == 46186158000.
     int64_t fbxAnimationTime(double seconds);
+    struct FbxEulerAngles {
+        double pitch = 0;
+        double yaw = 0;
+        double roll = 0;
+    };
+    /// Decompose a column-major rigid transform as XYZ degrees (Rz*Ry*Rx), using
+    /// the reference roll=0 gimbal branch at |sin(yaw)|>1-1e-12. Validate via the
+    /// world-input boundary: finite affine right-handed unit rotation and
+    /// translation <=128M. Throws typed INVALID_DOCUMENT/LIMIT_EXCEEDED without
+    /// modifying input or engine globals. Example: auto angles = fbxEulerAngles(world).
+    FbxEulerAngles fbxEulerAngles(const RigMatrix& matrix);
     /// Normalize degrees into (-180, 180], preserving the reference -180 tie.
     /// Inputs must be finite with absolute value <=1M. Throws DocumentError
     /// INVALID_DOCUMENT for nonfinite values or LIMIT_EXCEEDED for bounds.

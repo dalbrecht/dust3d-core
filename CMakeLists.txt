@@ -35,6 +35,7 @@ target_include_directories(dust3d_core PUBLIC
 target_link_libraries(dust3d_core PUBLIC dust3d_remesher dust3d_triangle Threads::Threads)
 add_library(dust3d_engine STATIC
     native/Engine/FbxAnimationMath.cc
+    native/Engine/RigTransformValidation.cc
     native/Engine/SourceBakedMesh.cc
     native/Engine/ImportedSurface.cc
     native/Engine/ImportedAssets.cc
@@ -118,6 +119,12 @@ if(BUILD_TESTING)
     add_test(NAME snapshot_writer_contracts COMMAND dust3d_snapshot_writer_tests)
     set_tests_properties(snapshot_writer_contracts PROPERTIES TIMEOUT 30)
 
+
+    add_executable(dust3d_fbx_transform_tests tests/core/fbx_transform_tests.cc)
+    target_include_directories(dust3d_fbx_transform_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} native/Engine)
+    target_link_libraries(dust3d_fbx_transform_tests PRIVATE dust3d_engine)
+    add_test(NAME fbx_transform_contracts COMMAND dust3d_fbx_transform_tests)
+    set_tests_properties(fbx_transform_contracts PROPERTIES TIMEOUT 30)
     add_executable(dust3d_fbx_animation_math_tests tests/core/fbx_animation_math_tests.cc)
     target_include_directories(dust3d_fbx_animation_math_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} native/Engine)
     target_link_libraries(dust3d_fbx_animation_math_tests PRIVATE dust3d_engine)
