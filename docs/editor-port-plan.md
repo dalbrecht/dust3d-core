@@ -483,3 +483,13 @@ retirement have pure tests and ordinary real Capsule worker integration. Normal
 This is externally serialized scheduling state; application I/O orchestration,
 deadlines, hard cancellation, sandbox/resource/parent-death policy and production
 adoption remain required. No production pin or quarantine changes; M8 remains open.
+
+### Pure worker lifetime decisions (#123)
+
+A local WorkerLifetime stage validates explicit elapsed-time budgets, retires
+cancelled/late results and emits one stop/escalation/channel-close decision as
+appropriate. It performs no process or signal action and does not change the
+transport's blocking cleanup. Normal 62/62 contracts and scoped policy sanitizers
+pass; [ADR 0069](adr/0069-worker-lifetime-policy.md) records full scoped policy
+coverage and the missing OS/resource/sandbox/parent-death acceptance. M8, Apple
+adoption and full parity remain open; no production pin changes.

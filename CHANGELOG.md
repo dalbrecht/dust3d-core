@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add a pure bounded worker-lifetime decision policy with single-use stop/drain actions and publication retirement; process integration remains pending (#123).
+
 - Bound worker scheduling to one active request and one latest waiting archive, retiring stale completions before typed reply admission (#115).
 
 - Add a development Unix parent transport with concurrent bounded channel transfer, original diagnostics and observed process completion (#114). Production lifecycle policy remains pending.

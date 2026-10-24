@@ -588,3 +588,13 @@ transport buffers and process RSS are outside that bound. Access is externally
 serialized. Cancellation retires publication without stopping native work. No
 deadline, forced termination, sandbox, production pin or application adoption is
 included. See [ADR 0068](docs/adr/0068-bounded-worker-scheduling.md) (#115).
+
+### Worker lifetime policy (development)
+
+`native/Engine/WorkerLifetime.h` defines an externally serialized pure lifecycle
+policy with explicit work, stop-grace and post-exit drain budgets. It returns
+single-use decisions and retirement reasons from monotonic elapsed observations;
+it does not execute OS actions. `mayAdmit` still requires independent PendingReply
+exit/frame/revision validation. The existing transport's unbounded cleanup is
+unchanged. See [ADR 0069](docs/adr/0069-worker-lifetime-policy.md) and #123 for
+integration and containment limits. All quarantines and the Apple pin remain.
