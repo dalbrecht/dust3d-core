@@ -34,6 +34,8 @@ target_include_directories(dust3d_core PUBLIC
     third_party/earcut.hpp/include)
 target_link_libraries(dust3d_core PUBLIC dust3d_remesher dust3d_triangle Threads::Threads)
 add_library(dust3d_engine STATIC
+    native/Engine/FbxMeshScene.cc
+    native/Engine/FbxMeshScenePlan.cc
     native/Engine/FbxDocument.cc
     native/Engine/FbxNode.cc
     native/Engine/FbxPropertyBlock.cc
@@ -124,6 +126,21 @@ if(BUILD_TESTING)
 
 
 
+    add_executable(dust3d_fbx_mesh_scene_tests tests/core/fbx_mesh_scene_tests.cc)
+    target_include_directories(dust3d_fbx_mesh_scene_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} native/Engine)
+    target_link_libraries(dust3d_fbx_mesh_scene_tests PRIVATE dust3d_engine)
+    add_test(NAME fbx_mesh_scene_contracts COMMAND dust3d_fbx_mesh_scene_tests)
+    set_tests_properties(fbx_mesh_scene_contracts PROPERTIES TIMEOUT 30)
+    # Optional standard-library acceptance tooling does not add a production dependency.
+    find_package(Python3 QUIET COMPONENTS Interpreter)
+    if(Python3_Interpreter_FOUND)
+        add_test(NAME fbx_mesh_scene_verifier_contracts COMMAND "${Python3_EXECUTABLE}" -B -m unittest discover
+            -s "${CMAKE_CURRENT_SOURCE_DIR}/tests/core" -p test_fbx_mesh_scene_import.py)
+        set_tests_properties(fbx_mesh_scene_verifier_contracts PROPERTIES TIMEOUT 30
+            ENVIRONMENT "DUST3D_BUILD_ROOT=${CMAKE_CURRENT_BINARY_DIR}")
+    else()
+        message(STATUS "Skipping optional FBX importer-verifier contracts: Python3 unavailable")
+    endif()
     # Existing MIT codec is an ordinary known-positive test oracle, never a product dependency.
     add_library(dust3d_fbx_reference STATIC
         application/third_party/fbx/src/fbxdocument.cpp
