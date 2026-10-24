@@ -72,3 +72,26 @@ statistical or production budgets. Capsule outputs are 2,492/9,706/17,494 bytes;
 Sword outputs are 11,550/32,746/54,696 bytes. No peak-RSS/denied timing query,
 native crash/fault probe, stale binary or app-control operation was used. No
 independent parity or full M8 acceptance follows from nonempty timing output.
+
+
+## Delivery preparation on the legacy-argument PR
+
+Replay the harness onto PR151 head88e61598, retaining the corrected OBJ scene
+binding verifier and accepted-parent evidence. Runtime/harness sources match the
+original audited ba82aaea stage byte-for-byte; negative benchmark cases remain
+injected callbacks with no native launch, timeout or signal probes.
+
+Fresh Debug build and100/100 CTest pass19.11s. A fresh Release build and100/100
+smoke contracts pass6.44s; inherited NDEBUG assertions remain a limitation and
+this does not replace Debug semantics. Six serial positive samples from the clean
+committed38246145 source qualify, with stable executable/input hashes and output
+counts/hashes. Capsule/Sword each cover OBJ, geometry FBX and64-square baked FBX.
+Single wall samples range2.5–6.8ms on this host, including process startup and IO.
+No rejected/native failure case ran during measurement. The receipt and matching
+build/test logs are retained locally with executable/source provenance.
+
+One sample per case is not a statistical budget, cross-hardware comparison, peak
+memory/GPU/phase measurement, independent import verification or M8 acceptance.
+No new native production code, dependency, production pin or quarantine changes.
+Before public delivery, verify source/tree identity on accepted master. Require
+completed clean exact-head automated review and all CI green before merging.
