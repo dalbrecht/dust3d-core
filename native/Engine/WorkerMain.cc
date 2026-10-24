@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: MIT
+#include "WorkerBuild.h"
 #include "WorkerOperation.h"
 #include "WorkerResourceLaunch.h"
 #include "WorkerResourceSetup.h"
@@ -107,23 +108,6 @@ void diagnostic(int descriptor, const char* stage, int code, const char* cause, 
         (void)writeAll(descriptor, reinterpret_cast<const uint8_t*>(message), std::min(static_cast<size_t>(length), sizeof(message) - 1));
 }
 
-#ifdef DUST3D_WORKER_HAS_RESOURCE_SETUP
-ResourceRuntime compiledResourceRuntime()
-{
-#if defined(__SANITIZE_ADDRESS__)
-    return ResourceRuntime::addressSanitized;
-#elif defined(__has_feature)
-#if __has_feature(address_sanitizer)
-    return ResourceRuntime::addressSanitized;
-#else
-    return ResourceRuntime::ordinary;
-#endif
-#else
-    return ResourceRuntime::ordinary;
-#endif
-}
-
-#endif
 IoResult prepareResources(int argc, char** argv, int output, int errors, int sink)
 {
     if (argc == 1)

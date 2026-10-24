@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add parent-side supervised resource launch and bounded report admission with owned original completion errors; Apple adoption and strong containment remain pending (#123).
+
 - Add an explicit versioned helper resource launch with compiled-runtime checks, helper-only limit installation/readback and ordinary fixture acceptance; production profiles and Apple adoption remain pending (#123).
 
 - Add private worker resource setup and checked Unix conversion libraries with original OS-error preservation; helper activation remains pending (#123).

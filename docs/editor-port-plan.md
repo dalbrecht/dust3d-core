@@ -558,3 +558,16 @@ coverage is scoped separately from incomplete OS/main coverage. Virtual-address
 activation remains rejected; no production profile, parent resource-report
 admission, memory/sandbox/parent-death containment or Apple adoption is claimed.
 All production pins/quarantines remain unchanged and M8/full parity remain open.
+
+
+### Parent resource launch and admission (#123)
+
+[ADR 0075](adr/0075-parent-resource-admission.md) adds a supervised parent operation
+that emits the versioned profile and verifies observed exit/runtime/soft-hard caps
+before returning owned completion data. Opaque diagnostic tails and original typed
+metadata causes survive rejection; frame/revision admission remains independently
+required. Normal contracts pass 67/67 and ASan/UBSan 66/66 using ordinary licensed
+fixtures and pure rejection data. Metadata coverage is scoped at 100%; incomplete
+OS/transport coverage and active lifecycle acceptance remain explicit. Production
+profiles, trusted packaging, strong containment, source-aware results and Apple
+integration remain open. No production pin or quarantine changes; M8 is incomplete.

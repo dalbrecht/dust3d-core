@@ -3,6 +3,7 @@
 #define DUST3D_NATIVE_WORKER_TRANSPORT_H_
 #include "WorkerAdmission.h"
 #include "WorkerLifetime.h"
+#include "WorkerResourceObservation.h"
 #include <atomic>
 
 namespace dust3d {
@@ -63,6 +64,43 @@ namespace worker {
         LifetimeReason m_reason;
         std::optional<CollectedJob> m_collected;
     };
+    struct ResourceCollectedJob {
+        CollectedJob collected;
+        ResourceObservation observation;
+    };
+    enum class ResourceJobErrorCode { unsuccessfulExit,
+        invalidObservation };
+    /// Independently owns original outcome/reply/opaque diagnostics and the typed
+    /// metadata cause. Consumers must surface original diagnostic bytes safely;
+    /// they are never discarded, decoded as text or automatically logged here.
+    class ResourceJobError : public std::runtime_error {
+    public:
+        ResourceJobError(CollectedJob collected, std::optional<ResourceObservationError> observationFailure = std::nullopt);
+        ResourceJobErrorCode code() const noexcept { return m_observationFailure ? ResourceJobErrorCode::invalidObservation : ResourceJobErrorCode::unsuccessfulExit; }
+        const CollectedJob& collected() const noexcept { return m_collected; }
+        const std::optional<ResourceObservationError>& observationFailure() const noexcept { return m_observationFailure; }
+
+    private:
+        CollectedJob m_collected;
+        std::optional<ResourceObservationError> m_observationFailure;
+    };
+    /// Pure resource admission of an actually collected completion against its
+    /// prevalidated launch. Require normal exit zero before inspecting metadata.
+    /// Preserves full original diagnostics, including opaque tail/truncation.
+    /// Does not validate/publish the frame or revision; PendingReply remains required.
+    /// Throws ResourceJobError with owned context; original invalid requested-profile
+    /// errors propagate. Synthetic unit outcomes prove decisions, not OS events.
+    ResourceCollectedJob admitResourceCompletion(CollectedJob collected, const ResourceLaunch& requested);
+    /// Opt-in supervised resource launch. Profile arguments are encoded before
+    /// spawning; unsupported virtual caps and capture below 1024 bytes reject first.
+    /// Retired work still throws WorkerStopped. Require resource metadata plus
+    /// separate PendingReply/queue admission before any publication. Never calls
+    /// setrlimit in the parent and never retries/falls back to an unrestricted launch.
+    /// Caller runs off the UI thread, keeps configuration immutable during the call
+    /// and exclusively owns child reaping. Trusted binary identity, production budgets,
+    /// RSS/filesystem/descendant/parent-death containment and Apple adoption are absent.
+    ResourceCollectedJob runResourceLimitedWorkerJob(const std::string& executable, const Frame& request,
+        const ResourceLaunch& launch, const TransportLimits& limits = {}, const WorkerSupervision& supervision = {});
     /// Opt-in supervised Unix operation. Uses monotonic lifetime decisions and the actual child outcome.
     /// On retirement, stop input, request termination/escalation and collect exit before throwing WorkerStopped.
     /// Post-exit channel drain is bounded. Exception cleanup closes channels and requests force-stop before reap.

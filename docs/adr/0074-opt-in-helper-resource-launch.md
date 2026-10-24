@@ -1,6 +1,8 @@
 # ADR 0074: Versioned opt-in helper resource launch
 
-Status: local development helper activation; parent/app adoption incomplete.
+Status: local development helper activation. Subsequent parent integration is
+recorded in ADR 0075; the evidence below describes the CLI-only checkpoint.
+Apple adoption remains incomplete.
 Refs #123. Follows ADRs 0071–0073. Not a production resource profile or sandbox.
 
 ## Launch contract
