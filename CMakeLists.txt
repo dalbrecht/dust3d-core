@@ -37,6 +37,7 @@ target_link_libraries(dust3d_core PUBLIC dust3d_remesher dust3d_triangle Threads
 add_library(dust3d_engine STATIC
     native/Engine/ObjDocument.cc
     native/Engine/ObjGeometryPlan.cc
+    native/Engine/ObjExportBridge.cc
     native/Engine/FbxExportBridge.cc
     native/Engine/FbxBakedMaterial.cc
     native/Engine/PngEncoding.cc
@@ -149,6 +150,10 @@ if(BUILD_TESTING)
     target_link_libraries(dust3d_obj_document_tests PRIVATE dust3d_engine)
     add_test(NAME obj_document_contracts COMMAND dust3d_obj_document_tests ${CMAKE_CURRENT_SOURCE_DIR}/tests/core/fixtures)
     set_tests_properties(obj_document_contracts PROPERTIES TIMEOUT 60)
+    add_executable(dust3d_obj_export_api_tests tests/core/obj_export_api_tests.cc)
+    target_link_libraries(dust3d_obj_export_api_tests PRIVATE dust3d_engine)
+    add_test(NAME obj_export_api_contracts COMMAND dust3d_obj_export_api_tests ${CMAKE_CURRENT_SOURCE_DIR}/tests/core/fixtures)
+    set_tests_properties(obj_export_api_contracts PROPERTIES TIMEOUT 60)
     add_executable(dust3d_fbx_export_api_tests tests/core/fbx_export_api_tests.cc)
     target_link_libraries(dust3d_fbx_export_api_tests PRIVATE dust3d_engine)
     add_test(NAME fbx_export_api_contracts COMMAND dust3d_fbx_export_api_tests ${CMAKE_CURRENT_SOURCE_DIR}/tests/core/fixtures)

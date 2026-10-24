@@ -685,3 +685,6 @@ ADR0092 separates original export preparation from float preview validity and
 allocation. Static FBX API/CLI use this mode; controlled original-value tests and
 independent baked CLI re-import pass. Public OBJ ownership/CLI and app adoption
 remain open. This resolves the ADR0091 coupling without claiming M7 completion.
+
+
+ADR0093 adds owned original OBJ C API output with ordinary lifetime/quota/cancellation tests. CLI dispatch, Swift owned-copy verification, independent generated-output import and app adoption remain open; M7 is incomplete.
