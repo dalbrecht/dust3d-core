@@ -97,5 +97,14 @@ int main(void)
     dust3d_imported_surface_mesh_destroy(surface);
     if (dust3d_imported_surface_mesh_load(NULL, 0, NULL, NULL) != NULL)
         return 18;
+    Dust3DFbxExportOptions fbx_options = { 0 };
+    fbx_options.struct_size = sizeof(fbx_options);
+    fbx_options.mode = DUST3D_FBX_EXPORT_GEOMETRY;
+    Dust3DFbxExport* fbx = dust3d_fbx_export_load(NULL, 0, &fbx_options, &error);
+    if (fbx != NULL || error.status != DUST3D_STATUS_INVALID_DOCUMENT
+        || dust3d_fbx_export_bytes(NULL) != NULL || dust3d_fbx_export_byte_count(NULL) != 0
+        || dust3d_fbx_export_payload_bytes(NULL) != 0 || dust3d_fbx_export_warning(NULL) == NULL)
+        return 19;
+    dust3d_fbx_export_destroy(fbx);
     return 0;
 }

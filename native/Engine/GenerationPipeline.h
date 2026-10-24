@@ -32,6 +32,8 @@ namespace native {
         /// Replace local UVs with the complete original-face atlas from `uvs`.
         /// Requires both fbxGeometry and uvs; unknown atlas mappings fail explicitly.
         bool useFbxAtlasUvs = false;
+        /// Optional whole-generation token, borrowed throughout this serialized call.
+        const Dust3DCancellationToken* cancellation = nullptr;
     };
     Color sourceCornerColor(const Object& object, size_t triangleIndex, size_t corner);
     // Every native entry point shares this lock because inherited globals are not thread-safe.

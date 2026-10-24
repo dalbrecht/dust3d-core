@@ -55,6 +55,7 @@ namespace native {
         auto* surfaces = outputs.surfaces;
         auto* sourceBaked = outputs.sourceBaked;
         auto checkGenerationCancellation = [&] {
+            checkCancellation(outputs.cancellation);
             if (baked)
                 checkCancellation(baked->cancellation());
             if (sourceBaked)

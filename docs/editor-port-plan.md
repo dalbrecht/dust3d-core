@@ -657,3 +657,11 @@ with original positions/normals/winding, packed UVs, material bindings and exact
 color/metallic/roughness/emissive pixels. Source-aware policy groups, actual baked
 normal/AO and renderer agreement, export C ABI, atomic output and native UI/CLI
 remain open; this evidence does not complete M4/M7 or full editor parity.
+
+
+The source-matched static FBX C API is implemented under ADR0089, with owned
+bytes, explicit geometry/baked-atlas modes, scoped quotas, cooperative cancellation
+and actual C/Swift6 actor-copy contracts. Its measured boundary coverage remains
+below adoption goals because exception fallbacks/defensive guards are unforced.
+Atomic output, app progress/commands, reviewed pin adoption and broad full-export
+acceptance remain open. No quarantined path or full-parity claim is enabled.

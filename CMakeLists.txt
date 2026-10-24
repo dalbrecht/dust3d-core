@@ -35,6 +35,7 @@ target_include_directories(dust3d_core PUBLIC
     third_party/earcut.hpp/include)
 target_link_libraries(dust3d_core PUBLIC dust3d_remesher dust3d_triangle Threads::Threads)
 add_library(dust3d_engine STATIC
+    native/Engine/FbxExportBridge.cc
     native/Engine/FbxBakedMaterial.cc
     native/Engine/PngEncoding.cc
     native/Engine/FbxAtlasGeometry.cc
@@ -133,6 +134,10 @@ if(BUILD_TESTING)
 
 
 
+    add_executable(dust3d_fbx_export_api_tests tests/core/fbx_export_api_tests.cc)
+    target_link_libraries(dust3d_fbx_export_api_tests PRIVATE dust3d_engine)
+    add_test(NAME fbx_export_api_contracts COMMAND dust3d_fbx_export_api_tests ${CMAKE_CURRENT_SOURCE_DIR}/tests/core/fixtures)
+    set_tests_properties(fbx_export_api_contracts PROPERTIES TIMEOUT 60)
     add_executable(dust3d_fbx_baked_material_tests tests/core/fbx_baked_material_tests.cc)
     target_include_directories(dust3d_fbx_baked_material_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} native/Engine)
     target_link_libraries(dust3d_fbx_baked_material_tests PRIVATE dust3d_engine)
@@ -318,6 +323,23 @@ if(BUILD_TESTING)
         add_test(NAME source_baked_mip_swift
             COMMAND "${DUST3D_SWIFT_MIP_CONSUMER}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/core/fixtures/Capsule.ds3")
         set_tests_properties(source_baked_mip_swift PROPERTIES TIMEOUT 60)
+        set(DUST3D_SWIFT_FBX_CONSUMER "${CMAKE_CURRENT_BINARY_DIR}/fbx-export-swift")
+        add_custom_command(OUTPUT "${DUST3D_SWIFT_FBX_CONSUMER}"
+            COMMAND "${DUST3D_XCRUN}" swift-format lint --strict "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/FbxExportSmoke.swift"
+            COMMAND "${DUST3D_XCRUN}" swiftc -swift-version 6 -strict-concurrency=complete
+                -warnings-as-errors -parse-as-library
+                -module-cache-path "${CMAKE_CURRENT_BINARY_DIR}/swift-module-cache"
+                -I "${DUST3D_SWIFT_MODULE_DIRECTORY}"
+                "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/FbxExportSmoke.swift"
+                "$<TARGET_FILE:dust3d_engine>" "$<TARGET_FILE:dust3d_core>"
+                "$<TARGET_FILE:dust3d_remesher>" "$<TARGET_FILE:dust3d_triangle>"
+                -lc++ -lz -o "${DUST3D_SWIFT_FBX_CONSUMER}"
+            DEPENDS tests/swift/FbxExportSmoke.swift native/Engine/include/Dust3DBridge.h
+                dust3d_engine dust3d_core dust3d_remesher dust3d_triangle
+            VERBATIM)
+        add_custom_target(dust3d_fbx_export_swift ALL DEPENDS "${DUST3D_SWIFT_FBX_CONSUMER}")
+        add_test(NAME fbx_export_swift COMMAND "${DUST3D_SWIFT_FBX_CONSUMER}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/core/fixtures/Capsule.ds3")
+        set_tests_properties(fbx_export_swift PROPERTIES TIMEOUT 60)
     endif()
     add_executable(dust3d_source_baked_mip_tests tests/core/source_baked_mip_tests.cc)
     target_link_libraries(dust3d_source_baked_mip_tests PRIVATE dust3d_engine)
