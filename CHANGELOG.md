@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Restore immutable owned FBX node trees with checked depth, count, retained capacity and encoded-size metadata (#99).
+
 - Restore bounded, owned FBX7400 property encoding with explicit little-endian bytes and append-state preservation (#99).
 
 - Restore checked rigid-transform validation and FBX XYZ Euler extraction as pure value operations, with explicit column-major matrix ownership (#99).

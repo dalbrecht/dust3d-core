@@ -604,3 +604,7 @@ The bounded move-only FBX property block is recovered under ADR 0079, with
 byte-exact in-memory contracts and explicit retained-byte/count admission. Full
 scene serialization, file publication and independent re-import remain open;
 no rig, animation, GLB or Apple production path is enabled by this foundation.
+
+Immutable owned FBX node trees are recovered under ADR 0080, with aggregate
+depth/count/capacity and record-size contracts. Complete document serialization,
+real scenes and independent consumers remain required before M7 acceptance.

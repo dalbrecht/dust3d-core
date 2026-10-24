@@ -34,6 +34,7 @@ target_include_directories(dust3d_core PUBLIC
     third_party/earcut.hpp/include)
 target_link_libraries(dust3d_core PUBLIC dust3d_remesher dust3d_triangle Threads::Threads)
 add_library(dust3d_engine STATIC
+    native/Engine/FbxNode.cc
     native/Engine/FbxPropertyBlock.cc
     native/Engine/FbxAnimationMath.cc
     native/Engine/RigTransformValidation.cc
@@ -122,6 +123,11 @@ if(BUILD_TESTING)
 
 
 
+    add_executable(dust3d_fbx_node_tests tests/core/fbx_node_tests.cc)
+    target_include_directories(dust3d_fbx_node_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} native/Engine)
+    target_link_libraries(dust3d_fbx_node_tests PRIVATE dust3d_engine)
+    add_test(NAME fbx_node_contracts COMMAND dust3d_fbx_node_tests)
+    set_tests_properties(fbx_node_contracts PROPERTIES TIMEOUT 30)
     add_executable(dust3d_fbx_property_block_tests tests/core/fbx_property_block_tests.cc)
     target_include_directories(dust3d_fbx_property_block_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} native/Engine)
     target_link_libraries(dust3d_fbx_property_block_tests PRIVATE dust3d_engine)
