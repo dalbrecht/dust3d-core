@@ -23,7 +23,7 @@ class ExportCliTests(unittest.TestCase):
 
     def assert_unchanged(self):
         self.assertEqual(self.source.read_bytes(), self.original)
-        self.assertEqual(list(self.directory.glob('.dust3d-export-*')), [])
+        self.assertEqual(list(self.directory.rglob('.dust3d-export-*')), [])
 
     def test_should_export_original_obj_polygons_and_reject_baked_obj(self):
         destination = self.directory / 'original ü.OBJ'
@@ -130,27 +130,72 @@ class ExportCliTests(unittest.TestCase):
         self.assert_unchanged()
 
     def test_should_respect_filesystem_identity_for_case_variant_outputs(self):
-        probe = self.directory / 'CaseProbe'
-        probe.write_bytes(b'owned case-sensitivity probe')
-        is_case_insensitive = (self.directory / 'caseprobe').exists()
-        probe.unlink()
         expected = self.directory / 'expected.obj'
         single = self.run_export(self.source, expected)
         self.assertEqual(single.returncode, 0, single.stderr)
-        first = self.directory / 'Result.obj'
-        second = self.directory / 'result.OBJ'
-        self.assertFalse(first.exists() or second.exists())
-        result = self.run_export('--batch', self.source, first, self.source, second)
-        if is_case_insensitive:
-            self.assertEqual(result.returncode, 5, result.stderr)
-            self.assertIn('Job 2/2 failed (exit 2)', result.stderr)
-            self.assertIn('1 committed, 1 failed', result.stderr)
-        else:
-            self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertIn('2 committed, 0 failed', result.stderr)
-            self.assertFalse(first.samefile(second))
-            self.assertEqual(second.read_bytes(), expected.read_bytes())
-        self.assertEqual(first.read_bytes(), expected.read_bytes())
+        for mode in ['batch', 'legacy']:
+            with self.subTest(mode=mode):
+                directory = self.directory / mode
+                directory.mkdir()
+                probe = directory / 'CaseProbe'
+                probe.write_bytes(b'owned case-sensitivity probe')
+                is_case_insensitive = (directory / 'caseprobe').exists()
+                probe.unlink()
+                first = directory / 'Result.obj'
+                second = directory / 'result.OBJ'
+                self.assertFalse(first.exists() or second.exists())
+                if mode == 'batch':
+                    result = self.run_export('--batch', self.source, first, self.source, second)
+                else:
+                    result = self.run_export(self.source, '-o', first, '-output', second)
+                if is_case_insensitive:
+                    self.assertEqual(result.returncode, 5 if mode == 'batch' else 1, result.stderr)
+                    self.assertIn('Job 2/2 failed (exit 2)', result.stderr)
+                    self.assertIn('1 committed, 1 failed', result.stderr)
+                else:
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertIn('2 committed, 0 failed', result.stderr)
+                    self.assertFalse(first.samefile(second))
+                    self.assertEqual(second.read_bytes(), expected.read_bytes())
+                self.assertEqual(first.read_bytes(), expected.read_bytes())
+        self.assert_unchanged()
+
+    def test_should_expand_upstream_output_flags_for_one_source(self):
+        first = self.directory / 'first.obj'
+        last = self.directory / 'last.fbx'
+        result = self.run_export('-o', first, self.source, '-output', last)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue(first.read_bytes().startswith(b'# Dust3D'))
+        self.assertTrue(last.read_bytes().startswith(b'Kaydara'))
+        self.assert_unchanged()
+
+    def test_should_disclose_legacy_partial_failure_with_upstream_nonzero_status(self):
+        first = self.directory / 'unsupported.format'
+        first.write_bytes(b'keep')
+        last = self.directory / 'last.obj'
+        result = self.run_export(self.source, '-o', first, '-o', last)
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertEqual(first.read_bytes(), b'keep')
+        self.assertTrue(last.exists())
+        self.assertIn('1 committed, 1 failed', result.stderr)
+        self.assert_unchanged()
+
+    def test_should_reject_ambiguous_or_incomplete_legacy_expansion_before_writing(self):
+        target = self.directory / 'new.obj'
+        for arguments in [('-o',), ('-output',), ('-o', target),
+                          (self.source, self.source, '-o', target),
+                          ('--batch', self.source, target, '-o', target)]:
+            result = self.run_export(*arguments)
+            self.assertEqual(result.returncode, 2, result.stderr)
+            self.assertFalse(target.exists())
+        self.assert_unchanged()
+
+    def test_should_bound_legacy_target_expansion_before_any_generation(self):
+        target = self.directory / 'new.obj'
+        result = self.run_export(self.source, *(['-o', target] * 65))
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertIn('at most64targets', result.stderr)
+        self.assertFalse(target.exists())
         self.assert_unchanged()
 
     def test_should_replace_destination_only_after_geometry_export_succeeds(self):

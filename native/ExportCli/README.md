@@ -59,3 +59,19 @@ whole invocation before writing. Aliases detected after an earlier commit are
 partial failures and leave that earlier output intact. This is serial, with no parallel memory growth.
 External path mutation remains outside the guarantee. The explicit-pair syntax
 is new: it does not emulate Qt's -o/-output expansion or enable WAV/GLB/animation.
+
+## Upstream single-source output flags
+
+```sh
+"$BUILD_DIR/dust3d-export" input.ds3 -o output.obj -output output.fbx
+```
+
+Repeated `-o`/`-output` targets expand one source into at most64 serial jobs, using
+the same preflight and independent publication as explicit batches. Flags may
+precede or follow the source. Ambiguous multiple sources or mixing with --batch
+reject before writing. Legacy expansion returns1 if any job fails, matching the
+upstream aggregate failure convention; explicit --batch still returns5. Global
+argument/preflight errors return2. Later aliases of committed outputs remain
+per-target failures and preserve the earlier file. Unsupported formats fail per job, so later
+supported targets can still commit. Each job generates afresh; no claim of Qt's
+single-generation performance, paste-XML or color-toggle compatibility is made.

@@ -694,3 +694,6 @@ ADR0094 delivers OBJ CLI dispatch and a Swift 6 owned-copy consumer, with indepe
 
 
 ADR0095 adds bounded serial headless batch export with cross-job source protection and recoverable per-job failures. Tests verify continued successful commits and explicit partial status on both command builds. Qt legacy argument expansion, native app adoption, WAV/GLB/rig/animation and full M7 acceptance remain open.
+
+
+ADR0096 adds upstream single-source -o/-output argument expansion, bounded target admission and aggregate status compatibility through the shared serial export use case. Tests cover actual OBJ/FBX success and recoverable unsupported-format failure. Paste-XML/color-toggle/one-generation parity and the rest of M7 remain open.

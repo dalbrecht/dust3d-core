@@ -81,18 +81,26 @@ size_t parseNumber(const std::string& value)
 struct Invocation {
     std::vector<Arguments> jobs;
     bool isBatch = false;
+    bool usesLegacyOutputs = false;
 };
 Invocation parseArguments(int argc, char** argv)
 {
     Arguments result;
     Invocation invocation;
     std::vector<std::string> paths;
+    std::vector<std::string> legacyOutputs;
     bool optionsEnded = false;
     bool hasTextureSize = false;
     for (int index = 1; index < argc; ++index) {
         const std::string argument(argv[index]);
         if (!optionsEnded && argument == "--") {
             optionsEnded = true;
+        } else if (!optionsEnded && (argument == "-o" || argument == "-output")) {
+            if (++index == argc)
+                throw ExportError(ExitCode::usage, "Missing legacy export target.");
+            if (legacyOutputs.size() == 64)
+                throw ExportError(ExitCode::usage, "Legacy export supports at most64targets.");
+            legacyOutputs.emplace_back(argv[index]);
         } else if (!optionsEnded && argument == "--batch") {
             invocation.isBatch = true;
         } else if (!optionsEnded && argument == "--baked") {
@@ -116,6 +124,18 @@ Invocation parseArguments(int argc, char** argv)
                 throw ExportError(ExitCode::usage, "Batch supports at most64input/output pairs.");
             paths.push_back(argument);
         }
+    }
+    if (!legacyOutputs.empty()) {
+        if (invocation.isBatch || paths.size() != 1 || (hasTextureSize && !result.baked))
+            throw ExportError(ExitCode::usage, "Legacy -o/-output requires one source and cannot mix with --batch.");
+        invocation.isBatch = true;
+        invocation.usesLegacyOutputs = true;
+        result.source = paths.front();
+        for (const auto& output : legacyOutputs) {
+            result.destination = output;
+            invocation.jobs.push_back(result);
+        }
+        return invocation;
     }
     if (paths.empty() || paths.size() % 2 || (!invocation.isBatch && paths.size() != 2) || (hasTextureSize && !result.baked))
         throw ExportError(ExitCode::usage, "Expected input/output pairs; multiple pairs require --batch; --texture-size requires --baked.");
@@ -369,7 +389,7 @@ int execute(const Invocation& invocation)
         }
     }
     std::fprintf(stderr, "Batch: %zu committed, %zu failed\n", invocation.jobs.size() - failed, failed);
-    return failed ? static_cast<int>(ExitCode::partialBatch) : 0;
+    return failed ? (invocation.usesLegacyOutputs ? 1 : static_cast<int>(ExitCode::partialBatch)) : 0;
 }
 
 }
@@ -377,7 +397,7 @@ int main(int argc, char** argv)
 {
     try {
         if (argc == 2 && std::string(argv[1]) == "--help") {
-            std::cout << "dust3d-export [--batch] [--baked] [--texture-size 1...8192] [--max-output-bytes N] [--] input.ds3 output.fbx|output.obj [input.ds3 output...]\n";
+            std::cout << "dust3d-export [--batch] [--baked] [--texture-size 1...8192] [--max-output-bytes N] [--] input.ds3 output.fbx|output.obj [input.ds3 output...]\nLegacy: dust3d-export input.ds3 -o output.obj [-output output.fbx ...]\n";
             return 0;
         }
         return execute(parseArguments(argc, argv));
