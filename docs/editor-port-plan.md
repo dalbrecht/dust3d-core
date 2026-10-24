@@ -618,3 +618,8 @@ The static geometry scene builder is recovered under ADR 0082, with pure count/
 staging admission, immutable source ownership and an optimization-safe optional
 import verifier. Geometry-only output leaves materials, rig/animation, full
 document/export orchestration and broad independent-consumer acceptance open.
+
+The single-atlas static material extension is recovered under ADR 0083, with six
+embedded caller-validated PNG channels, pure encoded-byte admission and an
+optimization-safe optional importer verifier. Source baking/grouping, shader and
+alpha compatibility, rig/animation and full native export acceptance remain open.
