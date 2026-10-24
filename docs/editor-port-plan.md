@@ -768,3 +768,6 @@ ADR0103 shares common duration/frame-count widget metadata with the reference UI
 
 
 ADR0104 exposes common timing metadata and checked scalar edits through C, with strict Swift 6 copied-value/actor verification. All 108 ordinary CTest contracts, scoped ASan/UBSan and SwiftPM build pass. Production SDK/UI adoption and full M6 runtime/audio acceptance remain open; pin and quarantines are unchanged.
+
+
+ADR0105 extracts the eight reference audio surface names/conversions into generator-free metadata, shares reference UI order and exposes owned C names verified by Swift 6 copies/actor transfer. All 109 ordinary CTest contracts, scoped ASan/UBSan and SwiftPM build pass. Unknown stored names remain raw document data. Audio synthesis/playback, production SDK/UI adoption and full M6 acceptance remain open; pin and quarantines are unchanged.

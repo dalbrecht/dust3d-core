@@ -3,6 +3,7 @@
 #include <cmath>
 #include <dust3d/animation/animation_catalog.h>
 #include <dust3d/animation/parameter_catalog.h>
+#include <dust3d/animation/surface_material.h>
 #include <memory>
 #include <set>
 #include <stdexcept>
@@ -39,6 +40,7 @@ struct RigRecord {
 struct Dust3DAnimationCatalog {
     std::vector<ClipRecord> clips;
     std::vector<RigRecord> rigs;
+    std::vector<std::string> surfaceMaterials;
 };
 Dust3DAnimationCatalog* dust3d_animation_catalog_load(Dust3DError* error)
 {
@@ -47,6 +49,11 @@ Dust3DAnimationCatalog* dust3d_animation_catalog_load(Dust3DError* error)
     try {
         std::lock_guard<std::mutex> lock(engineMutex());
         auto owner = std::make_unique<Dust3DAnimationCatalog>();
+        for (const auto material : dust3d::surfaceMaterials()) {
+            auto name = dust3d::surfaceMaterialName(material);
+            validateIdentity(name);
+            owner->surfaceMaterials.push_back(std::move(name));
+        }
         const auto& inherited = dust3d::animation::clipCatalog();
         owner->clips.reserve(inherited.size());
         std::set<std::string> rigs;
@@ -238,4 +245,13 @@ int dust3d_animation_timing_check(double durationSeconds, double frameCount, Dus
         setError(error, DUST3D_STATUS_GENERATION_FAILED, "Unknown non-standard animation timing validation failure.");
     }
     return 0;
+}
+
+size_t dust3d_animation_catalog_surface_material_count(const Dust3DAnimationCatalog* catalog)
+{
+    return catalog ? catalog->surfaceMaterials.size() : 0;
+}
+const char* dust3d_animation_catalog_surface_material_name(const Dust3DAnimationCatalog* catalog, size_t index)
+{
+    return catalog && index < catalog->surfaceMaterials.size() ? catalog->surfaceMaterials[index].c_str() : nullptr;
 }

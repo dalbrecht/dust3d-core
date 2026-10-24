@@ -324,6 +324,8 @@ HEADERS += ../dust3d/animation/arthropod_die.h
 HEADERS += ../dust3d/animation/common.h
 HEADERS += ../dust3d/animation/sound_event_detector.h
 SOURCES += ../dust3d/animation/sound_event_detector.cc
+HEADERS += ../dust3d/animation/surface_material.h
+SOURCES += ../dust3d/animation/surface_material.cc
 HEADERS += ../dust3d/animation/sound_generator.h
 SOURCES += ../dust3d/animation/sound_generator.cc
 
