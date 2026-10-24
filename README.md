@@ -744,3 +744,8 @@ The internal `GenerationOutputs::fbxGeometry` hook retains original generated
 double positions and shared topology independently of the float preview. It is
 opt-in, bounded and publishes ownership only after success. See ADR0085; this
 is not yet a C API or app export command.
+
+`GenerationOutputs::useFbxAtlasUvs` selects complete packed UVs from the same
+call's `UvMetadata` when retaining original export geometry. Missing outputs or
+unknown atlas mappings reject explicitly. ADR0086 records real procedural-bake
+alignment, scoped coverage and remaining source-aware export integration.

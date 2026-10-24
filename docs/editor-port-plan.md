@@ -636,3 +636,10 @@ Original generated geometry can now be retained through an opt-in synchronous
 output (ADR0085), avoiding reconstruction from float preview buffers. Material
 bake/group correspondence, owned C ABI, independent generated-scene acceptance
 and native UI/CLI output remain open; M7 is not complete.
+
+
+Packed procedural atlas UVs now align with original double export geometry
+through an opt-in same-generation hook (ADR0086), verified with a real Capsule
+color bake. Actual baked-image encoding, imported/source-aware material groups,
+C ABI, atomic destinations, UI/CLI and independent generated-scene acceptance
+remain required before M4/M7 completion.

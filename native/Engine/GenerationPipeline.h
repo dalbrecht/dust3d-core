@@ -29,6 +29,9 @@ namespace native {
         std::unique_ptr<FbxGeometrySelection>* fbxGeometry = nullptr;
         /// Logical export geometry quota; zero selects64MiB, maximum256MiB. Ignored without output.
         size_t maximumFbxGeometryBytes = 0;
+        /// Replace local UVs with the complete original-face atlas from `uvs`.
+        /// Requires both fbxGeometry and uvs; unknown atlas mappings fail explicitly.
+        bool useFbxAtlasUvs = false;
     };
     Color sourceCornerColor(const Object& object, size_t triangleIndex, size_t corner);
     // Every native entry point shares this lock because inherited globals are not thread-safe.

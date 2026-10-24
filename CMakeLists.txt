@@ -34,6 +34,7 @@ target_include_directories(dust3d_core PUBLIC
     third_party/earcut.hpp/include)
 target_link_libraries(dust3d_core PUBLIC dust3d_remesher dust3d_triangle Threads::Threads)
 add_library(dust3d_engine STATIC
+    native/Engine/FbxAtlasGeometry.cc
     native/Engine/FbxGeometrySelection.cc
     native/Engine/FbxMaterialImagePlan.cc
     native/Engine/FbxMeshScene.cc

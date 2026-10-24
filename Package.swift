@@ -48,6 +48,7 @@ let package = Package(
                 "FbxMeshScene.cc",
                 "FbxMeshScenePlan.cc",
                 "FbxGeometrySelection.cc",
+                "FbxAtlasGeometry.cc",
                 "FbxDocument.cc",
                 "FbxNode.cc",
                 "FbxPropertyBlock.cc",

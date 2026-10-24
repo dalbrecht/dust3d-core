@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 #include "EngineInternal.h"
+#include "FbxAtlasGeometry.h"
 #include "FbxGeometrySelection.h"
 #include "FbxMeshScene.h"
 #include <fstream>
@@ -63,6 +64,22 @@ int main(int argc, char** argv)
         }();
         require(independent.object().triangleVertexUvs()->at(0)[0].x() == 0.125, "Override borrowed caller storage");
         require(source.triangles.size() == 2 && source.triangleVertexUvs()->at(1)[0].x() == 0.25, "Selection mutated source");
+        UvAtlas atlas;
+        atlas.triangleUvs = { overrides()[0], overrides()[0] };
+        atlas.triangleUvKnown = { 1, 1 };
+        const auto packed = selectFbxAtlasGeometry(source, atlas);
+        require(packed.object().triangles == source.triangles && packed.object().triangleVertexUvs()->at(1)[0].x() == 0.125,
+            "Packed atlas UVs lost original face/corner alignment");
+        require(packed.sourceTriangleIndices() == std::vector<size_t>({ 0, 1 }), "Atlas export lost source face correspondence");
+        atlas.triangleUvKnown = { 1, 0 };
+        rejects([&] { selectFbxAtlasGeometry(source, atlas); }, DUST3D_STATUS_INVALID_DOCUMENT);
+        atlas.triangleUvKnown = { 1, 2 };
+        rejects([&] { selectFbxAtlasGeometry(source, atlas); }, DUST3D_STATUS_INVALID_DOCUMENT);
+        atlas.triangleUvKnown = { 1 };
+        rejects([&] { selectFbxAtlasGeometry(source, atlas); }, DUST3D_STATUS_INVALID_DOCUMENT);
+        atlas.triangleUvKnown = { 1, 1 };
+        atlas.triangleUvs.pop_back();
+        rejects([&] { selectFbxAtlasGeometry(source, atlas); }, DUST3D_STATUS_INVALID_DOCUMENT);
         rejects([&] { selectFbxGeometry(source, {}); }, DUST3D_STATUS_INVALID_DOCUMENT);
         rejects([&] { selectFbxGeometry(source, { 2 }); }, DUST3D_STATUS_INVALID_DOCUMENT);
         rejects([&] { selectFbxGeometry(source, { 1, 1 }); }, DUST3D_STATUS_INVALID_DOCUMENT);

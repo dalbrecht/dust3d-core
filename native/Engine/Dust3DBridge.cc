@@ -1,4 +1,5 @@
 #include "BakedMesh.h"
+#include "FbxAtlasGeometry.h"
 #include "FbxGeometrySelection.h"
 #include "GenerationPipeline.h"
 #include "ImportedModels.h"
@@ -44,6 +45,8 @@ namespace native {
     std::unique_ptr<Dust3DMesh> generateMesh(std::unique_ptr<dust3d::Snapshot> snapshot, const std::string& warning, ImportedModels* imports,
         MeshGenerator::GeneratedCacheContext* cache, MeshGenerator::GenerationMetrics* metrics, GenerationOutputs outputs)
     {
+        if (outputs.useFbxAtlasUvs && (!outputs.fbxGeometry || !outputs.uvs))
+            throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "FBX atlas export requires geometry and UV generation outputs.");
         if (outputs.fbxGeometry)
             planFbxGeometrySelection(1, 1, 1, false, false, outputs.maximumFbxGeometryBytes);
         auto* sources = outputs.sources;
@@ -168,11 +171,16 @@ namespace native {
             sourceBaked->prepare(*object, *generated, *mesh, *surfaces);
         }
         if (outputs.fbxGeometry) {
-            planFbxGeometrySelection(object->vertices.size(), object->triangles.size(), object->triangles.size(),
-                object->triangleVertexNormals() != nullptr, object->triangleVertexUvs() != nullptr, outputs.maximumFbxGeometryBytes);
-            std::vector<size_t> originalFaces(object->triangles.size());
-            std::iota(originalFaces.begin(), originalFaces.end(), size_t { 0 });
-            auto geometry = std::make_unique<FbxGeometrySelection>(selectFbxGeometry(*object, originalFaces, nullptr, outputs.maximumFbxGeometryBytes));
+            std::unique_ptr<FbxGeometrySelection> geometry;
+            if (outputs.useFbxAtlasUvs) {
+                geometry = std::make_unique<FbxGeometrySelection>(selectFbxAtlasGeometry(*object, uvs->atlas(), outputs.maximumFbxGeometryBytes));
+            } else {
+                planFbxGeometrySelection(object->vertices.size(), object->triangles.size(), object->triangles.size(),
+                    object->triangleVertexNormals() != nullptr, object->triangleVertexUvs() != nullptr, outputs.maximumFbxGeometryBytes);
+                std::vector<size_t> originalFaces(object->triangles.size());
+                std::iota(originalFaces.begin(), originalFaces.end(), size_t { 0 });
+                geometry = std::make_unique<FbxGeometrySelection>(selectFbxGeometry(*object, originalFaces, nullptr, outputs.maximumFbxGeometryBytes));
+            }
             checkGenerationCancellation();
             *outputs.fbxGeometry = std::move(geometry);
         }
