@@ -108,3 +108,12 @@ death containment is provided. Opt-in supervision's active termination/reap path
 remain unverified. These limits do not make previously quarantined inputs safe.
 No production pin or GLB/writer/fault/animation/rig-pose quarantine changes occur;
 #123/M8 and full native editor parity remain incomplete.
+
+## Rebased delivery verification
+
+Rebased onto reviewed-compatible saved setup f3c51e88; launch/worker/process-test
+sources remain byte-identical to saved 38baea83. Fresh normal CMake/CTest on
+5ce1e932 passes 66/66 in 34.02s. Fresh full ASan/UBSan CTest passes 65/65 in 109.14s. Source
+quarantine and changed-file formatting checks pass. Only ordinary licensed
+workloads and pre-installation metadata rejections ran, with no virtual cap.
+No active limit exhaustion, crash, signal or allocation-failure probes were added.
