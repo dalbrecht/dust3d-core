@@ -35,6 +35,8 @@ target_include_directories(dust3d_core PUBLIC
     third_party/earcut.hpp/include)
 target_link_libraries(dust3d_core PUBLIC dust3d_remesher dust3d_triangle Threads::Threads)
 add_library(dust3d_engine STATIC
+    native/Engine/EngineSupport.cc
+    native/Engine/AnimationCatalogBridge.cc
     native/Engine/ObjDocument.cc
     native/Engine/ObjGeometryPlan.cc
     native/Engine/ObjExportBridge.cc
@@ -113,6 +115,17 @@ endif()
 
 include(CTest)
 if(BUILD_TESTING)
+    # The owning C API stays independently linkable without generation code.
+    add_executable(dust3d_animation_catalog_api_tests
+        tests/core/animation_catalog_api_tests.cc
+        native/Engine/EngineSupport.cc
+        native/Engine/AnimationCatalogBridge.cc
+        dust3d/animation/animation_catalog.cc
+        dust3d/animation/biped/clip_metadata.cc)
+    target_include_directories(dust3d_animation_catalog_api_tests PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR} native/Engine/include)
+    add_test(NAME animation_catalog_api_contracts COMMAND dust3d_animation_catalog_api_tests)
+    set_tests_properties(animation_catalog_api_contracts PROPERTIES TIMEOUT 10)
     # Compile dispatch declarations for drift detection; never link this object to a native product/test.
     add_library(dust3d_animation_dispatch_declarations OBJECT dust3d/animation/biped/clip_catalog.cc)
     target_include_directories(dust3d_animation_dispatch_declarations PRIVATE

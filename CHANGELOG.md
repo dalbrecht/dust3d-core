@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add an independently owned animation catalog C API with bounded view access and Swift 6 copy/lifetime verification; sampling remains quarantined ([Apple #145](https://github.com/dalbrecht/dust3d-swiftui/issues/145)).
+
 - Compile inherited animation catalog metadata without generator linkage, sharing biped declarations and preserving aliases/defaults; animation sampling remains quarantined ([Apple #145](https://github.com/dalbrecht/dust3d-swiftui/issues/145)).
 
 - Add serial known-positive static-export timing receipts with executable/input hashes and explicit acceptance limits (#99).

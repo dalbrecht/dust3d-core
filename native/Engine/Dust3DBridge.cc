@@ -17,24 +17,6 @@
 
 namespace dust3d {
 namespace native {
-    void setError(Dust3DError* error, Dust3DStatus status, const char* message) noexcept
-    {
-        if (!error)
-            return;
-        error->status = status;
-        std::snprintf(error->message, sizeof(error->message), "%s", message);
-    }
-}
-}
-
-namespace dust3d {
-namespace native {
-    std::mutex& engineMutex()
-    {
-        static std::mutex mutex;
-        return mutex;
-    }
-
     Color sourceCornerColor(const Object& object, size_t triangleIndex, size_t corner)
     {
         const auto vertexIndex = object.triangles.at(triangleIndex).at(corner);

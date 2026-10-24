@@ -716,3 +716,15 @@ or quarantine is changed; metadata success does not release core #95.
 
 
 The catalog foundation delivery now includes the required qmake metadata registration and a failing-then-passing manifest regression. Fresh 102-contract, scoped metadata sanitizer and SwiftPM checks pass. Use this corrected foundation for publication; later stages extend its source-membership regression. Qt runtime acceptance remains open.
+
+
+### Owned animation declaration transport (Apple #145)
+
+ADR0099 adds an immutable owned C catalog with null/index-safe borrowed clip,
+override and rig/bone views, plus Swift 6 copy-before-destroy/actor-transfer proof.
+Shared diagnostics/mutex bodies move unchanged into generation-independent support
+so the standalone metadata API links no mesh/rig/animation generator code. All
+102 ordinary Debug CTest contracts, metadata API ASan/UBSan, C11 header, SwiftPM
+build and strict Swift fixture pass. Production Swift SDK/UI adoption, parameter
+descriptors, pose/rig/frame transport, Qt/native interoperability, runtime sampling,
+playback/audio and full M6 acceptance remain open. No production pin/quarantine changes.

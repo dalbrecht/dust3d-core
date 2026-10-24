@@ -54,8 +54,6 @@ namespace native {
     /// Throws typed configuration/geometry/quota/cancellation errors; allocation/codec errors
     /// propagate. Same serialized caller/lifetime requirements as generateMesh.
     void prepareGeneratedObject(const Object& object, const Snapshot* generated, Dust3DMesh& mesh, GenerationOutputs outputs);
-    // Every native entry point shares this lock because inherited globals are not thread-safe.
-    std::mutex& engineMutex();
     std::unique_ptr<Dust3DMesh> generateMesh(std::unique_ptr<Snapshot> snapshot, const std::string& warning, ImportedModels* imports = nullptr,
         MeshGenerator::GeneratedCacheContext* cache = nullptr, MeshGenerator::GenerationMetrics* metrics = nullptr, GenerationOutputs outputs = {});
 }

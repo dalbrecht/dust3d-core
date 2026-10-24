@@ -911,6 +911,58 @@ size_t dust3d_obj_export_payload_bytes(const Dust3DObjExport* output);
 /** Borrow parser diagnostic until destroy; empty string for NULL. */
 const char* dust3d_obj_export_warning(const Dust3DObjExport* output);
 
+/** Independent immutable copy of inherited animation declarations; destroy with the matching function.
+ * No rig, mesh, pose, animation or sound generator is invoked by this API.
+ * Keep the owner alive for every borrowed read; finish readers before destroying it.
+ */
+typedef struct Dust3DAnimationCatalog Dust3DAnimationCatalog;
+
+/** Borrowed clip identity/timing/default-count view, valid until its catalog is destroyed.
+ * Strings are exact engine-declared UTF-8 identities. Time is seconds; sample_count is a declaration,
+ * not a promise that native sampling/playback has passed acceptance. loops/is_legacy_alias are 0/1.
+ */
+typedef struct Dust3DAnimationClipInfo {
+    const char* type;
+    const char* rig;
+    const char* generator;
+    double duration_seconds;
+    size_t sample_count;
+    int loops;
+    int is_legacy_alias;
+    size_t parameter_count;
+} Dust3DAnimationClipInfo;
+
+/** Borrowed default override, not an editor parameter schema/range or evaluated value. */
+typedef struct Dust3DAnimationParameterInfo {
+    const char* name;
+    double value;
+} Dust3DAnimationParameterInfo;
+
+/** Copy the fixed inherited catalog under the shared engine lock; no document input is accepted.
+ * Returns NULL on construction failure. Optional error is cleared first and retains the original cause.
+ * Allocation errors report LIMIT_EXCEEDED; other construction errors report GENERATION_FAILED.
+ * Example: load(&error), clip_at(owner, 0, &info), copy fields, destroy(owner).
+ */
+Dust3DAnimationCatalog* dust3d_animation_catalog_load(Dust3DError* error);
+/** Release all owned catalog storage; NULL is harmless. */
+void dust3d_animation_catalog_destroy(Dust3DAnimationCatalog* catalog);
+/** Number of lexicographically ordered type records, including legacy aliases; zero for NULL. */
+size_t dust3d_animation_catalog_clip_count(const Dust3DAnimationCatalog* catalog);
+/** Copy a borrowed record view. Returns 1 on success; invalid owner/index/output returns 0.
+ * Non-NULL output is cleared before rejection. All strings expire with the owner.
+ */
+int dust3d_animation_catalog_clip_at(const Dust3DAnimationCatalog* catalog, size_t index, Dust3DAnimationClipInfo* output);
+/** Copy one lexicographically ordered default override. Same rejection/clearing/lifetime rules as clip_at. */
+int dust3d_animation_catalog_parameter_at(const Dust3DAnimationCatalog* catalog, size_t clip_index, size_t parameter_index, Dust3DAnimationParameterInfo* output);
+/** Number of lexicographically ordered known rigs; zero for NULL. */
+size_t dust3d_animation_catalog_rig_count(const Dust3DAnimationCatalog* catalog);
+/** Borrow exact rig name until destroy; NULL for invalid owner/index. */
+const char* dust3d_animation_catalog_rig_name(const Dust3DAnimationCatalog* catalog, size_t rig_index);
+/** Number of standard bone names for this rig; zero for invalid owner/index. */
+size_t dust3d_animation_catalog_bone_count(const Dust3DAnimationCatalog* catalog, size_t rig_index);
+/** Borrow one lexicographically ordered standard bone name until destroy; NULL for invalid indices. */
+const char* dust3d_animation_catalog_bone_name(const Dust3DAnimationCatalog* catalog, size_t rig_index, size_t bone_index);
+
 #ifdef __cplusplus
 }
 #endif

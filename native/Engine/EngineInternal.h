@@ -1,6 +1,7 @@
 #ifndef DUST3D_NATIVE_ENGINE_INTERNAL_H_
 #define DUST3D_NATIVE_ENGINE_INTERNAL_H_
 
+#include "EngineSupport.h"
 #include "include/Dust3DBridge.h"
 #include <dust3d/base/snapshot.h>
 #include <memory>
@@ -48,7 +49,6 @@ namespace native {
         Dust3DStatus m_status;
     };
 
-    void setError(Dust3DError* error, Dust3DStatus status, const char* message) noexcept;
     std::unique_ptr<Dust3DIndexedMesh> buildIndexedMesh(const Dust3DMesh& source, size_t maximumBytes);
 
     // Callbacks borrow validated archive spans only for the current read; implementations
