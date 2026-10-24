@@ -20,8 +20,8 @@ def require(condition, cause):
         raise ValueError(cause)
 
 
-def verify(path, width, height, pixels):
-    data = path.read_bytes()
+def verify_png_bytes(data, width, height, pixels):
+    """Check a controlled encoder output against independently supplied RGBA bytes."""
     require(data[:8] == b'\x89PNG\r\n\x1a\n', 'PNG signature changed')
     offset = 8
     chunks = []
@@ -53,6 +53,10 @@ def verify(path, width, height, pixels):
     row_bytes = width * 4
     expected = b''.join(b'\0' + pixels[row*row_bytes:(row+1)*row_bytes] for row in range(height))
     require(raw == expected, 'pixel bytes, alpha or row order differ')
+
+
+def verify(path, width, height, pixels):
+    verify_png_bytes(path.read_bytes(), width, height, pixels)
 
 
 def main(executable):
