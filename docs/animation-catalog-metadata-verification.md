@@ -75,18 +75,18 @@ and extend its existing regression rather than add a duplicate test target.
 
 The public delivery preparation combines the original catalog extraction with
 the qmake metadata source/header registration and its failing-then-passing manifest
-regression. It is based on PR152 head92cb45a2 and retains the reviewed OBJ scene
+regression. It is based on PR #152 at `92cb45a2` and retains the reviewed OBJ scene
 binding correction and prior delivery notes. Runtime and new test source files
-match the corrected69f82f50 checkpoint byte-for-byte. Independent token comparison
-again confirms all48 original biped rows, including generator tokens and pose tags,
+match the corrected `69f82f50` checkpoint byte-for-byte. Independent token comparison
+again confirms all 48 original biped rows, including generator tokens and pose tags,
 retain their declaration order and values. The reference dispatch object compiles
 for declaration drift checks but is never linked into a native product/test.
 
-Fresh Debug CMake build and all102 ordinary CTest contracts pass19.98s. The100
+Fresh Debug CMake build and all 102 ordinary CTest contracts pass in 19.98 seconds. The 100
 previous runtime commands are unchanged; fixed declaration metadata and reference
 source membership are the only new contracts. Scoped metadata ASan/UBSan passes;
 isolated metadata symbols contain no animation generator, rig or mesh implementation.
-SwiftPM Dust3DEngine builds0.63s. New C++/manifest formatting and the quarantine
+SwiftPM Dust3DEngine builds in 0.63 seconds. New C++/manifest formatting and the quarantine
 source guard pass. No sampler or Qt executable is run, and no production pin changes.
 
 These checks establish catalog declaration compatibility, not rig matrices, poses,
@@ -94,3 +94,9 @@ frame evaluation, playback, audio, production SDK/UI adoption or full M6 accepta
 The next stage adds owned C transport under the existing exception/lifetime rules.
 Completed clean exact-head automated review and all CI green remain mandatory
 before merging this metadata foundation.
+
+
+PR #152 subsequently merged at `ebcd8813` after completed clean exact-head review
+and all six CI checks green. Full-tree equality before/after the ancestry-only
+rebase proves source identity. No native binary executes after that rebase; only
+this delivery note changes afterward.
