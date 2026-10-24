@@ -113,6 +113,18 @@ endif()
 
 include(CTest)
 if(BUILD_TESTING)
+    # Compile dispatch declarations for drift detection; never link this object to a native product/test.
+    add_library(dust3d_animation_dispatch_declarations OBJECT dust3d/animation/biped/clip_catalog.cc)
+    target_include_directories(dust3d_animation_dispatch_declarations PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR} third_party third_party/eigen)
+    # Only declaration metadata is linked: no generator, rig, mesh or engine test dependency.
+    add_executable(dust3d_animation_catalog_metadata_tests
+        tests/core/animation_catalog_metadata_tests.cc
+        dust3d/animation/animation_catalog.cc
+        dust3d/animation/biped/clip_metadata.cc)
+    target_include_directories(dust3d_animation_catalog_metadata_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    add_test(NAME animation_catalog_metadata_contracts COMMAND dust3d_animation_catalog_metadata_tests)
+    set_tests_properties(animation_catalog_metadata_contracts PROPERTIES TIMEOUT 10)
     add_executable(dust3d_worker_resource_observation_tests tests/core/worker_resource_observation_tests.cc)
     target_link_libraries(dust3d_worker_resource_observation_tests PRIVATE dust3d_worker_protocol)
     add_test(NAME worker_resource_observation_contracts COMMAND dust3d_worker_resource_observation_tests)

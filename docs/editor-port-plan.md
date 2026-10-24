@@ -700,3 +700,16 @@ ADR0096 adds upstream single-source -o/-output argument expansion, bounded targe
 
 
 ADR0097 adds serial ordinary static-export timing receipts with fixture/executable hashes and failure-aware sample admission. Fresh Debug contracts pass 100/100; six ordinary Release samples on the licensed Capsule and Sword fixtures qualify with stable hashes. These single samples include process startup and IO, not statistical production budgets. Phase/peak-memory/GPU/editor-latency, larger-document and cross-hardware acceptance remain required; M8 is incomplete.
+
+### Generator-free inherited animation catalog (Apple #145)
+
+ADR0098 splits declaration metadata from biped generator pointers through one
+shared source table. Portable native targets now compile the actual 180-entry
+catalog, preserving 176 non-alias choices across seven rigs, four legacy names,
+timing, directional overrides and standard-bone queries. A standalone metadata
+contract links no generator/rig/mesh code. All 101 ordinary Debug CTest contracts,
+metadata-only ASan/UBSan and SwiftPM build pass; a build-only object checks original
+dispatch declarations without linking or executing them. Parameter descriptors,
+C/Swift owned-copy APIs, catalog-guided UI and Qt/native runtime interoperability,
+sampling/playback/audio and complete M6 acceptance remain open. No production pin
+or quarantine is changed; metadata success does not release core #95.
