@@ -21,7 +21,8 @@
 namespace {
 enum class ExitCode { usage = 2,
     native = 3,
-    filesystem = 4 };
+    filesystem = 4,
+    partialBatch = 5 };
 class ExportError : public std::runtime_error {
 public:
     ExportError(ExitCode code, const std::string& cause)
@@ -77,9 +78,14 @@ size_t parseNumber(const std::string& value)
         throw ExportError(ExitCode::usage, "Expected a bounded unsigned decimal option value.");
     return number;
 }
-Arguments parseArguments(int argc, char** argv)
+struct Invocation {
+    std::vector<Arguments> jobs;
+    bool isBatch = false;
+};
+Invocation parseArguments(int argc, char** argv)
 {
     Arguments result;
+    Invocation invocation;
     std::vector<std::string> paths;
     bool optionsEnded = false;
     bool hasTextureSize = false;
@@ -87,6 +93,8 @@ Arguments parseArguments(int argc, char** argv)
         const std::string argument(argv[index]);
         if (!optionsEnded && argument == "--") {
             optionsEnded = true;
+        } else if (!optionsEnded && argument == "--batch") {
+            invocation.isBatch = true;
         } else if (!optionsEnded && argument == "--baked") {
             result.baked = true;
         } else if (!optionsEnded && (argument == "--texture-size" || argument == "--max-output-bytes")) {
@@ -104,15 +112,21 @@ Arguments parseArguments(int argc, char** argv)
         } else if (!optionsEnded && argument.size() && argument[0] == '-') {
             throw ExportError(ExitCode::usage, "Unknown export option: " + argument);
         } else {
+            if (paths.size() == 128)
+                throw ExportError(ExitCode::usage, "Batch supports at most64input/output pairs.");
             paths.push_back(argument);
         }
     }
-    if (paths.size() != 2 || (hasTextureSize && !result.baked))
-        throw ExportError(ExitCode::usage, "Expected input.ds3 output.fbx|output.obj; --texture-size requires --baked.");
-    result.source = paths[0];
-    result.destination = paths[1];
-    return result;
+    if (paths.empty() || paths.size() % 2 || (!invocation.isBatch && paths.size() != 2) || (hasTextureSize && !result.baked))
+        throw ExportError(ExitCode::usage, "Expected input/output pairs; multiple pairs require --batch; --texture-size requires --baked.");
+    for (size_t index = 0; index < paths.size(); index += 2) {
+        result.source = paths[index];
+        result.destination = paths[index + 1];
+        invocation.jobs.push_back(result);
+    }
+    return invocation;
 }
+
 struct Archive {
     std::vector<uint8_t> bytes;
     struct stat identity {};
@@ -208,7 +222,7 @@ private:
     std::string m_path;
     bool m_committed = false;
 };
-void publish(const std::filesystem::path& destination, const struct stat& source, const uint8_t* bytes, size_t count)
+struct stat publish(const std::filesystem::path& destination, const struct stat& source, const uint8_t* bytes, size_t count)
 {
     validateDestination(destination, source);
     const auto parent = destination.has_parent_path() ? destination.parent_path() : std::filesystem::path(".");
@@ -234,10 +248,14 @@ void publish(const std::filesystem::path& destination, const struct stat& source
         if (errno != EINTR)
             filesystemFailure("Flush staged output", errno);
     }
+    struct stat published {};
+    if (::fstat(descriptor, &published) != 0)
+        filesystemFailure("Inspect staged output", errno);
     validateDestination(destination, source);
     output.commit(destination);
+    return published;
 }
-void exportFile(const Arguments& arguments)
+struct stat exportFile(const Arguments& arguments)
 {
     const auto archive = readArchive(arguments.source);
     validateDestination(arguments.destination, archive.identity);
@@ -253,12 +271,12 @@ void exportFile(const Arguments& arguments)
         if (!owner)
             throw ExportError(ExitCode::native, "Native export status " + std::to_string(error.status) + ": " + error.message);
         const auto count = dust3d_obj_export_byte_count(owner.get());
-        publish(arguments.destination, archive.identity, dust3d_obj_export_bytes(owner.get()), count);
+        const auto published = publish(arguments.destination, archive.identity, dust3d_obj_export_bytes(owner.get()), count);
         std::printf("Exported %zu bytes\n", count);
         const auto* warning = dust3d_obj_export_warning(owner.get());
         if (*warning)
             std::fprintf(stderr, "Source note: %s\n", warning);
-        return;
+        return published;
     }
     Dust3DFbxExportOptions options {};
     options.struct_size = sizeof(options);
@@ -272,23 +290,97 @@ void exportFile(const Arguments& arguments)
     if (!owner)
         throw ExportError(ExitCode::native, "Native export status " + std::to_string(error.status) + ": " + error.message);
     const auto count = dust3d_fbx_export_byte_count(owner.get());
-    publish(arguments.destination, archive.identity, dust3d_fbx_export_bytes(owner.get()), count);
+    const auto published = publish(arguments.destination, archive.identity, dust3d_fbx_export_bytes(owner.get()), count);
     // Reporting cannot turn a committed file into a failed transaction through C++ exceptions.
     std::printf("Exported %zu bytes\n", count);
     const auto* warning = dust3d_fbx_export_warning(owner.get());
     if (*warning)
         std::fprintf(stderr, "Source note: %s\n", warning);
+    return published;
 }
+struct PathIdentity {
+    std::filesystem::path canonical;
+    struct stat metadata {};
+    bool exists = false;
+};
+PathIdentity pathIdentity(const std::filesystem::path& path)
+{
+    PathIdentity result;
+    result.canonical = std::filesystem::weakly_canonical(path);
+    if (::stat(path.c_str(), &result.metadata) == 0)
+        result.exists = true;
+    else if (errno != ENOENT && errno != ENOTDIR)
+        filesystemFailure("Inspect batch path", errno);
+    return result;
+}
+bool aliases(const PathIdentity& first, const PathIdentity& second)
+{
+    return first.canonical == second.canonical || (first.exists && second.exists && first.metadata.st_dev == second.metadata.st_dev && first.metadata.st_ino == second.metadata.st_ino);
+}
+std::vector<PathIdentity> preflightBatch(const std::vector<Arguments>& jobs)
+{
+    std::vector<PathIdentity> sources;
+    std::vector<PathIdentity> destinations;
+    for (const auto& job : jobs) {
+        sources.push_back(pathIdentity(job.source));
+        destinations.push_back(pathIdentity(job.destination));
+    }
+    // Protect every input and prevent competing output ownership before the first commit.
+    for (size_t index = 0; index < destinations.size(); ++index) {
+        for (const auto& source : sources) {
+            if (aliases(destinations[index], source))
+                throw ExportError(ExitCode::usage, "Batch output aliases an input archive.");
+        }
+        for (size_t previous = 0; previous < index; ++previous) {
+            if (aliases(destinations[index], destinations[previous]))
+                throw ExportError(ExitCode::usage, "Batch outputs must have distinct paths and identities.");
+        }
+    }
+    return destinations;
+}
+int execute(const Invocation& invocation)
+{
+    if (!invocation.isBatch) {
+        exportFile(invocation.jobs.front());
+        return 0;
+    }
+    auto destinations = preflightBatch(invocation.jobs);
+    // Allocate bookkeeping before publication so recording a committed inode cannot fail after rename.
+    std::vector<bool> hasCommitted(invocation.jobs.size(), false);
+    size_t failed = 0;
+    for (size_t index = 0; index < invocation.jobs.size(); ++index) {
+        try {
+            const auto current = pathIdentity(invocation.jobs[index].destination);
+            for (size_t previous = 0; previous < index; ++previous) {
+                if (hasCommitted[previous] && aliases(current, destinations[previous]))
+                    throw ExportError(ExitCode::usage, "Batch destination aliases a previously committed output.");
+            }
+            const auto published = exportFile(invocation.jobs[index]);
+            destinations[index].metadata = published;
+            destinations[index].exists = true;
+            hasCommitted[index] = true;
+            std::printf("Job %zu/%zu committed\n", index + 1, invocation.jobs.size());
+        } catch (const ExportError& cause) {
+            ++failed;
+            std::fprintf(stderr, "Job %zu/%zu failed (exit %d): %s\n", index + 1, invocation.jobs.size(), cause.exitCode(), cause.what());
+        } catch (const std::exception& cause) {
+            ++failed;
+            std::fprintf(stderr, "Job %zu/%zu failed (exit 4): %s\n", index + 1, invocation.jobs.size(), cause.what());
+        }
+    }
+    std::fprintf(stderr, "Batch: %zu committed, %zu failed\n", invocation.jobs.size() - failed, failed);
+    return failed ? static_cast<int>(ExitCode::partialBatch) : 0;
+}
+
 }
 int main(int argc, char** argv)
 {
     try {
         if (argc == 2 && std::string(argv[1]) == "--help") {
-            std::cout << "dust3d-export [--baked] [--texture-size 1...8192] [--max-output-bytes N] [--] input.ds3 output.fbx|output.obj\n";
+            std::cout << "dust3d-export [--batch] [--baked] [--texture-size 1...8192] [--max-output-bytes N] [--] input.ds3 output.fbx|output.obj [input.ds3 output...]\n";
             return 0;
         }
-        exportFile(parseArguments(argc, argv));
-        return 0;
+        return execute(parseArguments(argc, argv));
     } catch (const ExportError& cause) {
         std::fprintf(stderr, "%s\n", cause.what());
         return cause.exitCode();

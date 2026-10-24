@@ -691,3 +691,6 @@ ADR0093 adds owned original OBJ C API output with ordinary lifetime/quota/cancel
 
 
 ADR0094 delivers OBJ CLI dispatch and a Swift 6 owned-copy consumer, with independent generated OBJ re-import and atomic-output regression checks. Native editor export service/UI and full M7 acceptance remain open.
+
+
+ADR0095 adds bounded serial headless batch export with cross-job source protection and recoverable per-job failures. Tests verify continued successful commits and explicit partial status on both command builds. Qt legacy argument expansion, native app adoption, WAV/GLB/rig/animation and full M7 acceptance remain open.

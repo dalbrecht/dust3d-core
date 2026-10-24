@@ -40,6 +40,119 @@ class ExportCliTests(unittest.TestCase):
             self.assertNotIn('Exported', result.stdout)
         self.assert_unchanged()
 
+    def test_should_continue_batch_after_rejected_archive_and_disclose_partial_commit(self):
+        bad = self.directory / 'bad.ds3'
+        bad.write_bytes(b'abc')
+        failed = self.directory / 'failed.obj'
+        failed.write_bytes(b'keep')
+        single_failure = self.run_export(bad, failed)
+        self.assertEqual(single_failure.returncode, 3, single_failure.stderr)
+        self.assertTrue(single_failure.stderr.strip())
+        first = self.directory / 'first.obj'
+        last = self.directory / 'last.fbx'
+        result = self.run_export('--batch', self.source, first, bad, failed, self.source, last)
+        self.assertEqual(result.returncode, 5, result.stderr)
+        self.assertTrue(first.read_bytes().startswith(b'# Dust3D'))
+        self.assertTrue(last.read_bytes().startswith(b'Kaydara'))
+        self.assertEqual(failed.read_bytes(), b'keep')
+        self.assertIn('2 committed, 1 failed', result.stderr)
+        self.assertIn('Job 2/3 failed (exit 3)', result.stderr)
+        self.assertIn(single_failure.stderr.strip(), result.stderr)
+        committed = (first.read_bytes(), last.read_bytes())
+        bad.write_bytes(self.original)
+        retry = self.run_export(bad, failed)
+        self.assertEqual(retry.returncode, 0, retry.stderr)
+        self.assertTrue(failed.read_bytes().startswith(b'# Dust3D'))
+        self.assertEqual((first.read_bytes(), last.read_bytes()), committed)
+        self.assert_unchanged()
+
+    def test_should_preflight_batch_collisions_before_any_output_is_written(self):
+        output = self.directory / 'output.obj'
+        source_alias = self.directory / 'source-alias.obj'
+        os.link(self.source, source_alias)
+        nested = self.directory / 'nested'
+        nested.mkdir()
+        for paths in [(self.source, output, self.source, output),
+                      (self.source, output, self.source, nested / '..' / 'output.obj'),
+                      (self.source, output, source_alias, source_alias),
+                      (self.source, source_alias, source_alias, output)]:
+            result = self.run_export('--batch', *paths)
+            self.assertEqual(result.returncode, 2, result.stderr)
+            self.assertFalse(output.exists())
+            self.assertEqual(source_alias.read_bytes(), self.original)
+        self.assert_unchanged()
+
+    def test_should_protect_other_job_inputs_and_hardlinked_output_identities(self):
+        other_source = self.directory / 'other.obj'
+        other_source.write_bytes(self.original)
+        final = self.directory / 'final.fbx'
+        result = self.run_export('--batch', self.source, other_source, other_source, final)
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertEqual(other_source.read_bytes(), self.original)
+        self.assertFalse(final.exists())
+        first = self.directory / 'first.obj'
+        first.write_bytes(b'keep')
+        second = self.directory / 'second.fbx'
+        os.link(first, second)
+        result = self.run_export('--batch', self.source, first, self.source, second)
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertEqual(first.read_bytes(), b'keep')
+        self.assertEqual(second.read_bytes(), b'keep')
+        self.assert_unchanged()
+
+    def test_should_continue_after_missing_input_and_bound_pair_count(self):
+        first = self.directory / 'missing.obj'
+        last = self.directory / 'last.obj'
+        result = self.run_export('--batch', self.directory / 'absent.ds3', first, self.source, last)
+        self.assertEqual(result.returncode, 5, result.stderr)
+        self.assertFalse(first.exists())
+        self.assertTrue(last.exists())
+        self.assertIn('1 committed, 1 failed', result.stderr)
+        self.assertIn('Job 1/2 failed (exit 4)', result.stderr)
+        self.assertIn('Open source archive', result.stderr)
+        self.assertIn('errno', result.stderr)
+        result = self.run_export('--batch', *([self.source, first] * 65))
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertIn('at most64', result.stderr)
+        self.assertFalse(first.exists())
+        self.assert_unchanged()
+
+    def test_should_commit_successful_batch_and_reject_incomplete_pairs(self):
+        first = self.directory / 'one.obj'
+        second = self.directory / 'two.fbx'
+        result = self.run_export('--batch', self.source, first, self.source, second)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue(first.exists() and second.exists())
+        self.assertIn('2 committed, 0 failed', result.stderr)
+        for paths in [(), (self.source,), (self.source, first, self.source)]:
+            result = self.run_export('--batch', *paths)
+            self.assertEqual(result.returncode, 2, result.stderr)
+        self.assert_unchanged()
+
+    def test_should_respect_filesystem_identity_for_case_variant_outputs(self):
+        probe = self.directory / 'CaseProbe'
+        probe.write_bytes(b'owned case-sensitivity probe')
+        is_case_insensitive = (self.directory / 'caseprobe').exists()
+        probe.unlink()
+        expected = self.directory / 'expected.obj'
+        single = self.run_export(self.source, expected)
+        self.assertEqual(single.returncode, 0, single.stderr)
+        first = self.directory / 'Result.obj'
+        second = self.directory / 'result.OBJ'
+        self.assertFalse(first.exists() or second.exists())
+        result = self.run_export('--batch', self.source, first, self.source, second)
+        if is_case_insensitive:
+            self.assertEqual(result.returncode, 5, result.stderr)
+            self.assertIn('Job 2/2 failed (exit 2)', result.stderr)
+            self.assertIn('1 committed, 1 failed', result.stderr)
+        else:
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn('2 committed, 0 failed', result.stderr)
+            self.assertFalse(first.samefile(second))
+            self.assertEqual(second.read_bytes(), expected.read_bytes())
+        self.assertEqual(first.read_bytes(), expected.read_bytes())
+        self.assert_unchanged()
+
     def test_should_replace_destination_only_after_geometry_export_succeeds(self):
         self.destination.write_bytes(b'old output')
         result = self.run_export(self.source, self.destination)
