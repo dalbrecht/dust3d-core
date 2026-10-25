@@ -1104,3 +1104,12 @@ semantic decode rejects service collectors. Receipt opcodes are raw integers
 validated before enum conversion. Neither API authenticates its caller inputs or
 publishes app state; real XPC/Apple adoption remains pending. See
 [ADR0129](docs/adr/0129-service-admission-c-boundary.md) and #180.
+
+The development XPC host now uses service-specific C admission for healthy base/UV
+file/socket replies, with collectors created before submission, actual EOF and an
+actor-owned OS peer snapshot. A retained multi-reader completion event joins the
+reader and parent without moving opaque owners between queues. All140 ordinary
+contracts pass; the four healthy isolated pilots verify the C acceptance marker.
+This is immutable-fixture evidence, not mutable editor publication/reconnect or
+release acceptance. See [ADR0130](docs/adr/0130-xpc-service-admission-integration.md)
+and #181.

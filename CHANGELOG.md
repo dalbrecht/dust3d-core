@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Verify healthy isolated XPC mesh/UV replies through the generation-bound C admission gate with actor-owned OS-peer observations and retained multi-reader completion (#181).
+
 - Expose generation-bound service collectors and single-use C reply admission, with raw receipt opcode validation and independent decoded ownership (#180).
 
 - Add single-use persistent-service reply admission with current-source, peer, receipt, EOF and semantic correlation; child-process exit admission remains separate (#179).
