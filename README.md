@@ -1067,3 +1067,10 @@ with immutable leases and stop ordering under the same lock. Pure recorded-actio
 checks and healthy integration verify this application-level bound; framework
 memory, per-connection ownership and publication policy remain separate. See
 [ADR0124](docs/adr/0124-one-slot-xpc-native-admission.md).
+
+Development XPC fixtures now claim one owning connection on its first method call,
+after the framework peer check. Listener candidate issuance does not claim it;
+foreign or unclaimed invalidation cannot retire it. Pure recorded tests cover
+those decisions; native integration covers healthy jobs only. Reconnection,
+cancellation, release trust and current-document publication remain pending. See
+[ADR0125](docs/adr/0125-xpc-connection-ownership.md) and #176.

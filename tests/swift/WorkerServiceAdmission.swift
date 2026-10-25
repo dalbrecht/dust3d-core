@@ -9,15 +9,17 @@ enum WorkerServiceAdmissionStatus: UInt32, Sendable {
     case busy = 1
     case closed = 2
     case staleCompletion = 3
+    case notOwner = 4
 }
 enum WorkerServiceAdmissionDecision: Equatable, Sendable {
     case accepted(WorkerServiceLease)
-    case busy, closed
+    case busy, closed, notOwner
     var status: WorkerServiceAdmissionStatus {
         switch self {
         case .accepted: .accepted
         case .busy: .busy
         case .closed: .closed
+        case .notOwner: .notOwner
         }
     }
 }
