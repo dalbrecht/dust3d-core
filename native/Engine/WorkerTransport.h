@@ -2,6 +2,7 @@
 #ifndef DUST3D_NATIVE_WORKER_TRANSPORT_H_
 #define DUST3D_NATIVE_WORKER_TRANSPORT_H_
 #include "WorkerAdmission.h"
+#include "WorkerCleanup.h"
 #include "WorkerLifetime.h"
 #include "WorkerResourceObservation.h"
 #include <atomic>
@@ -51,6 +52,10 @@ namespace worker {
     struct WorkerSupervision {
         LifetimePolicy lifetime { 600000, 1000, 1000 };
         const WorkerCancellation* cancellation = nullptr;
+        /// Optional caller-owned output, reset before preflight. Retain until return/throw;
+        /// read afterward on the calling thread only. Never share it between active operations.
+        /// Reports exceptional destructor cleanup without replacing the original exception.
+        WorkerCleanupReport* cleanupReport = nullptr;
     };
     /// A retired job cannot be admitted. Collected outcome/opaque diagnostics are retained after spawn.
     /// An empty collected value means cancellation was observed before any child was started.

@@ -69,22 +69,22 @@ struct Channel {
 #endif
     }
 };
-class Child {
+class Child : private WorkerCleanupSystem {
 public:
-    explicit Child(bool shouldStopOnFailure)
+    explicit Child(bool shouldStopOnFailure, WorkerCleanupReport* cleanupReport)
         : m_shouldStopOnFailure(shouldStopOnFailure)
+        , m_cleanupReport(cleanupReport)
     {
     }
     Child(const Child&) = delete;
     Child& operator=(const Child&) = delete;
-    ~Child()
+    ~Child() override
     {
         if (m_pid > 0) {
-            // Only the opt-in supervised owner force-stops on exceptional cleanup.
-            if (m_shouldStopOnFailure)
-                ::kill(m_pid, SIGKILL);
-            int status;
-            while (::waitpid(m_pid, &status, 0) < 0 && errno == EINTR) { }
+            const auto report = cleanupWorkerChild(true, m_shouldStopOnFailure, *this);
+            m_pid = -1;
+            if (m_cleanupReport)
+                *m_cleanupReport = report;
         }
     }
     void own(pid_t pid) noexcept { m_pid = pid; }
@@ -115,8 +115,28 @@ public:
     }
 
 private:
+    int requestForceStop() noexcept override
+    {
+        if (::kill(m_pid, SIGKILL) == 0)
+            return 0;
+        const int cause = errno;
+        return cause == ESRCH ? 0 : cause;
+    }
+    CleanupWaitResult reap() noexcept override
+    {
+        int status = 0;
+        if (::waitpid(m_pid, &status, 0) < 0) {
+            const int cause = errno;
+            return { cause == EINTR ? CleanupWaitState::interrupted : CleanupWaitState::failed, {}, cause };
+        }
+        return { CleanupWaitState::collected,
+            { WIFEXITED(status), WIFEXITED(status) ? WEXITSTATUS(status) : WIFSIGNALED(status) ? WTERMSIG(status)
+                                                                                               : status },
+            0 };
+    }
     pid_t m_pid = -1;
     bool m_shouldStopOnFailure;
+    WorkerCleanupReport* m_cleanupReport;
 };
 void checked(int code, const char* operation)
 {
@@ -195,6 +215,8 @@ namespace worker {
     static CollectedJob runJob(const std::string& executable, const Frame& request, const TransportLimits& limits,
         const WorkerSupervision* supervision, const ResourceLaunch* resourceLaunch)
     {
+        if (supervision && supervision->cleanupReport)
+            *supervision->cleanupReport = {};
         if (executable.empty() || executable[0] != '/' || executable.find('\0') != std::string::npos
             || limits.maximumIoChunkBytes == 0 || limits.maximumIoChunkBytes > 65536
             || limits.maximumCapturedDiagnosticBytes == 0 || limits.maximumCapturedDiagnosticBytes > maximumDiagnosticBytes)
@@ -218,7 +240,7 @@ namespace worker {
         result.reply.reserve(headerBytes);
         result.diagnostic.reserve(limits.maximumCapturedDiagnosticBytes);
         // Declare the owner first: exceptions close every channel before blocking reap.
-        Child child(supervision != nullptr);
+        Child child(supervision != nullptr, supervision ? supervision->cleanupReport : nullptr);
         Channel input;
         Channel output;
         Channel diagnostic;

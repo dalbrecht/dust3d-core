@@ -90,7 +90,10 @@ void preflight(const std::string& worker)
     cancelled.requestCancellation();
     cancelled.requestCancellation();
     require(cancelled.isCancellationRequested(), "Cancellation is idempotent and sticky");
+    WorkerCleanupReport cleanup;
+    cleanup.stopError = 123;
     WorkerSupervision supervision;
+    supervision.cleanupReport = &cleanup;
     supervision.cancellation = &cancelled;
     try {
         runSupervisedWorkerJob(worker + "/missing-helper", input, {}, supervision);
@@ -99,6 +102,7 @@ void preflight(const std::string& worker)
         require(cause.reason() == LifetimeReason::cancelled && !cause.collected(),
             "Pre-start cancellation returns a typed cause without any spawned child");
     }
+    require(!cleanup.attemptedStop && !cleanup.attemptedReap && !cleanup.stopError && !cleanup.waitFailure && !cleanup.outcome, "Pre-start cancellation resets stale cleanup output without process operations");
     supervision.lifetime.workMilliseconds = 0;
     rejects<LifetimeError>([&] { runSupervisedWorkerJob(worker, input, {}, supervision); });
     auto invalid = input;
@@ -131,8 +135,15 @@ void verify(const std::string& worker, const std::vector<uint8_t>& archive, uint
         require(observation->runtime == launch.runtime && observation->diagnosticPrefixBytes == collected.diagnostic.size()
                 && !collected.diagnosticTruncated && observation->effective[2].soft == 0 && observation->effective[2].hard == 0,
             "Actual resource helper reports matching complete bounded setup before result admission");
-    } else
-        collected = sequence == 1 ? runSupervisedWorkerJob(worker, input, limits, WorkerSupervision {}) : runWorkerJob(worker, input, limits);
+    } else {
+        WorkerCleanupReport cleanup;
+        cleanup.stopError = 123;
+        WorkerSupervision supervision;
+        supervision.cleanupReport = &cleanup;
+        collected = sequence == 1 ? runSupervisedWorkerJob(worker, input, limits, supervision) : runWorkerJob(worker, input, limits);
+        if (sequence == 1)
+            require(!cleanup.attemptedStop && !cleanup.attemptedReap && !cleanup.stopError && !cleanup.waitFailure && !cleanup.outcome, "Ordinary supervised completion requires no exceptional cleanup");
+    }
     require(collected.outcome.exitedNormally && collected.outcome.exitCode == 0, "Real helper must exit normally");
     if (!observation && (!collected.diagnostic.empty() || collected.diagnosticTruncated)) {
         // Surface unexpected runtime/sanitizer causes as bounded escaped data, never terminal controls.
@@ -207,7 +218,10 @@ void resourcePreflight(const std::string& worker)
     launch.profile.addressBytes.reset();
     WorkerCancellation cancelled;
     cancelled.requestCancellation();
+    WorkerCleanupReport cleanup;
+    cleanup.stopError = 123;
     WorkerSupervision supervision;
+    supervision.cleanupReport = &cleanup;
     supervision.cancellation = &cancelled;
     try {
         runResourceLimitedWorkerJob(worker + "/missing-helper", input, launch, {}, supervision);

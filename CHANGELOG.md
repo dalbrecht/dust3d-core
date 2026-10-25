@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Retain independent supervised worker cleanup diagnostics without replacing the primary transport exception (#123).
+
 - Reject linearly unstable SpiderWalk/SpiderRun spring intervals before reference pose allocation; pure admission tests only, core #95 remains unresolved.
 
 - Share reference audio surface identities without linking sound synthesis, with owned C catalog names and Swift 6 copied-value verification ([Apple #145](https://github.com/dalbrecht/dust3d-swiftui/issues/145)).
