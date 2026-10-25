@@ -1055,3 +1055,9 @@ runtime self-entitlement check before ordinary jobs. Its only additional file
 grant is read-only access to the private development peer configuration. This is
 configuration/healthy-job evidence, not comprehensive permission or release
 acceptance; see [ADR0122](docs/adr/0122-sandbox-entitled-xpc-fixture.md).
+
+The XPC fixture also passes healthy base/UV jobs through concurrent anonymous
+socket descriptors, with inspected per-socket suppression, bounded writes and
+header-first reads. It joins independent writer, EOF/semantic and control results;
+see [ADR0123](docs/adr/0123-concurrent-xpc-descriptor-streams.md). Production
+admission, cancellation, release trust and quarantine gates remain open.

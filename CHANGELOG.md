@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Verify concurrent bounded descriptor transfer for healthy development XPC base/UV jobs, with explicit EOF and owned endpoint cleanup (#174).
+
 - Verify exact signed sandbox entitlements and service self-entitlement receipts for healthy development XPC base/UV jobs (#173).
 
 - Encode owned base/UV worker requests through shared C codecs and verify both operations through the isolated development XPC fixture (#172).

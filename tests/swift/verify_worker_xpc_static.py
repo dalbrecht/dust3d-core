@@ -73,10 +73,13 @@ def write_bundle(bundle, binary, identifier, package_type):
 
 
 def main():
-    if len(sys.argv) not in (5, 6) or sys.platform != 'darwin':
+    if len(sys.argv) not in (5, 6, 7) or sys.platform != 'darwin':
         raise RuntimeError('Expected fresh host/service executables, licensed Capsule and shared root on macOS')
     host_binary, service_binary, fixture, shared = map(lambda value: Path(value).resolve(), sys.argv[1:5])
-    mode = sys.argv[5] if len(sys.argv) == 6 else 'mesh'
+    mode = sys.argv[5] if len(sys.argv) >= 6 else 'mesh'
+    channel_kind = sys.argv[6] if len(sys.argv) == 7 else 'file'
+    if channel_kind not in ('file', 'socket'):
+        raise RuntimeError('Expected file or socket channel kind')
     if mode not in ('mesh', 'uv'):
         raise RuntimeError('Expected base or UV fixture mode')
     if not all(path.is_file() for path in (host_binary, service_binary, fixture)):
@@ -101,7 +104,7 @@ def main():
         descriptor = os.open(config, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
         with os.fdopen(descriptor, 'w', encoding='ascii') as output:
             json.dump({'host': code_hash(app), 'service': code_hash(service)}, output)
-        process = subprocess.Popen([str(host), str(fixture), str(directory), mode], stdout=subprocess.PIPE,
+        process = subprocess.Popen([str(host), str(fixture), str(directory), mode, channel_kind], stdout=subprocess.PIPE,
                                    stderr=subprocess.PIPE, text=True)
         deadline = time.monotonic() + 35
         while process.poll() is None and time.monotonic() < deadline:
@@ -119,6 +122,8 @@ def main():
             raise RuntimeError('Missing independent service process and ordinary mesh evidence')
         if 'XPC service runtime sandbox entitlement verified' not in output:
             raise RuntimeError('Missing service self-entitlement evidence')
+        if channel_kind == 'socket' and 'Concurrent descriptor writer, actual EOF decoder and control receipt joined' not in output:
+            raise RuntimeError('Missing concurrent stream completion evidence')
         peer = int(match.group(1))
         deadline = time.monotonic() + 10
         while True:
