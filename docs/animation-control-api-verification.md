@@ -36,3 +36,28 @@ sampling/playback/audio and full M6 acceptance remain open. Production pin and
 all quarantines are unchanged. No protected app or global SVG restoration ran.
 
 Validation logs, source hashes and the initial failing compile are retained in the local owned-animation-controls checkpoint. Existing runtime commands remain unchanged, with one additional reviewed control API contract. No executable ran after checkpoint publication.
+
+
+## Owned control delivery validation
+
+Prepare the corrected owned descriptor API on core #156 at `63448227`, retaining
+the accepted OBJ scene-binding verifier fix and the single reference-manifest
+contract. Runtime and new test sources match corrected `5a67d3e3`. The C owner
+copies the ordered descriptor vectors and strings. Borrowed views remain valid
+until destruction; Swift copies every scalar/string before deferred destruction.
+Checked conversions clear outputs and diagnostics, validate owner/indices, call
+the guarded metadata API and preserve original conversion causes at the C ABI.
+
+Fresh Debug CMake build and all 106 ordinary CTest contracts pass (23.30 seconds).
+All 105 prior registered commands remain unchanged, with one inspected C API
+contract added. Scoped metadata ASan/UBSan, C11 header syntax, C++ and Swift
+formatting pass. SwiftPM builds the current Dust3DEngine archive in 7.75 seconds;
+a fresh strict Swift 6 complete-concurrency/warnings-as-errors consumer verifies
+1592 copied controls, independent owners, lifetime and actor transfer. Isolated
+contract symbols contain no sampler, rig, mesh or reference callback implementation.
+No legacy invalid cast, forced allocation failure or quarantined runtime is tested.
+
+Production pin and quarantines remain unchanged. This is descriptor transport,
+not editor UI adoption, Qt runtime verification, animation evaluation/playback,
+audio or full M6 acceptance. Require accepted parent #156, completed clean
+exact-head automated review and every CI check green before delivery merge.
