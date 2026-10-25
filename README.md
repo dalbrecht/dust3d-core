@@ -819,8 +819,8 @@ returns the inherited 180 types (176 current choices plus four legacy aliases),
 including rig/generator identity, duration, sample count, loop flag and numeric
 default overrides. `standardBones(rig)` retains case-sensitive lookup and an empty
 result for unknown rigs. References are immutable and valid until static shutdown;
-C++ construction errors propagate to the C++ caller. This is not yet a C ABI or
-Swift catalog API, and it does not establish native sampling/playback acceptance.
+C++ construction errors propagate to the C++ caller. The owned C API below transports these declarations; this does not establish
+native sampling/playback acceptance.
 
 ```cpp
 #include <dust3d/animation/animation_catalog.h>
@@ -835,7 +835,40 @@ if (found != catalog.end()) {
 
 See [catalog verification](docs/animation-catalog-metadata-verification.md) for
 inventory/provenance and [ADR 0098](docs/adr/0098-generator-free-animation-catalog.md)
-for the shared declaration design. Per-parameter editor descriptors, C/Swift
-owned-copy adapters, Qt/native interoperability and runtime acceptance remain open
+for the shared declaration design. Per-parameter editor descriptors, production Swift SDK/UI adoption,
+Qt/native interoperability and runtime acceptance remain open
 under [Apple #145](https://github.com/dalbrecht/dust3d-swiftui/issues/145). Core #95
 and all other quarantines and the Apple production pin remain unchanged.
+
+## Owned animation catalog C API
+
+`dust3d_animation_catalog_load(&error)` copies the fixed inherited declarations
+under the shared engine lock. It accepts no document input and invokes no rig,
+mesh, animation or sound generator. Release with
+`dust3d_animation_catalog_destroy`; keep the owner alive throughout borrowed reads.
+Independent owners and previously copied values survive other loads/destructions.
+
+`clip_count`/`clip_at` expose ordered type, rig, generator, duration in seconds,
+sample count, loop/legacy-alias flags and override count. `parameter_at` exposes
+ordered numeric default overrides. `rig_count`, `rig_name`, `bone_count` and
+`bone_name` expose the seven known rigs and standard-bone names. These suffixes
+all use the `dust3d_animation_catalog_` prefix. Invalid owner/indices return
+zero/NULL; record accessors clear non-NULL output before rejection. Copy strings
+and scalar fields before destroy; there are no STL objects or exceptions across
+the C ABI. Optional load diagnostics preserve the original cause. Native
+construction allocation errors report LIMIT_EXCEEDED; they were not forced in tests.
+
+The Swift 6 fixture [AnimationCatalogSmoke.swift](tests/swift/AnimationCatalogSmoke.swift)
+validates the current C importer and copies all data into Sendable value arrays
+before releasing owners, then transfers the copies across an actor. It is included
+in the optional session verifier. Local verification ran this metadata fixture
+alone against the current header and fresh SwiftPM static archive, using the
+existing C++/zlib link dependencies and one shared build folder. The generic
+session verifier was not rerun for this stage. A production high-level Swift SDK
+wrapper and Apple UI adoption remain pending; the production pin is unchanged.
+
+This transports declarations, not parameter schemas/ranges, biped pose-entry/exit
+tags, rig matrices, evaluated poses, animation frames or audio. See
+[owned catalog verification](docs/owned-animation-catalog-verification.md) and
+[ADR 0099](docs/adr/0099-owned-animation-catalog.md). Core #95 and all other
+quarantines remain unchanged.
