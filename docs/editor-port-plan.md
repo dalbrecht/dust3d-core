@@ -985,3 +985,14 @@ contracts pass; healthy XPC cases require accepted admission. No native overlap,
 load or rejection probe was performed. Per-connection ownership, cancellation,
 resource/release trust and authenticated publication remain open. Pins/quarantines
 and full M8 acceptance remain unchanged.
+
+### Connection-owned XPC fixture lifecycle (#176)
+
+Development XPC fixtures now claim one owning connection on its first method call,
+after the framework peer check. Listener candidate issuance does not claim it;
+foreign or unclaimed invalidation cannot retire it. Pure recorded tests cover
+those decisions; native integration covers healthy jobs only. Reconnection,
+cancellation, release trust and current-document publication remain pending. See
+[ADR0125](docs/adr/0125-xpc-connection-ownership.md) and #176.
+
+All 139 ordinary contracts pass (22.66 seconds). Full M8 acceptance remains open.

@@ -595,16 +595,18 @@ if(BUILD_TESTING)
             add_custom_command(OUTPUT "${DUST3D_ADMISSION_BINARY}"
                 COMMAND "${DUST3D_XCRUN}" swift-format lint --strict
                     "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerServiceAdmission.swift"
+                    "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerServiceOwnership.swift"
                     "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerServiceScheduler.swift"
                     "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerAdmissionSmoke.swift"
                 COMMAND "${DUST3D_XCRUN}" swiftc -swift-version 6 -strict-concurrency=complete
                     -warnings-as-errors -parse-as-library
                     -module-cache-path "${CMAKE_CURRENT_BINARY_DIR}/swift-module-cache"
                     "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerServiceAdmission.swift"
+                    "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerServiceOwnership.swift"
                     "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerServiceScheduler.swift"
                     "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerAdmissionSmoke.swift"
                     -o "${DUST3D_ADMISSION_BINARY}"
-                DEPENDS tests/swift/WorkerServiceAdmission.swift tests/swift/WorkerServiceScheduler.swift tests/swift/WorkerAdmissionSmoke.swift
+                DEPENDS tests/swift/WorkerServiceAdmission.swift tests/swift/WorkerServiceOwnership.swift tests/swift/WorkerServiceScheduler.swift tests/swift/WorkerAdmissionSmoke.swift
                 VERBATIM)
             add_custom_target(dust3d_worker_admission_values ALL DEPENDS "${DUST3D_ADMISSION_BINARY}")
             add_test(NAME worker_admission_values COMMAND "${DUST3D_ADMISSION_BINARY}")
@@ -615,7 +617,7 @@ if(BUILD_TESTING)
                 set(DUST3D_XPC_BINARY "${CMAKE_CURRENT_BINARY_DIR}/worker-xpc-${DUST3D_XPC_ROLE_LOWER}")
                 set(DUST3D_XPC_ADMISSION_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerServiceAdmission.swift")
                 if(DUST3D_XPC_ROLE STREQUAL "Service")
-                    list(APPEND DUST3D_XPC_ADMISSION_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerServiceScheduler.swift")
+                    list(APPEND DUST3D_XPC_ADMISSION_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerServiceOwnership.swift" "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerServiceScheduler.swift")
                 endif()
                 add_custom_command(OUTPUT "${DUST3D_XPC_BINARY}"
                     COMMAND "${DUST3D_XCRUN}" swift-format lint --strict ${DUST3D_XPC_ADMISSION_SOURCES}

@@ -24,8 +24,13 @@ private func checkedSandboxEntitlement() throws -> Bool {
 
 final class StaticWorkerObject: NSObject, StaticWorkerJob, Sendable {
     private let sandboxEntitlementVerified: Bool
-    init(sandboxEntitlementVerified: Bool) { self.sandboxEntitlementVerified = sandboxEntitlementVerified }
-    private let scheduler = WorkerServiceScheduler(onRetired: { exit(EXIT_SUCCESS) })
+    private let scheduler: WorkerServiceScheduler
+    private let candidate: WorkerServiceConnection
+    init(sandboxEntitlementVerified: Bool, scheduler: WorkerServiceScheduler, candidate: WorkerServiceConnection) {
+        self.sandboxEntitlementVerified = sandboxEntitlementVerified
+        self.scheduler = scheduler
+        self.candidate = candidate
+    }
     func serve(
         _ input: FileHandle, output: FileHandle, isStream: Bool,
         withReply reply:
@@ -34,13 +39,14 @@ final class StaticWorkerObject: NSObject, StaticWorkerJob, Sendable {
             ) ->
             Void
     ) {
-        let decision = scheduler.submit { lease in
+        let decision = scheduler.submit(owner: candidate) { lease in
             let result = dust3d_worker_serve(input.fileDescriptor, output.fileDescriptor)
             // Explicit stream EOF is independent of NSXPC's handle-retention lifetime.
             // This orderly half-close happens only after all runtime writes return.
             let finalized = isStream ? shutdown(output.fileDescriptor, SHUT_WR) : 0
             let finalizationError: Int32 = finalized == 0 ? 0 : errno
-            let admission: WorkerServiceAdmissionStatus = self.scheduler.complete(lease) ? .accepted : .staleCompletion
+            let admission: WorkerServiceAdmissionStatus =
+                self.scheduler.complete(owner: self.candidate, lease) ? .accepted : .staleCompletion
             reply(
                 result.status.rawValue, result.operation.rawValue, result.request_identity,
                 result.system_error, result.io_stage.rawValue, result.detail_source.rawValue,
@@ -55,23 +61,28 @@ final class StaticWorkerObject: NSObject, StaticWorkerJob, Sendable {
     }
     func finishWhenIdle() {
         // Seal admission immediately; normal stop is ordered after every accepted submission.
-        scheduler.retire()
+        scheduler.retire(owner: candidate)
     }
 }
 
 final class StaticListenerDelegate: NSObject, NSXPCListenerDelegate {
     private let requirement: String
-    private let worker: StaticWorkerObject
+    private let scheduler = WorkerServiceScheduler(onRetired: { exit(EXIT_SUCCESS) })
+    private let sandboxEntitlementVerified: Bool
     init(requirement: String, sandboxEntitlementVerified: Bool) {
         self.requirement = requirement
-        self.worker = StaticWorkerObject(sandboxEntitlementVerified: sandboxEntitlementVerified)
+        self.sandboxEntitlementVerified = sandboxEntitlementVerified
     }
     func listener(_ listener: NSXPCListener, shouldAcceptNewConnection connection: NSXPCConnection) -> Bool {
         guard connection.effectiveUserIdentifier == getuid() else { return false }
         connection.setCodeSigningRequirement(requirement)
+        guard let candidate = scheduler.makeConnectionCandidate() else { return false }
+        // A candidate reserves no owner; only a requirement-checked invocation may claim it.
+        let worker = StaticWorkerObject(
+            sandboxEntitlementVerified: sandboxEntitlementVerified,
+            scheduler: scheduler, candidate: candidate)
         connection.exportedInterface = NSXPCInterface(with: StaticWorkerJob.self)
         connection.exportedObject = worker
-        let worker = worker
         connection.invalidationHandler = { worker.finishWhenIdle() }
         connection.resume()
         return true

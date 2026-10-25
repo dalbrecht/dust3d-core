@@ -46,3 +46,10 @@ native queueing and returns separate admission status; healthy integration requi
 acceptance. This does not bound NSXPC transport memory or provide production
 connection/cancellation/publication policy. See
 [ADR0124](../../docs/adr/0124-one-slot-xpc-native-admission.md).
+
+Development XPC fixtures now claim one owning connection on its first method call,
+after the framework peer check. Listener candidate issuance does not claim it;
+foreign or unclaimed invalidation cannot retire it. Pure recorded tests cover
+those decisions; native integration covers healthy jobs only. Reconnection,
+cancellation, release trust and current-document publication remain pending. See
+[ADR0125](../../docs/adr/0125-xpc-connection-ownership.md) and #176.
