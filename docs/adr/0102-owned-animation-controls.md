@@ -59,3 +59,6 @@ Production pin and quarantines remain unchanged. This is descriptor transport,
 not editor UI adoption, Qt runtime verification, animation evaluation/playback,
 audio or full M6 acceptance. Require accepted parent #156, completed clean
 exact-head automated review and every CI check green before delivery merge.
+
+
+Core #156 merged at `b8ab8d75` after completed clean exact-head automated review and all six CI checks green. Full-tree equality across ancestry-only rebase and matching gated source hashes preserve the tested implementation. No native binary executes after rebase; only this delivery note changes afterward.
