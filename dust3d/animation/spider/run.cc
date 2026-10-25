@@ -64,20 +64,16 @@ namespace spider {
         RigAnimationClip& animationClip,
         const AnimationParams& parameters)
     {
-        const double requestedFrames = parameters.getValue("frameCount", 30.0);
-        const double requestedDuration = parameters.getValue("durationSeconds", 1.0);
-        if (!std::isfinite(requestedFrames) || requestedFrames < 2 || requestedFrames > 4999
-            || std::trunc(requestedFrames) != requestedFrames || !std::isfinite(requestedDuration)
-            || requestedDuration < 0.001 || requestedDuration > 600.0)
-            return false;
-        const int frameCount = static_cast<int>(requestedFrames);
-        const float durationSeconds = static_cast<float>(requestedDuration);
         const double springStiffness = parameters.getValue("springStiffness", 150.0);
         const double springDamping = parameters.getValue("springDamping", 14.0);
-        const double dt = durationSeconds / static_cast<double>(frameCount);
-        // #95: reject an unstable step before allocating pose state; do not rewrite stored timing.
-        if (animation::admitDampedSpringStep(dt, springStiffness, springDamping) != animation::SpringStepAdmission::accepted)
+        const auto plan = animation::planDampedSpringFrames(parameters.getValue("durationSeconds", 1.0),
+            parameters.getValue("frameCount", 30.0), springStiffness, springDamping);
+        // #95: reject unstable or invalid timing before allocating pose state.
+        if (plan.admission != animation::SpringStepAdmission::accepted)
             return false;
+        const int frameCount = plan.frameCount;
+        const float durationSeconds = plan.durationSeconds;
+        const double dt = plan.stepSeconds;
 
         std::map<std::string, size_t> boneIdx;
         for (size_t i = 0; i < rigStructure.bones.size(); ++i)

@@ -40,3 +40,23 @@ No crash, allocation-failure, coarse sampling or resource-exhaustion probe ran.
 Production pin and all core/Apple quarantines remain unchanged. This stage must
 follow reviewed metadata prerequisites with completed clean exact-head automated
 review and all CI green before merge. It does not close #95 or full M6 acceptance.
+
+
+## Pure timing-plan boundary
+
+The reference adapters now delegate raw timing admission and numeric conversion
+to planDampedSpringFrames. The pure planner validates finite duration in the legacy
+[0.001,600] interval and integral frame count in [2,4999] before either numeric
+cast. It retains the reference float duration when computing h, then calls the
+spring stability predicate. Rejected plans expose a typed reason and zero values;
+accepted plans retain the original count/duration/interval. No simulation runs.
+
+An initial missing-planner compile failed before implementation. Expanded tests
+cover invalid raw timing, fractional counts, legacy endpoints, float-duration
+compatibility and cleared rejection values. Both reference adapters again pass
+syntax-only checks. Fresh Debug build and the unchanged 110-command CTest suite
+pass in 20.08 seconds. Scoped pure planner ASan/UBSan and SwiftPM pass; measured
+planner coverage is 22/22 lines, 36/36 regions and 30/30 branches. Isolated symbols
+contain no sampler, rig, mesh or synthesizer implementation. Reference execution
+and full #95 acceptance remain unverified; all quarantines and production pin stay
+unchanged. Earlier 9-line coverage applies only to the initial scalar predicate.

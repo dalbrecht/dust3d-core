@@ -18,5 +18,20 @@ namespace animation {
         const double limit = 2.0 / (0.5 * damping + 0.5 * root);
         return stepSeconds < limit ? SpringStepAdmission::accepted : SpringStepAdmission::unstableStep;
     }
+
+    DampedSpringFramePlan planDampedSpringFrames(double durationSeconds, double frameCount, double stiffness, double damping) noexcept
+    {
+        if (!std::isfinite(frameCount) || frameCount < 2 || frameCount > 4999
+            || std::trunc(frameCount) != frameCount || !std::isfinite(durationSeconds)
+            || durationSeconds < 0.001 || durationSeconds > 600.0)
+            return {};
+        const int count = static_cast<int>(frameCount);
+        const float duration = static_cast<float>(durationSeconds);
+        const double step = duration / static_cast<double>(count);
+        const auto admission = admitDampedSpringStep(step, stiffness, damping);
+        if (admission != SpringStepAdmission::accepted)
+            return { admission, 0, 0, 0 };
+        return { admission, count, duration, step };
+    }
 }
 }
