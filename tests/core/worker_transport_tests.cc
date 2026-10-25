@@ -92,7 +92,11 @@ void preflight(const std::string& worker)
     require(cancelled.isCancellationRequested(), "Cancellation is idempotent and sticky");
     WorkerCleanupReport cleanup;
     cleanup.stopError = 123;
+    WorkerAttemptReport attempt;
+    attempt.captured = true;
+    attempt.reply = { 123 };
     WorkerSupervision supervision;
+    supervision.attemptReport = &attempt;
     supervision.cleanupReport = &cleanup;
     supervision.cancellation = &cancelled;
     try {
@@ -103,6 +107,7 @@ void preflight(const std::string& worker)
             "Pre-start cancellation returns a typed cause without any spawned child");
     }
     require(!cleanup.attemptedStop && !cleanup.attemptedReap && !cleanup.stopError && !cleanup.waitFailure && !cleanup.outcome, "Pre-start cancellation resets stale cleanup output without process operations");
+    require(!attempt.captured && !attempt.outcome && attempt.reply.empty() && attempt.diagnostic.empty(), "Pre-start cancellation resets partial diagnostic output before any collector starts");
     supervision.lifetime.workMilliseconds = 0;
     rejects<LifetimeError>([&] { runSupervisedWorkerJob(worker, input, {}, supervision); });
     auto invalid = input;
@@ -138,11 +143,17 @@ void verify(const std::string& worker, const std::vector<uint8_t>& archive, uint
     } else {
         WorkerCleanupReport cleanup;
         cleanup.stopError = 123;
+        WorkerAttemptReport attempt;
+        attempt.captured = true;
+        attempt.diagnostic = { 123 };
         WorkerSupervision supervision;
+        supervision.attemptReport = &attempt;
         supervision.cleanupReport = &cleanup;
         collected = sequence == 1 ? runSupervisedWorkerJob(worker, input, limits, supervision) : runWorkerJob(worker, input, limits);
-        if (sequence == 1)
+        if (sequence == 1) {
             require(!cleanup.attemptedStop && !cleanup.attemptedReap && !cleanup.stopError && !cleanup.waitFailure && !cleanup.outcome, "Ordinary supervised completion requires no exceptional cleanup");
+            require(!attempt.captured && !attempt.outcome && attempt.reply.empty() && attempt.diagnostic.empty(), "Normal completion never becomes a partial-error report");
+        }
     }
     require(collected.outcome.exitedNormally && collected.outcome.exitCode == 0, "Real helper must exit normally");
     if (!observation && (!collected.diagnostic.empty() || collected.diagnosticTruncated)) {
@@ -220,7 +231,11 @@ void resourcePreflight(const std::string& worker)
     cancelled.requestCancellation();
     WorkerCleanupReport cleanup;
     cleanup.stopError = 123;
+    WorkerAttemptReport attempt;
+    attempt.captured = true;
+    attempt.reply = { 123 };
     WorkerSupervision supervision;
+    supervision.attemptReport = &attempt;
     supervision.cleanupReport = &cleanup;
     supervision.cancellation = &cancelled;
     try {

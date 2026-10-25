@@ -958,3 +958,11 @@ returns or throws and inspect it afterward alongside the original exception. It
 records exceptional stop/reap observations without throwing or changing primary
 error types; an empty report means no exceptional cleanup was attempted, not a
 containment guarantee. See ADR 0107 for ownership, tests and unforced OS limits.
+
+
+`WorkerSupervision.attemptReport` optionally retains bounded bytes already read
+when collection throws, without changing the original exception. Keep that
+caller-owned storage alive until return/throw. Its optional outcome is a collector
+observation; cleanup has its separate report. Partial bytes are diagnostics only
+and must never be published as an admitted completion. See ADR 0108 for ownership
+and the deliberately unforced OS error paths.

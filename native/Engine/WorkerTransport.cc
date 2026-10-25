@@ -217,6 +217,8 @@ namespace worker {
     {
         if (supervision && supervision->cleanupReport)
             *supervision->cleanupReport = {};
+        if (supervision && supervision->attemptReport)
+            *supervision->attemptReport = {};
         if (executable.empty() || executable[0] != '/' || executable.find('\0') != std::string::npos
             || limits.maximumIoChunkBytes == 0 || limits.maximumIoChunkBytes > 65536
             || limits.maximumCapturedDiagnosticBytes == 0 || limits.maximumCapturedDiagnosticBytes > maximumDiagnosticBytes)
@@ -237,6 +239,8 @@ namespace worker {
             throw WorkerStopped(LifetimeReason::cancelled, std::nullopt);
         const auto wire = encodeFrame(request, limits.wire);
         CollectedJob result;
+        bool hasExited = false;
+        WorkerAttemptCapture capture(result, hasExited, supervision ? supervision->attemptReport : nullptr);
         result.reply.reserve(headerBytes);
         result.diagnostic.reserve(limits.maximumCapturedDiagnosticBytes);
         // Declare the owner first: exceptions close every channel before blocking reap.
@@ -251,7 +255,6 @@ namespace worker {
         size_t sent = 0;
         uint64_t expectedReplyBytes = headerBytes;
         bool hasHeader = false;
-        bool hasExited = false;
         std::array<uint8_t, 65536> bytes;
         while (supervision || input.parent.get() >= 0 || output.parent.get() >= 0 || diagnostic.parent.get() >= 0 || !hasExited) {
             if (supervision) {
@@ -272,8 +275,10 @@ namespace worker {
                     diagnostic.parent.close();
                 }
                 if (decision.finished) {
-                    if (!decision.mayAdmit)
+                    if (!decision.mayAdmit) {
+                        capture.dismiss();
                         throw WorkerStopped(decision.reason, std::move(result));
+                    }
                     break;
                 }
             }
