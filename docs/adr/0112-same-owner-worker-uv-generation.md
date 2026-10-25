@@ -46,7 +46,8 @@ uninstrumented inherited engine and does not establish whole-engine sanitizer
 coverage. Incremental unchanged SwiftPM product compatibility passes in 0.09
 seconds; this module is CMake-only. Changed C++ formatting and whitespace pass.
 
-Measured new-producer coverage is 119/155 lines, 80/111 regions and 49/82 branches.
+The initial producer measurement, before the review correction below, covered
+119/155 lines, 80/111 regions and 49/82 branches.
 Native inconsistent-owner, missing-storage, exceptional/allocation and other
 failure guards remain unforced; the licensed fixture does not cover all visual
 families. This does not satisfy a whole-core coverage claim. Do not inject faults
@@ -56,3 +57,36 @@ Helper opcode/request dispatch, current-source parent admission, ordinary
 positive subprocess acceptance, containment and production Apple adoption remain
 required. Production dependency and app behavior are unchanged. Full M4/M8
 acceptance remains open.
+
+
+## Review correction: aggregate text before copies
+
+PR #190 finding 4371026655 identified that native inspection charged chart image
+identity bytes only to the logical decoded budget. Component keys alone were
+checked against maximumTextBytes. The complete wire codec rejected mixed excess
+text later, after both retained output copies had already been constructed.
+
+A scalar-only internal UvCopyTextBudget now spans both component and chart loops.
+Every retained string length is charged against the same aggregate text allowance,
+including repeated chart identities, before either geometry or UV copying begins.
+Chart fixed-wire charges and independent decoded charges remain unchanged. Typed
+limit causes remain original content-independent diagnostics.
+
+The pure regression first failed on the missing admission helper. It covers exact
+mixed key/image limits, one-byte-under rejection, per-chart repeated identities,
+empty image text and unchanged prior state after rejection. A small independently
+owned image-backed metadata value also confirms agreement with the existing wire
+codec at the same exact/under text budgets. No native image-backed failure case,
+malformed native archive or allocator probe is used. The native loop wiring and
+pre-copy ordering were inspected directly; actual native fixtures remain the
+ordinary licensed Capsule.
+
+Fresh source guard and audited inventory add only that pure test, for 118 ordinary
+contracts. Clean Debug build, nine pure preflight checks (0.91 seconds), all 118
+CTest cases (21.53 seconds), pure budget ASan/UBSan, changed healthy-copying-wrapper
+ASan/UBSan and SwiftPM compatibility pass. The wrapper check still links the
+uninstrumented inherited engine. The new helper measures 9/9 lines, 9/9 regions,
+3/3 functions and 4/4 branch outcomes. The initial whole-producer measurement
+above is historical; it is not a corrected-head whole-boundary coverage claim.
+Exceptional native guards remain unforced. Production pin and quarantines remain
+unchanged; require fresh completed review and all CI on the corrected head.

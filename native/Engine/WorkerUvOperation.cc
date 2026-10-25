@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 #include "WorkerUvOperation.h"
 #include "WorkerOperation.h"
+#include "WorkerUvCopyBudget.h"
 #include <algorithm>
 #include <memory>
 #include <new>
@@ -62,15 +63,18 @@ namespace worker {
             add(shape.logical, shape.charts * sizeof(UvChart), limits.maximumDecodedBytes);
             add(shape.logical, shape.gradients * sizeof(UvGradient), limits.maximumDecodedBytes);
             add(shape.logical, shape.components * sizeof(std::string), limits.maximumDecodedBytes);
-            uint64_t keys = 0;
+            detail::UvCopyTextBudget textBudget(limits.maximumTextBytes);
             for (size_t i = 0; i < shape.components; ++i) {
                 const auto length = textLength(dust3d_uv_mesh_component_id(owner, i), limits.maximumKeyBytes);
-                add(keys, length, limits.maximumTextBytes);
+                textBudget.charge(length);
                 add(shape.wire, length, limits.maximumWireBytes);
                 add(shape.logical, length, limits.maximumDecodedBytes);
             }
-            for (size_t i = 0; i < shape.charts; ++i)
-                add(shape.logical, textLength(dust3d_uv_mesh_charts(owner)[i].image_id, 38), limits.maximumDecodedBytes);
+            for (size_t i = 0; i < shape.charts; ++i) {
+                const auto length = textLength(dust3d_uv_mesh_charts(owner)[i].image_id, 38);
+                textBudget.charge(length);
+                add(shape.logical, length, limits.maximumDecodedBytes);
+            }
             return shape;
         }
         UvPayload copy(const Dust3DUvMesh* owner, const Shape& shape)
