@@ -896,3 +896,36 @@ was not performed. See [preset verification](docs/animation-defaults-verificatio
 and [ADR 0100](docs/adr/0100-generator-free-animation-defaults.md). Parameter schemas,
 C/Swift descriptor transport, catalog-guided controls and complete M6 runtime
 acceptance remain pending under [Apple #145](https://github.com/dalbrecht/dust3d-swiftui/issues/145).
+
+## Checked parameter control metadata
+
+`dust3d/animation/parameter_catalog.h` provides immutable ordered definitions from
+the reference dynamic parameter table. Across the 180 catalog types there are
+1,592 definition instances, including inherited variants/aliases and preset
+overrides. `parameterDefinitions(type)` returns an empty shared result for an
+undeclared type. Labels, names, integer limits, raw/default slider values and
+conversion coefficients are retained; no Qt or callback objects are in the schema.
+
+`parameterValue(definition, index)` validates the definition and inclusive slider
+range, then performs the reference division/multiplication. `sliderValue(definition,
+value)` rejects nonfinite input and unrepresentable scaled integers before casting,
+retains truncation toward zero and rejects resulting indices outside widget range.
+`ParameterConversionError` preserves a typed definition/nonfinite/representation/
+range cause. Both coefficients are explicit: custom fish hit-frequency/decay
+controls retain division-then-multiplication instead of a guessed conversion.
+
+The nominal default value can differ from its discrete slider projection: for
+BirdGlide wingSpreadAngle, 0.15 maps to index 100, whose value is 100/667. Quantization
+is not an exact round trip. A consumer must retain stored document text while
+presenting controls; displaying a slider must not rewrite the file automatically.
+All current raw defaults map inside their declared widget ranges.
+
+The reference header now adapts this one table to its old callback interface with
+a bounded cache of declared nonempty schemas. Those legacy inverse callbacks remain
+unchecked and reference-only; they are not called with invalid values by tests or
+linked into native products. A build-only object checks that interface. Full Qt
+execution, C/Swift descriptor transport, native UI adoption, common timing/audio
+controls outside this dynamic table and runtime M6 acceptance remain pending. See
+[verification](docs/animation-parameter-catalog-verification.md) and
+[ADR 0101](docs/adr/0101-checked-animation-parameters.md). Production pins and all
+quarantines remain unchanged.

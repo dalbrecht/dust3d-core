@@ -40,3 +40,11 @@ this source-level gap. The inherited AnimationParams tolerant getters were moved
 without semantic changes; they can fall back on parse errors and must not be used
 as validation of arbitrary stored intent. New native boundary errors must preserve
 the original cause. See ADR0100 and the M6 tracking issue for remaining work.
+
+The portable parameter catalog now uses value-only definitions and explicit finite,
+integer-representation and range checks before its single double-to-int cast.
+Reference callback compatibility remains outside native products and retains the
+legacy unchecked expressions. No arbitrary document text is validated by tolerant
+preset getters; native consumers must parse explicitly and keep original errors.
+The scoped native tests exercise only the new guarded conversions for invalid
+values. This does not establish full inherited-engine coverage or Qt acceptance.
