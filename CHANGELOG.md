@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add a bounded versioned worker UV metadata codec preserving binary64 corners, component association, charts and gradients (#162).
+
 - Preserve bounded partial worker reply/diagnostic bytes on collector errors while retaining the original exception (#123).
 
 - Retain independent supervised worker cleanup diagnostics without replacing the primary transport exception (#123).
