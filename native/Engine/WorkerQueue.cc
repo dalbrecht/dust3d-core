@@ -62,7 +62,7 @@ namespace worker {
     }
     AdmittedReply RequestQueue::complete(const RequestIdentity& collected, ProcessOutcome outcome,
         const uint8_t* bytes, size_t size, const MeshPayloadLimits& meshLimits,
-        const FailurePayloadLimits& failureLimits)
+        const FailurePayloadLimits& failureLimits, const UvMeshPayloadLimits& uvLimits)
     {
         if (!m_active || !(m_active->identity == collected))
             throw QueueError(QueueErrorCode::unexpectedCompletion, "Worker completion has no matching active request");
@@ -72,7 +72,7 @@ namespace worker {
         if (!m_current)
             pending.retire();
         return pending.complete(m_current.value_or(request.identity), outcome, bytes, size,
-            m_limits, meshLimits, failureLimits);
+            m_limits, meshLimits, failureLimits, uvLimits);
     }
 }
 }

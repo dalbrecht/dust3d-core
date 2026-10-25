@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Dispatch versioned UV worker jobs and admit paired replies against current-source identity and observed child completion (#164).
+
 - Admit component keys and chart image identities against one text quota before copying native UV results (#190).
 
 - Generate worker geometry and UV metadata from one native owner before bounded independent result copies (#164).

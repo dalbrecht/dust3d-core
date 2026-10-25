@@ -16,6 +16,13 @@ namespace worker {
     /// Quotas bound retained copies, not generation workspace/RSS. No pixels are baked.
     /// Example: auto result = generateUvMesh(request, {});
     UvGenerationResult generateUvMesh(const UvRequest& request, const UvMeshPayloadLimits& limits);
+    /// Validate a complete UV request frame and generate its independent paired/failure response.
+    /// @param request Stable borrowed UV opcode request with exact header/payload length.
+    /// @param limits Supported pair policy, validated before native generation.
+    /// @return Identity/opcode-correlated complete response or original typed native failure.
+    /// @throws Protocol/request/policy/codec or allocation errors; no partial frame is returned.
+    /// Example: auto response = generateUvMeshReply(request, {});
+    Frame generateUvMeshReply(const Frame& request, const UvMeshPayloadLimits& limits);
 }
 }
 #endif

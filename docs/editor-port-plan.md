@@ -847,3 +847,14 @@ validation (ADR 0112). Fresh 117 ordinary contracts pass; native-boundary
 sanitizers cover the changed wrappers, with inherited engine coverage unclaimed.
 Helper dispatch, parent admission, ordinary positive process acceptance,
 containment and production adoption remain required. All quarantines remain.
+
+### Development UV helper dispatch and admission (#164)
+
+Opcode 2 now connects bounded UV requests, same-owner native generation and
+paired response admission in the development helper (ADR 0113). Fresh normal
+and supervised Capsule processes exit zero and admit correlated geometry/UVs;
+pure malformed/stale/wrong-operation replies reject atomically. All 119 ordinary
+contracts pass, with scoped sanitizer/module coverage evidence. Trusted helper
+provenance, containment policy, broad fixtures, baking/renderer adoption and
+reviewed production dependency integration remain required for M4/M8. No
+production pin or quarantine changed.

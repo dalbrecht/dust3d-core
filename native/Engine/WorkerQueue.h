@@ -39,10 +39,11 @@ namespace worker {
         /// The caller must retain/report the original transport cause. Throws QueueError on mismatch.
         void abandon(const RequestIdentity& collected);
         /// Release the matching active slot before admission; reject stale/cancelled/closed/replayed data.
+        /// uvLimits applies to paired UV responses, independently of base mesh limits.
         /// Foreign completions do not release active work. Typed admission/codec causes propagate.
         AdmittedReply complete(const RequestIdentity& collected, ProcessOutcome outcome,
             const uint8_t* bytes, size_t size, const MeshPayloadLimits& meshLimits = {},
-            const FailurePayloadLimits& failureLimits = {});
+            const FailurePayloadLimits& failureLimits = {}, const UvMeshPayloadLimits& uvLimits = {});
 
     private:
         Limits m_limits;

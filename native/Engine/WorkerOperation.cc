@@ -112,6 +112,8 @@ namespace worker {
     Frame generateMeshReply(const Frame& request, const MeshPayloadLimits& limits)
     {
         (void)encodeHeader(request.header, {});
+        if (request.header.operation != Operation::generateMesh)
+            throw ProtocolError(ProtocolErrorCode::unsupportedOperation, "Base mesh operation requires the base mesh opcode.");
         if (request.header.kind != FrameKind::request)
             throw ProtocolError(ProtocolErrorCode::unexpectedResponse, "Native worker operation requires a request frame.");
         if (request.header.payloadBytes != request.payload.size())

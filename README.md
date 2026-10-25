@@ -525,7 +525,9 @@ build/dust3d_worker < request.frame > reply.frame 2> transport-diagnostics.txt
 ```
 
 The request envelope is [ADR 0062](docs/adr/0062-portable-worker-framing.md), with
-generateMesh operation and raw `.ds3` body (default 128 MiB input maximum). Responses
+`generateMesh` opcode 1 and raw `.ds3` body (default 128 MiB input maximum).
+Development `generateUvMesh` opcode 2 carries resolved UV options and archive bytes
+(ADR 0111), returning same-owner geometry/UV pairs (ADR 0113). Base responses
 use [mesh](docs/adr/0063-worker-mesh-payloads.md) or
 [failure](docs/adr/0064-worker-failure-payloads.md) schemas and echo pending identity.
 Exit zero means a complete reply, including ordinary non-success outcomes; exits
@@ -551,7 +553,9 @@ quarantine. See [ADR 0065](docs/adr/0065-single-job-native-worker.md) (#112).
 The portable `PendingReply` gate in `WorkerAdmission.h` admits a collected helper
 reply only once, after the caller supplies observed normal exit zero and the
 current document/request/revision identity. It validates framing and payload
-semantics and returns independent mesh/failure data. Call `retire()` when work is
+semantics and returns independent mesh/failure or paired geometry/UV data. UV
+responses use the appended paired policy, including its inner geometry policy.
+Call `retire()` when work is
 cancelled, replaced or its document closes. Serialize all access; do not infer exit
 from output bytes. This API does not launch or sandbox a child or collect pipes.
 See [ADR 0066](docs/adr/0066-worker-response-admission.md).
@@ -979,6 +983,7 @@ ADR 0109 and core #162 for the schema, ordinary owner-copy evidence and limits.
 The development `WorkerUvMesh` codec returns a complete geometry/UV pair or an
 original typed rejection, with separate inner and aggregate output policies.
 Validation-only inspection prevents admitting geometry before later UV rejection.
-This is response framing preparation, not an enabled source-aware worker operation
-or proof that equal counts authenticate a source. ADR 0110/core #163 lists the
-remaining request, native producer, parent admission and renderer stages.
+This codec alone does not authenticate a source. The development opcode-2 helper
+now produces both values from one native UV owner and admits replies against the
+pending identity and observed outcome (ADR 0113/core #164). Production renderer
+adoption and containment remain separate gates.
