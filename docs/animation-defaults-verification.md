@@ -53,3 +53,9 @@ directional overrides and independently owned return values. They do not establi
 raw-input validation, native parameter UI, runtime pose/playback/audio parity or
 full M6 acceptance. Production pin and all quarantines remain unchanged. Require
 completed clean exact-head automated review and all CI green before merge.
+
+
+PR #154 subsequently merged at `dd3491a6` after completed clean exact-head review
+and all six CI checks green. Full-tree equality before/after ancestry-only rebasing
+and matching gated source hashes prove source identity. No native binary executes
+after rebase; only this delivery note changes afterward.
