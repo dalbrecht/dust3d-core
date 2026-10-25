@@ -91,3 +91,15 @@ owner operations on one serialized caller, away from blocking I/O. No editor
 adoption, authentication or process-memory guarantee follows. See
 [ADR0132](../../docs/adr/0132-c-service-request-coordinator.md), #183 and the public
 header for exact lifetimes, quotas, error categories and current test limits.
+
+
+The development XPC host now uses a non-Sendable Swift collecting-thread adapter
+around that C coordinator. File/main and socket/reader owners prepare requests
+before transport submission; socket writer/main consumers receive copied request
+values through the retained prepared event. Actual EOF and joined authenticated
+OS-peer/control observations precede queue-current admission and copied geometry.
+Four healthy file/socket base/UV fixtures verify that route. Pure Swift tests
+exercise source replacement, retirement and independent data without native failure
+work. This is prototype host integration, not reviewed/pinned editor adoption or
+proof of resource/failed-peer containment. See
+[ADR0133](../../docs/adr/0133-coordinated-xpc-reply-admission.md) and #188.

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Admit healthy development XPC base/UV replies through the queue-authoritative C coordinator with a non-Sendable Swift collecting-thread owner (#188).
+
 - Expose the bounded persistent-service coordinator through C with queue-authoritative source admission, borrowed framing and independently owned decoded values (#183).
 
 - Reuse the bounded request queue for persistent-service completion, with frozen connection generations, source retirement and cross-mode rejection (#182).

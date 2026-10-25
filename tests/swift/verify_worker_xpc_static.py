@@ -126,6 +126,8 @@ def main():
             raise RuntimeError('Missing concurrent stream completion evidence')
         if 'Service one-slot native admission accepted' not in output:
             raise RuntimeError('Missing service admission evidence')
+        if 'Queue-authoritative service completion admitted' not in output:
+            raise RuntimeError('Missing queue-authoritative current-source admission evidence')
         if 'Persistent service C admission accepted after actual EOF and OS peer observation' not in output:
             raise RuntimeError('Missing persistent service completion admission evidence')
         peer = int(match.group(1))
