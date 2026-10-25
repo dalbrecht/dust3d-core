@@ -1022,3 +1022,8 @@ storage, validates exact pending identity/quota before retaining body bytes and
 requires explicit EOF when used independently. This is framing only: semantic
 admission, authoritative process/transaction completion and publication remain
 separate. See [ADR 0117](docs/adr/0117-incremental-worker-reply-framing.md).
+
+The runtime C product also exposes a parent reply owner over that same collector,
+with explicit EOF, sticky diagnostics and a borrowed completed-frame view. Swift
+copies before owner destruction. Framing does not admit payload semantics or
+process/transaction success; see [ADR 0118](docs/adr/0118-parent-reply-c-boundary.md).

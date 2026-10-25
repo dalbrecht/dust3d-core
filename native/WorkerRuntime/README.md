@@ -20,3 +20,18 @@ See the public header for exact field and lifetime contracts. Tests use ordinary
 licensed static fixtures and small pre-generation codec/preflight rejections;
 all existing quarantines remain in place. Binary ABI stability is not claimed
 before the project's release gates; consume an exact reviewed source revision.
+
+## Parent reply collection
+
+Create a `Dust3DWorkerReplyCollector` from the exact pending request wire header
+and explicit wire quotas. Before each descriptor read, use
+`dust3d_worker_reply_next_read`; append only the independently owned readable
+bytes received, then call `dust3d_worker_reply_finish` only on actual EOF. Errors
+are sticky and own their original bounded diagnostic. No OS I/O is performed.
+
+`dust3d_worker_reply_bytes` exposes a borrowed header+body only after successful
+EOF. Copy it before modifying/destroying the owner; destroy exactly once. Framed
+bytes still require semantic and authoritative process/transaction completion
+admission. No XPC callback can stand in for observed process exit. See
+[ADR 0118](../../docs/adr/0118-parent-reply-c-boundary.md) and the public header
+for exact lifetimes, NULL handling, quotas and ownership examples.

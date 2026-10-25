@@ -911,3 +911,13 @@ pure sanitizers and rebuilt SwiftPM helper compatibility pass. No parent C API,
 authenticated transaction, isolated XPC engine service or production adoption is
 claimed. Those gates and full M4/M8 acceptance remain open; pins/quarantines stay
 unchanged. Framing success must never stand in for observed process completion.
+
+### Parent reply C ownership boundary (#169)
+
+A separate opaque C owner now makes the shared bounded collector importable by
+Swift, with explicit EOF, sticky typed diagnostics and copied-value consumers
+(ADR 0118). All 127 ordinary contracts, scoped pure sanitizers and current
+SwiftPM runtime/helper checks pass. Actual descriptor/XPC lifecycle, semantic C
+admission, authoritative authenticated transaction completion and containment
+remain open. A framed byte view cannot authorize publication or invent process
+success; no production pin/quarantine changes or full M4/M8 acceptance follow.
