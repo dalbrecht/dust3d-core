@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Admit component keys and chart image identities against one text quota before copying native UV results (#190).
+
+- Generate worker geometry and UV metadata from one native owner before bounded independent result copies (#164).
+
 - Encode bounded UV worker requests with independently owned archive bytes, resolved image dimensions and retained-metadata options (#164).
 
 - Atomically validate paired worker geometry/UV responses under aggregate output quotas before retained decoding (#163).

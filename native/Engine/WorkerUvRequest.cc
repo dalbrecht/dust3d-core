@@ -109,17 +109,28 @@ namespace worker {
         , m_code(code)
     {
     }
+    namespace {
+        uint64_t requestWireSize(const UvRequest& request, const UvRequestLimits& limits)
+        {
+            policy(limits);
+            options(request.textureSize, request.metadataBudget, request.archive.size());
+            uint64_t wire, decoded;
+            counts(request.archive.size(), request.images.size(), limits, wire, decoded);
+            std::set<std::array<uint8_t, 16>> identities;
+            for (const auto& entry : request.images) {
+                image(entry.identity, entry.width, entry.height, identities);
+                charge(decoded, entry.identity.size(), limits.maximumDecodedBytes);
+            }
+            return wire;
+        }
+    }
+    void validateUvRequest(const UvRequest& request, const UvRequestLimits& limits)
+    {
+        (void)requestWireSize(request, limits);
+    }
     std::vector<uint8_t> encodeUvRequest(const UvRequest& request, const UvRequestLimits& limits)
     {
-        policy(limits);
-        options(request.textureSize, request.metadataBudget, request.archive.size());
-        uint64_t wire, decoded;
-        counts(request.archive.size(), request.images.size(), limits, wire, decoded);
-        std::set<std::array<uint8_t, 16>> identities;
-        for (const auto& entry : request.images) {
-            image(entry.identity, entry.width, entry.height, identities);
-            charge(decoded, entry.identity.size(), limits.maximumDecodedBytes);
-        }
+        const auto wire = requestWireSize(request, limits);
         std::vector<uint8_t> result(static_cast<size_t>(wire), 0);
         write(result.data(), 2, 1);
         write(result.data() + 2, 2, uvRequestPrefixBytes);

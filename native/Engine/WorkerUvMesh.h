@@ -33,6 +33,11 @@ namespace worker {
     private:
         UvMeshPayloadErrorCode m_code;
     };
+    /// Validate supported positive inner and aggregate policies without engine execution.
+    /// @param limits Independent supported byte/count/text quotas, borrowed for this call.
+    /// @throws Original inner policy errors or UvMeshPayloadError(invalidLimits).
+    /// Example: validateUvMeshPayloadLimits({});
+    void validateUvMeshPayloadLimits(const UvMeshPayloadLimits& limits);
     /// Encode a complete explicit-endian paired response after independent/aggregate validation.
     /// @param value Geometry and UV data with matching nonzero triangle count.
     /// @param limits Separate inner policies and aggregate wire/logical quotas; not RSS limits.

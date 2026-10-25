@@ -29,6 +29,10 @@ namespace worker {
                 reject(UvMeshPayloadErrorCode::limitExceeded, "Paired worker response exceeds its aggregate logical quota.");
         }
     }
+    void validateUvMeshPayloadLimits(const UvMeshPayloadLimits& limits)
+    {
+        validateLimits(limits);
+    }
     UvMeshPayloadError::UvMeshPayloadError(UvMeshPayloadErrorCode code, const char* message)
         : std::runtime_error(message)
         , m_code(code)

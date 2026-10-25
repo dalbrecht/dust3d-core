@@ -838,3 +838,12 @@ contracts and scoped value-only sanitizers pass. Same-owner native UV/geometry
 production, dispatch/admission, ordinary process acceptance, containment and Apple
 adoption remain required; this does not complete M4/M8. All quarantines and the
 production dependency remain unchanged.
+
+### Same-owner development worker UV generation (#164)
+
+The worker producer now copies correlated geometry and atlas metadata from one
+native UV owner with exact pre-copy UV/aggregate quotas and owner-destruction
+validation (ADR 0112). Fresh 117 ordinary contracts pass; native-boundary
+sanitizers cover the changed wrappers, with inherited engine coverage unclaimed.
+Helper dispatch, parent admission, ordinary positive process acceptance,
+containment and production adoption remain required. All quarantines remain.
