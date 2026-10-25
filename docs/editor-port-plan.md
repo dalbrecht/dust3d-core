@@ -921,3 +921,14 @@ SwiftPM runtime/helper checks pass. Actual descriptor/XPC lifecycle, semantic C
 admission, authoritative authenticated transaction completion and containment
 remain open. A framed byte view cannot authorize publication or invent process
 success; no production pin/quarantine changes or full M4/M8 acceptance follow.
+
+### Semantic parent reply C values (#170)
+
+EOF-framed replies now decode once through the shared base/UV/failure codecs into
+independent C value owners, with aggregate logical quotas and original typed
+rejections (ADR 0119). All 129 ordinary contracts, scoped pure sanitizers and
+strict Swift6 copied-geometry/actor-transfer evidence pass. This removes another
+Swift-host integration prerequisite while preserving process/authenticated
+transaction/publication admission as separate required gates. Actual isolated
+XPC service lifecycle, containment, trusted packaging and reviewed adoption remain
+open; pins/quarantines and full M4/M8 acceptance are unchanged.

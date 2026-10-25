@@ -35,6 +35,7 @@ let package = Package(
                 "Engine/WorkerFailure.cc",
                 "Engine/WorkerUv.cc", "Engine/WorkerUvMesh.cc", "Engine/WorkerUvRequest.cc",
                 "WorkerRuntime/WorkerRuntimeBridge.cc", "WorkerRuntime/WorkerReplyBridge.cc",
+                "WorkerRuntime/WorkerDecodedBridge.cc",
             ],
             publicHeadersPath: "WorkerRuntime/include",
             cxxSettings: [.headerSearchPath("Engine")]

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Decode framed worker base/UV/failure replies into independent C semantic owners with bounded value copies and preserved native cause bytes (#170).
+
 - Expose an opaque bounded parent reply C owner with explicit EOF, copied diagnostics and borrowed completed-frame bytes for Swift hosts (#169).
 
 - Share bounded incremental worker reply framing across parent transports, validating correlation and quotas before retaining body bytes (#168).

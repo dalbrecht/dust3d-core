@@ -35,3 +35,18 @@ bytes still require semantic and authoritative process/transaction completion
 admission. No XPC callback can stand in for observed process exit. See
 [ADR 0118](../../docs/adr/0118-parent-reply-c-boundary.md) and the public header
 for exact lifetimes, NULL handling, quotas and ownership examples.
+
+## Semantic reply values
+
+After actual EOF, call `dust3d_worker_reply_decode` once with an explicit aggregate
+logical decoded-byte budget (positive, at most 128 MiB). It consumes the framed
+owner and reuses the maintained codecs to return an independent immutable base
+mesh, paired geometry/UV or native-failure owner. Copy vertices/UV records and
+borrowed text/raw cause bytes before destroying the semantic owner. Destroy the
+framed owner separately; neither owner depends on the other's lifetime afterward.
+
+Native failure is a valid decoded result, distinguished by summary kind/status.
+Codec/protocol failures retain original diagnostic category/code/cause and remain
+retired. Do not use semantic success as process, authenticated transaction or
+publication admission. See [ADR 0119](../../docs/adr/0119-semantic-worker-reply-c-boundary.md)
+and the public header for range, lifetime, quota and NULL contracts.

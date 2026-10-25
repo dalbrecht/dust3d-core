@@ -25,15 +25,25 @@ private func copyReceipt(_ value: Dust3DWorkerJobResult) -> CopiedReceipt {
         ioStage: value.io_stage.rawValue, detailCode: value.detail_code, truncated: value.message_truncated != 0,
         message: message)
 }
+private struct CopiedMesh: Sendable, Equatable {
+    let frame: Data
+    let vertexValues: [Float]
+    let nodeCount: UInt64
+    let partCount: UInt64
+    let warning: Data
+}
 private actor ReceiptReceiver {
     private var stored: CopiedReceipt?
     private var frame: Data?
+    private var mesh: CopiedMesh?
+    func storeMesh(_ value: CopiedMesh) { mesh = value }
+    func meshSnapshot() -> CopiedMesh? { mesh }
     func storeFrame(_ value: Data) { frame = value }
     func frameSnapshot() -> Data? { frame }
     func store(_ receipt: CopiedReceipt) { stored = receipt }
     func snapshot() -> CopiedReceipt? { stored }
 }
-private func collectReply(expected: [UInt8], frame: [UInt8]) throws -> Data {
+private func collectReply(expected: [UInt8], frame: [UInt8]) throws -> CopiedMesh {
     var receipt = Dust3DWorkerReplyResult()
     let limits = Dust3DWorkerWireLimits(
         maximum_input_bytes: 1_048_576, maximum_output_bytes: 1_048_576, maximum_failure_bytes: 4096)
@@ -67,7 +77,44 @@ private func collectReply(expected: [UInt8], frame: [UInt8]) throws -> Data {
     guard dust3d_worker_reply_finish(owner).status == DUST3D_WORKER_REPLY_FRAMED,
         let bytes = dust3d_worker_reply_bytes(owner, &count), count == frame.count
     else { throw RuntimeSmokeError.invalid("Complete frame unavailable after EOF") }
-    return Data(bytes: bytes, count: count)
+    let copiedFrame = Data(bytes: bytes, count: count)
+    var decodedResult = Dust3DWorkerDecodeResult()
+    guard let decoded = dust3d_worker_reply_decode(owner, 1_048_576, &decodedResult),
+        decodedResult.status == DUST3D_WORKER_DECODE_OK
+    else { throw RuntimeSmokeError.invalid("Semantic reply rejected") }
+    defer { dust3d_worker_decoded_destroy(decoded) }
+    let summary = dust3d_worker_decoded_summary(decoded)
+    guard summary.kind == DUST3D_WORKER_DECODED_MESH, summary.vertex_count == 240,
+        summary.node_count > 0, summary.part_count > 0
+    else { throw RuntimeSmokeError.invalid("Semantic geometry summary lost") }
+    var vertices = [Dust3DWorkerVertex](repeating: Dust3DWorkerVertex(), count: summary.vertex_count)
+    guard
+        vertices.withUnsafeMutableBufferPointer({
+            dust3d_worker_decoded_vertices(decoded, 0, $0.count, $0.baseAddress)
+        }) == 1
+    else { throw RuntimeSmokeError.invalid("Semantic vertex copy rejected") }
+    let values = vertices.flatMap { vertex in
+        let position = withUnsafeBytes(of: vertex.position) { Array($0.bindMemory(to: Float.self)) }
+        let normal = withUnsafeBytes(of: vertex.normal) { Array($0.bindMemory(to: Float.self)) }
+        let color = withUnsafeBytes(of: vertex.color) { Array($0.bindMemory(to: Float.self)) }
+        return position + normal + color
+    }
+    guard values.count == 2400, values.allSatisfy(\.isFinite) else {
+        throw RuntimeSmokeError.invalid("Independent vertex values lost")
+    }
+    var warningCount = 0
+    let warningBytes = dust3d_worker_decoded_warning(decoded, &warningCount)
+    let warning: Data
+    if let warningBytes {
+        warning = Data(bytes: warningBytes, count: warningCount)
+    } else {
+        guard warningCount == 0 else { throw RuntimeSmokeError.invalid("Warning size lost") }
+        warning = Data()
+    }
+    return CopiedMesh(
+        frame: copiedFrame, vertexValues: values, nodeCount: summary.node_count,
+        partCount: summary.part_count, warning: warning)
+
 }
 @main
 private enum WorkerRuntimeSmoke {
@@ -127,13 +174,18 @@ private enum WorkerRuntimeSmoke {
         guard reply[17] == 2, reply[19] == 1, reply[31] == 42, vertexCount == 240 else {
             throw RuntimeSmokeError.invalid("Independent response fixture lost base mesh or identity")
         }
-        let copiedFrame = try await Task.detached { try collectReply(expected: header, frame: reply) }.value
+        let copiedMesh = try await Task.detached { try collectReply(expected: header, frame: reply) }.value
+        let copiedFrame = copiedMesh.frame
         guard copiedFrame == Data(reply) else {
             throw RuntimeSmokeError.invalid("Copied frame changed after owner destruction")
         }
         let receiver = ReceiptReceiver()
         await receiver.store(receipt)
         await receiver.storeFrame(copiedFrame)
+        await receiver.storeMesh(copiedMesh)
+        guard await receiver.meshSnapshot() == copiedMesh else {
+            throw RuntimeSmokeError.invalid("Copied semantic values changed after both native owners were destroyed")
+        }
         guard await receiver.frameSnapshot() == Data(reply) else {
             throw RuntimeSmokeError.invalid("Owned framed bytes changed across actor transfer")
         }
