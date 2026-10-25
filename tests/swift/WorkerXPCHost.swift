@@ -14,13 +14,14 @@ private struct ControlReceipt: Sendable {
     let truncated: UInt8
     let process: Int32
     let sandboxEntitlementVerified: Bool
+    let finalizationError: Int32
 }
-private final class ControlOutcome: @unchecked Sendable {
+private final class WorkOutcome<Value: Sendable>: @unchecked Sendable {
     // NSXPC invokes callbacks on its private queue; all state crosses this lock.
     private let lock = NSLock()
     private let ready = DispatchSemaphore(value: 0)
-    private var result: Result<ControlReceipt, StaticFixtureError>?
-    func finish(_ result: Result<ControlReceipt, StaticFixtureError>) {
+    private var result: Result<Value, any Error>?
+    func finish(_ result: Result<Value, any Error>) {
         lock.lock()
         guard self.result == nil else {
             lock.unlock()
@@ -30,8 +31,8 @@ private final class ControlOutcome: @unchecked Sendable {
         lock.unlock()
         ready.signal()
     }
-    func wait() throws -> ControlReceipt {
-        guard ready.wait(timeout: .now() + 20) == .success else {
+    func wait(until deadline: DispatchTime) throws -> Value {
+        guard ready.wait(timeout: deadline) == .success else {
             throw StaticFixtureError.invalid("Ordinary XPC reply timed out; no process was terminated")
         }
         lock.lock()
@@ -41,7 +42,7 @@ private final class ControlOutcome: @unchecked Sendable {
     }
 }
 
-private struct EncodedRequest {
+private struct EncodedRequest: Sendable {
     let header: [UInt8]
     let frame: Data
 }
@@ -81,6 +82,105 @@ private func encodeRequest(archive: Data, operation: Dust3DWorkerOperation, requ
         frame: Data(bytes: frame, count: frameSize))
 }
 
+private struct CopiedReply: Sendable {
+    let vertexCount: Int
+    let triangleCount: Int
+    let vertexScalars: [Float]
+    let uvScalars: [Double]
+}
+private func readReply(_ stream: FileHandle, header: [UInt8], isUv: Bool) throws -> CopiedReply {
+    let limits = Dust3DWorkerWireLimits(
+        maximum_input_bytes: 1_048_576, maximum_output_bytes: 1_048_576, maximum_failure_bytes: 4096)
+    var framing = Dust3DWorkerReplyResult()
+    let created = header.withUnsafeBufferPointer {
+        dust3d_worker_reply_create($0.baseAddress, $0.count, limits, &framing)
+    }
+    guard let owner = created, framing.status == DUST3D_WORKER_REPLY_READY else {
+        throw StaticFixtureError.invalid("Parent framing preflight failed")
+    }
+    defer { dust3d_worker_reply_destroy(owner) }
+    while true {
+        var count = 0
+        guard dust3d_worker_reply_next_read(owner, 97, &count).status == DUST3D_WORKER_REPLY_READY, count > 0,
+            count <= 97
+        else {
+            throw StaticFixtureError.invalid("Read sizing rejected")
+        }
+        guard let data = try stream.read(upToCount: count), !data.isEmpty else { break }
+        let receipt = data.withUnsafeBytes {
+            dust3d_worker_reply_append(owner, $0.bindMemory(to: UInt8.self).baseAddress, $0.count)
+        }
+        guard receipt.status == DUST3D_WORKER_REPLY_READY else {
+            throw StaticFixtureError.invalid("Correlated descriptor frame rejected")
+        }
+    }
+    guard dust3d_worker_reply_finish(owner).status == DUST3D_WORKER_REPLY_FRAMED else {
+        throw StaticFixtureError.invalid("Actual channel EOF rejected")
+    }
+    var semantic = Dust3DWorkerDecodeResult()
+    guard let decoded = dust3d_worker_reply_decode(owner, 1_048_576, &semantic),
+        semantic.status == DUST3D_WORKER_DECODE_OK
+    else {
+        throw StaticFixtureError.invalid("Semantic mesh rejected")
+    }
+    defer { dust3d_worker_decoded_destroy(decoded) }
+    let summary = dust3d_worker_decoded_summary(decoded)
+    guard summary.kind == (isUv ? DUST3D_WORKER_DECODED_UV_MESH : DUST3D_WORKER_DECODED_MESH),
+        summary.vertex_count == 240
+    else {
+        throw StaticFixtureError.invalid("Ordinary Capsule vertex count differs")
+    }
+    var vertices = [Dust3DWorkerVertex](repeating: Dust3DWorkerVertex(), count: summary.vertex_count)
+    guard
+        vertices.withUnsafeMutableBufferPointer({
+            dust3d_worker_decoded_vertices(decoded, 0, $0.count, $0.baseAddress)
+        }) == 1
+    else {
+        throw StaticFixtureError.invalid("Independent vertex copy failed")
+    }
+    var copiedUv: [Double] = []
+    if isUv {
+        guard summary.triangle_count == 80, summary.triangle_count * 3 == summary.vertex_count else {
+            throw StaticFixtureError.invalid("Paired UV count lost")
+        }
+        for index in 0..<summary.triangle_count {
+            var triangle = Dust3DWorkerUvTriangle()
+            guard dust3d_worker_decoded_triangle(decoded, index, &triangle) == 1,
+                triangle.known <= 1, triangle.association <= 2,
+                withUnsafeBytes(of: triangle.uv, { $0.bindMemory(to: Double.self).allSatisfy(\.isFinite) }),
+                triangle.association == 1
+                    ? triangle.component_index < summary.component_count : triangle.component_index == UInt64.max
+            else { throw StaticFixtureError.invalid("Copied UV corner/association values lost") }
+            copiedUv += withUnsafeBytes(of: triangle.uv) { Array($0.bindMemory(to: Double.self)) }
+        }
+    }
+    let copiedVertices = vertices.flatMap { vertex in
+        withUnsafeBytes(of: vertex.position) { Array($0.bindMemory(to: Float.self)) }
+            + withUnsafeBytes(of: vertex.normal) { Array($0.bindMemory(to: Float.self)) }
+            + withUnsafeBytes(of: vertex.color) { Array($0.bindMemory(to: Float.self)) }
+    }
+    return CopiedReply(
+        vertexCount: summary.vertex_count, triangleCount: summary.triangle_count,
+        vertexScalars: copiedVertices, uvScalars: copiedUv)
+}
+
+private func validateCopiedReply(_ value: CopiedReply, isUv: Bool) throws {
+    guard value.vertexCount == 240, value.vertexScalars.count == 2400,
+        value.vertexScalars.allSatisfy(\.isFinite),
+        !isUv || (value.triangleCount == 80 && value.uvScalars.count == 480 && value.uvScalars.allSatisfy(\.isFinite))
+    else { throw StaticFixtureError.invalid("Independent copied reply values differ") }
+}
+private func printResult(_ receipt: ControlReceipt, isUv: Bool, isStream: Bool) {
+    if isUv {
+        print(
+            "Isolated XPC ordinary UV mesh passed: 240 vertices; 80 UV triangles; servicePID=\(receipt.process); hostPID=\(getpid())"
+        )
+    } else {
+        print("Isolated XPC ordinary mesh passed: 240 vertices; servicePID=\(receipt.process); hostPID=\(getpid())")
+    }
+    if isStream { print("Concurrent descriptor writer, actual EOF decoder and control receipt joined") }
+}
+
 @main
 private struct WorkerXPCHost {
     static func main() {
@@ -90,11 +190,16 @@ private struct WorkerXPCHost {
         }
     }
     static func run() throws {
-        guard CommandLine.arguments.count == 4 else {
-            throw StaticFixtureError.invalid("Expected licensed fixture, owned scratch and base/UV mode")
+        guard CommandLine.arguments.count == 5 else {
+            throw StaticFixtureError.invalid("Expected licensed fixture, owned scratch, base/UV mode and channel kind")
         }
         let mode = CommandLine.arguments[3]
         guard mode == "mesh" || mode == "uv" else { throw StaticFixtureError.invalid("Unknown fixture mode") }
+        let channelKind = CommandLine.arguments[4]
+        guard channelKind == "file" || channelKind == "socket" else {
+            throw StaticFixtureError.invalid("Unknown channel kind")
+        }
+        let isStream = channelKind == "socket"
         let isUv = mode == "uv"
         let operation = isUv ? DUST3D_WORKER_OPERATION_UV_MESH : DUST3D_WORKER_OPERATION_MESH
         let request: UInt64 = isUv ? 43 : 42
@@ -110,20 +215,55 @@ private struct WorkerXPCHost {
         let root = URL(fileURLWithPath: CommandLine.arguments[2])
         let inputURL = root.appendingPathComponent("request")
         let outputURL = root.appendingPathComponent("reply")
-        try encoded.frame.write(to: inputURL)
-        try Data().write(to: outputURL)
-        let input = try FileHandle(forReadingFrom: inputURL)
-        let output = try FileHandle(forWritingTo: outputURL)
+        let inputChannel: WorkerSocketChannel?
+        let outputChannel: WorkerSocketChannel?
+        let input: FileHandle
+        let output: FileHandle
+        if isStream {
+            let incoming = try makeWorkerSocketChannel()
+            let outgoing = try makeWorkerSocketChannel()
+            inputChannel = incoming
+            outputChannel = outgoing
+            input = incoming.reader
+            output = outgoing.writer
+        } else {
+            try encoded.frame.write(to: inputURL)
+            try Data().write(to: outputURL)
+            inputChannel = nil
+            outputChannel = nil
+            input = try FileHandle(forReadingFrom: inputURL)
+            output = try FileHandle(forWritingTo: outputURL)
+        }
         defer {
             try? input.close()
             try? output.close()
         }
+        let deadline = DispatchTime.now() + 20
+        let reading = WorkOutcome<CopiedReply>()
+        let writing = WorkOutcome<Void>()
+        if let incoming = inputChannel, let outgoing = outputChannel {
+            DispatchQueue(label: "org.dust3d.core.fixture.reply-reader").async {
+                reading.finish(
+                    Result {
+                        try withOwnedWorkerChannel(outgoing.reader) {
+                            try readReply(outgoing.reader, header: header, isUv: isUv)
+                        }
+                    })
+            }
+            DispatchQueue(label: "org.dust3d.core.fixture.request-writer").async {
+                writing.finish(Result { try writeWorkerRequest(encoded.frame, to: incoming.writer) })
+            }
+        }
         let connection = NSXPCConnection(serviceName: staticServiceIdentifier)
         connection.setCodeSigningRequirement(try developmentRequirement(pins.service))
         connection.remoteObjectInterface = NSXPCInterface(with: StaticWorkerJob.self)
-        let outcome = ControlOutcome()
-        connection.invalidationHandler = { outcome.finish(.failure(.invalid("XPC connection invalidated"))) }
-        connection.interruptionHandler = { outcome.finish(.failure(.invalid("XPC connection interrupted"))) }
+        let outcome = WorkOutcome<ControlReceipt>()
+        connection.invalidationHandler = {
+            outcome.finish(.failure(StaticFixtureError.invalid("XPC connection invalidated")))
+        }
+        connection.interruptionHandler = {
+            outcome.finish(.failure(StaticFixtureError.invalid("XPC connection interrupted")))
+        }
         defer {
             let process = connection.processIdentifier
             connection.invalidate()
@@ -134,24 +274,28 @@ private struct WorkerXPCHost {
             let proxy = connection.remoteObjectProxyWithErrorHandler({ error in
                 let original = error as NSError
                 outcome.finish(
-                    .failure(.invalid("\(original.domain) \(original.code): \(original.localizedDescription)")))
+                    .failure(
+                        StaticFixtureError.invalid(
+                            "\(original.domain) \(original.code): \(original.localizedDescription)")))
             }) as? StaticWorkerJob
         else { throw StaticFixtureError.invalid("Missing typed XPC proxy") }
-        proxy.serve(input, output: output) {
-            status, operation, request, systemError, stage, source, code, truncated, process, sandboxEntitlementVerified
+        proxy.serve(input, output: output, isStream: isStream) {
+            status, operation, request, systemError, stage, source, code, truncated, process,
+            sandboxEntitlementVerified, finalizationError
             in
             outcome.finish(
                 .success(
                     ControlReceipt(
                         status: status, operation: operation, request: request,
                         systemError: systemError, stage: stage, source: source, code: code, truncated: truncated,
-                        process: process, sandboxEntitlementVerified: sandboxEntitlementVerified)))
+                        process: process, sandboxEntitlementVerified: sandboxEntitlementVerified,
+                        finalizationError: finalizationError)))
         }
-        let receipt = try outcome.wait()
+        let receipt = try outcome.wait(until: deadline)
         guard receipt.status == DUST3D_WORKER_JOB_COMPLETE.rawValue,
             receipt.operation == operation.rawValue, receipt.request == request,
             receipt.systemError == 0, receipt.stage == 0, receipt.source == 0, receipt.code == 0,
-            receipt.truncated == 0, receipt.sandboxEntitlementVerified,
+            receipt.truncated == 0, receipt.sandboxEntitlementVerified, receipt.finalizationError == 0,
             receipt.process > 0, receipt.process != getpid(), receipt.process == connection.processIdentifier,
             fcntl(input.fileDescriptor, F_GETFD) >= 0, fcntl(output.fileDescriptor, F_GETFD) >= 0
         else {
@@ -161,75 +305,18 @@ private struct WorkerXPCHost {
         print("XPC service runtime sandbox entitlement verified")
         try input.close()
         try output.close()
+        if outputChannel != nil {
+            try writing.wait(until: deadline)
+            let copied = try reading.wait(until: deadline)
+            try validateCopiedReply(copied, isUv: isUv)
+            printResult(receipt, isUv: isUv, isStream: true)
+            return
+        }
         let stream = try FileHandle(forReadingFrom: outputURL)
-        defer { try? stream.close() }
-        let limits = Dust3DWorkerWireLimits(
-            maximum_input_bytes: 1_048_576, maximum_output_bytes: 1_048_576, maximum_failure_bytes: 4096)
-        var framing = Dust3DWorkerReplyResult()
-        let created = header.withUnsafeBufferPointer {
-            dust3d_worker_reply_create($0.baseAddress, $0.count, limits, &framing)
+        let copied = try withOwnedWorkerChannel(stream) {
+            try readReply(stream, header: header, isUv: isUv)
         }
-        guard let owner = created, framing.status == DUST3D_WORKER_REPLY_READY else {
-            throw StaticFixtureError.invalid("Parent framing preflight failed")
-        }
-        defer { dust3d_worker_reply_destroy(owner) }
-        while true {
-            var count = 0
-            guard dust3d_worker_reply_next_read(owner, 97, &count).status == DUST3D_WORKER_REPLY_READY, count > 0,
-                count <= 97
-            else {
-                throw StaticFixtureError.invalid("Read sizing rejected")
-            }
-            guard let data = try stream.read(upToCount: count), !data.isEmpty else { break }
-            let receipt = data.withUnsafeBytes {
-                dust3d_worker_reply_append(owner, $0.bindMemory(to: UInt8.self).baseAddress, $0.count)
-            }
-            guard receipt.status == DUST3D_WORKER_REPLY_READY else {
-                throw StaticFixtureError.invalid("Correlated descriptor frame rejected")
-            }
-        }
-        guard dust3d_worker_reply_finish(owner).status == DUST3D_WORKER_REPLY_FRAMED else {
-            throw StaticFixtureError.invalid("Actual file EOF rejected")
-        }
-        var semantic = Dust3DWorkerDecodeResult()
-        guard let decoded = dust3d_worker_reply_decode(owner, 1_048_576, &semantic),
-            semantic.status == DUST3D_WORKER_DECODE_OK
-        else {
-            throw StaticFixtureError.invalid("Semantic mesh rejected")
-        }
-        defer { dust3d_worker_decoded_destroy(decoded) }
-        let summary = dust3d_worker_decoded_summary(decoded)
-        guard summary.kind == (isUv ? DUST3D_WORKER_DECODED_UV_MESH : DUST3D_WORKER_DECODED_MESH),
-            summary.vertex_count == 240
-        else {
-            throw StaticFixtureError.invalid("Ordinary Capsule vertex count differs")
-        }
-        var vertices = [Dust3DWorkerVertex](repeating: Dust3DWorkerVertex(), count: summary.vertex_count)
-        guard
-            vertices.withUnsafeMutableBufferPointer({
-                dust3d_worker_decoded_vertices(decoded, 0, $0.count, $0.baseAddress)
-            }) == 1
-        else {
-            throw StaticFixtureError.invalid("Independent vertex copy failed")
-        }
-        if isUv {
-            guard summary.triangle_count == 80, summary.triangle_count * 3 == summary.vertex_count else {
-                throw StaticFixtureError.invalid("Paired UV count lost")
-            }
-            for index in 0..<summary.triangle_count {
-                var triangle = Dust3DWorkerUvTriangle()
-                guard dust3d_worker_decoded_triangle(decoded, index, &triangle) == 1,
-                    triangle.known <= 1, triangle.association <= 2,
-                    withUnsafeBytes(of: triangle.uv, { $0.bindMemory(to: Double.self).allSatisfy(\.isFinite) }),
-                    triangle.association == 1
-                        ? triangle.component_index < summary.component_count : triangle.component_index == UInt64.max
-                else { throw StaticFixtureError.invalid("Copied UV corner/association values lost") }
-            }
-            print(
-                "Isolated XPC ordinary UV mesh passed: 240 vertices; 80 UV triangles; servicePID=\(receipt.process); hostPID=\(getpid())"
-            )
-        } else {
-            print("Isolated XPC ordinary mesh passed: 240 vertices; servicePID=\(receipt.process); hostPID=\(getpid())")
-        }
+        try validateCopiedReply(copied, isUv: isUv)
+        printResult(receipt, isUv: isUv, isStream: isStream)
     }
 }

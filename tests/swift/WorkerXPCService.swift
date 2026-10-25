@@ -27,20 +27,23 @@ final class StaticWorkerObject: NSObject, StaticWorkerJob, Sendable {
     init(sandboxEntitlementVerified: Bool) { self.sandboxEntitlementVerified = sandboxEntitlementVerified }
     private let queue = DispatchQueue(label: "org.dust3d.core.static-worker.serial")
     func serve(
-        _ input: FileHandle, output: FileHandle,
+        _ input: FileHandle, output: FileHandle, isStream: Bool,
         withReply reply:
-            @escaping @Sendable (UInt32, UInt32, UInt64, Int32, UInt32, UInt32, Int32, UInt8, Int32, Bool) -> Void
+            @escaping @Sendable (UInt32, UInt32, UInt64, Int32, UInt32, UInt32, Int32, UInt8, Int32, Bool, Int32) ->
+            Void
     ) {
         // All native entry points in this service share this single queue.
         queue.async {
             let result = dust3d_worker_serve(input.fileDescriptor, output.fileDescriptor)
-            // NSXPC owns the duplicated handles through this invocation; ARC releases
-            // this service's copies after the serial block. The fixture uses regular files,
-            // not pipe-close completion, and never infers process exit from this receipt.
+            // Explicit stream EOF is independent of NSXPC's handle-retention lifetime.
+            // This orderly half-close happens only after all runtime writes return.
+            let finalized = isStream ? shutdown(output.fileDescriptor, SHUT_WR) : 0
+            let finalizationError: Int32 = finalized == 0 ? 0 : errno
             reply(
                 result.status.rawValue, result.operation.rawValue, result.request_identity,
                 result.system_error, result.io_stage.rawValue, result.detail_source.rawValue,
-                result.detail_code, result.message_truncated, getpid(), self.sandboxEntitlementVerified)
+                result.detail_code, result.message_truncated, getpid(), self.sandboxEntitlementVerified,
+                finalizationError)
         }
     }
     func finishWhenIdle() {

@@ -965,3 +965,13 @@ This improves mitigation evidence while leaving release trust, effective-permiss
 review, live pipes, bounded scheduling/cancellation, authenticated publication and
 reviewed Apple adoption open. No production pin/quarantine changes or full M8
 acceptance follow from the entitlement receipt.
+
+### Concurrent healthy XPC descriptor acceptance (#174)
+
+Healthy base/UV jobs now stream concurrently through anonymous descriptors under
+the existing sandbox/peer checks, joining bounded writing, actual EOF/semantic
+copies and the separate control receipt (ADR0123). File reference cases remain;
+all 138 ordinary contracts pass after owned endpoint cleanup/result composition.
+No broken-peer/signal/pressure probes or production pin/quarantine changes.
+Bounded admission, cancellation/failure diagnostics, authoritative publication,
+release trust/resource review and app adoption remain open; full M8 is incomplete.
