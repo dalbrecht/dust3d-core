@@ -91,7 +91,7 @@ if(UNIX)
     target_link_libraries(dust3d_export PRIVATE dust3d_engine)
     add_library(dust3d_worker_job_io STATIC native/Engine/WorkerJobIO.cc)
     target_link_libraries(dust3d_worker_job_io PUBLIC dust3d_worker_operation)
-    add_library(dust3d_worker_runtime STATIC native/WorkerRuntime/WorkerRuntimeBridge.cc native/WorkerRuntime/WorkerReplyBridge.cc native/WorkerRuntime/WorkerDecodedBridge.cc)
+    add_library(dust3d_worker_runtime STATIC native/WorkerRuntime/WorkerRuntimeBridge.cc native/WorkerRuntime/WorkerReplyBridge.cc native/WorkerRuntime/WorkerDecodedBridge.cc native/WorkerRuntime/WorkerRequestBridge.cc)
     target_include_directories(dust3d_worker_runtime PUBLIC native/WorkerRuntime/include PRIVATE native/Engine)
     target_link_libraries(dust3d_worker_runtime PUBLIC dust3d_worker_job_io)
     add_executable(dust3d_worker native/Engine/WorkerMain.cc)
@@ -431,6 +431,13 @@ if(BUILD_TESTING)
     add_test(NAME worker_admission_contracts COMMAND dust3d_worker_admission_tests)
     set_tests_properties(worker_admission_contracts PROPERTIES TIMEOUT 30)
     if(TARGET dust3d_worker_runtime)
+        add_executable(dust3d_worker_request_bridge_tests tests/core/worker_request_bridge_tests.cc)
+        target_link_libraries(dust3d_worker_request_bridge_tests PRIVATE dust3d_worker_runtime)
+        add_test(NAME worker_request_bridge_contracts COMMAND dust3d_worker_request_bridge_tests)
+        add_executable(dust3d_worker_request_c_smoke tests/core/worker_request_c_smoke.c)
+        set_target_properties(dust3d_worker_request_c_smoke PROPERTIES C_STANDARD 11 C_STANDARD_REQUIRED YES LINKER_LANGUAGE CXX)
+        target_link_libraries(dust3d_worker_request_c_smoke PRIVATE dust3d_worker_runtime)
+        add_test(NAME worker_request_c_contracts COMMAND dust3d_worker_request_c_smoke)
         add_executable(dust3d_worker_decoded_bridge_tests tests/core/worker_decoded_bridge_tests.cc)
         target_link_libraries(dust3d_worker_decoded_bridge_tests PRIVATE dust3d_worker_runtime)
         add_test(NAME worker_decoded_bridge_contracts COMMAND dust3d_worker_decoded_bridge_tests)
@@ -593,7 +600,12 @@ if(BUILD_TESTING)
                 "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/verify_worker_xpc_static.py"
                 "${CMAKE_CURRENT_BINARY_DIR}/worker-xpc-host" "${CMAKE_CURRENT_BINARY_DIR}/worker-xpc-service"
                 "${CMAKE_CURRENT_SOURCE_DIR}/tests/core/fixtures/Capsule.ds3" "${CMAKE_CURRENT_BINARY_DIR}")
-            set_tests_properties(worker_xpc_static_mesh PROPERTIES TIMEOUT 90)
+            add_test(NAME worker_xpc_uv_mesh COMMAND "${Python3_EXECUTABLE}" -B
+                "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/verify_worker_xpc_static.py"
+                "${CMAKE_CURRENT_BINARY_DIR}/worker-xpc-host" "${CMAKE_CURRENT_BINARY_DIR}/worker-xpc-service"
+                "${CMAKE_CURRENT_SOURCE_DIR}/tests/core/fixtures/Capsule.ds3" "${CMAKE_CURRENT_BINARY_DIR}" uv)
+            set_tests_properties(worker_xpc_static_mesh worker_xpc_uv_mesh PROPERTIES
+                TIMEOUT 90 RESOURCE_LOCK dust3d_xpc_development_host)
         endif()
         set(DUST3D_SWIFT_MIP_CONSUMER "${CMAKE_CURRENT_BINARY_DIR}/source-baked-mip-swift")
         add_custom_command(OUTPUT "${DUST3D_SWIFT_MIP_CONSUMER}"

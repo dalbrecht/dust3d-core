@@ -40,6 +40,46 @@ private final class ControlOutcome: @unchecked Sendable {
     }
 }
 
+private struct EncodedRequest {
+    let header: [UInt8]
+    let frame: Data
+}
+private func encodeRequest(archive: Data, operation: Dust3DWorkerOperation, request: UInt64) throws -> EncodedRequest {
+    var identity = Dust3DWorkerRequestIdentity()
+    withUnsafeMutableBytes(of: &identity.document) { $0[0] = 1 }
+    identity.request = request
+    identity.revision = 7
+    let limits = Dust3DWorkerWireLimits(
+        maximum_input_bytes: 1_048_576, maximum_output_bytes: 1_048_576, maximum_failure_bytes: 4096)
+    var options = Dust3DWorkerRequestUvOptions(
+        texture_size: 64, metadata_budget: 1_048_576, images: nil, image_count: 0)
+    var receipt = Dust3DWorkerRequestResult()
+    let created = archive.withUnsafeBytes { bytes in
+        if operation == DUST3D_WORKER_OPERATION_UV_MESH {
+            return dust3d_worker_request_create(
+                operation, identity, bytes.bindMemory(to: UInt8.self).baseAddress, bytes.count,
+                &options, limits, &receipt)
+        }
+        return dust3d_worker_request_create(
+            operation, identity, bytes.bindMemory(to: UInt8.self).baseAddress, bytes.count,
+            nil, limits, &receipt)
+    }
+    guard let owner = created, receipt.status == DUST3D_WORKER_REQUEST_OK else {
+        throw StaticFixtureError.invalid(
+            "Shared request encoder rejected: source=\(receipt.detail_source.rawValue) code=\(receipt.detail_code)")
+    }
+    defer { dust3d_worker_request_destroy(owner) }
+    var headerSize = 0
+    var frameSize = 0
+    guard let header = dust3d_worker_request_header(owner, &headerSize), headerSize == 64,
+        let frame = dust3d_worker_request_bytes(owner, &frameSize), frameSize > headerSize,
+        frameSize <= 1_048_576 + headerSize
+    else { throw StaticFixtureError.invalid("Owned request views rejected") }
+    return EncodedRequest(
+        header: Array(UnsafeBufferPointer(start: header, count: headerSize)),
+        frame: Data(bytes: frame, count: frameSize))
+}
+
 @main
 private struct WorkerXPCHost {
     static func main() {
@@ -49,9 +89,14 @@ private struct WorkerXPCHost {
         }
     }
     static func run() throws {
-        guard CommandLine.arguments.count == 3 else {
-            throw StaticFixtureError.invalid("Expected licensed fixture and owned scratch")
+        guard CommandLine.arguments.count == 4 else {
+            throw StaticFixtureError.invalid("Expected licensed fixture, owned scratch and base/UV mode")
         }
+        let mode = CommandLine.arguments[3]
+        guard mode == "mesh" || mode == "uv" else { throw StaticFixtureError.invalid("Unknown fixture mode") }
+        let isUv = mode == "uv"
+        let operation = isUv ? DUST3D_WORKER_OPERATION_UV_MESH : DUST3D_WORKER_OPERATION_MESH
+        let request: UInt64 = isUv ? 43 : 42
         let pins = try readDevelopmentPins()
         let source = URL(fileURLWithPath: CommandLine.arguments[1])
         let attributes = try source.resourceValues(forKeys: [.fileSizeKey])
@@ -59,20 +104,12 @@ private struct WorkerXPCHost {
             throw StaticFixtureError.invalid("Ordinary licensed archive stays small")
         }
         let archive = try Data(contentsOf: source)
-        var header = [UInt8](repeating: 0, count: 64)
-        header.replaceSubrange(0..<8, with: "DS3WORK\0".utf8)
-        header[9] = 1
-        header[11] = 64
-        header[17] = 1
-        header[19] = 1
-        header[31] = 42
-        header[39] = 7
-        header[40] = 1
-        for byte in 0..<8 { header[63 - byte] = UInt8(truncatingIfNeeded: UInt64(archive.count) >> (byte * 8)) }
+        let encoded = try encodeRequest(archive: archive, operation: operation, request: request)
+        let header = encoded.header
         let root = URL(fileURLWithPath: CommandLine.arguments[2])
         let inputURL = root.appendingPathComponent("request")
         let outputURL = root.appendingPathComponent("reply")
-        try (Data(header) + archive).write(to: inputURL)
+        try encoded.frame.write(to: inputURL)
         try Data().write(to: outputURL)
         let input = try FileHandle(forReadingFrom: inputURL)
         let output = try FileHandle(forWritingTo: outputURL)
@@ -110,7 +147,7 @@ private struct WorkerXPCHost {
         }
         let receipt = try outcome.wait()
         guard receipt.status == DUST3D_WORKER_JOB_COMPLETE.rawValue,
-            receipt.operation == DUST3D_WORKER_OPERATION_MESH.rawValue, receipt.request == 42,
+            receipt.operation == operation.rawValue, receipt.request == request,
             receipt.systemError == 0, receipt.stage == 0, receipt.source == 0, receipt.code == 0,
             receipt.truncated == 0,
             receipt.process > 0, receipt.process != getpid(), receipt.process == connection.processIdentifier,
@@ -159,7 +196,9 @@ private struct WorkerXPCHost {
         }
         defer { dust3d_worker_decoded_destroy(decoded) }
         let summary = dust3d_worker_decoded_summary(decoded)
-        guard summary.kind == DUST3D_WORKER_DECODED_MESH, summary.vertex_count == 240 else {
+        guard summary.kind == (isUv ? DUST3D_WORKER_DECODED_UV_MESH : DUST3D_WORKER_DECODED_MESH),
+            summary.vertex_count == 240
+        else {
             throw StaticFixtureError.invalid("Ordinary Capsule vertex count differs")
         }
         var vertices = [Dust3DWorkerVertex](repeating: Dust3DWorkerVertex(), count: summary.vertex_count)
@@ -170,6 +209,24 @@ private struct WorkerXPCHost {
         else {
             throw StaticFixtureError.invalid("Independent vertex copy failed")
         }
-        print("Isolated XPC ordinary mesh passed: 240 vertices; servicePID=\(receipt.process); hostPID=\(getpid())")
+        if isUv {
+            guard summary.triangle_count == 80, summary.triangle_count * 3 == summary.vertex_count else {
+                throw StaticFixtureError.invalid("Paired UV count lost")
+            }
+            for index in 0..<summary.triangle_count {
+                var triangle = Dust3DWorkerUvTriangle()
+                guard dust3d_worker_decoded_triangle(decoded, index, &triangle) == 1,
+                    triangle.known <= 1, triangle.association <= 2,
+                    withUnsafeBytes(of: triangle.uv, { $0.bindMemory(to: Double.self).allSatisfy(\.isFinite) }),
+                    triangle.association == 1
+                        ? triangle.component_index < summary.component_count : triangle.component_index == UInt64.max
+                else { throw StaticFixtureError.invalid("Copied UV corner/association values lost") }
+            }
+            print(
+                "Isolated XPC ordinary UV mesh passed: 240 vertices; 80 UV triangles; servicePID=\(receipt.process); hostPID=\(getpid())"
+            )
+        } else {
+            print("Isolated XPC ordinary mesh passed: 240 vertices; servicePID=\(receipt.process); hostPID=\(getpid())")
+        }
     }
 }

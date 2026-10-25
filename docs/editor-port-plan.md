@@ -943,3 +943,14 @@ verifies process separation on macOS arm64, while live pipes, cancellation,
 authenticated transaction/publication policy, sandbox/resource bounds, release
 trust and reviewed app adoption remain open. PID disappearance is not an observed
 service exit status. No production pin/quarantine change or full M8 acceptance.
+
+### Shared C request encoding and isolated UV acceptance (#172)
+
+The Swift host fixture now builds base/UV frames using the maintained C encoder,
+with a borrowed-archive codec path and copied identity/options (ADR0121). Both
+isolated XPC operations pass: 240 vertices and 80 paired UV triangles, with all 133
+ordinary contracts and scoped pure sanitizers green. This removes hand-written
+Swift wire construction while preserving quotas and original UUID spellings.
+Live pipes, bounded scheduling/cancellation, authenticated completion/publication,
+sandbox/resource/release trust and reviewed app adoption remain open. All pins
+and quarantines are unchanged; full M4/M8 acceptance remains incomplete.

@@ -1042,3 +1042,10 @@ The parent checks actual peer identity/PID and collects/decodes/copies the bound
 reply. This is development integration evidence, not sandbox, release trust or
 publication acceptance. See [ADR0120](docs/adr/0120-isolated-xpc-static-host-verification.md)
 and [fixture usage](tests/swift/README.md). Production pins/quarantines stay intact.
+
+The C runtime also builds immutable base/UV requests from copied identity and
+borrowed archive/options, using the shared frame/UV encoders. Swift copies the
+full frame and expected header before releasing the owner. Both base and UV jobs
+now pass through the isolated development XPC fixture; see
+[ADR0121](docs/adr/0121-c-worker-request-encoding.md). Production pins/quarantines
+and remaining containment/admission gates are unchanged.

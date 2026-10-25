@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Encode owned base/UV worker requests through shared C codecs and verify both operations through the isolated development XPC fixture (#172).
+
 - Verify an ordinary static mesh job in a separately running development XPC service with peer hash requirements and bounded C reply decoding (#171).
 
 - Decode framed worker base/UV/failure replies into independent C semantic owners with bounded value copies and preserved native cause bytes (#170).
