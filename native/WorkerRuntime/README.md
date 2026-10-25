@@ -114,3 +114,11 @@ compiled by CMake and SwiftPM but is not yet an active worker operation or publi
 C ABI output. Geometry pairing, source-aware generation and Swift adoption remain
 required under #213 and Apple #279. See
 [ADR 0134](../../docs/adr/0134-worker-source-hint-values.md).
+
+`WorkerSourcedMesh` pairs complete geometry and source values atomically. Shared
+source inspection and validated mesh node counts enforce correspondence and one
+aggregate logical/wire quota before retaining decoded output. It preserves inner
+typed errors and never returns partial geometry after source rejection. This is
+not an active operation, C ABI output or default editor backend. Indexed/material/
+mip parity and authenticated publication remain required. See
+[ADR 0135](../../docs/adr/0135-atomic-worker-source-geometry.md) and #215.

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Pair owned worker geometry/source values with shared inspection, matching source counts and aggregate admission before decoded output; operation and C ABI activation remain separate (#215).
+
 - Add a bounded owned worker source-hint value codec preserving exact identity aliases, corner associations and unnormalized weights; operation/C ABI adoption remains separate (#213).
 
 - Admit healthy development XPC base/UV replies through the queue-authoritative C coordinator with a non-Sendable Swift collecting-thread owner (#188).

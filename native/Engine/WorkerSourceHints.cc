@@ -45,7 +45,7 @@ namespace worker {
                 reject(SourceHintPayloadErrorCode::limitExceeded, "Worker source values cannot fit the address space.");
             return { static_cast<size_t>(bytes), static_cast<size_t>(cornersOffset), static_cast<size_t>(influencesOffset), decoded };
         }
-        void identity(const uint8_t* bytes, size_t size, const SourceHintPayloadLimits& limits)
+        void validateIdentity(const uint8_t* bytes, size_t size, const SourceHintPayloadLimits& limits)
         {
             if (!size || size > limits.maximumIdentityBytes)
                 reject(SourceHintPayloadErrorCode::invalidIdentity, "Worker source identity length is invalid.");
@@ -85,7 +85,7 @@ namespace worker {
                     reject(SourceHintPayloadErrorCode::invalidIdentity, "Worker source identity code point is invalid.");
             }
         }
-        void influence(const SourceHintInfluence& value, uint64_t identities)
+        void validateInfluence(const SourceHintInfluence& value, uint64_t identities)
         {
             if (!std::isfinite(value.weight) || value.weight < 0)
                 reject(SourceHintPayloadErrorCode::invalidWeight, "Worker source weight is not finite and nonnegative.");
@@ -97,7 +97,7 @@ namespace worker {
                 reject(SourceHintPayloadErrorCode::invalidReference, "Worker source influence identity is invalid.");
         }
         template <typename KindAt>
-        void corner(const SourceHintCorner& value, uint64_t influences, KindAt kindAt)
+        void validateCorner(const SourceHintCorner& value, uint64_t influences, KindAt kindAt)
         {
             if (value.firstInfluence > influences || value.influenceCount > influences - value.firstInfluence)
                 reject(SourceHintPayloadErrorCode::invalidReference, "Worker source corner range is invalid.");
@@ -137,18 +137,70 @@ namespace worker {
                 reject(SourceHintPayloadErrorCode::limitExceeded, "Worker source counts exceed configured limits.");
             uint64_t text = 0;
             for (const auto& item : value.identities) {
-                identity(reinterpret_cast<const uint8_t*>(item.node.data()), item.node.size(), limits);
-                identity(reinterpret_cast<const uint8_t*>(item.part.data()), item.part.size(), limits);
+                validateIdentity(reinterpret_cast<const uint8_t*>(item.node.data()), item.node.size(), limits);
+                validateIdentity(reinterpret_cast<const uint8_t*>(item.part.data()), item.part.size(), limits);
                 charge(text, item.node.size(), 1, limits.maximumTextBytes);
                 charge(text, item.part.size(), 1, limits.maximumTextBytes);
             }
             const auto layout = plan(value.identities.size(), value.corners.size(), value.influences.size(), text, limits);
             for (const auto& item : value.influences)
-                influence(item, value.identities.size());
+                validateInfluence(item, value.identities.size());
             for (const auto& item : value.corners)
-                corner(item, value.influences.size(), [&](uint64_t index) { return value.influences.at(static_cast<size_t>(index)).kind; });
+                validateCorner(item, value.influences.size(), [&](uint64_t index) { return value.influences.at(static_cast<size_t>(index)).kind; });
             return layout;
         }
+        struct SourceWireView {
+            Plan layout;
+            uint64_t identities, corners, influences;
+        };
+        SourceWireView describeSourceHints(const uint8_t* bytes, size_t size, const SourceHintPayloadLimits& limits)
+        {
+            validateSourceHintPayloadLimits(limits);
+            if (!bytes || size < sourceHintPrefixBytes)
+                reject(SourceHintPayloadErrorCode::invalidInput, "Worker source prefix is unavailable.");
+            if (detail::readUnsigned(bytes, 4) != 1)
+                reject(SourceHintPayloadErrorCode::unsupportedVersion, "Worker source version is unsupported.");
+            if (detail::readUnsigned(bytes + 4, 4))
+                reject(SourceHintPayloadErrorCode::invalidLayout, "Worker source reserved prefix is nonzero.");
+            const auto identities = detail::readUnsigned(bytes + 8, 8);
+            const auto corners = detail::readUnsigned(bytes + 16, 8);
+            const auto influences = detail::readUnsigned(bytes + 24, 8);
+            const auto layout = plan(identities, corners, influences, detail::readUnsigned(bytes + 32, 8), limits);
+            if (size != layout.bytes)
+                reject(SourceHintPayloadErrorCode::invalidLayout, "Worker source span is truncated or has trailing bytes.");
+            size_t cursor = sourceHintPrefixBytes;
+            for (uint64_t index = 0; index < identities; ++index) {
+                if (cursor > layout.cornersOffset || 8 > layout.cornersOffset - cursor)
+                    reject(SourceHintPayloadErrorCode::invalidLayout, "Worker source identity lengths exceed their span.");
+                const auto node = detail::readUnsigned(bytes + cursor, 4);
+                const auto part = detail::readUnsigned(bytes + cursor + 4, 4);
+                cursor += 8;
+                if (node > layout.cornersOffset - cursor || part > layout.cornersOffset - cursor - node)
+                    reject(SourceHintPayloadErrorCode::invalidLayout, "Worker source identity text exceeds its span.");
+                validateIdentity(bytes + cursor, static_cast<size_t>(node), limits);
+                cursor += static_cast<size_t>(node);
+                validateIdentity(bytes + cursor, static_cast<size_t>(part), limits);
+                cursor += static_cast<size_t>(part);
+            }
+            if (cursor != layout.cornersOffset)
+                reject(SourceHintPayloadErrorCode::invalidLayout, "Worker source identity text total is inconsistent.");
+            for (uint64_t index = 0; index < influences; ++index) {
+                const auto* item = bytes + layout.influencesOffset + static_cast<size_t>(index) * sourceHintInfluenceBytes;
+                if (detail::readUnsigned(item + 4, 4) || detail::readUnsigned(item + 20, 4))
+                    reject(SourceHintPayloadErrorCode::invalidLayout, "Worker source influence reserved fields are nonzero.");
+                validateInfluence(readInfluence(item), identities);
+            }
+            for (uint64_t index = 0; index < corners; ++index) {
+                const auto* item = bytes + layout.cornersOffset + static_cast<size_t>(index) * sourceHintCornerBytes;
+                if (detail::readUnsigned(item + 4, 4))
+                    reject(SourceHintPayloadErrorCode::invalidLayout, "Worker source corner reserved field is nonzero.");
+                validateCorner(readCorner(item), influences, [&](uint64_t influenceIndex) {
+                    return static_cast<SourceHintKind>(detail::readUnsigned(bytes + layout.influencesOffset + static_cast<size_t>(influenceIndex) * sourceHintInfluenceBytes, 4));
+                });
+            }
+            return { layout, identities, corners, influences };
+        }
+
     }
 
     SourceHintPayloadError::SourceHintPayloadError(SourceHintPayloadErrorCode code, const char* cause)
@@ -211,57 +263,23 @@ namespace worker {
         return bytes;
     }
 
+    SourceHintPayloadInspection inspectSourceHintPayload(const uint8_t* bytes, size_t size, const SourceHintPayloadLimits& limits)
+    {
+        const auto view = describeSourceHints(bytes, size, limits);
+        return { view.identities, view.corners, view.influences, view.layout.decoded };
+    }
+
     SourceHintPayload decodeSourceHintPayload(const uint8_t* bytes, size_t size, const SourceHintPayloadLimits& limits)
     {
-        validateSourceHintPayloadLimits(limits);
-        if (!bytes || size < sourceHintPrefixBytes)
-            reject(SourceHintPayloadErrorCode::invalidInput, "Worker source prefix is unavailable.");
-        if (detail::readUnsigned(bytes, 4) != 1)
-            reject(SourceHintPayloadErrorCode::unsupportedVersion, "Worker source version is unsupported.");
-        if (detail::readUnsigned(bytes + 4, 4))
-            reject(SourceHintPayloadErrorCode::invalidLayout, "Worker source reserved prefix is nonzero.");
-        const auto identities = detail::readUnsigned(bytes + 8, 8);
-        const auto corners = detail::readUnsigned(bytes + 16, 8);
-        const auto influences = detail::readUnsigned(bytes + 24, 8);
-        const auto layout = plan(identities, corners, influences, detail::readUnsigned(bytes + 32, 8), limits);
-        if (size != layout.bytes)
-            reject(SourceHintPayloadErrorCode::invalidLayout, "Worker source span is truncated or has trailing bytes.");
-        size_t cursor = sourceHintPrefixBytes;
-        for (uint64_t index = 0; index < identities; ++index) {
-            if (cursor > layout.cornersOffset || 8 > layout.cornersOffset - cursor)
-                reject(SourceHintPayloadErrorCode::invalidLayout, "Worker source identity lengths exceed their span.");
-            const auto node = detail::readUnsigned(bytes + cursor, 4);
-            const auto part = detail::readUnsigned(bytes + cursor + 4, 4);
-            cursor += 8;
-            if (node > layout.cornersOffset - cursor || part > layout.cornersOffset - cursor - node)
-                reject(SourceHintPayloadErrorCode::invalidLayout, "Worker source identity text exceeds its span.");
-            identity(bytes + cursor, static_cast<size_t>(node), limits);
-            cursor += static_cast<size_t>(node);
-            identity(bytes + cursor, static_cast<size_t>(part), limits);
-            cursor += static_cast<size_t>(part);
-        }
-        if (cursor != layout.cornersOffset)
-            reject(SourceHintPayloadErrorCode::invalidLayout, "Worker source identity text total is inconsistent.");
-        for (uint64_t index = 0; index < influences; ++index) {
-            const auto* item = bytes + layout.influencesOffset + static_cast<size_t>(index) * sourceHintInfluenceBytes;
-            if (detail::readUnsigned(item + 4, 4) || detail::readUnsigned(item + 20, 4))
-                reject(SourceHintPayloadErrorCode::invalidLayout, "Worker source influence reserved fields are nonzero.");
-            influence(readInfluence(item), identities);
-        }
-        for (uint64_t index = 0; index < corners; ++index) {
-            const auto* item = bytes + layout.cornersOffset + static_cast<size_t>(index) * sourceHintCornerBytes;
-            if (detail::readUnsigned(item + 4, 4))
-                reject(SourceHintPayloadErrorCode::invalidLayout, "Worker source corner reserved field is nonzero.");
-            corner(readCorner(item), influences, [&](uint64_t influenceIndex) {
-                return static_cast<SourceHintKind>(detail::readUnsigned(bytes + layout.influencesOffset + static_cast<size_t>(influenceIndex) * sourceHintInfluenceBytes, 4));
-            });
-        }
+        const auto view = describeSourceHints(bytes, size, limits);
+        const auto& layout = view.layout;
+        const auto identities = view.identities, corners = view.corners, influences = view.influences;
         // Every quota/span/reference has been admitted before retaining output arrays or strings.
         SourceHintPayload result;
         result.identities.reserve(static_cast<size_t>(identities));
         result.corners.reserve(static_cast<size_t>(corners));
         result.influences.reserve(static_cast<size_t>(influences));
-        cursor = sourceHintPrefixBytes;
+        size_t cursor = sourceHintPrefixBytes;
         for (uint64_t index = 0; index < identities; ++index) {
             const auto node = static_cast<size_t>(detail::readUnsigned(bytes + cursor, 4));
             const auto part = static_cast<size_t>(detail::readUnsigned(bytes + cursor + 4, 4));
