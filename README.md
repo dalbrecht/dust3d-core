@@ -1049,3 +1049,9 @@ full frame and expected header before releasing the owner. Both base and UV jobs
 now pass through the isolated development XPC fixture; see
 [ADR0121](docs/adr/0121-c-worker-request-encoding.md). Production pins/quarantines
 and remaining containment/admission gates are unchanged.
+
+The development service now requires exact signed sandbox entitlements and a
+runtime self-entitlement check before ordinary jobs. Its only additional file
+grant is read-only access to the private development peer configuration. This is
+configuration/healthy-job evidence, not comprehensive permission or release
+acceptance; see [ADR0122](docs/adr/0122-sandbox-entitled-xpc-fixture.md).

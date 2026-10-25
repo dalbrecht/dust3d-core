@@ -13,6 +13,7 @@ private struct ControlReceipt: Sendable {
     let code: Int32
     let truncated: UInt8
     let process: Int32
+    let sandboxEntitlementVerified: Bool
 }
 private final class ControlOutcome: @unchecked Sendable {
     // NSXPC invokes callbacks on its private queue; all state crosses this lock.
@@ -137,25 +138,27 @@ private struct WorkerXPCHost {
             }) as? StaticWorkerJob
         else { throw StaticFixtureError.invalid("Missing typed XPC proxy") }
         proxy.serve(input, output: output) {
-            status, operation, request, systemError, stage, source, code, truncated, process in
+            status, operation, request, systemError, stage, source, code, truncated, process, sandboxEntitlementVerified
+            in
             outcome.finish(
                 .success(
                     ControlReceipt(
                         status: status, operation: operation, request: request,
                         systemError: systemError, stage: stage, source: source, code: code, truncated: truncated,
-                        process: process)))
+                        process: process, sandboxEntitlementVerified: sandboxEntitlementVerified)))
         }
         let receipt = try outcome.wait()
         guard receipt.status == DUST3D_WORKER_JOB_COMPLETE.rawValue,
             receipt.operation == operation.rawValue, receipt.request == request,
             receipt.systemError == 0, receipt.stage == 0, receipt.source == 0, receipt.code == 0,
-            receipt.truncated == 0,
+            receipt.truncated == 0, receipt.sandboxEntitlementVerified,
             receipt.process > 0, receipt.process != getpid(), receipt.process == connection.processIdentifier,
             fcntl(input.fileDescriptor, F_GETFD) >= 0, fcntl(output.fileDescriptor, F_GETFD) >= 0
         else {
             throw StaticFixtureError.invalid(
                 "Receipt/context/independent process/borrowed handles mismatch: \(receipt)")
         }
+        print("XPC service runtime sandbox entitlement verified")
         try input.close()
         try output.close()
         let stream = try FileHandle(forReadingFrom: outputURL)

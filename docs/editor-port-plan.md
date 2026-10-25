@@ -954,3 +954,14 @@ Swift wire construction while preserving quotas and original UUID spellings.
 Live pipes, bounded scheduling/cancellation, authenticated completion/publication,
 sandbox/resource/release trust and reviewed app adoption remain open. All pins
 and quarantines are unchanged; full M4/M8 acceptance remains incomplete.
+
+### Sandbox-entitled healthy XPC acceptance (#173)
+
+The development service verifies App Sandbox at signature inspection and runtime
+self-entitlement boundaries, with exactly one read-only peer-file exception
+(ADR0122). Healthy base/UV jobs and all 135 ordinary contracts pass. Pure policy
+and XML-extraction regressions reject broadened metadata without denial probes.
+This improves mitigation evidence while leaving release trust, effective-permission
+review, live pipes, bounded scheduling/cancellation, authenticated publication and
+reviewed Apple adoption open. No production pin/quarantine changes or full M8
+acceptance follow from the entitlement receipt.

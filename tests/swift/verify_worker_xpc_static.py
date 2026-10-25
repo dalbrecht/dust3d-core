@@ -24,6 +24,30 @@ def checked(arguments):
     return result
 
 
+class SandboxEntitlementError(ValueError):
+    """The owned fixture signature grants more than its declared development policy."""
+
+
+def service_entitlements(config):
+    if not config.is_absolute() or config.name != 'peers.json':
+        raise SandboxEntitlementError('Expected one absolute controller peer configuration file')
+    return {'com.apple.security.app-sandbox': True,
+            'com.apple.security.temporary-exception.files.absolute-path.read-only': [str(config)]}
+
+
+def verify_service_entitlements(observed, config):
+    expected = service_entitlements(config)
+    if (not isinstance(observed, dict)
+            or type(observed.get('com.apple.security.app-sandbox')) is not bool
+            or observed != expected):
+        raise SandboxEntitlementError('Embedded service entitlements differ from the exact sandbox/read-only-file policy')
+
+
+def read_service_entitlements(bundle):
+    embedded = checked(['/usr/bin/codesign', '-d', '--entitlements', '-', '--xml', str(bundle)])
+    return plistlib.loads(embedded.stdout.encode())
+
+
 def code_hash(bundle):
     result = checked(['/usr/bin/codesign', '-d', '--verbose=4', str(bundle)])
     match = re.search(r'^CDHash=([0-9a-f]{40})$', result.stderr, re.MULTILINE)
@@ -64,12 +88,16 @@ def main():
         service = app / 'Contents' / 'XPCServices' / 'org.dust3d.core.xpc-static-service.qa.xpc'
         host = write_bundle(app, host_binary, 'org.dust3d.core.xpc-static-host.qa', 'APPL')
         write_bundle(service, service_binary, 'org.dust3d.core.xpc-static-service.qa', 'XPC!')
-        checked(['/usr/bin/codesign', '--force', '--sign', '-', str(service)])
+        config = directory / 'peers.json'
+        entitlements = directory / 'service-entitlements.plist'
+        entitlements.write_bytes(plistlib.dumps(service_entitlements(config)))
+        checked(['/usr/bin/codesign', '--force', '--sign', '-', '--entitlements', str(entitlements), str(service)])
         checked(['/usr/bin/codesign', '--force', '--sign', '-', str(app)])
         checked(['/usr/bin/codesign', '--verify', '--strict', '--deep', str(app)])
+        verify_service_entitlements(read_service_entitlements(service), config)
+        print('Embedded service sandbox and exact read-only peer-file entitlements verified')
         # Explicit controller-provisioned DEVELOPMENT pins outside the sealed bundles.
         # This private sidecar is a test fixture, never production trust distribution.
-        config = directory / 'peers.json'
         descriptor = os.open(config, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
         with os.fdopen(descriptor, 'w', encoding='ascii') as output:
             json.dump({'host': code_hash(app), 'service': code_hash(service)}, output)
@@ -89,6 +117,8 @@ def main():
         match = re.search(re.escape(prefix) + r'servicePID=(\d+); hostPID=(\d+)', output)
         if not match or int(match.group(2)) != process.pid or int(match.group(1)) == process.pid:
             raise RuntimeError('Missing independent service process and ordinary mesh evidence')
+        if 'XPC service runtime sandbox entitlement verified' not in output:
+            raise RuntimeError('Missing service self-entitlement evidence')
         peer = int(match.group(1))
         deadline = time.monotonic() + 10
         while True:
