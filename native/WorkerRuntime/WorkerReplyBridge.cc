@@ -1,19 +1,9 @@
 // SPDX-License-Identifier: MIT
-#include "WorkerReplyCollector.h"
+#include "WorkerReplyInternal.h"
 #include <Dust3DWorkerRuntime.h>
 #include <memory>
 #include <new>
 using namespace dust3d::worker;
-struct Dust3DWorkerReplyCollector {
-    std::vector<uint8_t> bytes;
-    WorkerReplyCollector collector;
-    bool isFramed = false;
-    bool isRejected = false;
-    Dust3DWorkerReplyCollector(const Header& header, const Limits& limits)
-        : collector(header, limits, bytes)
-    {
-    }
-};
 namespace {
 void copyReplyCause(Dust3DWorkerReplyResult& result, const char* cause) noexcept
 {
@@ -56,7 +46,7 @@ template <typename Action>
 Dust3DWorkerReplyResult use(Dust3DWorkerReplyCollector* owner, Action action) noexcept
 {
     auto result = protect([&] {
-        if (!owner || owner->isRejected)
+        if (!owner || owner->isRejected || owner->isDecoded)
             throw ProtocolError(ProtocolErrorCode::invalidInput, "Worker reply owner is null or rejected.");
         action(*owner);
         return owner->isFramed ? DUST3D_WORKER_REPLY_FRAMED : DUST3D_WORKER_REPLY_READY;

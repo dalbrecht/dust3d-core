@@ -158,6 +158,106 @@ Dust3DWorkerReplyResult dust3d_worker_reply_finish(Dust3DWorkerReplyCollector* c
 const uint8_t* dust3d_worker_reply_bytes(const Dust3DWorkerReplyCollector* collector, size_t* size) DUST3D_WORKER_RUNTIME_NOEXCEPT;
 /** Destroy one owner after copied-value consumers are done. NULL is harmless. */
 void dust3d_worker_reply_destroy(Dust3DWorkerReplyCollector* collector) DUST3D_WORKER_RUNTIME_NOEXCEPT;
+/** Immutable semantic values; independent of the framed owner and input bytes. */
+typedef struct Dust3DWorkerDecodedReply Dust3DWorkerDecodedReply;
+typedef enum Dust3DWorkerDecodeStatus {
+    DUST3D_WORKER_DECODE_OK = 0,
+    DUST3D_WORKER_DECODE_PROTOCOL_REJECTED = 1,
+    DUST3D_WORKER_DECODE_CODEC_REJECTED = 2,
+    DUST3D_WORKER_DECODE_LIMIT_EXCEEDED = 3,
+    DUST3D_WORKER_DECODE_INTERNAL_FAILED = 4
+} Dust3DWorkerDecodeStatus;
+typedef struct Dust3DWorkerDecodeResult {
+    Dust3DWorkerDecodeStatus status;
+    Dust3DWorkerDetailSource detail_source;
+    int32_t detail_code;
+    uint8_t message_truncated;
+    char message[512];
+} Dust3DWorkerDecodeResult;
+typedef enum Dust3DWorkerDecodedKind {
+    DUST3D_WORKER_DECODED_NONE = 0,
+    DUST3D_WORKER_DECODED_MESH = 1,
+    DUST3D_WORKER_DECODED_UV_MESH = 2,
+    DUST3D_WORKER_DECODED_FAILURE = 3
+} Dust3DWorkerDecodedKind;
+/** Scalar summary. Zero for NULL. failure_status is a known wire status:
+ * 1 invalid document, 2 unsupported asset, 3 generation failed, 4 limit exceeded,
+ * 5 no geometry, 6 cancelled. Zero means this is not a native failure.
+ */
+typedef struct Dust3DWorkerDecodedSummary {
+    Dust3DWorkerDecodedKind kind;
+    size_t vertex_count;
+    uint64_t node_count, part_count;
+    size_t triangle_count, chart_count, gradient_count, component_count;
+    double packed_texture_size;
+    uint32_t failure_status;
+} Dust3DWorkerDecodedSummary;
+/** Value copies; no native C++ layout is exposed. */
+typedef struct Dust3DWorkerVertex {
+    float position[3], normal[3], color[4];
+} Dust3DWorkerVertex;
+/** Association 0 unknown, 1 component, 2 ambiguous; UINT64_MAX is no component.
+ * known mapping and source association are independent. No rendered pixels.
+ */
+typedef struct Dust3DWorkerUvTriangle {
+    double uv[3][2];
+    uint8_t known, association;
+    uint64_t component_index;
+} Dust3DWorkerUvTriangle;
+typedef struct Dust3DWorkerUvChart {
+    double left, top, width, height, color[4];
+    uint8_t flipped, association;
+    uint64_t component_index;
+    char image_id[39];
+} Dust3DWorkerUvChart;
+typedef struct Dust3DWorkerUvGradient {
+    uint64_t chart_index, resolution;
+    double large_color[4], small_color[4];
+} Dust3DWorkerUvGradient;
+
+/** Consume one EOF-framed owner into independent semantic values, at most once.
+ * @param collector Live exclusively owned owner; retired for modification before
+ * validation/allocation. Rejected semantic completion cannot be replayed.
+ * @param maximum_decoded_bytes Positive aggregate logical retained-byte budget,
+ * at most 128MiB. Standard per-field/count/text quotas also apply; no RSS claim.
+ * @param result Required writable original typed receipt; NULL returns NULL
+ * without consuming. OK includes a semantically valid native failure.
+ * @return Independent owner or NULL. Destroy both owners separately. No body
+ * wire copy is made; the shared codecs validate before retained arrays/text.
+ * No authenticated transaction, process-exit or publication admission follows.
+ */
+Dust3DWorkerDecodedReply* dust3d_worker_reply_decode(Dust3DWorkerReplyCollector* collector,
+    uint64_t maximum_decoded_bytes, Dust3DWorkerDecodeResult* result) DUST3D_WORKER_RUNTIME_NOEXCEPT;
+/** Return scalar metadata, or all zeros for NULL. No I/O/allocation. */
+Dust3DWorkerDecodedSummary dust3d_worker_decoded_summary(const Dust3DWorkerDecodedReply* reply) DUST3D_WORKER_RUNTIME_NOEXCEPT;
+/** Copy a validated geometry range into independent caller storage.
+ * @param reply Live immutable semantic owner.
+ * @param first First vertex index.
+ * @param count Number of output slots, each readable/writable by the caller.
+ * @param output Independent writable span; NULL allowed only for zero count.
+ * @return 1 on valid range; 0 without writes for wrong kind/NULL/invalid range.
+ */
+int dust3d_worker_decoded_vertices(const Dust3DWorkerDecodedReply* reply, size_t first,
+    size_t count, Dust3DWorkerVertex* output) DUST3D_WORKER_RUNTIME_NOEXCEPT;
+/** Copy one UV triangle/chart/gradient. Return 1 on valid kind/index/output;
+ * otherwise 0, clearing a non-NULL output. No pointers are retained.
+ */
+int dust3d_worker_decoded_triangle(const Dust3DWorkerDecodedReply* reply, size_t index, Dust3DWorkerUvTriangle* output) DUST3D_WORKER_RUNTIME_NOEXCEPT;
+int dust3d_worker_decoded_chart(const Dust3DWorkerDecodedReply* reply, size_t index, Dust3DWorkerUvChart* output) DUST3D_WORKER_RUNTIME_NOEXCEPT;
+int dust3d_worker_decoded_gradient(const Dust3DWorkerDecodedReply* reply, size_t index, Dust3DWorkerUvGradient* output) DUST3D_WORKER_RUNTIME_NOEXCEPT;
+/** Borrow validated UTF-8 warning/component bytes, or raw native failure cause.
+ * Valid until reply destruction. Required size is zeroed on invalid kind/index;
+ * NULL size returns NULL. Empty valid values have size0 and may return NULL.
+ * Callers copy exact sizes, including embedded NUL in opaque failure bytes.
+ * These functions do not log, interpret or sanitize diagnostics.
+ */
+const char* dust3d_worker_decoded_warning(const Dust3DWorkerDecodedReply* reply, size_t* size) DUST3D_WORKER_RUNTIME_NOEXCEPT;
+const char* dust3d_worker_decoded_component(const Dust3DWorkerDecodedReply* reply, size_t index, size_t* size) DUST3D_WORKER_RUNTIME_NOEXCEPT;
+const uint8_t* dust3d_worker_decoded_failure_cause(const Dust3DWorkerDecodedReply* reply, size_t* size) DUST3D_WORKER_RUNTIME_NOEXCEPT;
+/** Destroy exactly once; NULL is harmless. Copy all borrowed bytes first.
+ * Example: read summary, copy vertices/text, then destroy decoded and framed owners.
+ */
+void dust3d_worker_decoded_destroy(Dust3DWorkerDecodedReply* reply) DUST3D_WORKER_RUNTIME_NOEXCEPT;
 #ifdef __cplusplus
 }
 #endif

@@ -1027,3 +1027,9 @@ The runtime C product also exposes a parent reply owner over that same collector
 with explicit EOF, sticky diagnostics and a borrowed completed-frame view. Swift
 copies before owner destruction. Framing does not admit payload semantics or
 process/transaction success; see [ADR 0118](docs/adr/0118-parent-reply-c-boundary.md).
+
+A one-shot C semantic decoder then reuses the maintained mesh, paired UV and
+failure codecs to expose independent value owners. Callers copy geometry/atlas
+records and borrowed text before destruction. Aggregate decoded-byte quotas are
+logical, and semantic success does not establish authenticated completion or
+publication; see [ADR 0119](docs/adr/0119-semantic-worker-reply-c-boundary.md).
