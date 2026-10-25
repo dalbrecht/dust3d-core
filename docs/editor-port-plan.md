@@ -879,3 +879,14 @@ the actual SwiftPM executable; all 120 ordinary CMake contracts pass. This remov
 a packaging obstacle, while trusted identity/signing, containment, Apple adoption,
 baking and full M4/M8 acceptance remain required. No production pin or quarantine
 changed; Linux/Windows runtime parity is not claimed by the macOS run.
+
+### Descriptor-based single-job worker runtime (#166)
+
+The CLI now reuses its existing bounded frame reader/dispatcher/writer through
+borrowed descriptors, with actual request/operation context and original I/O
+causes (ADR 0115). Fresh 121 ordinary contracts, scoped runtime sanitizers and
+current SwiftPM helper compatibility pass. This prepares descriptor payload
+channels for the peer-bound XPC control plane; it does not implement the service,
+asynchronous parent streams, authenticated transaction completion, sandbox or
+release adoption. An XPC callback must never be substituted for observed process
+exit in the existing process admission contract. All quarantines/pins remain.
