@@ -762,3 +762,6 @@ requires its qmake dependency backport before that foundation PR ships.
 
 
 ADR0102 adds owned C descriptor transport for all 1592 dynamic control definitions, preserving clip ABI and preset overrides. The Swift 6 smoke consumer copies strings/scalars before owner destruction and transfers immutable values across actors. Full Debug CMake/106 CTest, scoped ASan/UBSan and SwiftPM checks pass. Production SDK/UI adoption, separate common timing/audio widgets and full M6 runtime acceptance remain open; pin and quarantines are unchanged.
+
+
+ADR0103 shares common duration/frame-count widget metadata with the reference UI and adds checked scalar timing edits. All 107 ordinary CTest contracts and scoped sanitizers pass. This does not evaluate frames or normalize stored documents. Production C/Swift/UI adoption, audio controls and M6 runtime acceptance remain open; production pin/quarantines are unchanged.

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Share reference animation timing limits and validate explicit timing edits without rounding stored duration or evaluating frames ([Apple #145](https://github.com/dalbrecht/dust3d-swiftui/issues/145)).
+
 - Expose owned animation control descriptors and checked conversion through the C API, with Swift 6 owned-copy verification ([Apple #145](https://github.com/dalbrecht/dust3d-swiftui/issues/145)).
 
 - Port ordered reference animation controls to value-only portable metadata with finite/representability/range-checked conversion and a reference compatibility adapter ([Apple #145](https://github.com/dalbrecht/dust3d-swiftui/issues/145)).

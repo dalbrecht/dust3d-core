@@ -187,18 +187,19 @@ void AnimationManageWidget::createParameterWidgets()
     parameterLayout->addRow(new QLabel(tr("Name:")), m_animationNameInput);
 
     // Common parameters (visible for all animation types)
+    const auto& timingDefinition = dust3d::animation::commonTimingDefinition();
     m_sharedDurationSpinBox = new QDoubleSpinBox;
-    m_sharedDurationSpinBox->setRange(0.01, 59.99);
-    m_sharedDurationSpinBox->setDecimals(2);
-    m_sharedDurationSpinBox->setSingleStep(0.1);
+    m_sharedDurationSpinBox->setRange(timingDefinition.minimumDurationSeconds, timingDefinition.maximumDurationSeconds);
+    m_sharedDurationSpinBox->setDecimals(timingDefinition.durationDecimalPlaces);
+    m_sharedDurationSpinBox->setSingleStep(timingDefinition.durationStepSeconds);
     m_sharedDurationSpinBox->setValue(3.0);
     m_sharedDurationSpinBox->setSuffix(tr(" s"));
     m_sharedDurationSpinBox->setToolTip(tr("Duration in seconds (0.01 – 60)"));
     parameterLayout->addRow(new QLabel(tr("Duration:")), m_sharedDurationSpinBox);
 
     m_sharedFrameCountSpinBox = new QSpinBox;
-    m_sharedFrameCountSpinBox->setRange(1, 4999);
-    m_sharedFrameCountSpinBox->setSingleStep(5);
+    m_sharedFrameCountSpinBox->setRange(timingDefinition.minimumFrameCount, timingDefinition.maximumFrameCount);
+    m_sharedFrameCountSpinBox->setSingleStep(timingDefinition.frameCountStep);
     m_sharedFrameCountSpinBox->setValue(90);
     m_sharedFrameCountSpinBox->setToolTip(tr("Number of frames (1 – 4999)"));
     parameterLayout->addRow(new QLabel(tr("Frame Count:")), m_sharedFrameCountSpinBox);

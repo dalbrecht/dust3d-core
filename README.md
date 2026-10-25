@@ -932,3 +932,6 @@ quarantines remain unchanged.
 
 
 ADR0102 exposes owned ordered animation control descriptors and checked C conversions, with Swift 6 lifetime/actor-transfer verification. Production SDK/UI adoption and common timing/audio controls remain pending.
+
+
+ADR0103 shares common duration/frame-count widget metadata with the reference UI and adds checked scalar timing edits. All 107 ordinary CTest contracts and scoped sanitizers pass. This does not evaluate frames or normalize stored documents. Production C/Swift/UI adoption, audio controls and M6 runtime acceptance remain open; production pin/quarantines are unchanged.
