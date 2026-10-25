@@ -1016,3 +1016,14 @@ Healthy native serve checks pass; the remote cancellation method has not been
 invoked in integration. Publication, channel teardown, deadlines and running-job
 cancellation remain open. See [ADR0127](adr/0127-request-routed-queued-cancellation.md)
 and #178.
+
+### Persistent-service semantic admission (#179)
+
+`PendingServiceReply` provides single-use persistent-service semantic admission
+without fabricating child exit. It requires caller-owned connection/current-source
+observations, actual EOF and a matching scalar receipt, then returns copied mesh,
+UV or original failure data. It does not authenticate or publish. The C bridge,
+XPC host and Apple broker adoption remain open; see
+[ADR0128](adr/0128-persistent-service-reply-admission.md) and #179.
+
+All139 ordinary contracts pass22.56s; current-source app publication remains unimplemented.
