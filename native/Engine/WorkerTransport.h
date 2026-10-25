@@ -2,6 +2,7 @@
 #ifndef DUST3D_NATIVE_WORKER_TRANSPORT_H_
 #define DUST3D_NATIVE_WORKER_TRANSPORT_H_
 #include "WorkerAdmission.h"
+#include "WorkerAttempt.h"
 #include "WorkerCleanup.h"
 #include "WorkerLifetime.h"
 #include "WorkerResourceObservation.h"
@@ -56,6 +57,10 @@ namespace worker {
         /// read afterward on the calling thread only. Never share it between active operations.
         /// Reports exceptional destructor cleanup without replacing the original exception.
         WorkerCleanupReport* cleanupReport = nullptr;
+        /// Optional caller-owned partial collector diagnostics, reset before preflight.
+        /// Keep alive until return/throw and read afterward only; never publish its partial bytes.
+        /// Does not replace the primary exception or the separate exceptional cleanup report.
+        WorkerAttemptReport* attemptReport = nullptr;
     };
     /// A retired job cannot be admitted. Collected outcome/opaque diagnostics are retained after spawn.
     /// An empty collected value means cancellation was observed before any child was started.

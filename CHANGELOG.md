@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Preserve bounded partial worker reply/diagnostic bytes on collector errors while retaining the original exception (#123).
+
 - Retain independent supervised worker cleanup diagnostics without replacing the primary transport exception (#123).
 
 - Reject linearly unstable SpiderWalk/SpiderRun spring intervals before reference pose allocation; pure admission tests only, core #95 remains unresolved.

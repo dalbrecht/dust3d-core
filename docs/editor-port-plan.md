@@ -793,3 +793,14 @@ Fresh ordinary CTest passes 111/111, scoped recording-policy ASan/UBSan passes,
 and the SwiftPM product builds. Actual exceptional OS cleanup remains unforced,
 reap can still block, and strong containment/Apple integration remain open. No
 production pin or quarantine changes; M8 and full parity remain incomplete.
+
+
+### Bounded partial worker failure context (#123)
+
+ADR 0108 retains the collector's bounded opaque reply/diagnostic buffers on error
+without wrapping the primary exception. Optional outcome means actually observed
+termination; separate cleanup observations and partial bytes cannot establish a
+valid completion. Value-only ownership/unwinding tests and ordinary existing
+transport checks pass; fresh CTest 112/112 and scoped capture ASan/UBSan pass.
+Actual OS failure/termination paths and strong containment remain unforced/open.
+No production pin/quarantine change or Apple adoption; M8 remains incomplete.
