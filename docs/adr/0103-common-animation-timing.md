@@ -52,3 +52,6 @@ reference callback implementation appears in the standalone contract. Full Qt
 build/runtime, C/Swift timing transport, native controls and M6 runtime acceptance
 remain pending. No production pin or quarantine changes. This stage remains local
 until its parents merge with clean completed exact-head review and all CI green.
+
+
+Core #157 merged at `99acba99` after completed clean exact-head automated review and all six CI checks green. Full-tree equality across ancestry-only rebase and matching gated source hashes preserve the tested implementation. No native binary executes after rebase; only this delivery note changes afterward.
