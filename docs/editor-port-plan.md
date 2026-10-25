@@ -858,3 +858,14 @@ contracts pass, with scoped sanitizer/module coverage evidence. Trusted helper
 provenance, containment policy, broad fixtures, baking/renderer adoption and
 reviewed production dependency integration remain required for M4/M8. No
 production pin or quarantine changed.
+
+### Development UV visual-family transport acceptance (#164)
+
+Fresh normal helper jobs now verify Sword gradient endpoints/resolution,
+RoundedCrossing mapped/unmapped behavior and synthetic image/alpha/original-key
+preservation independently of complete binary equality. All 120 ordinary
+contracts pass, with scoped wrapper sanitizer evidence; see
+`worker-uv-visual-verification.md`. This does not verify pixels, baking, rendered
+appearance, trusted-helper packaging or containment. `WorkerBuild.h` detects
+instrumentation only; source/signature provenance remains an explicit #123 gate.
+No production dependency or quarantine changed; M4/M8 remain incomplete.
