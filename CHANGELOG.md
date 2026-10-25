@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Share bounded incremental worker reply framing across parent transports, validating correlation and quotas before retaining body bytes (#168).
+
 - Expose a self-owned, caught-exception descriptor worker C interface and separate SwiftPM runtime product, retaining original diagnostics and channel ownership (#167).
 
 - Share descriptor-based single-job worker I/O between hosts while preserving channel ownership and reporting the actual validated operation (#166).
