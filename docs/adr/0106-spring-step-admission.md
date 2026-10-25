@@ -60,3 +60,6 @@ planner coverage is 22/22 lines, 36/36 regions and 30/30 branches. Isolated symb
 contain no sampler, rig, mesh or synthesizer implementation. Reference execution
 and full #95 acceptance remain unverified; all quarantines and production pin stay
 unchanged. Earlier 9-line coverage applies only to the initial scalar predicate.
+
+
+Core #160 merged at `b33ad839` after completed clean exact-head automated review and all six CI checks green. Full-tree equality across ancestry-only rebase and matching gated source hashes preserve the tested implementation. No native binary executes after rebase; only this delivery note changes afterward. Core #95 remains open and quarantined.
