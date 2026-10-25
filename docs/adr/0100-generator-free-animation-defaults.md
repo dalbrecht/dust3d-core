@@ -45,3 +45,28 @@ Descriptor schemas/ranges, checked slider conversion, C/Swift transport, native
 catalog controls, Qt/runtime interoperability, sampling/playback/audio and full M6
 remain open. Production pins and core #67/#69/#83/#84/#95 and Apple #199 quarantines
 remain unchanged; no protected app control or excluded probe occurred.
+
+
+## Generator-free defaults delivery validation
+
+Prepare this stage on PR #154 at `429a8300`, preserving the accepted catalog
+foundation and its existing reference source-membership contract. That contract
+now also checks animation_defaults.cc; no duplicate qmake source or membership
+test is added. Runtime and new test sources match corrected `19c853c1`. The
+AnimationParams type and both default function bodies retain their original tokens.
+Reference methods forward to the new portable functions rather than maintaining
+a second table. Inherited tolerant getters remain compatibility behavior, not
+input validators, and no unknown stored document value is normalized.
+
+Fresh Debug CMake build and all 104 ordinary CTest contracts pass in 19.41 seconds.
+The 103 previous commands are unchanged, with one fixed-defaults contract added
+and the existing manifest check extended. Scoped metadata ASan/UBSan and SwiftPM
+(7.79 seconds) pass; isolated defaults symbols contain no sampler, rig or mesh
+implementation. New C++/manifest formatting and the source quarantine guard pass.
+The reference dispatch remains compile-only; Qt and animation sampling are not run.
+
+These results cover declared timings, string-formatted defaults, aliases,
+directional overrides and independently owned return values. They do not establish
+raw-input validation, native parameter UI, runtime pose/playback/audio parity or
+full M6 acceptance. Production pin and all quarantines remain unchanged. Require
+completed clean exact-head automated review and all CI green before merge.
