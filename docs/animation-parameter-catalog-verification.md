@@ -43,3 +43,29 @@ common duration/frame/audio controls outside this table, C/Swift descriptor copi
 native UI/lossless interaction acceptance, pose/runtime/playback/audio and full M6.
 No broad inherited C++ coverage, production pin change or quarantine release is claimed.
 Earlier catalog publication must include its qmake dependency backport first.
+
+
+## Checked parameter delivery validation
+
+Replay the corrected schema stage onto accepted core #155 (`0ebc34d1`), which
+merged after completed clean exact-head automated review and all six CI checks
+green. Runtime and contract sources match corrected `6438ca5b`; the accepted
+OBJ scene-binding verification fix is retained. New descriptor conversion checks
+finite scalars and integer representability before casting, then widget bounds.
+Legacy reference callbacks remain compile-only and are never evaluated by tests.
+
+Fresh Debug CMake build and all 105 ordinary CTest contracts pass (19.81 seconds).
+All 104 prior registered commands are unchanged; only the inspected guarded
+parameter contract is added. Scoped metadata ASan/UBSan passes across 1592
+catalog descriptors and checked boundary cases. SwiftPM Dust3DEngine builds in
+0.73 seconds. Formatting, quarantine guard and isolated symbol inspection pass;
+that standalone contract contains no sampler, rig, mesh or reference callback
+implementation. These are scoped checks, not inherited-engine coverage or runtime
+animation acceptance.
+
+Full-tree equality across the ancestry-only rebase and matching gated source
+hashes preserve the tested implementation. No native binary executes after rebase;
+only delivery documentation changes afterward. Require completed clean exact-head
+automated review and every CI check green before merging. Production pin and all
+quarantines remain unchanged. C/Swift schema transport, catalog-guided editor
+controls, runtime animation/playback/audio and full M6 acceptance remain pending.
