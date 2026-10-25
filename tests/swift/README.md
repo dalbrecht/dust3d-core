@@ -39,3 +39,10 @@ The host joins writer completion, actual EOF/semantic copies and the control
 receipt; none substitutes for process exit or publication admission. See
 [ADR0123](../../docs/adr/0123-concurrent-xpc-descriptor-streams.md). Failed-peer,
 cancellation and pressure scenarios remain untested under current quarantines.
+
+`worker_admission_values` checks immutable one-slot values and recording-executor
+ordering without native overlap/load tests. The service requires a lease before
+native queueing and returns separate admission status; healthy integration requires
+acceptance. This does not bound NSXPC transport memory or provide production
+connection/cancellation/publication policy. See
+[ADR0124](../../docs/adr/0124-one-slot-xpc-native-admission.md).

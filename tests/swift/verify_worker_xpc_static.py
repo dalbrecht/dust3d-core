@@ -124,6 +124,8 @@ def main():
             raise RuntimeError('Missing service self-entitlement evidence')
         if channel_kind == 'socket' and 'Concurrent descriptor writer, actual EOF decoder and control receipt joined' not in output:
             raise RuntimeError('Missing concurrent stream completion evidence')
+        if 'Service one-slot native admission accepted' not in output:
+            raise RuntimeError('Missing service admission evidence')
         peer = int(match.group(1))
         deadline = time.monotonic() + 10
         while True:
