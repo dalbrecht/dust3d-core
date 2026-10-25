@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Build the development base/UV worker as an explicit SwiftPM executable product from the maintained engine and helper sources (#165).
+
 - Dispatch versioned UV worker jobs and admit paired replies against current-source identity and observed child completion (#164).
 
 - Admit component keys and chart image identities against one text quota before copying native UV results (#190).

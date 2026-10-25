@@ -869,3 +869,13 @@ contracts pass, with scoped wrapper sanitizer evidence; see
 appearance, trusted-helper packaging or containment. `WorkerBuild.h` detects
 instrumentation only; source/signature provenance remains an explicit #123 gate.
 No production dependency or quarantine changed; M4/M8 remain incomplete.
+
+### SwiftPM development helper packaging (#165)
+
+An explicit `dust3d-worker` product now builds the same maintained engine/helper
+sources used by CMake, with Unix resource-setup parity (ADR 0114). Source-audited
+verifiers pass ordinary base/resource-profile, UV and visual-family jobs against
+the actual SwiftPM executable; all 120 ordinary CMake contracts pass. This removes
+a packaging obstacle, while trusted identity/signing, containment, Apple adoption,
+baking and full M4/M8 acceptance remain required. No production pin or quarantine
+changed; Linux/Windows runtime parity is not claimed by the macOS run.

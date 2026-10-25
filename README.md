@@ -524,6 +524,12 @@ and receive one framed base-mesh or typed native failure:
 build/dust3d_worker < request.frame > reply.frame 2> transport-diagnostics.txt
 ```
 
+SwiftPM also exposes the same development helper as `dust3d-worker`. Build it
+with `swift build --scratch-path "$DUST3D_BUILD_ROOT/build" --product dust3d-worker -j 2`,
+using your existing shared build root. This product shares the maintained engine
+and helper sources; it does not add signing, sandboxing or app adoption. See
+[ADR 0114](docs/adr/0114-swiftpm-worker-product.md) for validated commands and limits.
+
 The request envelope is [ADR 0062](docs/adr/0062-portable-worker-framing.md), with
 `generateMesh` opcode 1 and raw `.ds3` body (default 128 MiB input maximum).
 Development `generateUvMesh` opcode 2 carries resolved UV options and archive bytes

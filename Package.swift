@@ -6,11 +6,25 @@ let package = Package(
     platforms: [.macOS(.v14)],
     products: [
         .executable(name: "dust3d-export", targets: ["Dust3DExport"]),
+        .executable(name: "dust3d-worker", targets: ["Dust3DWorker"]),
         .library(name: "Dust3DEngine", type: .static, targets: ["Dust3DEngine"]),
     ],
     targets: [
         .executableTarget(
             name: "Dust3DExport", dependencies: ["Dust3DEngine"], path: "native/ExportCli", exclude: ["README.md"]
+        ),
+        .executableTarget(
+            name: "Dust3DWorker",
+            dependencies: ["Dust3DEngine"],
+            path: "native/Engine",
+            sources: [
+                "WorkerMain.cc", "WorkerOperation.cc", "WorkerUvOperation.cc",
+                "WorkerProtocol.cc", "WorkerMesh.cc", "WorkerFailure.cc",
+                "WorkerUv.cc", "WorkerUvMesh.cc", "WorkerUvRequest.cc",
+                "WorkerResources.cc", "WorkerResourceLaunch.cc", "WorkerResourceSetup.cc",
+                "WorkerUnixResources.cc",
+            ],
+            cxxSettings: [.define("DUST3D_WORKER_HAS_RESOURCE_SETUP", to: "1")]
         ),
         .target(
             name: "TriangleIntersection",
