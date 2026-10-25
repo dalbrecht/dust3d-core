@@ -10,6 +10,7 @@ enum WorkerServiceAdmissionStatus: UInt32, Sendable {
     case closed = 2
     case staleCompletion = 3
     case notOwner = 4
+    case cancelledBeforeStart = 5
 }
 enum WorkerServiceAdmissionDecision: Equatable, Sendable {
     case accepted(WorkerServiceLease)
@@ -49,4 +50,9 @@ struct WorkerServiceAdmissionState: Equatable, Sendable {
     func retired() -> Self {
         Self(lastIssuedGeneration: lastIssuedGeneration, activeLease: activeLease, isRetired: true)
     }
+}
+
+/// Cancellation only withdraws queued work; it never interrupts native execution.
+enum WorkerServiceCancellationDecision: Equatable, Sendable {
+    case cancelled, alreadyCancelled, alreadyStarted, stale, notOwner
 }

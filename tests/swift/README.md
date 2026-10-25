@@ -53,3 +53,9 @@ foreign or unclaimed invalidation cannot retire it. Pure recorded tests cover
 those decisions; native integration covers healthy jobs only. Reconnection,
 cancellation, release trust and current-document publication remain pending. See
 [ADR0125](../../docs/adr/0125-xpc-connection-ownership.md) and #176.
+
+Queued development worker work can now be withdrawn by its owning connection and
+lease before native entry. Recording-executor tests verify slot retention and
+ordered cancellation/retirement; healthy native jobs remain unchanged. There is
+no XPC cancellation command or running-native interruption yet. See
+[ADR0126](../../docs/adr/0126-queued-worker-cancellation.md) and #177.

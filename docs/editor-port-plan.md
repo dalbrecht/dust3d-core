@@ -996,3 +996,13 @@ cancellation, release trust and current-document publication remain pending. See
 [ADR0125](docs/adr/0125-xpc-connection-ownership.md) and #176.
 
 All 139 ordinary contracts pass (22.66 seconds). Full M8 acceptance remains open.
+
+### Queued worker cancellation foundation (#177)
+
+Queued development worker work can now be withdrawn by its owning connection and
+lease before native entry. Recording-executor tests verify slot retention and
+ordered cancellation/retirement; healthy native jobs remain unchanged. There is
+no XPC cancellation command or running-native interruption yet. See
+[ADR0126](adr/0126-queued-worker-cancellation.md) and #177.
+
+All139 ordinary contracts pass22.51 seconds; full M8 acceptance remains open.
