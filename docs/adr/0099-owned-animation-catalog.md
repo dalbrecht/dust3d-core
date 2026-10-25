@@ -78,3 +78,11 @@ implementation; that does not describe the full engine archive. Construction
 allocation/exception branches remain unforced. Full inherited coverage, Qt runtime,
 production SDK/UI adoption, dynamic parameter schema and animation sampling,
 playback/audio remain open. No production pin or quarantine changes are made.
+
+
+PR #153 subsequently merged at `c8a3da3a` after completed clean exact-head review
+and all six CI checks green. Full-tree equality before/after ancestry-only rebasing
+proves source identity. A transient Git pack-index warning was followed by passing
+connectivity/full integrity checks and verification of every gated source hash;
+no repair or pruning was needed. No native binary executes after rebase; only
+this delivery note changes afterward.
