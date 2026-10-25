@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Expose generation-bound service collectors and single-use C reply admission, with raw receipt opcode validation and independent decoded ownership (#180).
+
 - Add single-use persistent-service reply admission with current-source, peer, receipt, EOF and semantic correlation; child-process exit admission remains separate (#179).
 
 - Route development queued cancellation by owning connection and nonreused caller request identity (#178).

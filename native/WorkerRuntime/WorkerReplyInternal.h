@@ -8,6 +8,7 @@ struct Dust3DWorkerReplyCollector {
     dust3d::worker::Header expected;
     dust3d::worker::Limits policy;
     dust3d::worker::WorkerReplyCollector collector;
+    uint64_t serviceConnectionGeneration = 0;
     bool isFramed = false;
     bool isRejected = false;
     bool isDecoded = false;

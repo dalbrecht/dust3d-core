@@ -60,3 +60,12 @@ for transport and exact expected header for parent collection before destroying
 the request owner. The input archive/options may be released after creation.
 Original typed failures remain in the self-owned result. See
 [ADR0121](../../docs/adr/0121-c-worker-request-encoding.md) and the public header.
+
+Use `dust3d_worker_service_reply_create` before service submission to capture the
+expected connection generation. Feed actual framing bytes/EOF, then call
+`dust3d_worker_service_admit` with authoritative current identity, observed peer
+and control receipt. Copy decoded values before destroying owners. Ordinary
+semantic decode rejects service collectors. Receipt opcodes are raw integers
+validated before enum conversion. Neither API authenticates its caller inputs or
+publishes app state; real XPC/Apple adoption remains pending. See
+[ADR0129](../../docs/adr/0129-service-admission-c-boundary.md) and #180.

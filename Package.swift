@@ -32,7 +32,7 @@ let package = Package(
             sources: [
                 "Engine/WorkerJobIO.cc", "Engine/WorkerOperation.cc", "Engine/WorkerUvOperation.cc",
                 "Engine/WorkerProtocol.cc", "Engine/WorkerReplyCollector.cc", "Engine/WorkerMesh.cc",
-                "Engine/WorkerFailure.cc",
+                "Engine/WorkerFailure.cc", "Engine/WorkerAdmission.cc",
                 "Engine/WorkerUv.cc", "Engine/WorkerUvMesh.cc", "Engine/WorkerUvRequest.cc",
                 "WorkerRuntime/WorkerRuntimeBridge.cc", "WorkerRuntime/WorkerReplyBridge.cc",
                 "WorkerRuntime/WorkerDecodedBridge.cc", "WorkerRuntime/WorkerRequestBridge.cc",

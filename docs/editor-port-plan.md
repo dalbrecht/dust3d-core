@@ -1027,3 +1027,16 @@ XPC host and Apple broker adoption remain open; see
 [ADR0128](adr/0128-persistent-service-reply-admission.md) and #179.
 
 All139 ordinary contracts pass22.56s; current-source app publication remains unimplemented.
+
+### Generation-bound C service admission (#180)
+
+Use `dust3d_worker_service_reply_create` before service submission to capture the
+expected connection generation. Feed actual framing bytes/EOF, then call
+`dust3d_worker_service_admit` with authoritative current identity, observed peer
+and control receipt. Copy decoded values before destroying owners. Ordinary
+semantic decode rejects service collectors. Receipt opcodes are raw integers
+validated before enum conversion. Neither API authenticates its caller inputs or
+publishes app state; real XPC/Apple adoption remains pending. See
+[ADR0129](adr/0129-service-admission-c-boundary.md) and #180.
+
+All139 ordinary contracts pass22.70s; worker runtime15sources and helper build. Full editor/M8 acceptance remains open.

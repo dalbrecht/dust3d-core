@@ -70,6 +70,22 @@ extern "C" Dust3DWorkerReplyCollector* dust3d_worker_reply_create(const uint8_t*
     });
     return owner.release();
 }
+extern "C" Dust3DWorkerReplyCollector* dust3d_worker_service_reply_create(const uint8_t* expected, size_t size,
+    uint64_t generation, Dust3DWorkerWireLimits limits, Dust3DWorkerReplyResult* result) noexcept
+{
+    if (!result)
+        return nullptr;
+    if (!generation) {
+        *result = protect([]() -> Dust3DWorkerReplyStatus {
+            throw ProtocolError(ProtocolErrorCode::invalidInput, "Service connection generation must be nonzero.");
+        });
+        return nullptr;
+    }
+    auto* owner = dust3d_worker_reply_create(expected, size, limits, result);
+    if (owner)
+        owner->serviceConnectionGeneration = generation;
+    return owner;
+}
 extern "C" Dust3DWorkerReplyResult dust3d_worker_reply_next_read(Dust3DWorkerReplyCollector* owner, size_t maximum, size_t* count) noexcept
 {
     if (count)

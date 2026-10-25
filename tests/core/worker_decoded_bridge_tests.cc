@@ -5,6 +5,7 @@
 #include <cstring>
 #include <iostream>
 #include <memory>
+#include <native/Engine/WorkerAdmission.h>
 #include <native/Engine/WorkerFailure.h>
 #include <native/Engine/WorkerUvMesh.h>
 #include <stdexcept>
@@ -17,7 +18,7 @@ void require(bool value, const char* message)
 }
 using Framed = std::unique_ptr<Dust3DWorkerReplyCollector, decltype(&dust3d_worker_reply_destroy)>;
 using Decoded = std::unique_ptr<Dust3DWorkerDecodedReply, decltype(&dust3d_worker_decoded_destroy)>;
-Framed frame(const std::vector<uint8_t>& body, Operation operation = Operation::generateMesh, FrameKind kind = FrameKind::response, bool finish = true)
+Framed frame(const std::vector<uint8_t>& body, Operation operation = Operation::generateMesh, FrameKind kind = FrameKind::response, bool finish = true, uint64_t generation = 0)
 {
     Header header;
     header.identity.document[0] = 1;
@@ -26,7 +27,9 @@ Framed frame(const std::vector<uint8_t>& body, Operation operation = Operation::
     header.operation = operation;
     auto expected = encodeHeader(header, {});
     Dust3DWorkerReplyResult receipt {};
-    Framed owner(dust3d_worker_reply_create(expected.data(), expected.size(), { 4096, 4096, 4096 }, &receipt), dust3d_worker_reply_destroy);
+    Framed owner(generation ? dust3d_worker_service_reply_create(expected.data(), expected.size(), generation, { 4096, 4096, 4096 }, &receipt)
+                            : dust3d_worker_reply_create(expected.data(), expected.size(), { 4096, 4096, 4096 }, &receipt),
+        dust3d_worker_reply_destroy);
     require(owner && receipt.status == DUST3D_WORKER_REPLY_READY, "Framed owner created");
     header.kind = kind;
     header.payloadBytes = body.size();
@@ -190,10 +193,92 @@ void policyAndMalformed()
     require(dust3d_worker_decoded_summary(decoded.get()).vertex_count == 3, "Existing semantic values survive replay rejection");
     require(dust3d_worker_reply_append(framed.get(), nullptr, 0).status == DUST3D_WORKER_REPLY_PROTOCOL_REJECTED, "Consumed stream cannot modify");
 }
+void serviceAdmission()
+{
+    Dust3DWorkerRequestIdentity active {};
+    active.document[0] = 1;
+    active.request = 42;
+    active.revision = 7;
+    Dust3DWorkerServiceObservation observed { 9, 101 };
+    Dust3DWorkerServiceReceipt receipt {};
+    receipt.operation = DUST3D_WORKER_OPERATION_MESH;
+    receipt.request_identity = 42;
+    receipt.process_identifier = 101;
+    auto body = encodeFailurePayload({ FailureStatus::invalidDocument, { 0, 255, 'x' } }, {});
+    auto owner = frame(body, Operation::generateMesh, FrameKind::failure, true, 9);
+    Dust3DWorkerDecodeResult result {};
+    require(!dust3d_worker_service_admit(owner.get(), active, observed, receipt, 1024, nullptr), "NULL receipt output leaves service owner unconsumed");
+    Decoded admitted(dust3d_worker_service_admit(owner.get(), active, observed, receipt, 1024, &result), dust3d_worker_decoded_destroy);
+    require(admitted && result.status == DUST3D_WORKER_DECODE_OK, "Pure service values admitted through C");
+    require(!dust3d_worker_service_admit(owner.get(), active, observed, receipt, 1024, &result), "Service collector cannot admit twice");
+    owner.reset();
+    size_t size = 0;
+    const auto* cause = dust3d_worker_decoded_failure_cause(admitted.get(), &size);
+    require(cause && size == 3 && cause[0] == 0 && cause[1] == 255 && cause[2] == 'x', "C service result owns opaque failure bytes after collector destruction");
+    for (size_t field = 0; field < 8; ++field) {
+        auto current = active;
+        auto peer = observed;
+        auto control = receipt;
+        if (field == 0)
+            ++current.document[0];
+        if (field == 1)
+            ++current.request;
+        if (field == 2)
+            ++current.revision;
+        if (field == 3)
+            ++peer.connection_generation;
+        if (field == 4)
+            peer.process_identifier = 0;
+        if (field == 5)
+            ++control.process_identifier;
+        if (field == 6)
+            control.runtime_status = 7;
+        if (field == 7)
+            control.admission_status = 5;
+        auto bad = frame(body, Operation::generateMesh, FrameKind::failure, true, 9);
+        require(!dust3d_worker_service_admit(bad.get(), current, peer, control, 1024, &result)
+                && result.status == DUST3D_WORKER_DECODE_ADMISSION_REJECTED && result.detail_source == DUST3D_WORKER_DETAIL_ADMISSION && result.message[0],
+            "C service rejection preserves typed admission cause");
+        require(!dust3d_worker_service_admit(bad.get(), active, observed, receipt, 1024, &result), "Rejected C service result cannot replay");
+    }
+    auto bypass = frame(body, Operation::generateMesh, FrameKind::failure, true, 9);
+    require(!dust3d_worker_reply_decode(bypass.get(), 1024, &result) && result.status == DUST3D_WORKER_DECODE_PROTOCOL_REJECTED, "Service collector cannot bypass admission with ordinary decode");
+    auto ordinary = frame(body, Operation::generateMesh, FrameKind::failure);
+    require(!dust3d_worker_service_admit(ordinary.get(), active, observed, receipt, 1024, &result), "Ordinary collector cannot be promoted to service admission");
+    auto incomplete = frame(body, Operation::generateMesh, FrameKind::failure, false, 9);
+    require(!dust3d_worker_service_admit(incomplete.get(), active, observed, receipt, 1024, &result), "Service requires collector EOF");
+    auto unknown = frame(body, Operation::generateMesh, FrameKind::failure, true, 9);
+    auto alias = receipt;
+    alias.operation = 65537;
+    require(!dust3d_worker_service_admit(unknown.get(), active, observed, alias, 1024, &result) && result.status == DUST3D_WORKER_DECODE_PROTOCOL_REJECTED, "Unknown wide C operation cannot narrow to a valid opcode");
+    auto limited = frame(body, Operation::generateMesh, FrameKind::failure, true, 9);
+    require(!dust3d_worker_service_admit(limited.get(), active, observed, receipt, 1, &result) && result.status == DUST3D_WORKER_DECODE_CODEC_REJECTED, "Service respects failure logical quota");
+    Header header;
+    header.identity.document[0] = 1;
+    header.identity.request = 42;
+    const auto expected = encodeHeader(header, {});
+    Dust3DWorkerReplyResult framed {};
+    require(!dust3d_worker_service_reply_create(expected.data(), expected.size(), 0, { 4096, 4096, 4096 }, &framed) && framed.status == DUST3D_WORKER_REPLY_PROTOCOL_REJECTED, "Zero generation rejected before service collector creation");
+    require(!dust3d_worker_service_reply_create(expected.data(), expected.size(), 9, { 4096, 4096, 4096 }, nullptr), "NULL create output returns no owner");
+    require(!dust3d_worker_service_reply_create(nullptr, 0, 9, { 4096, 4096, 4096 }, &framed) && framed.status == DUST3D_WORKER_REPLY_PROTOCOL_REJECTED, "Invalid header returns no service owner");
+    for (const auto operation : { Operation::generateMesh, Operation::generateUvMesh }) {
+        const auto pair = sample();
+        const auto geometry = operation == Operation::generateMesh ? encodeMeshPayload(pair.geometry, {}) : encodeUvMeshPayload(pair, {});
+        auto meshOwner = frame(geometry, operation, FrameKind::response, true, 9);
+        receipt.operation = operation == Operation::generateMesh ? DUST3D_WORKER_OPERATION_MESH : DUST3D_WORKER_OPERATION_UV_MESH;
+        Decoded decoded(dust3d_worker_service_admit(meshOwner.get(), active, observed, receipt, 1048576, &result), dust3d_worker_decoded_destroy);
+        require(decoded && result.status == DUST3D_WORKER_DECODE_OK, "C service admits base/UV geometry");
+        meshOwner.reset();
+        Dust3DWorkerVertex vertices[3] {};
+        require(dust3d_worker_decoded_vertices(decoded.get(), 0, 3, vertices) && vertices[1].position[0] == 1, "C service geometry independently owned");
+    }
+}
+
 }
 int main()
 {
     try {
+        serviceAdmission();
         geometryAndAtlas();
         baseFailureAndNull();
         policyAndMalformed();
