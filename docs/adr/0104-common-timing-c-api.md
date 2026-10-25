@@ -60,3 +60,6 @@ No production pin/quarantine changes or broad runtime/coverage acceptance claim.
 This stage remains local until its parents merge after completed clean exact-head
 automated review and all CI green. Audio metadata, editor adoption and full M6
 runtime acceptance remain pending.
+
+
+Core #158 merged at `40f98cee` after completed clean exact-head automated review and all six CI checks green. Full-tree equality across ancestry-only rebase and matching gated source hashes preserve the tested implementation. No native binary executes after rebase; only this delivery note changes afterward.
