@@ -73,41 +73,42 @@ namespace worker {
             auto bytes = causeBytes(cause, static_cast<size_t>(maximum) + 1);
             return failure(request, { status, std::move(bytes) });
         }
-        MeshPayload copyNativeMesh(const Dust3DMesh* owner, const MeshPayloadLimits& limits)
-        {
-            const auto count = dust3d_mesh_vertex_count(owner);
-            const auto* vertices = dust3d_mesh_vertices(owner);
-            if (!count || count % 3 || !vertices)
-                throw MeshPayloadError(MeshPayloadErrorCode::invalidGeometry, "Native worker returned invalid expanded geometry.");
-            const auto nodes = dust3d_mesh_node_count(owner);
-            const auto parts = dust3d_mesh_part_count(owner);
-            if (count > limits.maximumVertices || nodes > limits.maximumNodeCount || parts > limits.maximumPartCount)
-                throw MeshPayloadError(MeshPayloadErrorCode::limitExceeded, "Native worker output exceeds its count limits.");
-            const auto* warning = dust3d_mesh_warning(owner);
-            if (!warning)
-                throw MeshPayloadError(MeshPayloadErrorCode::invalidText, "Native worker warning storage is missing.");
-            size_t warningBytes = 0;
-            while (warningBytes <= limits.maximumWarningBytes && warning[warningBytes])
-                ++warningBytes;
-            if (warningBytes > limits.maximumWarningBytes || warningBytes > limits.maximumDecodedBytes
-                || count > (limits.maximumDecodedBytes - warningBytes) / sizeof(MeshVertex)
-                || meshPrefixBytes + warningBytes > limits.maximumWireBytes
-                || count > (limits.maximumWireBytes - meshPrefixBytes - warningBytes) / meshVertexBytes)
-                throw MeshPayloadError(MeshPayloadErrorCode::limitExceeded, "Native worker output exceeds its copy/wire limits.");
-            MeshPayload result;
-            result.nodeCount = nodes;
-            result.partCount = parts;
-            result.warning.assign(warning, warningBytes);
-            result.vertices.reserve(count);
-            for (size_t index = 0; index < count; ++index) {
-                const auto& vertex = vertices[index];
-                result.vertices.push_back({ { vertex.position[0], vertex.position[1], vertex.position[2] },
-                    { vertex.normal[0], vertex.normal[1], vertex.normal[2] }, { vertex.color[0], vertex.color[1], vertex.color[2], vertex.color[3] } });
-            }
-            return result;
-        }
-
     }
+    MeshPayload copyNativeMesh(const Dust3DMesh* owner, const MeshPayloadLimits& limits)
+    {
+        validateMeshPayloadLimits(limits);
+        const auto count = dust3d_mesh_vertex_count(owner);
+        const auto* vertices = dust3d_mesh_vertices(owner);
+        if (!count || count % 3 || !vertices)
+            throw MeshPayloadError(MeshPayloadErrorCode::invalidGeometry, "Native worker returned invalid expanded geometry.");
+        const auto nodes = dust3d_mesh_node_count(owner);
+        const auto parts = dust3d_mesh_part_count(owner);
+        if (count > limits.maximumVertices || nodes > limits.maximumNodeCount || parts > limits.maximumPartCount)
+            throw MeshPayloadError(MeshPayloadErrorCode::limitExceeded, "Native worker output exceeds its count limits.");
+        const auto* warning = dust3d_mesh_warning(owner);
+        if (!warning)
+            throw MeshPayloadError(MeshPayloadErrorCode::invalidText, "Native worker warning storage is missing.");
+        size_t warningBytes = 0;
+        while (warningBytes <= limits.maximumWarningBytes && warning[warningBytes])
+            ++warningBytes;
+        if (warningBytes > limits.maximumWarningBytes || warningBytes > limits.maximumDecodedBytes
+            || count > (limits.maximumDecodedBytes - warningBytes) / sizeof(MeshVertex)
+            || meshPrefixBytes + warningBytes > limits.maximumWireBytes
+            || count > (limits.maximumWireBytes - meshPrefixBytes - warningBytes) / meshVertexBytes)
+            throw MeshPayloadError(MeshPayloadErrorCode::limitExceeded, "Native worker output exceeds its copy/wire limits.");
+        MeshPayload result;
+        result.nodeCount = nodes;
+        result.partCount = parts;
+        result.warning.assign(warning, warningBytes);
+        result.vertices.reserve(count);
+        for (size_t index = 0; index < count; ++index) {
+            const auto& vertex = vertices[index];
+            result.vertices.push_back({ { vertex.position[0], vertex.position[1], vertex.position[2] },
+                { vertex.normal[0], vertex.normal[1], vertex.normal[2] }, { vertex.color[0], vertex.color[1], vertex.color[2], vertex.color[3] } });
+        }
+        return result;
+    }
+
     Frame generateMeshReply(const Frame& request, const MeshPayloadLimits& limits)
     {
         (void)encodeHeader(request.header, {});

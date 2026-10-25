@@ -31,6 +31,7 @@ UvRequest sample()
 void roundTrip()
 {
     auto source = sample();
+    validateUvRequest(source, {});
     auto wire = encodeUvRequest(source, {});
     const std::vector<uint8_t> prefix { 0, 1, 0, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3 };

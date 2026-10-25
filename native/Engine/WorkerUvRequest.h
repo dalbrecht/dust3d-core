@@ -41,6 +41,12 @@ namespace worker {
     private:
         UvRequestErrorCode m_code;
     };
+    /// Validate stable borrowed request values without constructing retained archive/image copies.
+    /// @param request Options/archive storage borrowed for this call; no native parsing occurs.
+    /// @param limits Supported positive request quotas; bounded identity-set workspace is used.
+    /// @throws UvRequestError with the same causes as encodeUvRequest; allocation errors propagate.
+    /// Example: validateUvRequest(request, {});
+    void validateUvRequest(const UvRequest& request, const UvRequestLimits& limits);
     /// Validate options/identities/quotas and encode explicit v1 big-endian fields.
     /// @param request Stable borrowed values; nonempty opaque archive, texture 0..8192,
     /// metadata budget 0..256 MiB, images with nonzero UUID and dimensions 1..8192.
