@@ -70,3 +70,12 @@ GLB base-color factor is (0.25, 0.5, 0.75, 0.5); source RGBA must not absorb tha
 factor or the ordinary preview's forced opacity. Archive offsets/chunk lengths are
 recomputed. This is an encoded input fixture, not a rendered snapshot baseline.
 SHA256: 78d9e6a94cceccc4b5814692d25e8ca97ca01968c14927880a5e6a5837f715d6.
+
+`worker_uv_visual_tests.cc` constructs a small independent synthetic MIT archive
+in memory for core #164 (2026-10-25; base `dc3c0680`). It uses the existing
+single-node schema with original opaque component key, explicit alpha-first green
+color and a nonzero hex image UUID. The request supplies 48x96 resolved dimensions
+without pixels. The same contract reuses licensed Sword and synthetic
+RoundedCrossing above for gradient and unmapped-Boolean UV transport. It adds no
+binary fixture or rendered snapshot baseline. See
+`docs/worker-uv-visual-verification.md` for independent assertions and limits.
