@@ -932,3 +932,14 @@ Swift-host integration prerequisite while preserving process/authenticated
 transaction/publication admission as separate required gates. Actual isolated
 XPC service lifecycle, containment, trusted packaging and reviewed adoption remain
 open; pins/quarantines and full M4/M8 acceptance are unchanged.
+
+### Isolated XPC static mesh integration evidence (#171)
+
+A freshly built private host/XPC service now runs one ordinary licensed Capsule
+job in a real separate process through the C runtime, with development peer-hash
+requirements, scalar control receipts and bounded parent C collection/semantic
+copies (ADR0120). The focused job and all 130 ordinary contracts pass. This
+verifies process separation on macOS arm64, while live pipes, cancellation,
+authenticated transaction/publication policy, sandbox/resource bounds, release
+trust and reviewed app adoption remain open. PID disappearance is not an observed
+service exit status. No production pin/quarantine change or full M8 acceptance.

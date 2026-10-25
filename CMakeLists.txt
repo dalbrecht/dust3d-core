@@ -561,6 +561,40 @@ if(BUILD_TESTING)
         add_test(NAME worker_runtime_swift COMMAND "${DUST3D_SWIFT_WORKER_CONSUMER}"
             "${CMAKE_CURRENT_SOURCE_DIR}/tests/core/fixtures/Capsule.ds3" "${CMAKE_CURRENT_BINARY_DIR}")
         set_tests_properties(worker_runtime_swift PROPERTIES TIMEOUT 60)
+        if(Python3_Interpreter_FOUND)
+            set(DUST3D_XPC_FIXTURE_BINARIES)
+            foreach(DUST3D_XPC_ROLE Host Service)
+                string(TOLOWER "${DUST3D_XPC_ROLE}" DUST3D_XPC_ROLE_LOWER)
+                set(DUST3D_XPC_BINARY "${CMAKE_CURRENT_BINARY_DIR}/worker-xpc-${DUST3D_XPC_ROLE_LOWER}")
+                add_custom_command(OUTPUT "${DUST3D_XPC_BINARY}"
+                    COMMAND "${DUST3D_XCRUN}" swift-format lint --strict
+                        "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerXPCCommon.swift"
+                        "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerXPC${DUST3D_XPC_ROLE}.swift"
+                    COMMAND "${DUST3D_XCRUN}" swiftc -swift-version 6 -strict-concurrency=complete
+                        -warnings-as-errors -parse-as-library
+                        -module-cache-path "${CMAKE_CURRENT_BINARY_DIR}/swift-module-cache"
+                        -I "${DUST3D_WORKER_SWIFT_MODULE_DIRECTORY}"
+                        "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerXPCCommon.swift"
+                        "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerXPC${DUST3D_XPC_ROLE}.swift"
+                        "$<TARGET_FILE:dust3d_worker_runtime>" "$<TARGET_FILE:dust3d_worker_job_io>"
+                        "$<TARGET_FILE:dust3d_worker_operation>" "$<TARGET_FILE:dust3d_worker_protocol>"
+                        "$<TARGET_FILE:dust3d_engine>" "$<TARGET_FILE:dust3d_core>"
+                        "$<TARGET_FILE:dust3d_remesher>" "$<TARGET_FILE:dust3d_triangle>"
+                        -lc++ -lz -o "${DUST3D_XPC_BINARY}"
+                    DEPENDS tests/swift/WorkerXPCCommon.swift "tests/swift/WorkerXPC${DUST3D_XPC_ROLE}.swift"
+                        native/WorkerRuntime/include/Dust3DWorkerRuntime.h dust3d_worker_runtime
+                        dust3d_worker_job_io dust3d_worker_operation dust3d_worker_protocol
+                        dust3d_engine dust3d_core dust3d_remesher dust3d_triangle
+                    VERBATIM)
+                list(APPEND DUST3D_XPC_FIXTURE_BINARIES "${DUST3D_XPC_BINARY}")
+            endforeach()
+            add_custom_target(dust3d_worker_xpc_static_fixture ALL DEPENDS ${DUST3D_XPC_FIXTURE_BINARIES})
+            add_test(NAME worker_xpc_static_mesh COMMAND "${Python3_EXECUTABLE}" -B
+                "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/verify_worker_xpc_static.py"
+                "${CMAKE_CURRENT_BINARY_DIR}/worker-xpc-host" "${CMAKE_CURRENT_BINARY_DIR}/worker-xpc-service"
+                "${CMAKE_CURRENT_SOURCE_DIR}/tests/core/fixtures/Capsule.ds3" "${CMAKE_CURRENT_BINARY_DIR}")
+            set_tests_properties(worker_xpc_static_mesh PROPERTIES TIMEOUT 90)
+        endif()
         set(DUST3D_SWIFT_MIP_CONSUMER "${CMAKE_CURRENT_BINARY_DIR}/source-baked-mip-swift")
         add_custom_command(OUTPUT "${DUST3D_SWIFT_MIP_CONSUMER}"
             COMMAND "${DUST3D_XCRUN}" swift-format lint --strict "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/SourceBakedMipSmoke.swift"

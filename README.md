@@ -1033,3 +1033,12 @@ failure codecs to expose independent value owners. Callers copy geometry/atlas
 records and borrowed text before destruction. Aggregate decoded-byte quotas are
 logical, and semantic success does not establish authenticated completion or
 publication; see [ADR 0119](docs/adr/0119-semantic-worker-reply-c-boundary.md).
+
+### Isolated development XPC host evidence
+
+On macOS, `worker_xpc_static_mesh` stages freshly signed private test bundles and
+runs one licensed Capsule job in a separate XPC service through the C runtime.
+The parent checks actual peer identity/PID and collects/decodes/copies the bounded
+reply. This is development integration evidence, not sandbox, release trust or
+publication acceptance. See [ADR0120](docs/adr/0120-isolated-xpc-static-host-verification.md)
+and [fixture usage](tests/swift/README.md). Production pins/quarantines stay intact.
