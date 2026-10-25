@@ -975,3 +975,13 @@ all 138 ordinary contracts pass after owned endpoint cleanup/result composition.
 No broken-peer/signal/pressure probes or production pin/quarantine changes.
 Bounded admission, cancellation/failure diagnostics, authoritative publication,
 release trust/resource review and app adoption remain open; full M8 is incomplete.
+
+### One-slot native service admission (#175)
+
+Immutable leases now bound application-native queued/running work before the
+service calls the runtime, with stale completion protection and retirement/enqueue
+ordering under one lock (ADR0124). Pure values/recorded actions and all 139 ordinary
+contracts pass; healthy XPC cases require accepted admission. No native overlap,
+load or rejection probe was performed. Per-connection ownership, cancellation,
+resource/release trust and authenticated publication remain open. Pins/quarantines
+and full M8 acceptance remain unchanged.

@@ -1061,3 +1061,9 @@ socket descriptors, with inspected per-socket suppression, bounded writes and
 header-first reads. It joins independent writer, EOF/semantic and control results;
 see [ADR0123](docs/adr/0123-concurrent-xpc-descriptor-streams.md). Production
 admission, cancellation, release trust and quarantine gates remain open.
+
+The development XPC service now admits only one native invocation before queueing,
+with immutable leases and stop ordering under the same lock. Pure recorded-action
+checks and healthy integration verify this application-level bound; framework
+memory, per-connection ownership and publication policy remain separate. See
+[ADR0124](docs/adr/0124-one-slot-xpc-native-admission.md).

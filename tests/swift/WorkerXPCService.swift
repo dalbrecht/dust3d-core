@@ -25,30 +25,37 @@ private func checkedSandboxEntitlement() throws -> Bool {
 final class StaticWorkerObject: NSObject, StaticWorkerJob, Sendable {
     private let sandboxEntitlementVerified: Bool
     init(sandboxEntitlementVerified: Bool) { self.sandboxEntitlementVerified = sandboxEntitlementVerified }
-    private let queue = DispatchQueue(label: "org.dust3d.core.static-worker.serial")
+    private let scheduler = WorkerServiceScheduler(onRetired: { exit(EXIT_SUCCESS) })
     func serve(
         _ input: FileHandle, output: FileHandle, isStream: Bool,
         withReply reply:
-            @escaping @Sendable (UInt32, UInt32, UInt64, Int32, UInt32, UInt32, Int32, UInt8, Int32, Bool, Int32) ->
+            @escaping @Sendable (
+                UInt32, UInt32, UInt64, Int32, UInt32, UInt32, Int32, UInt8, Int32, Bool, Int32, UInt32
+            ) ->
             Void
     ) {
-        // All native entry points in this service share this single queue.
-        queue.async {
+        let decision = scheduler.submit { lease in
             let result = dust3d_worker_serve(input.fileDescriptor, output.fileDescriptor)
             // Explicit stream EOF is independent of NSXPC's handle-retention lifetime.
             // This orderly half-close happens only after all runtime writes return.
             let finalized = isStream ? shutdown(output.fileDescriptor, SHUT_WR) : 0
             let finalizationError: Int32 = finalized == 0 ? 0 : errno
+            let admission: WorkerServiceAdmissionStatus = self.scheduler.complete(lease) ? .accepted : .staleCompletion
             reply(
                 result.status.rawValue, result.operation.rawValue, result.request_identity,
                 result.system_error, result.io_stage.rawValue, result.detail_source.rawValue,
                 result.detail_code, result.message_truncated, getpid(), self.sandboxEntitlementVerified,
-                finalizationError)
+                finalizationError, admission.rawValue)
         }
+        if case .accepted = decision { return }
+        // Rejection does not parse, execute, enqueue or modify possibly aliased channels.
+        reply(
+            DUST3D_WORKER_JOB_INTERNAL_FAILED.rawValue, DUST3D_WORKER_OPERATION_UNKNOWN.rawValue,
+            0, 0, 0, 0, 0, 0, getpid(), sandboxEntitlementVerified, 0, decision.status.rawValue)
     }
     func finishWhenIdle() {
-        // Normal fixture shutdown only, ordered after any in-flight ordinary job.
-        queue.async { exit(EXIT_SUCCESS) }
+        // Seal admission immediately; normal stop is ordered after every accepted submission.
+        scheduler.retire()
     }
 }
 

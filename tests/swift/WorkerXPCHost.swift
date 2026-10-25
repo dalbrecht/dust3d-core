@@ -15,6 +15,7 @@ private struct ControlReceipt: Sendable {
     let process: Int32
     let sandboxEntitlementVerified: Bool
     let finalizationError: Int32
+    let admissionStatus: UInt32
 }
 private final class WorkOutcome<Value: Sendable>: @unchecked Sendable {
     // NSXPC invokes callbacks on its private queue; all state crosses this lock.
@@ -281,7 +282,7 @@ private struct WorkerXPCHost {
         else { throw StaticFixtureError.invalid("Missing typed XPC proxy") }
         proxy.serve(input, output: output, isStream: isStream) {
             status, operation, request, systemError, stage, source, code, truncated, process,
-            sandboxEntitlementVerified, finalizationError
+            sandboxEntitlementVerified, finalizationError, admissionStatus
             in
             outcome.finish(
                 .success(
@@ -289,13 +290,14 @@ private struct WorkerXPCHost {
                         status: status, operation: operation, request: request,
                         systemError: systemError, stage: stage, source: source, code: code, truncated: truncated,
                         process: process, sandboxEntitlementVerified: sandboxEntitlementVerified,
-                        finalizationError: finalizationError)))
+                        finalizationError: finalizationError, admissionStatus: admissionStatus)))
         }
         let receipt = try outcome.wait(until: deadline)
         guard receipt.status == DUST3D_WORKER_JOB_COMPLETE.rawValue,
             receipt.operation == operation.rawValue, receipt.request == request,
             receipt.systemError == 0, receipt.stage == 0, receipt.source == 0, receipt.code == 0,
             receipt.truncated == 0, receipt.sandboxEntitlementVerified, receipt.finalizationError == 0,
+            receipt.admissionStatus == WorkerServiceAdmissionStatus.accepted.rawValue,
             receipt.process > 0, receipt.process != getpid(), receipt.process == connection.processIdentifier,
             fcntl(input.fileDescriptor, F_GETFD) >= 0, fcntl(output.fileDescriptor, F_GETFD) >= 0
         else {
@@ -303,6 +305,7 @@ private struct WorkerXPCHost {
                 "Receipt/context/independent process/borrowed handles mismatch: \(receipt)")
         }
         print("XPC service runtime sandbox entitlement verified")
+        print("Service one-slot native admission accepted")
         try input.close()
         try output.close()
         if outputChannel != nil {

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Bound development XPC native admission to one invocation before queueing, with stale-lease protection and ordered retirement (#175).
+
 - Verify concurrent bounded descriptor transfer for healthy development XPC base/UV jobs, with explicit EOF and owned endpoint cleanup (#174).
 
 - Verify exact signed sandbox entitlements and service self-entitlement receipts for healthy development XPC base/UV jobs (#173).
