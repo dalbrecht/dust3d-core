@@ -45,3 +45,28 @@ complete M6 acceptance remain open. No whole-core coverage claim. Production pin
 and all quarantines stay unchanged; no protected app control, failure injection or
 global SVG restore occurs. Use the corrected earlier catalog foundation69f82f50
 when publishing the stack, preserving/extending its reference dependency test.
+
+
+## Audio surface metadata delivery validation
+
+Replay corrected `b56b8817` on the locally validated timing C API delivery.
+Runtime and new test sources match that corrected stage; accepted parent notes
+and the scene-binding verifier fix are retained. Independent token comparison
+preserves both inherited surface conversion function bodies and the enum. The
+shared eight-name list retains reference widget order. Reference sound source is
+syntax-checked only; native targets explicitly include the portable surface file.
+
+Fresh Debug build and all 109 ordinary CTest contracts pass (20.34 seconds).
+All 108 prior registered commands remain unchanged, with one inspected metadata
+contract added and existing reference membership guard extended. Scoped metadata
+ASan/UBSan, C11 syntax, C++/Swift formatting and quarantine checks pass. Fresh
+SwiftPM archive builds in 8.12 seconds, followed by a strict Swift 6 complete-
+concurrency/warnings-as-errors consumer verifying copied surface strings after
+owner destruction and actor transfer. Isolated symbols contain no synthesizer,
+sampler, rig, mesh or reference callback implementation. No audio generation,
+playback, fault/crash probes, Qt execution or protected-app control occurs.
+
+This stage remains local until its parents merge with completed clean exact-head
+automated review and all CI green. Production pin and all quarantines stay
+unchanged. Editor catalog adoption, runtime sampling/playback/audio and full M6
+acceptance remain open; metadata transport is not full feature parity.
