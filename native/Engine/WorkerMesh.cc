@@ -217,7 +217,7 @@ namespace worker {
     MeshPayloadInspection inspectMeshPayload(const uint8_t* bytes, size_t size, const MeshPayloadLimits& limits)
     {
         const auto parsed = describeMesh(bytes, size, limits);
-        return { parsed.count, parsed.count * sizeof(MeshVertex) + parsed.warning };
+        return { parsed.count, parsed.count * sizeof(MeshVertex) + parsed.warning, parsed.nodes };
     }
     MeshPayload decodeMeshPayload(const uint8_t* bytes, size_t size, const MeshPayloadLimits& limits)
     {

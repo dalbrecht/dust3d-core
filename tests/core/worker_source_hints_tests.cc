@@ -53,6 +53,10 @@ void quotasAndPolicies()
     const auto value = fixture();
     const auto bytes = encodeSourceHintPayload(value, {});
     const auto size = measureSourceHintPayload(value, {});
+    const auto inspected = inspectSourceHintPayload(bytes.data(), bytes.size(), {});
+    require(inspected.identityCount == value.identities.size() && inspected.cornerCount == value.corners.size()
+            && inspected.influenceCount == value.influences.size() && inspected.logicalBytes == size.decodedBytes,
+        "Inspection validates counts and charge without returning source storage");
     require(size.wireBytes == bytes.size(), "Measured wire charge matches complete output");
     SourceHintPayloadLimits limits;
     limits.maximumWireBytes = size.wireBytes;
@@ -66,6 +70,7 @@ void quotasAndPolicies()
     --limits.maximumDecodedBytes;
     rejects([&] { encodeSourceHintPayload(value, limits); }, SourceHintPayloadErrorCode::limitExceeded);
     rejects([&] { decodeSourceHintPayload(bytes.data(), bytes.size(), limits); }, SourceHintPayloadErrorCode::limitExceeded);
+    rejects([&] { inspectSourceHintPayload(bytes.data(), bytes.size(), limits); }, SourceHintPayloadErrorCode::limitExceeded);
     limits = {};
     limits.maximumTextBytes = 1;
     rejects([&] { encodeSourceHintPayload(value, limits); }, SourceHintPayloadErrorCode::limitExceeded);
@@ -166,6 +171,7 @@ void rejectsInconsistentWire()
     auto bytes = original;
     set(bytes, 0, 2, 4);
     rejects([&] { decodeSourceHintPayload(bytes.data(), bytes.size(), {}); }, SourceHintPayloadErrorCode::unsupportedVersion);
+    rejects([&] { inspectSourceHintPayload(bytes.data(), bytes.size(), {}); }, SourceHintPayloadErrorCode::unsupportedVersion);
     bytes = original;
     set(bytes, 4, 1, 4);
     rejects([&] { decodeSourceHintPayload(bytes.data(), bytes.size(), {}); }, SourceHintPayloadErrorCode::invalidLayout);

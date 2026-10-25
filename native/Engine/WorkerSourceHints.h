@@ -49,6 +49,9 @@ namespace worker {
     struct SourceHintPayloadSize {
         uint64_t wireBytes, decodedBytes;
     };
+    struct SourceHintPayloadInspection {
+        uint64_t identityCount, cornerCount, influenceCount, logicalBytes;
+    };
     enum class SourceHintPayloadErrorCode { invalidLimits,
         invalidInput,
         unsupportedVersion,
@@ -78,6 +81,14 @@ namespace worker {
     /// @throws SourceHintPayloadError for invalid values or quotas.
     /// Example: auto size = measureSourceHintPayload(value, {});
     SourceHintPayloadSize measureSourceHintPayload(const SourceHintPayload& value, const SourceHintPayloadLimits& limits);
+    /// Validate complete source wire values without constructing returned arrays or strings.
+    /// @param bytes Stable borrowed complete wire storage for this call.
+    /// @param size Exact readable span; incomplete or trailing data rejects.
+    /// @param limits Supported byte/count/text policies.
+    /// @return Validated counts and logical charge, excluding roots/capacity/RSS.
+    /// @throws The same SourceHintPayloadError causes as decodeSourceHintPayload.
+    /// Example: auto summary = inspectSourceHintPayload(bytes.data(), bytes.size(), {});
+    SourceHintPayloadInspection inspectSourceHintPayload(const uint8_t* bytes, size_t size, const SourceHintPayloadLimits& limits);
     /// Encode a version-one explicit-endian source payload after full validation.
     /// @param value Borrowed values; no source geometry or archive is evaluated.
     /// @param limits Supported byte/count/text policies.

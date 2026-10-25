@@ -61,12 +61,13 @@ namespace worker {
     struct MeshPayloadInspection {
         uint64_t vertexCount;
         uint64_t logicalBytes;
+        uint64_t nodeCount;
     };
     /// Validate an exact complete payload without allocating returned vertex/text storage.
     /// @param bytes Stable borrowed complete geometry bytes for the duration of this call.
     /// @param size Exact span; truncation/trailing bytes reject.
     /// @param limits Supported geometry/wire/logical/text admission policy.
-    /// @return Validated vertex count and logical decoded charge, excluding roots/capacity/RSS.
+    /// @return Validated vertex/node counts and logical decoded charge, excluding roots/capacity/RSS.
     /// @throws The same MeshPayloadError causes as decodeMeshPayload.
     /// Example: auto summary = inspectMeshPayload(bytes.data(), bytes.size(), {});
     MeshPayloadInspection inspectMeshPayload(const uint8_t* bytes, size_t size, const MeshPayloadLimits& limits);
