@@ -2,6 +2,7 @@
 set(DUST3D_CORE_SOURCES
     dust3d/animation/animation_catalog.cc
     dust3d/animation/animation_defaults.cc
+    dust3d/animation/spring_step_admission.cc
     dust3d/animation/surface_material.cc
     dust3d/animation/parameter_catalog.cc
     dust3d/animation/biped/clip_metadata.cc

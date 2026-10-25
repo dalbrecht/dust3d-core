@@ -115,6 +115,12 @@ endif()
 
 include(CTest)
 if(BUILD_TESTING)
+    add_executable(dust3d_spring_step_admission_tests
+        tests/core/spring_step_admission_tests.cc
+        dust3d/animation/spring_step_admission.cc)
+    target_include_directories(dust3d_spring_step_admission_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    add_test(NAME spring_step_admission_contracts COMMAND dust3d_spring_step_admission_tests)
+    set_tests_properties(spring_step_admission_contracts PROPERTIES TIMEOUT 10)
     add_executable(dust3d_animation_audio_metadata_tests
         tests/core/animation_audio_metadata_tests.cc
         native/Engine/EngineSupport.cc

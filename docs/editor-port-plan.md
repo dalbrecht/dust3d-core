@@ -771,3 +771,13 @@ ADR0104 exposes common timing metadata and checked scalar edits through C, with 
 
 
 ADR0105 extracts the eight reference audio surface names/conversions into generator-free metadata, shares reference UI order and exposes owned C names verified by Swift 6 copies/actor transfer. All 109 ordinary CTest contracts, scoped ASan/UBSan and SwiftPM build pass. Unknown stored names remain raw document data. Audio synthesis/playback, production SDK/UI adoption and full M6 acceptance remain open; pin and quarantines are unchanged.
+
+
+### Static spring-step admission mitigation (core #95)
+
+ADR0106 derives a pure linear stability precondition for the reference spider
+walk/run springs and rejects unstable intervals before reference pose allocation.
+The helper has pure boundary tests and scoped complete coverage; reference callers
+are syntax-checked only. No sampler execution or root-cause confirmation occurred.
+Native sampling adoption, contextual diagnostics, forced-motion/output validation
+and full M6 acceptance remain open. No production pin or quarantine changes.

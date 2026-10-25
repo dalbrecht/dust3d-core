@@ -29,6 +29,7 @@
 #include <dust3d/animation/animation_generator.h>
 #include <dust3d/animation/common.h>
 #include <dust3d/animation/spider/walk.h>
+#include <dust3d/animation/spring_step_admission.h>
 #include <dust3d/base/math.h>
 #include <dust3d/base/matrix4x4.h>
 #include <dust3d/base/quaternion.h>
@@ -62,8 +63,20 @@ namespace spider {
         RigAnimationClip& animationClip,
         const AnimationParams& parameters)
     {
-        int frameCount = static_cast<int>(parameters.getValue("frameCount", 30.0));
-        float durationSeconds = static_cast<float>(parameters.getValue("durationSeconds", 1.0));
+        const double requestedFrames = parameters.getValue("frameCount", 30.0);
+        const double requestedDuration = parameters.getValue("durationSeconds", 1.0);
+        if (!std::isfinite(requestedFrames) || requestedFrames < 2 || requestedFrames > 4999
+            || std::trunc(requestedFrames) != requestedFrames || !std::isfinite(requestedDuration)
+            || requestedDuration < 0.001 || requestedDuration > 600.0)
+            return false;
+        const int frameCount = static_cast<int>(requestedFrames);
+        const float durationSeconds = static_cast<float>(requestedDuration);
+        const double springStiffness = parameters.getValue("springStiffness", 120.0);
+        const double springDamping = parameters.getValue("springDamping", 12.0);
+        const double dt = durationSeconds / static_cast<double>(frameCount);
+        // #95: reject an unstable step before allocating pose state; do not rewrite stored timing.
+        if (animation::admitDampedSpringStep(dt, springStiffness, springDamping) != animation::SpringStepAdmission::accepted)
+            return false;
 
         std::map<std::string, size_t> boneIdx;
         for (size_t i = 0; i < rigStructure.bones.size(); ++i)
@@ -239,9 +252,7 @@ namespace spider {
         // These track current values and velocities that are integrated
         // across frames, producing organic overshoot and settling instead
         // of rigid sine-wave motion.
-        double dt = durationSeconds / static_cast<double>(frameCount);
-        double springStiffness = parameters.getValue("springStiffness", 120.0);
-        double springDamping = parameters.getValue("springDamping", 12.0);
+
 
         double sdBodyBob = 0.0, sdBodyBobVel = 0.0;
         double sdBodyPitch = 0.0, sdBodyPitchVel = 0.0;
