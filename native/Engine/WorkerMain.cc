@@ -3,6 +3,7 @@
 #include "WorkerOperation.h"
 #include "WorkerResourceLaunch.h"
 #include "WorkerResourceSetup.h"
+#include "WorkerUvOperation.h"
 #ifdef DUST3D_WORKER_HAS_RESOURCE_SETUP
 #include "WorkerUnixResources.h"
 #endif
@@ -221,7 +222,9 @@ int main(int argc, char** argv)
             diagnostic(errors.get(), "input", input.error, std::strerror(input.error), requestIdentity);
             return ioExit;
         }
-        auto response = generateMeshReply(request, {});
+        auto response = request.header.operation == Operation::generateUvMesh
+            ? generateUvMeshReply(request, {})
+            : generateMeshReply(request, {});
         std::vector<uint8_t>().swap(request.payload);
         const auto reply = encodeFrame(response, {});
         const auto written = writeAll(output.get(), reply.data(), reply.size());

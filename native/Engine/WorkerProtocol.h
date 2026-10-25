@@ -16,7 +16,8 @@ namespace worker {
     enum class FrameKind : uint16_t { request = 1,
         response = 2,
         failure = 3 };
-    enum class Operation : uint16_t { generateMesh = 1 };
+    enum class Operation : uint16_t { generateMesh = 1,
+        generateUvMesh = 2 };
     enum class ProtocolErrorCode { invalidInput,
         invalidLimits,
         truncated,

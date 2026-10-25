@@ -2,7 +2,7 @@
 #ifndef DUST3D_NATIVE_WORKER_ADMISSION_H_
 #define DUST3D_NATIVE_WORKER_ADMISSION_H_
 #include "WorkerFailure.h"
-#include "WorkerMesh.h"
+#include "WorkerUvMesh.h"
 #include <string>
 #include <variant>
 
@@ -25,7 +25,7 @@ namespace worker {
     private:
         AdmissionErrorCode m_code;
     };
-    using AdmittedReply = std::variant<MeshPayload, FailurePayload>;
+    using AdmittedReply = std::variant<MeshPayload, FailurePayload, UvMeshPayload>;
 
     /// Single-owner completion gate. Caller serializes access and supplies authoritative active identity.
     /// Does not spawn, collect, cancel, retry, log, sandbox or enforce transport resource limits.
@@ -42,11 +42,13 @@ namespace worker {
         void retire() noexcept { m_isRetired = true; }
         bool isRetired() const noexcept { return m_isRetired; }
         /// Retire first, then require terminal exit zero, current identity, exact frame and payload semantics.
+        /// UV opcode responses use uvLimits; base mesh and failure policies remain independent.
         /// Returns independent owned data only once. Every rejected completion remains retired.
         /// Throws AdmissionError, codec errors or allocation errors; original typed causes propagate.
         AdmittedReply complete(const RequestIdentity& active, ProcessOutcome outcome,
             const uint8_t* bytes, size_t size, const Limits& wireLimits = {},
-            const MeshPayloadLimits& meshLimits = {}, const FailurePayloadLimits& failureLimits = {});
+            const MeshPayloadLimits& meshLimits = {}, const FailurePayloadLimits& failureLimits = {},
+            const UvMeshPayloadLimits& uvLimits = {});
 
     private:
         Header m_request;

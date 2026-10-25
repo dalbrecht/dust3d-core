@@ -102,7 +102,7 @@ void malformedFrames()
     unknown.kind = static_cast<FrameKind>(4);
     reject(ProtocolErrorCode::unsupportedKind, [&] { encodeHeader(unknown, {}); });
     unknown = header();
-    unknown.operation = static_cast<Operation>(2);
+    unknown.operation = static_cast<Operation>(3);
     reject(ProtocolErrorCode::unsupportedOperation, [&] { encodeHeader(unknown, {}); });
     auto mutate = [&](size_t offset, uint8_t value, ProtocolErrorCode code) {
         auto changed = wire;
@@ -116,7 +116,7 @@ void malformedFrames()
     mutate(15, 1, ProtocolErrorCode::invalidHeader);
     mutate(23, 1, ProtocolErrorCode::invalidHeader);
     mutate(17, 4, ProtocolErrorCode::unsupportedKind);
-    mutate(19, 2, ProtocolErrorCode::unsupportedOperation);
+    mutate(19, 3, ProtocolErrorCode::unsupportedOperation);
     auto missingIdentity = header();
     missingIdentity.identity.request = 0;
     reject(ProtocolErrorCode::invalidIdentity, [&] { encodeHeader(missingIdentity, {}); });

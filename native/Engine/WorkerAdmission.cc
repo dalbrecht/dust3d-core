@@ -17,7 +17,8 @@ namespace worker {
     }
     AdmittedReply PendingReply::complete(const RequestIdentity& active, ProcessOutcome outcome,
         const uint8_t* bytes, size_t size, const Limits& wireLimits,
-        const MeshPayloadLimits& meshLimits, const FailurePayloadLimits& failureLimits)
+        const MeshPayloadLimits& meshLimits, const FailurePayloadLimits& failureLimits,
+        const UvMeshPayloadLimits& uvLimits)
     {
         if (m_isRetired)
             throw AdmissionError(AdmissionErrorCode::retired, "Worker request is already retired");
@@ -30,8 +31,11 @@ namespace worker {
             throw AdmissionError(AdmissionErrorCode::staleRequest, "Worker request is no longer active");
         const auto frame = decodeFrame(bytes, size, wireLimits);
         validateResponseIdentity(frame.header, m_request);
-        if (frame.header.kind == FrameKind::response)
+        if (frame.header.kind == FrameKind::response) {
+            if (m_request.operation == Operation::generateUvMesh)
+                return decodeUvMeshPayload(frame.payload.data(), frame.payload.size(), uvLimits);
             return decodeMeshPayload(frame.payload.data(), frame.payload.size(), meshLimits);
+        }
         return decodeFailurePayload(frame.payload.data(), frame.payload.size(), failureLimits);
     }
 }

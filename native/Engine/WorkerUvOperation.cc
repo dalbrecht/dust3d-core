@@ -181,5 +181,29 @@ namespace worker {
             return failure(FailureStatus::generationFailed, "Native UV operation threw without a diagnostic.");
         }
     }
+    Frame generateUvMeshReply(const Frame& request, const UvMeshPayloadLimits& limits)
+    {
+        (void)encodeHeader(request.header, {});
+        if (request.header.operation != Operation::generateUvMesh)
+            throw ProtocolError(ProtocolErrorCode::unsupportedOperation, "UV operation requires the UV opcode.");
+        if (request.header.kind != FrameKind::request)
+            throw ProtocolError(ProtocolErrorCode::unexpectedResponse, "UV operation requires a request frame.");
+        if (request.header.payloadBytes != request.payload.size())
+            throw ProtocolError(ProtocolErrorCode::invalidInput, "UV request length does not match its header.");
+        const auto decoded = decodeUvRequest(request.payload.data(), request.payload.size(), {});
+        auto generated = generateUvMesh(decoded, limits);
+        auto header = request.header;
+        std::vector<uint8_t> payload;
+        if (std::holds_alternative<UvMeshPayload>(generated)) {
+            header.kind = FrameKind::response;
+            payload = encodeUvMeshPayload(std::get<UvMeshPayload>(generated), limits);
+        } else {
+            header.kind = FrameKind::failure;
+            payload = encodeFailurePayload(std::get<FailurePayload>(generated), {});
+        }
+        header.payloadBytes = payload.size();
+        return { header, std::move(payload) };
+    }
+
 }
 }
