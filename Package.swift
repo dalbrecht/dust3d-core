@@ -8,6 +8,7 @@ let package = Package(
         .executable(name: "dust3d-export", targets: ["Dust3DExport"]),
         .executable(name: "dust3d-worker", targets: ["Dust3DWorker"]),
         .library(name: "Dust3DEngine", type: .static, targets: ["Dust3DEngine"]),
+        .library(name: "Dust3DWorkerRuntime", type: .static, targets: ["Dust3DWorkerRuntime"]),
     ],
     targets: [
         .executableTarget(
@@ -15,16 +16,27 @@ let package = Package(
         ),
         .executableTarget(
             name: "Dust3DWorker",
-            dependencies: ["Dust3DEngine"],
+            dependencies: ["Dust3DWorkerRuntime"],
             path: "native/Engine",
             sources: [
-                "WorkerMain.cc", "WorkerJobIO.cc", "WorkerOperation.cc", "WorkerUvOperation.cc",
-                "WorkerProtocol.cc", "WorkerMesh.cc", "WorkerFailure.cc",
-                "WorkerUv.cc", "WorkerUvMesh.cc", "WorkerUvRequest.cc",
-                "WorkerResources.cc", "WorkerResourceLaunch.cc", "WorkerResourceSetup.cc",
+                "WorkerMain.cc", "WorkerResources.cc", "WorkerResourceLaunch.cc", "WorkerResourceSetup.cc",
                 "WorkerUnixResources.cc",
             ],
             cxxSettings: [.define("DUST3D_WORKER_HAS_RESOURCE_SETUP", to: "1")]
+        ),
+        .target(
+            name: "Dust3DWorkerRuntime",
+            dependencies: ["Dust3DEngine"],
+            path: "native",
+            exclude: ["WorkerRuntime/README.md", "ExportCli/README.md"],
+            sources: [
+                "Engine/WorkerJobIO.cc", "Engine/WorkerOperation.cc", "Engine/WorkerUvOperation.cc",
+                "Engine/WorkerProtocol.cc", "Engine/WorkerMesh.cc", "Engine/WorkerFailure.cc",
+                "Engine/WorkerUv.cc", "Engine/WorkerUvMesh.cc", "Engine/WorkerUvRequest.cc",
+                "WorkerRuntime/WorkerRuntimeBridge.cc",
+            ],
+            publicHeadersPath: "WorkerRuntime/include",
+            cxxSettings: [.headerSearchPath("Engine")]
         ),
         .target(
             name: "TriangleIntersection",
