@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add connection-owned withdrawal of queued development worker jobs before native entry, with recorded cancellation/retirement ordering (#177).
+
 - Scope development XPC worker retirement and native admission to the first method-invoking connection (#176).
 
 - Bound development XPC native admission to one invocation before queueing, with stale-lease protection and ordered retirement (#175).

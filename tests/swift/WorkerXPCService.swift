@@ -39,20 +39,28 @@ final class StaticWorkerObject: NSObject, StaticWorkerJob, Sendable {
             ) ->
             Void
     ) {
-        let decision = scheduler.submit(owner: candidate) { lease in
-            let result = dust3d_worker_serve(input.fileDescriptor, output.fileDescriptor)
-            // Explicit stream EOF is independent of NSXPC's handle-retention lifetime.
-            // This orderly half-close happens only after all runtime writes return.
-            let finalized = isStream ? shutdown(output.fileDescriptor, SHUT_WR) : 0
-            let finalizationError: Int32 = finalized == 0 ? 0 : errno
-            let admission: WorkerServiceAdmissionStatus =
-                self.scheduler.complete(owner: self.candidate, lease) ? .accepted : .staleCompletion
-            reply(
-                result.status.rawValue, result.operation.rawValue, result.request_identity,
-                result.system_error, result.io_stage.rawValue, result.detail_source.rawValue,
-                result.detail_code, result.message_truncated, getpid(), self.sandboxEntitlementVerified,
-                finalizationError, admission.rawValue)
-        }
+        let decision = scheduler.submit(
+            owner: candidate,
+            onCancelled: {
+                reply(
+                    DUST3D_WORKER_JOB_INTERNAL_FAILED.rawValue, DUST3D_WORKER_OPERATION_UNKNOWN.rawValue,
+                    0, 0, 0, 0, 0, 0, getpid(), self.sandboxEntitlementVerified, 0,
+                    WorkerServiceAdmissionStatus.cancelledBeforeStart.rawValue)
+            },
+            { lease in
+                let result = dust3d_worker_serve(input.fileDescriptor, output.fileDescriptor)
+                // Explicit stream EOF is independent of NSXPC's handle-retention lifetime.
+                // This orderly half-close happens only after all runtime writes return.
+                let finalized = isStream ? shutdown(output.fileDescriptor, SHUT_WR) : 0
+                let finalizationError: Int32 = finalized == 0 ? 0 : errno
+                let admission: WorkerServiceAdmissionStatus =
+                    self.scheduler.complete(owner: self.candidate, lease) ? .accepted : .staleCompletion
+                reply(
+                    result.status.rawValue, result.operation.rawValue, result.request_identity,
+                    result.system_error, result.io_stage.rawValue, result.detail_source.rawValue,
+                    result.detail_code, result.message_truncated, getpid(), self.sandboxEntitlementVerified,
+                    finalizationError, admission.rawValue)
+            })
         if case .accepted = decision { return }
         // Rejection does not parse, execute, enqueue or modify possibly aliased channels.
         reply(
