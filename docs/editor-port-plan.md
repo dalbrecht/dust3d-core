@@ -1006,3 +1006,13 @@ no XPC cancellation command or running-native interruption yet. See
 [ADR0126](adr/0126-queued-worker-cancellation.md) and #177.
 
 All139 ordinary contracts pass22.51 seconds; full M8 acceptance remains open.
+
+### Caller-routed queued cancellation (#178)
+
+Development XPC serve now carries a nonzero monotonic caller request identity,
+and queued cancellation routes by that identity and the owning connection. Pure
+recorded tests reject stale/reused/foreign routing without native cancellation.
+Healthy native serve checks pass; the remote cancellation method has not been
+invoked in integration. Publication, channel teardown, deadlines and running-job
+cancellation remain open. See [ADR0127](adr/0127-request-routed-queued-cancellation.md)
+and #178.

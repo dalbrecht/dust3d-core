@@ -11,16 +11,18 @@ enum WorkerServiceAdmissionStatus: UInt32, Sendable {
     case staleCompletion = 3
     case notOwner = 4
     case cancelledBeforeStart = 5
+    case invalidRequestIdentity = 6
 }
 enum WorkerServiceAdmissionDecision: Equatable, Sendable {
     case accepted(WorkerServiceLease)
-    case busy, closed, notOwner
+    case busy, closed, notOwner, invalidRequestIdentity
     var status: WorkerServiceAdmissionStatus {
         switch self {
         case .accepted: .accepted
         case .busy: .busy
         case .closed: .closed
         case .notOwner: .notOwner
+        case .invalidRequestIdentity: .invalidRequestIdentity
         }
     }
 }
@@ -53,6 +55,10 @@ struct WorkerServiceAdmissionState: Equatable, Sendable {
 }
 
 /// Cancellation only withdraws queued work; it never interrupts native execution.
-enum WorkerServiceCancellationDecision: Equatable, Sendable {
-    case cancelled, alreadyCancelled, alreadyStarted, stale, notOwner
+enum WorkerServiceCancellationDecision: UInt32, Equatable, Sendable {
+    case cancelled = 0
+    case alreadyCancelled = 1
+    case alreadyStarted = 2
+    case stale = 3
+    case notOwner = 4
 }

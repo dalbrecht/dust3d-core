@@ -280,7 +280,7 @@ private struct WorkerXPCHost {
                             "\(original.domain) \(original.code): \(original.localizedDescription)")))
             }) as? StaticWorkerJob
         else { throw StaticFixtureError.invalid("Missing typed XPC proxy") }
-        proxy.serve(input, output: output, isStream: isStream) {
+        proxy.serve(input, output: output, isStream: isStream, requestIdentity: request) {
             status, operation, request, systemError, stage, source, code, truncated, process,
             sandboxEntitlementVerified, finalizationError, admissionStatus
             in

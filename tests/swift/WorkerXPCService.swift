@@ -32,7 +32,7 @@ final class StaticWorkerObject: NSObject, StaticWorkerJob, Sendable {
         self.candidate = candidate
     }
     func serve(
-        _ input: FileHandle, output: FileHandle, isStream: Bool,
+        _ input: FileHandle, output: FileHandle, isStream: Bool, requestIdentity: UInt64,
         withReply reply:
             @escaping @Sendable (
                 UInt32, UInt32, UInt64, Int32, UInt32, UInt32, Int32, UInt8, Int32, Bool, Int32, UInt32
@@ -40,11 +40,11 @@ final class StaticWorkerObject: NSObject, StaticWorkerJob, Sendable {
             Void
     ) {
         let decision = scheduler.submit(
-            owner: candidate,
+            owner: candidate, requestIdentity: requestIdentity,
             onCancelled: {
                 reply(
                     DUST3D_WORKER_JOB_INTERNAL_FAILED.rawValue, DUST3D_WORKER_OPERATION_UNKNOWN.rawValue,
-                    0, 0, 0, 0, 0, 0, getpid(), self.sandboxEntitlementVerified, 0,
+                    requestIdentity, 0, 0, 0, 0, 0, getpid(), self.sandboxEntitlementVerified, 0,
                     WorkerServiceAdmissionStatus.cancelledBeforeStart.rawValue)
             },
             { lease in
@@ -66,6 +66,9 @@ final class StaticWorkerObject: NSObject, StaticWorkerJob, Sendable {
         reply(
             DUST3D_WORKER_JOB_INTERNAL_FAILED.rawValue, DUST3D_WORKER_OPERATION_UNKNOWN.rawValue,
             0, 0, 0, 0, 0, 0, getpid(), sandboxEntitlementVerified, 0, decision.status.rawValue)
+    }
+    func cancelQueued(_ requestIdentity: UInt64, withReply reply: @escaping @Sendable (UInt32) -> Void) {
+        reply(scheduler.cancelQueued(owner: candidate, requestIdentity: requestIdentity).rawValue)
     }
     func finishWhenIdle() {
         // Seal admission immediately; normal stop is ordered after every accepted submission.

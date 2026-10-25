@@ -8,12 +8,13 @@ let staticServiceIdentifier = "org.dust3d.core.xpc-static-service.qa"
 
 @objc protocol StaticWorkerJob {
     func serve(
-        _ input: FileHandle, output: FileHandle, isStream: Bool,
+        _ input: FileHandle, output: FileHandle, isStream: Bool, requestIdentity: UInt64,
         withReply reply:
             @escaping @Sendable (
                 UInt32, UInt32, UInt64, Int32, UInt32, UInt32, Int32, UInt8, Int32, Bool, Int32, UInt32
             ) ->
             Void)
+    func cancelQueued(_ requestIdentity: UInt64, withReply reply: @escaping @Sendable (UInt32) -> Void)
 }
 
 enum StaticFixtureError: Error {

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Route development queued cancellation by owning connection and nonreused caller request identity (#178).
+
 - Add connection-owned withdrawal of queued development worker jobs before native entry, with recorded cancellation/retirement ordering (#177).
 
 - Scope development XPC worker retirement and native admission to the first method-invoking connection (#176).
