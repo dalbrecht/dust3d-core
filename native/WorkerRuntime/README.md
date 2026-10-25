@@ -103,3 +103,14 @@ exercise source replacement, retirement and independent data without native fail
 work. This is prototype host integration, not reviewed/pinned editor adoption or
 proof of resource/failed-peer containment. See
 [ADR0133](../../docs/adr/0133-coordinated-xpc-reply-admission.md) and #188.
+
+## Source-hint value codec
+
+The internal C++ WorkerSourceHints codec measures and transfers owned identity,
+corner and influence values with explicit endian layout and aggregate quotas.
+It preserves aliases and inherited nonnegative weights without normalization.
+Validation precedes decoded output arrays/text. This standalone value codec is
+compiled by CMake and SwiftPM but is not yet an active worker operation or public
+C ABI output. Geometry pairing, source-aware generation and Swift adoption remain
+required under #213 and Apple #279. See
+[ADR 0134](../../docs/adr/0134-worker-source-hint-values.md).

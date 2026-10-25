@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add a bounded owned worker source-hint value codec preserving exact identity aliases, corner associations and unnormalized weights; operation/C ABI adoption remains separate (#213).
+
 - Admit healthy development XPC base/UV replies through the queue-authoritative C coordinator with a non-Sendable Swift collecting-thread owner (#188).
 
 - Expose the bounded persistent-service coordinator through C with queue-authoritative source admission, borrowed framing and independently owned decoded values (#183).
