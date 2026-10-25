@@ -12,6 +12,7 @@ namespace worker {
     RequestQueue::RequestQueue(Limits limits)
         : m_limits(limits)
     {
+        validateWireLimits(limits);
     }
     std::optional<RequestIdentity> RequestQueue::submit(Frame request)
     {

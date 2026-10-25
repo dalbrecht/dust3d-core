@@ -34,7 +34,8 @@ typedef enum Dust3DWorkerDetailSource {
     DUST3D_WORKER_DETAIL_FAILURE = 6,
     DUST3D_WORKER_DETAIL_RUNTIME = 7,
     DUST3D_WORKER_DETAIL_SYSTEM = 8,
-    DUST3D_WORKER_DETAIL_ADMISSION = 9
+    DUST3D_WORKER_DETAIL_ADMISSION = 9,
+    DUST3D_WORKER_DETAIL_QUEUE = 10
 } Dust3DWorkerDetailSource;
 typedef enum Dust3DWorkerIOStage {
     DUST3D_WORKER_IO_NONE = 0,
@@ -167,7 +168,8 @@ typedef enum Dust3DWorkerDecodeStatus {
     DUST3D_WORKER_DECODE_CODEC_REJECTED = 2,
     DUST3D_WORKER_DECODE_LIMIT_EXCEEDED = 3,
     DUST3D_WORKER_DECODE_INTERNAL_FAILED = 4,
-    DUST3D_WORKER_DECODE_ADMISSION_REJECTED = 5
+    DUST3D_WORKER_DECODE_ADMISSION_REJECTED = 5,
+    DUST3D_WORKER_DECODE_QUEUE_REJECTED = 6
 } Dust3DWorkerDecodeStatus;
 typedef struct Dust3DWorkerDecodeResult {
     Dust3DWorkerDecodeStatus status;
@@ -375,6 +377,83 @@ Dust3DWorkerDecodedReply* dust3d_worker_service_admit(Dust3DWorkerReplyCollector
     Dust3DWorkerRequestIdentity active, Dust3DWorkerServiceObservation observed,
     Dust3DWorkerServiceReceipt receipt, uint64_t maximum_decoded_bytes,
     Dust3DWorkerDecodeResult* result) DUST3D_WORKER_RUNTIME_NOEXCEPT;
+
+/** Externally serialized service coordinator: one active transport and latest waiting request.
+ * Request IDs must increase across queue and connection lifetimes. No I/O is started.
+ * Logical quotas do not bound process RSS. This owner cannot authenticate caller evidence.
+ */
+typedef struct Dust3DWorkerServiceQueue Dust3DWorkerServiceQueue;
+typedef enum Dust3DWorkerQueueStatus {
+    DUST3D_WORKER_QUEUE_READY = 0,
+    DUST3D_WORKER_QUEUE_BEGUN = 1,
+    DUST3D_WORKER_QUEUE_IDLE = 2,
+    DUST3D_WORKER_QUEUE_BUSY = 3,
+    DUST3D_WORKER_QUEUE_PROTOCOL_REJECTED = 4,
+    DUST3D_WORKER_QUEUE_REJECTED = 5,
+    DUST3D_WORKER_QUEUE_LIMIT_EXCEEDED = 6,
+    DUST3D_WORKER_QUEUE_INTERNAL_FAILED = 7
+} Dust3DWorkerQueueStatus;
+/** Independent numeric receipt and bounded original cause; no borrowed strings. */
+typedef struct Dust3DWorkerQueueResult {
+    Dust3DWorkerQueueStatus status;
+    Dust3DWorkerDetailSource detail_source;
+    int32_t detail_code;
+    uint8_t message_truncated;
+    uint8_t has_replaced;
+    Dust3DWorkerRequestIdentity replaced_identity;
+    Dust3DWorkerRequestIdentity active_identity;
+    char message[512];
+} Dust3DWorkerQueueResult;
+/** Create with positive supported quotas; required result, NULL on original typed failure.
+ * Example: owner = dust3d_worker_service_queue_create(limits, &result).
+ */
+Dust3DWorkerServiceQueue* dust3d_worker_service_queue_create(Dust3DWorkerWireLimits limits,
+    Dust3DWorkerQueueResult* result) DUST3D_WORKER_RUNTIME_NOEXCEPT;
+/** Copy and validate an exact request frame before replacing latest waiting work.
+ * @return READY with optional replaced identity, or original typed rejection; active bytes survive.
+ */
+Dust3DWorkerQueueResult dust3d_worker_service_queue_submit(Dust3DWorkerServiceQueue* queue,
+    const uint8_t* bytes, size_t size) DUST3D_WORKER_RUNTIME_NOEXCEPT;
+/** Capture trusted nonzero connection generation before transport submission.
+ * @return BEGUN + captured identity, BUSY, IDLE or typed failure. Zero preserves waiting.
+ * Allocation failure after taking waiting work releases that unsubmitted slot; retry with a fresh ID.
+ */
+Dust3DWorkerQueueResult dust3d_worker_service_queue_begin(Dust3DWorkerServiceQueue* queue,
+    uint64_t connection_generation) DUST3D_WORKER_RUNTIME_NOEXCEPT;
+/** Borrow active outbound bytes; required size, zero/NULL if absent.
+ * Survives submit/cancel/close, expires on admit/abandon/destroy; never free or modify.
+ */
+const uint8_t* dust3d_worker_service_queue_request_bytes(const Dust3DWorkerServiceQueue* queue,
+    size_t* size) DUST3D_WORKER_RUNTIME_NOEXCEPT;
+/** Borrow active framing collector. Use framing functions only; NEVER destroy or decode standalone.
+ * Expires on admit/abandon/destroy. Finish only after observed actual transport EOF.
+ */
+Dust3DWorkerReplyCollector* dust3d_worker_service_queue_reply(Dust3DWorkerServiceQueue* queue) DUST3D_WORKER_RUNTIME_NOEXCEPT;
+/** Retire matching publication without stopping transport; NULL harmless. Active transport must drain. */
+void dust3d_worker_service_queue_cancel(Dust3DWorkerServiceQueue* queue,
+    Dust3DWorkerRequestIdentity identity) DUST3D_WORKER_RUNTIME_NOEXCEPT;
+/** Permanently retire submission/publication; active transport must still drain. NULL harmless. */
+void dust3d_worker_service_queue_close(Dust3DWorkerServiceQueue* queue) DUST3D_WORKER_RUNTIME_NOEXCEPT;
+/** Release matching active work AFTER transport cleanup, preserving newer waiting work.
+ * Foreign identity rejects without consuming active. Caller retains original transport error.
+ */
+Dust3DWorkerQueueResult dust3d_worker_service_queue_abandon(Dust3DWorkerServiceQueue* queue,
+    Dust3DWorkerRequestIdentity identity) DUST3D_WORKER_RUNTIME_NOEXCEPT;
+/** Admit using queue-authoritative current source and captured active identity/generation.
+ * @param observed Real authenticated connection lifetime and OS peer observations.
+ * @param receipt Scalar callback, never authoritative current source or peer evidence.
+ * @param maximum_decoded_bytes Positive retained logical quota, at most128MiB.
+ * @param result Required typed original receipt; NULL leaves attempt untouched.
+ * @return Independent decoded owner or NULL. Non-NULL result consumes active attempt even on rejection,
+ * retaining newer waiting work. Copy decoded buffers before destroying decoded owner.
+ * All C++ exceptions are caught. No publication/authentication/native cancellation guarantee.
+ * On original framing failure retain its cause and abandon after transport cleanup.
+ */
+Dust3DWorkerDecodedReply* dust3d_worker_service_queue_admit(Dust3DWorkerServiceQueue* queue,
+    Dust3DWorkerServiceObservation observed, Dust3DWorkerServiceReceipt receipt,
+    uint64_t maximum_decoded_bytes, Dust3DWorkerDecodeResult* result) DUST3D_WORKER_RUNTIME_NOEXCEPT;
+/** Release coordinator and borrowed views after transport cleanup; NULL harmless. */
+void dust3d_worker_service_queue_destroy(Dust3DWorkerServiceQueue* queue) DUST3D_WORKER_RUNTIME_NOEXCEPT;
 
 #ifdef __cplusplus
 }

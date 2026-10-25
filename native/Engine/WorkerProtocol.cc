@@ -48,6 +48,8 @@ namespace worker {
     {
         return document == other.document && request == other.request && revision == other.revision;
     }
+    void validateWireLimits(const Limits& limits) { validateLimits(limits); }
+
     std::array<uint8_t, headerBytes> encodeHeader(const Header& header, const Limits& limits)
     {
         validate(header, limits);

@@ -12,6 +12,7 @@ struct Dust3DWorkerReplyCollector {
     bool isFramed = false;
     bool isRejected = false;
     bool isDecoded = false;
+    bool isQueueBound = false;
     Dust3DWorkerReplyCollector(const dust3d::worker::Header& header, const dust3d::worker::Limits& limits)
         : expected(header)
         , policy(limits)

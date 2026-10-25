@@ -1,17 +1,26 @@
 // SPDX-License-Identifier: MIT
 #include "WorkerAdmission.h"
+#include "WorkerDecodedInternal.h"
 #include "WorkerFailure.h"
 #include "WorkerReplyInternal.h"
+#include "WorkerServiceInternal.h"
 #include "WorkerUvMesh.h"
 #include <algorithm>
 #include <iterator>
 #include <memory>
 #include <new>
+#include <utility>
 #include <variant>
 using namespace dust3d::worker;
 struct Dust3DWorkerDecodedReply {
     AdmittedReply value;
 };
+namespace dust3d::worker::bridge {
+Dust3DWorkerDecodedReply* adoptDecodedReply(AdmittedReply value)
+{
+    return new Dust3DWorkerDecodedReply { std::move(value) };
+}
+}
 namespace {
 void copyCause(Dust3DWorkerDecodeResult& result, const char* cause) noexcept
 {
@@ -142,39 +151,14 @@ extern "C" Dust3DWorkerDecodedReply* dust3d_worker_service_admit(Dust3DWorkerRep
     return protectDecoded(owner, maximum, result, [=](Dust3DWorkerReplyCollector& value, uint64_t maximum) -> AdmittedReply {
         if (!value.serviceConnectionGeneration)
             throw ProtocolError(ProtocolErrorCode::invalidInput, "Service admission requires a service-specific collector.");
-        if (receipt.operation != DUST3D_WORKER_OPERATION_MESH && receipt.operation != DUST3D_WORKER_OPERATION_UV_MESH)
-            throw ProtocolError(ProtocolErrorCode::invalidInput, "Service receipt operation is unsupported.");
-        RequestIdentity identity;
-        std::copy(std::begin(active.document), std::end(active.document), identity.document.begin());
-        identity.request = active.request;
-        identity.revision = active.revision;
-        ServiceReceipt control;
-        control.runtimeStatus = receipt.runtime_status;
-        control.admissionStatus = receipt.admission_status;
-        control.operation = receipt.operation == DUST3D_WORKER_OPERATION_MESH ? Operation::generateMesh : Operation::generateUvMesh;
-        control.request = receipt.request_identity;
-        control.process = receipt.process_identifier;
-        control.systemError = receipt.system_error;
-        control.ioStage = receipt.io_stage;
-        control.detailSource = receipt.detail_source;
-        control.detailCode = receipt.detail_code;
-        control.messageTruncated = receipt.message_truncated;
-        control.finalizationError = receipt.finalization_error;
-        MeshPayloadLimits mesh;
-        mesh.maximumWireBytes = value.policy.maximumOutputBytes;
-        mesh.maximumDecodedBytes = maximum;
-        FailurePayloadLimits failure;
-        failure.maximumWireBytes = std::min(failure.maximumWireBytes, value.policy.maximumFailureBytes);
-        failure.maximumCauseBytes = std::min({ failure.maximumCauseBytes, maximum, failure.maximumWireBytes });
-        UvMeshPayloadLimits uv;
-        uv.maximumWireBytes = mesh.maximumWireBytes;
-        uv.maximumDecodedBytes = maximum;
-        uv.geometry = mesh;
-        uv.uv.maximumWireBytes = uv.maximumWireBytes;
-        uv.uv.maximumDecodedBytes = maximum;
+        if (value.isQueueBound)
+            throw ProtocolError(ProtocolErrorCode::invalidInput, "Queue-bound collector requires queue admission.");
+        const auto identity = bridge::copyRequestIdentity(active);
+        const auto control = bridge::copyServiceReceipt(receipt);
+        const auto policy = bridge::semanticPolicies(value.policy, maximum);
         PendingServiceReply pending(value.expected, value.serviceConnectionGeneration, value.policy);
         return pending.complete(identity, { observed.connection_generation, observed.process_identifier, value.isFramed },
-            control, value.bytes.data(), value.bytes.size(), value.policy, mesh, failure, uv);
+            control, value.bytes.data(), value.bytes.size(), value.policy, policy.mesh, policy.failure, policy.uv);
     });
 }
 

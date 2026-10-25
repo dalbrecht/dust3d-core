@@ -69,3 +69,25 @@ semantic decode rejects service collectors. Receipt opcodes are raw integers
 validated before enum conversion. Neither API authenticates its caller inputs or
 publishes app state; real XPC/Apple adoption remains pending. See
 [ADR0129](../../docs/adr/0129-service-admission-c-boundary.md) and #180.
+
+
+## Coordinated service requests
+
+`dust3d_worker_service_queue_create` owns the existing bounded RequestQueue. Submit
+copied exact requests, begin with a trusted nonzero connection generation, and
+borrow outbound bytes/collector for actual transport and EOF framing. Submit,
+cancel and close preserve active transport views; admission, abandonment and
+destruction invalidate them. Never destroy the borrowed collector. It cannot use
+standalone semantic/service admission to bypass queue current-source validation.
+
+After transport cleanup, call `dust3d_worker_service_queue_admit` with actual
+connection/OS-peer observations and scalar control receipt. The queue supplies
+its own current source and captured request/generation. Copy decoded data before
+destroying its independent owner. A required result consumes active work once;
+NULL result leaves it untouched. Preserve original framing/transport causes and
+abandon matching work after cleanup. Newer waiting work survives rejection.
+Cancellation/close retire publication without stopping native work. Call all
+owner operations on one serialized caller, away from blocking I/O. No editor
+adoption, authentication or process-memory guarantee follows. See
+[ADR0132](../../docs/adr/0132-c-service-request-coordinator.md), #183 and the public
+header for exact lifetimes, quotas, error categories and current test limits.
