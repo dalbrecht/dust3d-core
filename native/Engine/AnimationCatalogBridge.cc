@@ -204,3 +204,38 @@ int dust3d_animation_catalog_control_slider(const Dust3DAnimationCatalog* catalo
     return convertControl(catalog, clipIndex, controlIndex, output, error,
         [value](const auto& control) { return dust3d::animation::sliderValue(control, value); });
 }
+
+int dust3d_animation_timing_definition(Dust3DAnimationTimingDefinition* output)
+{
+    if (!output)
+        return 0;
+    const auto& definition = dust3d::animation::commonTimingDefinition();
+    *output = { definition.minimumDurationSeconds, definition.maximumDurationSeconds,
+        definition.durationDecimalPlaces, definition.durationStepSeconds,
+        definition.minimumFrameCount, definition.maximumFrameCount, definition.frameCountStep };
+    return 1;
+}
+int dust3d_animation_timing_check(double durationSeconds, double frameCount, Dust3DAnimationTiming* output, Dust3DError* error)
+{
+    using namespace dust3d::native;
+    setError(error, DUST3D_STATUS_OK, "");
+    if (!output) {
+        setError(error, DUST3D_STATUS_INVALID_DOCUMENT, "Animation timing requires an output destination.");
+        return 0;
+    }
+    *output = {};
+    try {
+        const auto timing = dust3d::animation::checkedTiming(durationSeconds, frameCount);
+        *output = { timing.durationSeconds, timing.frameCount };
+        return 1;
+    } catch (const dust3d::animation::ParameterConversionError& cause) {
+        setError(error, DUST3D_STATUS_INVALID_DOCUMENT, cause.what());
+    } catch (const std::bad_alloc& cause) {
+        setError(error, DUST3D_STATUS_LIMIT_EXCEEDED, cause.what());
+    } catch (const std::exception& cause) {
+        setError(error, DUST3D_STATUS_GENERATION_FAILED, cause.what());
+    } catch (...) {
+        setError(error, DUST3D_STATUS_GENERATION_FAILED, "Unknown non-standard animation timing validation failure.");
+    }
+    return 0;
+}

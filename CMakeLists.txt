@@ -115,6 +115,17 @@ endif()
 
 include(CTest)
 if(BUILD_TESTING)
+    add_executable(dust3d_animation_timing_api_tests
+        tests/core/animation_timing_api_tests.cc
+        native/Engine/EngineSupport.cc
+        native/Engine/AnimationCatalogBridge.cc
+        dust3d/animation/parameter_catalog.cc
+        dust3d/animation/animation_defaults.cc
+        dust3d/animation/animation_catalog.cc
+        dust3d/animation/biped/clip_metadata.cc)
+    target_include_directories(dust3d_animation_timing_api_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} native/Engine/include)
+    add_test(NAME animation_timing_api_contracts COMMAND dust3d_animation_timing_api_tests)
+    set_tests_properties(animation_timing_api_contracts PROPERTIES TIMEOUT 10)
     add_executable(dust3d_animation_control_api_tests
         tests/core/animation_control_api_tests.cc
         native/Engine/EngineSupport.cc

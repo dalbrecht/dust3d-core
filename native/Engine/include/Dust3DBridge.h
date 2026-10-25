@@ -938,6 +938,32 @@ typedef struct Dust3DAnimationParameterInfo {
     double value;
 } Dust3DAnimationParameterInfo;
 
+/** Common reference timing widget metadata, copied by value with no owner lifetime. */
+typedef struct Dust3DAnimationTimingDefinition {
+    double minimum_duration_seconds;
+    double maximum_duration_seconds;
+    int duration_decimal_places;
+    double duration_step_seconds;
+    int minimum_frame_count;
+    int maximum_frame_count;
+    int frame_count_step;
+} Dust3DAnimationTimingDefinition;
+/** Validated scalar edit; no frame allocation or animation evaluation is implied. */
+typedef struct Dust3DAnimationTiming {
+    double duration_seconds;
+    int frame_count;
+} Dust3DAnimationTiming;
+/** Copy common limits to output. Returns 1 on success, 0 for NULL output. No allocation or exceptions. */
+int dust3d_animation_timing_definition(Dust3DAnimationTimingDefinition* output);
+/** Validate an explicit timing edit, preserving duration precision. Returns 1 on success.
+ * Finite/range/integral checks precede the integer cast. On failure returns 0, clears
+ * non-NULL output and sets optional error (INVALID_DOCUMENT for input errors),
+ * retaining the original cause. Success clears prior errors. Exceptions never cross C.
+ * Does not validate/rewrite stored documents, generate frames, or apply display rounding.
+ * Example: dust3d_animation_timing_check(1.125, 2, &output, &error).
+ */
+int dust3d_animation_timing_check(double duration_seconds, double frame_count, Dust3DAnimationTiming* output, Dust3DError* error);
+
 /** Borrowed ordered dynamic-control descriptor, valid until its catalog owner is destroyed.
  * Nominal default and discrete slider projection are distinct. Forward conversion is
  * index / slider_divisor * parameter_multiplier; inverse truncates toward zero.

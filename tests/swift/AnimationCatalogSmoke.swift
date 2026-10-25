@@ -32,9 +32,19 @@ private struct CopiedRig: Sendable, Equatable {
     let name: String
     let bones: [String]
 }
+private struct CopiedTimingLimits: Sendable, Equatable {
+    let minimumSeconds: Double
+    let maximumSeconds: Double
+    let decimals: Int
+    let secondsStep: Double
+    let minimumFrames: Int
+    let maximumFrames: Int
+    let framesStep: Int
+}
 private struct CopiedCatalog: Sendable, Equatable {
     let clips: [CopiedClip]
     let rigs: [CopiedRig]
+    let timing: CopiedTimingLimits
 }
 
 private func copiedString(_ pointer: UnsafePointer<CChar>?) throws -> String {
@@ -119,7 +129,20 @@ private func copyCatalog() throws -> CopiedCatalog {
         }
         rigs.append(CopiedRig(name: try copiedString(dust3d_animation_catalog_rig_name(owner, index)), bones: bones))
     }
-    return CopiedCatalog(clips: clips, rigs: rigs)
+    var limits = Dust3DAnimationTimingDefinition()
+    var timing = Dust3DAnimationTiming()
+    guard dust3d_animation_timing_definition(&limits) == 1,
+        dust3d_animation_timing_check(1.125, 2, &timing, &error) == 1,
+        timing.duration_seconds == 1.125, timing.frame_count == 2,
+        error.status == DUST3D_STATUS_OK
+    else { throw CatalogSmokeError.invalidMetadata("Common timing transport changed") }
+    return CopiedCatalog(
+        clips: clips, rigs: rigs,
+        timing: CopiedTimingLimits(
+            minimumSeconds: limits.minimum_duration_seconds, maximumSeconds: limits.maximum_duration_seconds,
+            decimals: Int(limits.duration_decimal_places), secondsStep: limits.duration_step_seconds,
+            minimumFrames: Int(limits.minimum_frame_count), maximumFrames: Int(limits.maximum_frame_count),
+            framesStep: Int(limits.frame_count_step)))
 }
 private actor CatalogReceiver {
     private var catalog: CopiedCatalog?
@@ -145,11 +168,17 @@ private enum AnimationCatalogSmoke {
         else {
             throw CatalogSmokeError.invalidMetadata("Descriptor values changed after owner destruction")
         }
+        guard
+            first.timing
+                == CopiedTimingLimits(
+                    minimumSeconds: 0.01, maximumSeconds: 59.99, decimals: 2, secondsStep: 0.1,
+                    minimumFrames: 1, maximumFrames: 4999, framesStep: 5)
+        else { throw CatalogSmokeError.invalidMetadata("Copied timing limits changed") }
         let receiver = CatalogReceiver()
         await receiver.receive(first)
         guard await receiver.snapshot() == second else {
             throw CatalogSmokeError.invalidMetadata("Catalog copy changed across actors")
         }
-        print("Swift 6 animation catalog/control importer and owned Sendable copies passed")
+        print("Swift 6 animation catalog/control/timing importer and owned Sendable copies passed")
     }
 }
