@@ -239,6 +239,10 @@ namespace worker {
         , m_code(code)
     {
     }
+    void validateUvPayloadLimits(const UvPayloadLimits& limits)
+    {
+        validateLimits(limits);
+    }
     std::vector<uint8_t> encodeUvPayload(const UvPayload& payload, uint64_t expected, const UvPayloadLimits& limits)
     {
         validateLimits(limits);
@@ -319,51 +323,71 @@ namespace worker {
         }
         return bytes;
     }
+    namespace {
+        struct ParsedUv {
+            Layout layout;
+            uint64_t triangles, components, charts, gradients;
+            double texture;
+            uint64_t logicalBytes;
+        };
+        ParsedUv describeUv(const uint8_t* bytes, size_t size, uint64_t expected, const UvPayloadLimits& limits)
+        {
+            if (!bytes)
+                reject(UvPayloadErrorCode::invalidInput, "Worker UV input pointer is missing.");
+            if (size < uvPrefixBytes)
+                reject(UvPayloadErrorCode::truncated, "Worker UV prefix is incomplete.");
+            if (detail::readUnsigned(bytes, 2) != 1)
+                reject(UvPayloadErrorCode::unsupportedVersion, "Worker UV version is unsupported.");
+            if (detail::readUnsigned(bytes + 2, 2) != uvPrefixBytes)
+                reject(UvPayloadErrorCode::invalidLayout, "Worker UV prefix layout is invalid.");
+            zeros(bytes + 4, 4);
+            const auto triangles = detail::readUnsigned(bytes + 8, 8), components = detail::readUnsigned(bytes + 16, 8), charts = detail::readUnsigned(bytes + 24, 8), gradients = detail::readUnsigned(bytes + 32, 8), text = detail::readUnsigned(bytes + 40, 8);
+            const auto layout = plan(triangles, components, charts, gradients, text, expected, limits);
+            if (size < layout.bytes)
+                reject(UvPayloadErrorCode::truncated, "Worker UV payload is incomplete.");
+            if (size != layout.bytes)
+                reject(UvPayloadErrorCode::trailingData, "Worker UV payload has trailing bytes.");
+            const auto texture = readDouble(bytes + 48);
+            validateTexture(texture, charts);
+            for (uint64_t i = 0; i < triangles; ++i)
+                validateTriangle(readTriangle(bytes + uvPrefixBytes + i * uvTriangleBytes), components, charts);
+            uint64_t logical = layout.logicalBytes, allText = text;
+            for (uint64_t i = 0; i < charts; ++i) {
+                const auto chart = readChart(bytes + layout.charts + i * uvChartBytes);
+                validateChart(chart, components);
+                charge(allText, chart.imageID.size(), 1, limits.maximumTextBytes);
+                charge(logical, chart.imageID.size(), 1, limits.maximumDecodedBytes);
+            }
+            for (uint64_t i = 0; i < gradients; ++i)
+                validateGradient(readGradient(bytes + layout.gradients + i * uvGradientBytes), charts);
+            size_t offset = layout.keys;
+            uint64_t seenText = 0;
+            std::unordered_set<std::string_view> keys;
+            for (uint64_t i = 0; i < components; ++i) {
+                // Layout reserves four bytes per remaining key plus all unconsumed text.
+                const auto length = detail::readUnsigned(bytes + offset, 4);
+                offset += 4;
+                if (length > text - seenText)
+                    reject(UvPayloadErrorCode::invalidLayout, "Worker UV key span exceeds declared text.");
+                checkKey(std::string_view(reinterpret_cast<const char*>(bytes + offset), static_cast<size_t>(length)), limits, keys);
+                seenText += length;
+                offset += static_cast<size_t>(length);
+            }
+            if (seenText != text)
+                reject(UvPayloadErrorCode::invalidLayout, "Worker UV text length is inconsistent.");
+            return { layout, triangles, components, charts, gradients, texture, logical };
+        }
+    }
+    uint64_t inspectUvPayload(const uint8_t* bytes, size_t size, uint64_t expected, const UvPayloadLimits& limits)
+    {
+        return describeUv(bytes, size, expected, limits).logicalBytes;
+    }
     UvPayload decodeUvPayload(const uint8_t* bytes, size_t size, uint64_t expected, const UvPayloadLimits& limits)
     {
-        if (!bytes)
-            reject(UvPayloadErrorCode::invalidInput, "Worker UV input pointer is missing.");
-        if (size < uvPrefixBytes)
-            reject(UvPayloadErrorCode::truncated, "Worker UV prefix is incomplete.");
-        if (detail::readUnsigned(bytes, 2) != 1)
-            reject(UvPayloadErrorCode::unsupportedVersion, "Worker UV version is unsupported.");
-        if (detail::readUnsigned(bytes + 2, 2) != uvPrefixBytes)
-            reject(UvPayloadErrorCode::invalidLayout, "Worker UV prefix layout is invalid.");
-        zeros(bytes + 4, 4);
-        const auto triangles = detail::readUnsigned(bytes + 8, 8), components = detail::readUnsigned(bytes + 16, 8), charts = detail::readUnsigned(bytes + 24, 8), gradients = detail::readUnsigned(bytes + 32, 8), text = detail::readUnsigned(bytes + 40, 8);
-        const auto layout = plan(triangles, components, charts, gradients, text, expected, limits);
-        if (size < layout.bytes)
-            reject(UvPayloadErrorCode::truncated, "Worker UV payload is incomplete.");
-        if (size != layout.bytes)
-            reject(UvPayloadErrorCode::trailingData, "Worker UV payload has trailing bytes.");
-        const auto texture = readDouble(bytes + 48);
-        validateTexture(texture, charts);
-        for (uint64_t i = 0; i < triangles; ++i)
-            validateTriangle(readTriangle(bytes + uvPrefixBytes + i * uvTriangleBytes), components, charts);
-        uint64_t logical = layout.logicalBytes, allText = text;
-        for (uint64_t i = 0; i < charts; ++i) {
-            const auto chart = readChart(bytes + layout.charts + i * uvChartBytes);
-            validateChart(chart, components);
-            charge(allText, chart.imageID.size(), 1, limits.maximumTextBytes);
-            charge(logical, chart.imageID.size(), 1, limits.maximumDecodedBytes);
-        }
-        for (uint64_t i = 0; i < gradients; ++i)
-            validateGradient(readGradient(bytes + layout.gradients + i * uvGradientBytes), charts);
-        size_t offset = layout.keys;
-        uint64_t seenText = 0;
-        std::unordered_set<std::string_view> keys;
-        for (uint64_t i = 0; i < components; ++i) {
-            // Layout reserves four bytes per remaining key plus all unconsumed text.
-            const auto length = detail::readUnsigned(bytes + offset, 4);
-            offset += 4;
-            if (length > text - seenText)
-                reject(UvPayloadErrorCode::invalidLayout, "Worker UV key span exceeds declared text.");
-            checkKey(std::string_view(reinterpret_cast<const char*>(bytes + offset), static_cast<size_t>(length)), limits, keys);
-            seenText += length;
-            offset += static_cast<size_t>(length);
-        }
-        if (seenText != text)
-            reject(UvPayloadErrorCode::invalidLayout, "Worker UV text length is inconsistent.");
+        const auto parsed = describeUv(bytes, size, expected, limits);
+        const auto& layout = parsed.layout;
+        const auto triangles = parsed.triangles, components = parsed.components, charts = parsed.charts, gradients = parsed.gradients;
+        const auto texture = parsed.texture;
         UvPayload result;
         result.packedTextureSize = texture;
         result.triangles.reserve(static_cast<size_t>(triangles));
@@ -376,7 +400,7 @@ namespace worker {
             result.charts.push_back(readChart(bytes + layout.charts + i * uvChartBytes));
         for (uint64_t i = 0; i < gradients; ++i)
             result.gradients.push_back(readGradient(bytes + layout.gradients + i * uvGradientBytes));
-        offset = layout.keys;
+        size_t offset = layout.keys;
         for (uint64_t i = 0; i < components; ++i) {
             const auto length = static_cast<size_t>(detail::readUnsigned(bytes + offset, 4));
             offset += 4;

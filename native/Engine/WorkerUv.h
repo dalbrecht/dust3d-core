@@ -82,6 +82,23 @@ namespace worker {
     /// @throws UvPayloadError or allocation errors; no partial wire result is returned.
     /// Example: auto wire = encodeUvPayload(metadata, geometryTriangleCount, {});
     std::vector<uint8_t> encodeUvPayload(const UvPayload& payload, uint64_t expectedTriangles, const UvPayloadLimits& limits);
+    /// Validate supported positive policies without inspecting metadata or executing an engine.
+    /// @param limits Independent supported positive byte/count/text quotas.
+    /// @throws UvPayloadError with invalidLimits; no worker/document content is logged.
+    /// Example: validateUvPayloadLimits({});
+    void validateUvPayloadLimits(const UvPayloadLimits& limits);
+
+    /// Validate an exact metadata payload without constructing retained arrays/strings.
+    /// @param bytes Stable borrowed complete metadata storage for this call.
+    /// @param size Exact span; truncation/trailing bytes reject.
+    /// @param expectedTriangles Nonzero count from the independently validated geometry.
+    /// @param limits Supported wire/logical/count/text admission policy.
+    /// @return Logical decoded byte charge, including original keys and image identity text.
+    /// Bounded validation workspace is permitted; this is not process-memory containment.
+    /// @throws The same UvPayloadError causes as decodeUvPayload.
+    /// Example: auto charge = inspectUvPayload(bytes.data(), bytes.size(), triangleCount, {});
+    uint64_t inspectUvPayload(const uint8_t* bytes, size_t size, uint64_t expectedTriangles, const UvPayloadLimits& limits);
+
     /// Validate exact spans/fields/quotas before allocating retained output; return independent values.
     /// @param bytes Borrowed complete metadata bytes, valid only for this call.
     /// @param size Exact byte span; trailing bytes reject.

@@ -974,3 +974,11 @@ C ABI layout. Supply the geometry triangle count and explicit admission budgets.
 No new worker operation or pixel support is enabled by this codec; frame identity,
 source-aware operation/admission and renderer adoption remain separate gates. See
 ADR 0109 and core #162 for the schema, ordinary owner-copy evidence and limits.
+
+
+The development `WorkerUvMesh` codec returns a complete geometry/UV pair or an
+original typed rejection, with separate inner and aggregate output policies.
+Validation-only inspection prevents admitting geometry before later UV rejection.
+This is response framing preparation, not an enabled source-aware worker operation
+or proof that equal counts authenticate a source. ADR 0110/core #163 lists the
+remaining request, native producer, parent admission and renderer stages.

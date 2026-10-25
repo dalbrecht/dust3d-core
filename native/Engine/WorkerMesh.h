@@ -58,6 +58,19 @@ namespace worker {
     /// Validates quotas, finite/unit/range/area invariants and UTF-8 before output allocation.
     /// Throws MeshPayloadError or an ordinary allocation exception. No native object dump is used.
     std::vector<uint8_t> encodeMeshPayload(const MeshPayload& mesh, const MeshPayloadLimits& limits);
+    struct MeshPayloadInspection {
+        uint64_t vertexCount;
+        uint64_t logicalBytes;
+    };
+    /// Validate an exact complete payload without allocating returned vertex/text storage.
+    /// @param bytes Stable borrowed complete geometry bytes for the duration of this call.
+    /// @param size Exact span; truncation/trailing bytes reject.
+    /// @param limits Supported geometry/wire/logical/text admission policy.
+    /// @return Validated vertex count and logical decoded charge, excluding roots/capacity/RSS.
+    /// @throws The same MeshPayloadError causes as decodeMeshPayload.
+    /// Example: auto summary = inspectMeshPayload(bytes.data(), bytes.size(), {});
+    MeshPayloadInspection inspectMeshPayload(const uint8_t* bytes, size_t size, const MeshPayloadLimits& limits);
+
     /// Decode one exact complete payload, validating every triangle before returning owned storage.
     /// NULL/truncation/trailing data, invalid schema, quotas, text or geometry throw MeshPayloadError.
     /// Empty geometry is not success. This schema has no UV/material/rig/animation fields.

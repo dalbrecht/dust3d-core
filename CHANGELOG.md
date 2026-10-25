@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Atomically validate paired worker geometry/UV responses under aggregate output quotas before retained decoding (#163).
+
 - Add a bounded versioned worker UV metadata codec preserving binary64 corners, component association, charts and gradients (#162).
 
 - Preserve bounded partial worker reply/diagnostic bytes on collector errors while retaining the original exception (#123).

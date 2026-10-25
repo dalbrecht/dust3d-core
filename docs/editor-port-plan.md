@@ -816,3 +816,15 @@ ordinary CTest 114/114 and scoped value-only ASan/UBSan pass. No worker opcode,
 pixel transfer or Apple production adoption is enabled. Combined source-correlated
 geometry/UV admission, materials/pixels and renderer integration remain required;
 M4/M8 and full parity remain incomplete. All pins/quarantines are unchanged.
+
+
+### Atomic paired worker geometry/UV response (#163)
+
+ADR 0110 adds separate paired framing and aggregate wire/logical admission after
+validation-only inspection of both complete schemas. Later geometry/UV rejection
+returns no partial value; original typed causes and owned metadata survive. Fresh
+ordinary CTest 115/115 and scoped paired/UV-value ASan/UBSan pass. No worker opcode,
+native paired producer or Apple adoption is enabled; source-correlated operation,
+request options, parent dispatch and renderer integration remain required. Count
+matching is not source authentication. All pins/quarantines remain unchanged and
+M4/M8/full parity remain incomplete.

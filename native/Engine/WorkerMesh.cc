@@ -176,27 +176,54 @@ namespace worker {
         }
         return result;
     }
+    namespace {
+        struct ParsedMesh {
+            Layout layout;
+            uint64_t count, nodes, parts, warning;
+        };
+        ParsedMesh describeMesh(const uint8_t* bytes, size_t size, const MeshPayloadLimits& limits)
+        {
+            validateLimits(limits);
+            if (size < meshPrefixBytes)
+                reject(MeshPayloadErrorCode::truncated, "Worker mesh prefix is incomplete.");
+            if (!bytes)
+                reject(MeshPayloadErrorCode::invalidInput, "Worker mesh bytes are missing.");
+            if (detail::readUnsigned(bytes, 2) != 1)
+                reject(MeshPayloadErrorCode::unsupportedVersion, "Worker mesh schema version is unsupported.");
+            if (detail::readUnsigned(bytes + 2, 2) != meshPrefixBytes || detail::readUnsigned(bytes + 4, 4) || detail::readUnsigned(bytes + 32, 4) != meshVertexBytes)
+                reject(MeshPayloadErrorCode::invalidLayout, "Worker mesh prefix, flags or vertex layout is invalid.");
+            const auto count = detail::readUnsigned(bytes + 8, 8);
+            const auto nodes = detail::readUnsigned(bytes + 16, 8);
+            const auto parts = detail::readUnsigned(bytes + 24, 8);
+            const auto warning = detail::readUnsigned(bytes + 36, 4);
+            const auto layout = plan(count, nodes, parts, warning, limits);
+            if (size < layout.bytes)
+                reject(MeshPayloadErrorCode::truncated, "Worker mesh payload is incomplete.");
+            if (size != layout.bytes)
+                reject(MeshPayloadErrorCode::trailingData, "Worker mesh payload contains trailing bytes.");
+            validateText(bytes + meshPrefixBytes, static_cast<size_t>(warning));
+            size_t offset = layout.vertices;
+            for (uint64_t index = 0; index < count; index += 3) {
+                std::array<MeshVertex, 3> triangle;
+                for (auto& vertex : triangle) {
+                    vertex = readVertex(bytes + offset);
+                    offset += meshVertexBytes;
+                }
+                validateTriangle(triangle.data());
+            }
+            return { layout, count, nodes, parts, warning };
+        }
+    }
+    MeshPayloadInspection inspectMeshPayload(const uint8_t* bytes, size_t size, const MeshPayloadLimits& limits)
+    {
+        const auto parsed = describeMesh(bytes, size, limits);
+        return { parsed.count, parsed.count * sizeof(MeshVertex) + parsed.warning };
+    }
     MeshPayload decodeMeshPayload(const uint8_t* bytes, size_t size, const MeshPayloadLimits& limits)
     {
-        validateLimits(limits);
-        if (size < meshPrefixBytes)
-            reject(MeshPayloadErrorCode::truncated, "Worker mesh prefix is incomplete.");
-        if (!bytes)
-            reject(MeshPayloadErrorCode::invalidInput, "Worker mesh bytes are missing.");
-        if (detail::readUnsigned(bytes, 2) != 1)
-            reject(MeshPayloadErrorCode::unsupportedVersion, "Worker mesh schema version is unsupported.");
-        if (detail::readUnsigned(bytes + 2, 2) != meshPrefixBytes || detail::readUnsigned(bytes + 4, 4) || detail::readUnsigned(bytes + 32, 4) != meshVertexBytes)
-            reject(MeshPayloadErrorCode::invalidLayout, "Worker mesh prefix, flags or vertex layout is invalid.");
-        const auto count = detail::readUnsigned(bytes + 8, 8);
-        const auto nodes = detail::readUnsigned(bytes + 16, 8);
-        const auto parts = detail::readUnsigned(bytes + 24, 8);
-        const auto warning = detail::readUnsigned(bytes + 36, 4);
-        const auto layout = plan(count, nodes, parts, warning, limits);
-        if (size < layout.bytes)
-            reject(MeshPayloadErrorCode::truncated, "Worker mesh payload is incomplete.");
-        if (size != layout.bytes)
-            reject(MeshPayloadErrorCode::trailingData, "Worker mesh payload contains trailing bytes.");
-        validateText(bytes + meshPrefixBytes, static_cast<size_t>(warning));
+        const auto parsed = describeMesh(bytes, size, limits);
+        const auto& layout = parsed.layout;
+        const auto count = parsed.count, nodes = parsed.nodes, parts = parsed.parts, warning = parsed.warning;
         MeshPayload result;
         result.nodeCount = nodes;
         result.partCount = parts;
@@ -208,7 +235,6 @@ namespace worker {
                 vertex = readVertex(bytes + offset);
                 offset += meshVertexBytes;
             }
-            validateTriangle(triangle.data());
             result.vertices.insert(result.vertices.end(), triangle.begin(), triangle.end());
         }
         result.warning.assign(reinterpret_cast<const char*>(bytes + meshPrefixBytes), static_cast<size_t>(warning));
