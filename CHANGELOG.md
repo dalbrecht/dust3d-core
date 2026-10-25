@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Expose the bounded persistent-service coordinator through C with queue-authoritative source admission, borrowed framing and independently owned decoded values (#183).
+
 - Reuse the bounded request queue for persistent-service completion, with frozen connection generations, source retirement and cross-mode rejection (#182).
 
 - Verify healthy isolated XPC mesh/UV replies through the generation-bound C admission gate with actor-owned OS-peer observations and retained multi-reader completion (#181).

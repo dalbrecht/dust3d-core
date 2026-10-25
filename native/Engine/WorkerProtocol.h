@@ -68,6 +68,9 @@ namespace worker {
         std::vector<uint8_t> payload;
     };
 
+    /// Validate positive supported wire quotas; throws ProtocolError before ownership is created.
+    void validateWireLimits(const Limits& limits);
+
     /// Encode a version-one, big-endian 64-byte header after limit/identity validation.
     /// Throws ProtocolError on invalid fields or limits. No body allocation occurs.
     std::array<uint8_t, headerBytes> encodeHeader(const Header& header, const Limits& limits);

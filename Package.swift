@@ -32,10 +32,11 @@ let package = Package(
             sources: [
                 "Engine/WorkerJobIO.cc", "Engine/WorkerOperation.cc", "Engine/WorkerUvOperation.cc",
                 "Engine/WorkerProtocol.cc", "Engine/WorkerReplyCollector.cc", "Engine/WorkerMesh.cc",
-                "Engine/WorkerFailure.cc", "Engine/WorkerAdmission.cc",
+                "Engine/WorkerFailure.cc", "Engine/WorkerAdmission.cc", "Engine/WorkerQueue.cc",
                 "Engine/WorkerUv.cc", "Engine/WorkerUvMesh.cc", "Engine/WorkerUvRequest.cc",
                 "WorkerRuntime/WorkerRuntimeBridge.cc", "WorkerRuntime/WorkerReplyBridge.cc",
                 "WorkerRuntime/WorkerDecodedBridge.cc", "WorkerRuntime/WorkerRequestBridge.cc",
+                "WorkerRuntime/WorkerQueueBridge.cc",
             ],
             publicHeadersPath: "WorkerRuntime/include",
             cxxSettings: [.headerSearchPath("Engine")]

@@ -25,6 +25,7 @@ namespace worker {
     /// Submit, cancel, close and complete must run on the same serialized owner, away from blocking I/O.
     class RequestQueue {
     public:
+        /// Validate positive supported wire quotas before accepting work; throws ProtocolError.
         explicit RequestQueue(Limits limits = {});
         RequestQueue(const RequestQueue&) = delete;
         RequestQueue& operator=(const RequestQueue&) = delete;
@@ -43,6 +44,8 @@ namespace worker {
         void cancel(const RequestIdentity& identity) noexcept;
         /// Permanently reject new requests and retire publication; caller must still collect active I/O.
         void close() noexcept;
+        /// Boundary adapters can reject retired submissions before copying input.
+        bool isClosed() const noexcept { return m_isClosed; }
         /// Release matching work after transport cleanup (and child reaping where applicable); no publication.
         /// The caller must retain/report the original transport cause. Throws QueueError on mismatch.
         void abandon(const RequestIdentity& collected);
