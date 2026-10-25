@@ -993,3 +993,13 @@ This codec alone does not authenticate a source. The development opcode-2 helper
 now produces both values from one native UV owner and admits replies against the
 pending identity and observed outcome (ADR 0113/core #164). Production renderer
 adoption and containment remain separate gates.
+
+
+`WorkerJobIO` is private Unix infrastructure shared by CMake and SwiftPM helpers.
+`serveWorkerJob(inputFD, outputFD, context)` borrows separate channels for one
+bounded frame plus EOF and preserves actual request/operation diagnostics. Hosts
+must isolate stdio, establish signal/resource policy and own channel cleanup;
+blocking I/O is not a UI or hard-containment API. A future descriptor-based XPC
+host reuses this parser rather than decoding archive-sized Foundation messages.
+No Swift-facing worker ABI or production adoption follows yet. See ADR 0115 and
+#166 for current evidence and remaining transaction/stream/host requirements.

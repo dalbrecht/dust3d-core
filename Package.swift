@@ -18,7 +18,7 @@ let package = Package(
             dependencies: ["Dust3DEngine"],
             path: "native/Engine",
             sources: [
-                "WorkerMain.cc", "WorkerOperation.cc", "WorkerUvOperation.cc",
+                "WorkerMain.cc", "WorkerJobIO.cc", "WorkerOperation.cc", "WorkerUvOperation.cc",
                 "WorkerProtocol.cc", "WorkerMesh.cc", "WorkerFailure.cc",
                 "WorkerUv.cc", "WorkerUvMesh.cc", "WorkerUvRequest.cc",
                 "WorkerResources.cc", "WorkerResourceLaunch.cc", "WorkerResourceSetup.cc",

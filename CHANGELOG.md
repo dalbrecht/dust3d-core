@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Share descriptor-based single-job worker I/O between hosts while preserving channel ownership and reporting the actual validated operation (#166).
+
 - Build the development base/UV worker as an explicit SwiftPM executable product from the maintained engine and helper sources (#165).
 
 - Dispatch versioned UV worker jobs and admit paired replies against current-source identity and observed child completion (#164).
