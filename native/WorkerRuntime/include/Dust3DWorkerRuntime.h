@@ -258,6 +258,68 @@ const uint8_t* dust3d_worker_decoded_failure_cause(const Dust3DWorkerDecodedRepl
  * Example: read summary, copy vertices/text, then destroy decoded and framed owners.
  */
 void dust3d_worker_decoded_destroy(Dust3DWorkerDecodedReply* reply) DUST3D_WORKER_RUNTIME_NOEXCEPT;
+/** Parent-issued identity, copied by value; document and request must be nonzero. */
+typedef struct Dust3DWorkerRequestIdentity {
+    uint8_t document[16];
+    uint64_t request, revision;
+} Dust3DWorkerRequestIdentity;
+/** Resolved image dimensions only, never image pixels. Independent borrowed text. */
+typedef struct Dust3DWorkerRequestImage {
+    const char* identity;
+    size_t identity_size;
+    uint32_t width, height;
+} Dust3DWorkerRequestImage;
+/** Zero texture/budget retain native defaults. Images require nonzero UUIDs,
+ * original spelling preserved, dimensions1..8192 and no semantic duplicate aliases.
+ */
+typedef struct Dust3DWorkerRequestUvOptions {
+    uint32_t texture_size;
+    uint64_t metadata_budget;
+    const Dust3DWorkerRequestImage* images;
+    size_t image_count;
+} Dust3DWorkerRequestUvOptions;
+typedef enum Dust3DWorkerRequestStatus {
+    DUST3D_WORKER_REQUEST_OK = 0,
+    DUST3D_WORKER_REQUEST_PROTOCOL_REJECTED = 1,
+    DUST3D_WORKER_REQUEST_UV_REJECTED = 2,
+    DUST3D_WORKER_REQUEST_LIMIT_EXCEEDED = 3,
+    DUST3D_WORKER_REQUEST_INTERNAL_FAILED = 4
+} Dust3DWorkerRequestStatus;
+/** Self-owned original category/code/diagnostic; same bounded-byte rules as job results. */
+typedef struct Dust3DWorkerRequestResult {
+    Dust3DWorkerRequestStatus status;
+    Dust3DWorkerDetailSource detail_source;
+    int32_t detail_code;
+    uint8_t message_truncated;
+    char message[512];
+} Dust3DWorkerRequestResult;
+typedef struct Dust3DWorkerRequest Dust3DWorkerRequest;
+/** Encode one independent complete request through shared codecs; no native generation.
+ * @param operation Base or UV mesh, no unknown enum values.
+ * @param identity Parent-issued copied correlation values.
+ * @param archive Stable readable independent opaque archive, non-NULL/nonempty.
+ * @param archive_size Exact readable byte count, bounded before retained body copy.
+ * @param uv NULL for base mesh. UV accepts NULL/defaults or stable options/image spans.
+ * @param limits Positive supported wire quotas; logical sizes, not allocator/RSS caps.
+ * @param result Required writable receipt; NULL returns NULL without allocation.
+ * @return Immutable owner or NULL with original caught cause. No archive parsing,
+ * signing, transport, process/transaction/publication admission or logging occurs.
+ * Caller retains input spans through the call and destroys output exactly once.
+ */
+Dust3DWorkerRequest* dust3d_worker_request_create(Dust3DWorkerOperation operation,
+    Dust3DWorkerRequestIdentity identity, const uint8_t* archive, size_t archive_size,
+    const Dust3DWorkerRequestUvOptions* uv, Dust3DWorkerWireLimits limits,
+    Dust3DWorkerRequestResult* result) DUST3D_WORKER_RUNTIME_NOEXCEPT;
+/** Borrow full frame or exact expected request header until owner destruction.
+ * Required size is zeroed on NULL owner; NULL size returns NULL. Swift copies
+ * both spans before destruction. No descriptor I/O or allocation occurs.
+ * Example: copy request_bytes for writing, request_header for parent collection,
+ * then destroy the request owner. Input archive/options can already be released.
+ */
+const uint8_t* dust3d_worker_request_bytes(const Dust3DWorkerRequest* request, size_t* size) DUST3D_WORKER_RUNTIME_NOEXCEPT;
+const uint8_t* dust3d_worker_request_header(const Dust3DWorkerRequest* request, size_t* size) DUST3D_WORKER_RUNTIME_NOEXCEPT;
+/** Destroy exactly one owner; NULL is harmless. */
+void dust3d_worker_request_destroy(Dust3DWorkerRequest* request) DUST3D_WORKER_RUNTIME_NOEXCEPT;
 #ifdef __cplusplus
 }
 #endif

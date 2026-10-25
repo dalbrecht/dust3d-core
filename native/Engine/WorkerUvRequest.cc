@@ -110,12 +110,14 @@ namespace worker {
     {
     }
     namespace {
-        uint64_t requestWireSize(const UvRequest& request, const UvRequestLimits& limits)
+        uint64_t requestWireSize(const UvRequestView& request, const UvRequestLimits& limits)
         {
             policy(limits);
-            options(request.textureSize, request.metadataBudget, request.archive.size());
+            if (request.archiveSize && !request.archive)
+                reject(UvRequestErrorCode::invalidInput, "Worker UV archive span is null.");
+            options(request.textureSize, request.metadataBudget, request.archiveSize);
             uint64_t wire, decoded;
-            counts(request.archive.size(), request.images.size(), limits, wire, decoded);
+            counts(request.archiveSize, request.images.size(), limits, wire, decoded);
             std::set<std::array<uint8_t, 16>> identities;
             for (const auto& entry : request.images) {
                 image(entry.identity, entry.width, entry.height, identities);
@@ -126,9 +128,13 @@ namespace worker {
     }
     void validateUvRequest(const UvRequest& request, const UvRequestLimits& limits)
     {
-        (void)requestWireSize(request, limits);
+        (void)requestWireSize({ request.archive.data(), request.archive.size(), request.images, request.textureSize, request.metadataBudget }, limits);
     }
     std::vector<uint8_t> encodeUvRequest(const UvRequest& request, const UvRequestLimits& limits)
+    {
+        return encodeUvRequestView({ request.archive.data(), request.archive.size(), request.images, request.textureSize, request.metadataBudget }, limits);
+    }
+    std::vector<uint8_t> encodeUvRequestView(const UvRequestView& request, const UvRequestLimits& limits)
     {
         const auto wire = requestWireSize(request, limits);
         std::vector<uint8_t> result(static_cast<size_t>(wire), 0);
@@ -137,7 +143,7 @@ namespace worker {
         write(result.data() + 8, 4, request.textureSize);
         write(result.data() + 12, 4, request.images.size());
         write(result.data() + 16, 8, request.metadataBudget);
-        write(result.data() + 24, 8, request.archive.size());
+        write(result.data() + 24, 8, request.archiveSize);
         size_t offset = uvRequestPrefixBytes;
         for (const auto& entry : request.images) {
             auto* record = result.data() + offset;
@@ -147,7 +153,7 @@ namespace worker {
             write(record + 44, 4, entry.height);
             offset += uvRequestImageBytes;
         }
-        std::copy(request.archive.begin(), request.archive.end(), result.begin() + offset);
+        std::copy(request.archive, request.archive + request.archiveSize, result.begin() + offset);
         return result;
     }
     UvRequest decodeUvRequest(const uint8_t* bytes, size_t size, const UvRequestLimits& limits)

@@ -49,9 +49,12 @@ def write_bundle(bundle, binary, identifier, package_type):
 
 
 def main():
-    if len(sys.argv) != 5 or sys.platform != 'darwin':
+    if len(sys.argv) not in (5, 6) or sys.platform != 'darwin':
         raise RuntimeError('Expected fresh host/service executables, licensed Capsule and shared root on macOS')
-    host_binary, service_binary, fixture, shared = map(lambda value: Path(value).resolve(), sys.argv[1:])
+    host_binary, service_binary, fixture, shared = map(lambda value: Path(value).resolve(), sys.argv[1:5])
+    mode = sys.argv[5] if len(sys.argv) == 6 else 'mesh'
+    if mode not in ('mesh', 'uv'):
+        raise RuntimeError('Expected base or UV fixture mode')
     if not all(path.is_file() for path in (host_binary, service_binary, fixture)):
         raise RuntimeError('Fresh fixture inputs are missing')
     directory = Path(tempfile.mkdtemp(prefix='worker-xpc-static-', dir=shared))
@@ -70,7 +73,7 @@ def main():
         descriptor = os.open(config, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
         with os.fdopen(descriptor, 'w', encoding='ascii') as output:
             json.dump({'host': code_hash(app), 'service': code_hash(service)}, output)
-        process = subprocess.Popen([str(host), str(fixture), str(directory)], stdout=subprocess.PIPE,
+        process = subprocess.Popen([str(host), str(fixture), str(directory), mode], stdout=subprocess.PIPE,
                                    stderr=subprocess.PIPE, text=True)
         deadline = time.monotonic() + 35
         while process.poll() is None and time.monotonic() < deadline:
@@ -81,7 +84,9 @@ def main():
         print(output, end='')
         if process.returncode:
             raise RuntimeError(f'Fixture host exited {process.returncode}: {errors}')
-        match = re.search(r'Isolated XPC ordinary mesh passed: 240 vertices; servicePID=(\d+); hostPID=(\d+)', output)
+        prefix = ('Isolated XPC ordinary UV mesh passed: 240 vertices; 80 UV triangles; '
+                  if mode == 'uv' else 'Isolated XPC ordinary mesh passed: 240 vertices; ')
+        match = re.search(re.escape(prefix) + r'servicePID=(\d+); hostPID=(\d+)', output)
         if not match or int(match.group(2)) != process.pid or int(match.group(1)) == process.pid:
             raise RuntimeError('Missing independent service process and ordinary mesh evidence')
         peer = int(match.group(1))

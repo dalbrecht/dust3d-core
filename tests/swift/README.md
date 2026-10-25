@@ -19,3 +19,8 @@ preserve protected QA apps, and run the source quarantine audit before native
 execution. See [ADR0120](../../docs/adr/0120-isolated-xpc-static-host-verification.md)
 for evidence and limits. Live pipes, cancellation, production trust/sandbox and
 publication admission remain unverified; all existing quarantines remain.
+
+The companion `worker_xpc_uv_mesh` case uses the same shared C request encoder
+and isolated service to verify 240 vertices/80 UV triangles. Both XPC cases share a
+CTest resource lock while recycling their development bundle IDs. They still use
+regular files and establish no live-pipe, sandbox or publication acceptance.

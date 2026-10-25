@@ -41,6 +41,21 @@ namespace worker {
     private:
         UvRequestErrorCode m_code;
     };
+    /// Stable borrowed archive/options view. Caller retains every span through encoding.
+    struct UvRequestView {
+        const uint8_t* archive;
+        size_t archiveSize;
+        const std::vector<UvRequestImage>& images;
+        uint32_t textureSize = 0;
+        uint64_t metadataBudget = 0;
+    };
+    /// Validate a stable borrowed archive/options view before allocating encoded output.
+    /// @param request Independent readable archive span and stable image values.
+    /// @param limits Supported wire/logical/count policy; validation workspace is bounded.
+    /// @return Owned explicit v1 bytes, without constructing an intermediate archive copy.
+    /// @throws Original UvRequestError or allocation errors; no native archive parsing.
+    /// Example: auto bytes = encodeUvRequestView({data, size, images, 64, 0}, {});
+    std::vector<uint8_t> encodeUvRequestView(const UvRequestView& request, const UvRequestLimits& limits);
     /// Validate stable borrowed request values without constructing retained archive/image copies.
     /// @param request Options/archive storage borrowed for this call; no native parsing occurs.
     /// @param limits Supported positive request quotas; bounded identity-set workspace is used.

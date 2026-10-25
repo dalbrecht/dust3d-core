@@ -50,3 +50,13 @@ Codec/protocol failures retain original diagnostic category/code/cause and remai
 retired. Do not use semantic success as process, authenticated transaction or
 publication admission. See [ADR 0119](../../docs/adr/0119-semantic-worker-reply-c-boundary.md)
 and the public header for range, lifetime, quota and NULL contracts.
+
+## Request encoding
+
+Use `dust3d_worker_request_create` for a copied parent identity, nonempty borrowed
+archive and base/UV options. The shared codecs validate quotas and UV/image values
+before retained body encoding. No native archive is parsed. Copy the full frame
+for transport and exact expected header for parent collection before destroying
+the request owner. The input archive/options may be released after creation.
+Original typed failures remain in the self-owned result. See
+[ADR0121](../../docs/adr/0121-c-worker-request-encoding.md) and the public header.
