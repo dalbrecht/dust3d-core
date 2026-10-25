@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Verify an ordinary static mesh job in a separately running development XPC service with peer hash requirements and bounded C reply decoding (#171).
+
 - Decode framed worker base/UV/failure replies into independent C semantic owners with bounded value copies and preserved native cause bytes (#170).
 
 - Expose an opaque bounded parent reply C owner with explicit EOF, copied diagnostics and borrowed completed-frame bytes for Swift hosts (#169).
