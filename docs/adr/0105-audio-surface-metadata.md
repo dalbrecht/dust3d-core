@@ -70,3 +70,6 @@ This stage remains local until its parents merge with completed clean exact-head
 automated review and all CI green. Production pin and all quarantines stay
 unchanged. Editor catalog adoption, runtime sampling/playback/audio and full M6
 acceptance remain open; metadata transport is not full feature parity.
+
+
+Core #159 merged at `2f3b7168` after completed clean exact-head automated review and all six CI checks green. Full-tree equality across ancestry-only rebase and matching gated source hashes preserve the tested implementation. No native binary executes after rebase; only this delivery note changes afterward.
