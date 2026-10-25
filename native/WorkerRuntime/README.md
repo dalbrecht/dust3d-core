@@ -122,3 +122,14 @@ typed errors and never returns partial geometry after source rejection. This is
 not an active operation, C ABI output or default editor backend. Indexed/material/
 mip parity and authenticated publication remain required. See
 [ADR 0135](../../docs/adr/0135-atomic-worker-source-geometry.md) and #215.
+
+`WorkerSourceOperation` now generates a complete pair through the existing
+serialized source C API. It retains one native owner until geometry, original
+identity strings, corners and unnormalized influences have been copied. Source
+preflight bounds both retained records/text and wire size; its charge reduces
+the geometry allowance before either output copy. Complete codec validation
+precedes return. Temporary encoding and native generation workspace are outside
+these logical quotas. Known-positive fixture and bounded copy-policy tests do
+not prove failed-engine containment. No source opcode, C output getter or default
+editor backend is activated. See
+[ADR 0136](../../docs/adr/0136-native-worker-source-generation.md) and #217.

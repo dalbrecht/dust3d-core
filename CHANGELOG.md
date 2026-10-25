@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Copy source-associated native geometry into independently owned worker values with preflight copy quotas; runtime opcode/editor activation remain separate (#217).
+
 - Pair owned worker geometry/source values with shared inspection, matching source counts and aggregate admission before decoded output; operation and C ABI activation remain separate (#215).
 
 - Add a bounded owned worker source-hint value codec preserving exact identity aliases, corner associations and unnormalized weights; operation/C ABI adoption remains separate (#213).
