@@ -941,3 +941,12 @@ ADR0104 exposes common timing metadata and checked scalar edits through C, with 
 
 
 ADR0105 extracts the eight reference audio surface names/conversions into generator-free metadata, shares reference UI order and exposes owned C names verified by Swift 6 copies/actor transfer. All 109 ordinary CTest contracts, scoped ASan/UBSan and SwiftPM build pass. Unknown stored names remain raw document data. Audio synthesis/playback, production SDK/UI adoption and full M6 acceptance remain open; pin and quarantines are unchanged.
+
+
+## Spring-step admission mitigation
+
+`animation::admitDampedSpringStep` checks a positive finite semi-implicit Euler
+spring interval without simulating motion. Reference spider walk/run callers reject
+unstable steps before pose-state allocation. This is a limited precondition, not
+proof of whole-clip safety or resolution of core #95. Sampling stays quarantined;
+see [ADR 0106](docs/adr/0106-spring-step-admission.md) for evidence and limits.

@@ -35,7 +35,7 @@ let package = Package(
             path: "dust3d",
             sources: [
                 "base", "mesh", "rig", "uv", "animation/animation_catalog.cc", "animation/animation_defaults.cc",
-                "animation/parameter_catalog.cc", "animation/surface_material.cc",
+                "animation/parameter_catalog.cc", "animation/surface_material.cc", "animation/spring_step_admission.cc",
                 "animation/biped/clip_metadata.cc",
             ],
             publicHeadersPath: "include",
