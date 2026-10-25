@@ -115,10 +115,23 @@ endif()
 
 include(CTest)
 if(BUILD_TESTING)
+    add_executable(dust3d_animation_audio_metadata_tests
+        tests/core/animation_audio_metadata_tests.cc
+        native/Engine/EngineSupport.cc
+        native/Engine/AnimationCatalogBridge.cc
+        dust3d/animation/surface_material.cc
+        dust3d/animation/parameter_catalog.cc
+        dust3d/animation/animation_defaults.cc
+        dust3d/animation/animation_catalog.cc
+        dust3d/animation/biped/clip_metadata.cc)
+    target_include_directories(dust3d_animation_audio_metadata_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} native/Engine/include)
+    add_test(NAME animation_audio_metadata_contracts COMMAND dust3d_animation_audio_metadata_tests)
+    set_tests_properties(animation_audio_metadata_contracts PROPERTIES TIMEOUT 10)
     add_executable(dust3d_animation_timing_api_tests
         tests/core/animation_timing_api_tests.cc
         native/Engine/EngineSupport.cc
         native/Engine/AnimationCatalogBridge.cc
+        dust3d/animation/surface_material.cc
         dust3d/animation/parameter_catalog.cc
         dust3d/animation/animation_defaults.cc
         dust3d/animation/animation_catalog.cc
@@ -130,6 +143,7 @@ if(BUILD_TESTING)
         tests/core/animation_control_api_tests.cc
         native/Engine/EngineSupport.cc
         native/Engine/AnimationCatalogBridge.cc
+        dust3d/animation/surface_material.cc
         dust3d/animation/parameter_catalog.cc
         dust3d/animation/animation_defaults.cc
         dust3d/animation/animation_catalog.cc
@@ -172,6 +186,7 @@ if(BUILD_TESTING)
         tests/core/animation_catalog_api_tests.cc
         native/Engine/EngineSupport.cc
         native/Engine/AnimationCatalogBridge.cc
+        dust3d/animation/surface_material.cc
         dust3d/animation/parameter_catalog.cc
         dust3d/animation/animation_defaults.cc
         dust3d/animation/animation_catalog.cc

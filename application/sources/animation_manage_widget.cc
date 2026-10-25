@@ -133,14 +133,8 @@ void AnimationManageWidget::createParameterWidgets()
 
     m_surfaceMaterialCombo = new QComboBox;
     m_surfaceMaterialCombo->setSizeAdjustPolicy(QComboBox::AdjustToContents);
-    m_surfaceMaterialCombo->addItem("Stone");
-    m_surfaceMaterialCombo->addItem("Wood");
-    m_surfaceMaterialCombo->addItem("Sand");
-    m_surfaceMaterialCombo->addItem("Metal");
-    m_surfaceMaterialCombo->addItem("Grass");
-    m_surfaceMaterialCombo->addItem("Water");
-    m_surfaceMaterialCombo->addItem("Dirt");
-    m_surfaceMaterialCombo->addItem("Snow");
+    for (const auto material : dust3d::surfaceMaterials())
+        m_surfaceMaterialCombo->addItem(QString::fromStdString(dust3d::surfaceMaterialName(material)));
     m_surfaceMaterialCombo->setToolTip(tr("Surface material for sound generation"));
     soundOptionLayout->addWidget(m_surfaceMaterialCombo);
 

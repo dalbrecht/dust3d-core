@@ -23,22 +23,12 @@
 #ifndef DUST3D_ANIMATION_SOUND_GENERATOR_H_
 #define DUST3D_ANIMATION_SOUND_GENERATOR_H_
 
+#include <dust3d/animation/surface_material.h>
 #include <cstdint>
 #include <string>
 #include <vector>
 
 namespace dust3d {
-
-enum class SurfaceMaterial {
-    Stone,
-    Wood,
-    Sand,
-    Metal,
-    Grass,
-    Water,
-    Dirt,
-    Snow
-};
 
 struct SoundEvent {
     float timeSeconds = 0.0f;
@@ -112,8 +102,6 @@ struct SurfaceSynthParams {
 
 SurfaceSynthParams getSurfaceSynthParams(SurfaceMaterial material);
 
-std::string surfaceMaterialName(SurfaceMaterial material);
-SurfaceMaterial surfaceMaterialFromName(const std::string& name);
 
 struct AnimationSoundData {
     std::vector<int16_t> pcmSamples; // mono 16-bit signed

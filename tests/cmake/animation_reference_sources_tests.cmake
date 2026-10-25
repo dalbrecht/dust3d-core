@@ -4,7 +4,7 @@ if(NOT DEFINED SOURCE_ROOT)
 endif()
 file(READ "${SOURCE_ROOT}/application/application.pro" reference_manifest)
 # These definitions are called by existing reference catalog/generator translation units.
-foreach(source IN ITEMS biped/clip_metadata.cc animation_defaults.cc parameter_catalog.cc)
+foreach(source IN ITEMS biped/clip_metadata.cc animation_defaults.cc parameter_catalog.cc surface_material.cc)
     set(registration "SOURCES += ../dust3d/animation/${source}")
     string(FIND "${reference_manifest}" "${registration}" position)
     if(position EQUAL -1)

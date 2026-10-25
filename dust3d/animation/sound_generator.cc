@@ -307,48 +307,6 @@ SurfaceSynthParams getSurfaceSynthParams(SurfaceMaterial material)
     return p;
 }
 
-std::string surfaceMaterialName(SurfaceMaterial material)
-{
-    switch (material) {
-    case SurfaceMaterial::Stone:
-        return "Stone";
-    case SurfaceMaterial::Wood:
-        return "Wood";
-    case SurfaceMaterial::Sand:
-        return "Sand";
-    case SurfaceMaterial::Metal:
-        return "Metal";
-    case SurfaceMaterial::Grass:
-        return "Grass";
-    case SurfaceMaterial::Water:
-        return "Water";
-    case SurfaceMaterial::Dirt:
-        return "Dirt";
-    case SurfaceMaterial::Snow:
-        return "Snow";
-    }
-    return "Stone";
-}
-
-SurfaceMaterial surfaceMaterialFromName(const std::string& name)
-{
-    if (name == "Wood")
-        return SurfaceMaterial::Wood;
-    if (name == "Sand")
-        return SurfaceMaterial::Sand;
-    if (name == "Metal")
-        return SurfaceMaterial::Metal;
-    if (name == "Grass")
-        return SurfaceMaterial::Grass;
-    if (name == "Water")
-        return SurfaceMaterial::Water;
-    if (name == "Dirt")
-        return SurfaceMaterial::Dirt;
-    if (name == "Snow")
-        return SurfaceMaterial::Snow;
-    return SurfaceMaterial::Stone;
-}
-
 // Simple xorshift32 PRNG for deterministic noise
 static uint32_t xorshift32(uint32_t& state)
 {

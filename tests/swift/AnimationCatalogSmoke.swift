@@ -44,6 +44,7 @@ private struct CopiedTimingLimits: Sendable, Equatable {
 private struct CopiedCatalog: Sendable, Equatable {
     let clips: [CopiedClip]
     let rigs: [CopiedRig]
+    let surfaceMaterials: [String]
     let timing: CopiedTimingLimits
 }
 
@@ -136,8 +137,12 @@ private func copyCatalog() throws -> CopiedCatalog {
         timing.duration_seconds == 1.125, timing.frame_count == 2,
         error.status == DUST3D_STATUS_OK
     else { throw CatalogSmokeError.invalidMetadata("Common timing transport changed") }
+    var surfaces: [String] = []
+    for index in 0..<dust3d_animation_catalog_surface_material_count(owner) {
+        surfaces.append(try copiedString(dust3d_animation_catalog_surface_material_name(owner, index)))
+    }
     return CopiedCatalog(
-        clips: clips, rigs: rigs,
+        clips: clips, rigs: rigs, surfaceMaterials: surfaces,
         timing: CopiedTimingLimits(
             minimumSeconds: limits.minimum_duration_seconds, maximumSeconds: limits.maximum_duration_seconds,
             decimals: Int(limits.duration_decimal_places), secondsStep: limits.duration_step_seconds,
@@ -174,11 +179,13 @@ private enum AnimationCatalogSmoke {
                     minimumSeconds: 0.01, maximumSeconds: 59.99, decimals: 2, secondsStep: 0.1,
                     minimumFrames: 1, maximumFrames: 4999, framesStep: 5)
         else { throw CatalogSmokeError.invalidMetadata("Copied timing limits changed") }
+        guard first.surfaceMaterials == ["Stone", "Wood", "Sand", "Metal", "Grass", "Water", "Dirt", "Snow"]
+        else { throw CatalogSmokeError.invalidMetadata("Copied surface material order changed") }
         let receiver = CatalogReceiver()
         await receiver.receive(first)
         guard await receiver.snapshot() == second else {
             throw CatalogSmokeError.invalidMetadata("Catalog copy changed across actors")
         }
-        print("Swift 6 animation catalog/control/timing importer and owned Sendable copies passed")
+        print("Swift 6 animation catalog/control/timing/audio metadata importer and owned Sendable copies passed")
     }
 }

@@ -986,6 +986,12 @@ typedef struct Dust3DAnimationControlInfo {
  * Example: load(&error), clip_at(owner, 0, &info), copy fields, destroy(owner).
  */
 Dust3DAnimationCatalog* dust3d_animation_catalog_load(Dust3DError* error);
+/** Fixed reference surface-name count; zero for NULL. Metadata only, no sound synthesis. */
+size_t dust3d_animation_catalog_surface_material_count(const Dust3DAnimationCatalog* catalog);
+/** Borrow exact stored surface name in reference UI order until catalog destruction.
+ * NULL owner/out-of-range returns NULL. Copy before release. Does not normalize unknown document names.
+ */
+const char* dust3d_animation_catalog_surface_material_name(const Dust3DAnimationCatalog* catalog, size_t index);
 /** Release all owned catalog storage; NULL is harmless. */
 void dust3d_animation_catalog_destroy(Dust3DAnimationCatalog* catalog);
 /** Number of lexicographically ordered type records, including legacy aliases; zero for NULL. */
