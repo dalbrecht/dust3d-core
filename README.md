@@ -966,3 +966,11 @@ caller-owned storage alive until return/throw. Its optional outcome is a collect
 observation; cleanup has its separate report. Partial bytes are diagnostics only
 and must never be published as an admitted completion. See ADR 0108 for ownership
 and the deliberately unforced OS error paths.
+
+
+The development `WorkerUv` codec preserves owned triangle UVs, original component
+keys/associations, chart/image metadata and gradient descriptors independently of
+C ABI layout. Supply the geometry triangle count and explicit admission budgets.
+No new worker operation or pixel support is enabled by this codec; frame identity,
+source-aware operation/admission and renderer adoption remain separate gates. See
+ADR 0109 and core #162 for the schema, ordinary owner-copy evidence and limits.

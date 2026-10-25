@@ -804,3 +804,15 @@ valid completion. Value-only ownership/unwinding tests and ordinary existing
 transport checks pass; fresh CTest 112/112 and scoped capture ASan/UBSan pass.
 Actual OS failure/termination paths and strong containment remain unforced/open.
 No production pin/quarantine change or Apple adoption; M8 remains incomplete.
+
+
+### Bounded worker UV metadata (#162)
+
+ADR 0109 defines a standalone binary64 UV metadata codec preserving component
+association independently of mapping validity, exact original keys, charts/image
+identities and gradients under separate wire/logical/text/count policies. Small
+value-only wire/rejection tests and a copied licensed Capsule owner pass; fresh
+ordinary CTest 114/114 and scoped value-only ASan/UBSan pass. No worker opcode,
+pixel transfer or Apple production adoption is enabled. Combined source-correlated
+geometry/UV admission, materials/pixels and renderer integration remain required;
+M4/M8 and full parity remain incomplete. All pins/quarantines are unchanged.
