@@ -110,3 +110,17 @@ system deprecation and duplicate resource-library warnings remain. No new native
 invalid-input, failed-peer, cancellation, signal, crash, allocation-failure or
 pressure pilot is introduced. Production pin, authenticated/current-source
 completion, release/containment gates and all quarantines remain unchanged.
+
+
+## Linux CI portability correction
+
+The first public head's Linux ordinary build failed while compiling the pure
+semantic quota fixture: `uint64_t` is unsigned long on that runner, whereas the
+upper-bound expression has unsigned long long type. A braced initializer list
+cannot deduce a single element type from those values. Replace its deduced
+container with `std::array<uint64_t, 2>` and explicitly include `<array>`. This
+changes fixture typing only; runtime code and tested values remain unchanged.
+The failing Linux compiler output is retained as regression evidence. Rebuilt
+local targets, fresh pure sanitizer, seventeen preflight contracts and the full
+130-contract suite pass again; new-head Linux CI remains the portability gate.
+All future saved-stage replays must preserve this correction along with #190/#191.

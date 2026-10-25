@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 #include <Dust3DWorkerRuntime.h>
 #include <algorithm>
+#include <array>
 #include <cstring>
 #include <iostream>
 #include <memory>
@@ -151,7 +152,7 @@ void policyAndMalformed()
     auto pair = encodeUvMeshPayload(source, {});
     auto framed = frame(mesh, Operation::generateMesh, FrameKind::response, false);
     rejected(framed, 1048576, DUST3D_WORKER_DECODE_PROTOCOL_REJECTED, DUST3D_WORKER_DETAIL_FRAME, static_cast<int>(ProtocolErrorCode::invalidInput));
-    for (uint64_t budget : { uint64_t(0), 128ULL * 1024 * 1024 + 1 }) {
+    for (uint64_t budget : std::array<uint64_t, 2> { 0, 128ULL * 1024 * 1024 + 1 }) {
         framed = frame(mesh);
         rejected(framed, budget, DUST3D_WORKER_DECODE_PROTOCOL_REJECTED, DUST3D_WORKER_DETAIL_FRAME, static_cast<int>(ProtocolErrorCode::invalidLimits));
     }
