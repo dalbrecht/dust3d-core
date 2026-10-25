@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add single-use persistent-service reply admission with current-source, peer, receipt, EOF and semantic correlation; child-process exit admission remains separate (#179).
+
 - Route development queued cancellation by owning connection and nonreused caller request identity (#178).
 
 - Add connection-owned withdrawal of queued development worker jobs before native entry, with recorded cancellation/retirement ordering (#177).
