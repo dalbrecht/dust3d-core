@@ -27,8 +27,47 @@ private func copyReceipt(_ value: Dust3DWorkerJobResult) -> CopiedReceipt {
 }
 private actor ReceiptReceiver {
     private var stored: CopiedReceipt?
+    private var frame: Data?
+    func storeFrame(_ value: Data) { frame = value }
+    func frameSnapshot() -> Data? { frame }
     func store(_ receipt: CopiedReceipt) { stored = receipt }
     func snapshot() -> CopiedReceipt? { stored }
+}
+private func collectReply(expected: [UInt8], frame: [UInt8]) throws -> Data {
+    var receipt = Dust3DWorkerReplyResult()
+    let limits = Dust3DWorkerWireLimits(
+        maximum_input_bytes: 1_048_576, maximum_output_bytes: 1_048_576, maximum_failure_bytes: 4096)
+    let created = expected.withUnsafeBufferPointer {
+        dust3d_worker_reply_create($0.baseAddress, $0.count, limits, &receipt)
+    }
+    guard let owner = created, receipt.status == DUST3D_WORKER_REPLY_READY else {
+        throw RuntimeSmokeError.invalid("Expected-header copy failed")
+    }
+    defer { dust3d_worker_reply_destroy(owner) }
+    var offset = 0
+    while offset < frame.count {
+        var count = 0
+        let sizing = dust3d_worker_reply_next_read(owner, 97, &count)
+        guard sizing.status == DUST3D_WORKER_REPLY_READY, count > 0, count <= 97 else {
+            throw RuntimeSmokeError.invalid("Bounded next-read policy lost")
+        }
+        let remaining = min(count, frame.count - offset)
+        let appended = frame.withUnsafeBufferPointer {
+            dust3d_worker_reply_append(owner, $0.baseAddress?.advanced(by: offset), remaining)
+        }
+        guard appended.status == DUST3D_WORKER_REPLY_READY else {
+            throw RuntimeSmokeError.invalid("Correlated reply collection failed")
+        }
+        offset += remaining
+    }
+    var count = 123
+    guard dust3d_worker_reply_bytes(owner, &count) == nil, count == 0 else {
+        throw RuntimeSmokeError.invalid("View exposed before actual EOF")
+    }
+    guard dust3d_worker_reply_finish(owner).status == DUST3D_WORKER_REPLY_FRAMED,
+        let bytes = dust3d_worker_reply_bytes(owner, &count), count == frame.count
+    else { throw RuntimeSmokeError.invalid("Complete frame unavailable after EOF") }
+    return Data(bytes: bytes, count: count)
 }
 @main
 private enum WorkerRuntimeSmoke {
@@ -88,8 +127,16 @@ private enum WorkerRuntimeSmoke {
         guard reply[17] == 2, reply[19] == 1, reply[31] == 42, vertexCount == 240 else {
             throw RuntimeSmokeError.invalid("Independent response fixture lost base mesh or identity")
         }
+        let copiedFrame = try await Task.detached { try collectReply(expected: header, frame: reply) }.value
+        guard copiedFrame == Data(reply) else {
+            throw RuntimeSmokeError.invalid("Copied frame changed after owner destruction")
+        }
         let receiver = ReceiptReceiver()
         await receiver.store(receipt)
+        await receiver.storeFrame(copiedFrame)
+        guard await receiver.frameSnapshot() == Data(reply) else {
+            throw RuntimeSmokeError.invalid("Owned framed bytes changed across actor transfer")
+        }
         guard await receiver.snapshot() == receipt else {
             throw RuntimeSmokeError.invalid("Owned result changed across actors")
         }

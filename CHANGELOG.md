@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Expose an opaque bounded parent reply C owner with explicit EOF, copied diagnostics and borrowed completed-frame bytes for Swift hosts (#169).
+
 - Share bounded incremental worker reply framing across parent transports, validating correlation and quotas before retaining body bytes (#168).
 
 - Expose a self-owned, caught-exception descriptor worker C interface and separate SwiftPM runtime product, retaining original diagnostics and channel ownership (#167).
