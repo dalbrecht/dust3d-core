@@ -1040,3 +1040,14 @@ publishes app state; real XPC/Apple adoption remains pending. See
 [ADR0129](adr/0129-service-admission-c-boundary.md) and #180.
 
 All139 ordinary contracts pass22.70s; worker runtime15sources and helper build. Full editor/M8 acceptance remains open.
+
+### Real healthy XPC service admission (#181)
+
+The development XPC host now uses service-specific C admission for healthy base/UV
+file/socket replies, with collectors created before submission, actual EOF and an
+actor-owned OS peer snapshot. A retained multi-reader completion event joins the
+reader and parent without moving opaque owners between queues. All140 ordinary
+contracts pass; the four healthy isolated pilots verify the C acceptance marker.
+This is immutable-fixture evidence, not mutable editor publication/reconnect or
+release acceptance. See [ADR0130](adr/0130-xpc-service-admission-integration.md)
+and #181.
