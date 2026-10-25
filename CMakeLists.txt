@@ -91,6 +91,9 @@ if(UNIX)
     target_link_libraries(dust3d_export PRIVATE dust3d_engine)
     add_library(dust3d_worker_job_io STATIC native/Engine/WorkerJobIO.cc)
     target_link_libraries(dust3d_worker_job_io PUBLIC dust3d_worker_operation)
+    add_library(dust3d_worker_runtime STATIC native/WorkerRuntime/WorkerRuntimeBridge.cc)
+    target_include_directories(dust3d_worker_runtime PUBLIC native/WorkerRuntime/include PRIVATE native/Engine)
+    target_link_libraries(dust3d_worker_runtime PUBLIC dust3d_worker_job_io)
     add_executable(dust3d_worker native/Engine/WorkerMain.cc)
     target_link_libraries(dust3d_worker PRIVATE dust3d_worker_job_io dust3d_worker_resource_setup)
     if(TARGET dust3d_worker_unix_resources)
@@ -427,6 +430,16 @@ if(BUILD_TESTING)
     target_link_libraries(dust3d_worker_admission_tests PRIVATE dust3d_worker_protocol)
     add_test(NAME worker_admission_contracts COMMAND dust3d_worker_admission_tests)
     set_tests_properties(worker_admission_contracts PROPERTIES TIMEOUT 30)
+    if(TARGET dust3d_worker_runtime)
+        add_executable(dust3d_worker_runtime_c_smoke tests/core/worker_runtime_c_smoke.c)
+        set_target_properties(dust3d_worker_runtime_c_smoke PROPERTIES C_STANDARD 11 C_STANDARD_REQUIRED YES LINKER_LANGUAGE CXX)
+        target_link_libraries(dust3d_worker_runtime_c_smoke PRIVATE dust3d_worker_runtime)
+        add_test(NAME worker_runtime_c_contracts COMMAND dust3d_worker_runtime_c_smoke)
+        add_executable(dust3d_worker_runtime_bridge_tests tests/core/worker_runtime_bridge_tests.cc)
+        target_link_libraries(dust3d_worker_runtime_bridge_tests PRIVATE dust3d_worker_runtime)
+        add_test(NAME worker_runtime_bridge_contracts COMMAND dust3d_worker_runtime_bridge_tests ${CMAKE_CURRENT_SOURCE_DIR}/tests/core/fixtures/Capsule.ds3 ${CMAKE_CURRENT_BINARY_DIR})
+        set_tests_properties(worker_runtime_c_contracts worker_runtime_bridge_contracts PROPERTIES TIMEOUT 60)
+    endif()
     if(TARGET dust3d_worker_job_io)
         add_executable(dust3d_worker_job_io_tests tests/core/worker_job_io_tests.cc)
         target_link_libraries(dust3d_worker_job_io_tests PRIVATE dust3d_worker_job_io)
@@ -506,6 +519,30 @@ if(BUILD_TESTING)
         set(DUST3D_SWIFT_MODULE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/swift-module")
         file(GENERATE OUTPUT "${DUST3D_SWIFT_MODULE_DIRECTORY}/module.modulemap"
             CONTENT "module Dust3DEngine { header \"${CMAKE_CURRENT_SOURCE_DIR}/native/Engine/include/Dust3DBridge.h\" export * }\n")
+        set(DUST3D_WORKER_SWIFT_MODULE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/worker-swift-module")
+        file(GENERATE OUTPUT "${DUST3D_WORKER_SWIFT_MODULE_DIRECTORY}/module.modulemap"
+            CONTENT "module Dust3DWorkerRuntime { header \"${CMAKE_CURRENT_SOURCE_DIR}/native/WorkerRuntime/include/Dust3DWorkerRuntime.h\" export * }\n")
+        set(DUST3D_SWIFT_WORKER_CONSUMER "${CMAKE_CURRENT_BINARY_DIR}/worker-runtime-swift")
+        add_custom_command(OUTPUT "${DUST3D_SWIFT_WORKER_CONSUMER}"
+            COMMAND "${DUST3D_XCRUN}" swift-format lint --strict "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerRuntimeSmoke.swift"
+            COMMAND "${DUST3D_XCRUN}" swiftc -swift-version 6 -strict-concurrency=complete
+                -warnings-as-errors -parse-as-library
+                -module-cache-path "${CMAKE_CURRENT_BINARY_DIR}/swift-module-cache"
+                -I "${DUST3D_WORKER_SWIFT_MODULE_DIRECTORY}"
+                "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerRuntimeSmoke.swift"
+                "$<TARGET_FILE:dust3d_worker_runtime>" "$<TARGET_FILE:dust3d_worker_job_io>"
+                "$<TARGET_FILE:dust3d_worker_operation>" "$<TARGET_FILE:dust3d_worker_protocol>"
+                "$<TARGET_FILE:dust3d_engine>" "$<TARGET_FILE:dust3d_core>"
+                "$<TARGET_FILE:dust3d_remesher>" "$<TARGET_FILE:dust3d_triangle>"
+                -lc++ -lz -o "${DUST3D_SWIFT_WORKER_CONSUMER}"
+            DEPENDS tests/swift/WorkerRuntimeSmoke.swift native/WorkerRuntime/include/Dust3DWorkerRuntime.h
+                dust3d_worker_runtime dust3d_worker_job_io dust3d_worker_operation dust3d_worker_protocol
+                dust3d_engine dust3d_core dust3d_remesher dust3d_triangle
+            VERBATIM)
+        add_custom_target(dust3d_worker_runtime_swift ALL DEPENDS "${DUST3D_SWIFT_WORKER_CONSUMER}")
+        add_test(NAME worker_runtime_swift COMMAND "${DUST3D_SWIFT_WORKER_CONSUMER}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tests/core/fixtures/Capsule.ds3" "${CMAKE_CURRENT_BINARY_DIR}")
+        set_tests_properties(worker_runtime_swift PROPERTIES TIMEOUT 60)
         set(DUST3D_SWIFT_MIP_CONSUMER "${CMAKE_CURRENT_BINARY_DIR}/source-baked-mip-swift")
         add_custom_command(OUTPUT "${DUST3D_SWIFT_MIP_CONSUMER}"
             COMMAND "${DUST3D_XCRUN}" swift-format lint --strict "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/SourceBakedMipSmoke.swift"

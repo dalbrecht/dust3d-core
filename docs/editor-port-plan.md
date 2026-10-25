@@ -890,3 +890,14 @@ channels for the peer-bound XPC control plane; it does not implement the service
 asynchronous parent streams, authenticated transaction completion, sandbox or
 release adoption. An XPC callback must never be substituted for observed process
 exit in the existing process admission contract. All quarantines/pins remain.
+
+### Worker-host C/Swift runtime boundary (#167)
+
+A separate C-compatible worker runtime product now reuses descriptor job I/O and
+returns self-owned completion/error/context/diagnostic fields with caught C++
+exceptions (ADR 0116). C11, C++ and strict Swift 6 owned-copy consumers pass; the
+final inventory has 124 ordinary contracts. This prepares the Swift host without
+changing its production pin. Parent bounded decoding, authenticated transaction
+admission, the real XPC service, async lifecycle and release containment remain
+required. Complete-frame status must never be treated as geometry success or
+observed process exit. All quarantines remain.

@@ -1003,3 +1003,13 @@ blocking I/O is not a UI or hard-containment API. A future descriptor-based XPC
 host reuses this parser rather than decoding archive-sized Foundation messages.
 No Swift-facing worker ABI or production adoption follows yet. See ADR 0115 and
 #166 for current evidence and remaining transaction/stream/host requirements.
+
+
+The separate `Dust3DWorkerRuntime` static product exports a small C-compatible
+worker-host interface (`native/WorkerRuntime/include/Dust3DWorkerRuntime.h`). It
+shares the maintained engine/runtime with the CLI, returns self-owned bounded
+result fields and catches C++ exceptions. It borrows descriptors and does not
+configure global stdio/signals, launch or authenticate a service, or assert
+process exit. A complete frame can carry a native failure. Consume an exact
+reviewed revision and see [worker-host usage](native/WorkerRuntime/README.md) and
+ADR 0116/core #167 before any service integration. Production adoption stays gated.

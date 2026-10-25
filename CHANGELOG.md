@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Expose a self-owned, caught-exception descriptor worker C interface and separate SwiftPM runtime product, retaining original diagnostics and channel ownership (#167).
+
 - Share descriptor-based single-job worker I/O between hosts while preserving channel ownership and reporting the actual validated operation (#166).
 
 - Build the development base/UV worker as an explicit SwiftPM executable product from the maintained engine and helper sources (#165).
