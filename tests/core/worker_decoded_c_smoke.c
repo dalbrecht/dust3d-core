@@ -37,6 +37,25 @@ int main(void)
     if (summary.kind != DUST3D_WORKER_DECODED_FAILURE || summary.failure_status != 3 || summary.vertex_count || !cause || size != 2 || cause[0] != 255 || cause[1] != 0)
         return 4;
     dust3d_worker_decoded_destroy(decoded);
+    collector = dust3d_worker_service_reply_create(header, 64, 9, (Dust3DWorkerWireLimits) { 64, 64, 64 }, &framed);
+    if (!collector || dust3d_worker_reply_append(collector, reply, sizeof(reply)).status != DUST3D_WORKER_REPLY_READY
+        || dust3d_worker_reply_finish(collector).status != DUST3D_WORKER_REPLY_FRAMED)
+        return 5;
+    Dust3DWorkerRequestIdentity active = { { 0 }, 42, 0 };
+    active.document[0] = 1;
+    Dust3DWorkerServiceObservation observation = { 9, 101 };
+    Dust3DWorkerServiceReceipt receipt = { 0 };
+    receipt.operation = DUST3D_WORKER_OPERATION_MESH;
+    receipt.request_identity = 42;
+    receipt.process_identifier = 101;
+    decoded = dust3d_worker_service_admit(collector, active, observation, receipt, 64, &result);
+    dust3d_worker_reply_destroy(collector);
+    if (!decoded || result.status != DUST3D_WORKER_DECODE_OK)
+        return 6;
+    cause = dust3d_worker_decoded_failure_cause(decoded, &size);
+    if (!cause || size != 2 || cause[0] != 255 || cause[1] != 0)
+        return 7;
+    dust3d_worker_decoded_destroy(decoded);
     dust3d_worker_decoded_destroy(NULL);
     return 0;
 }

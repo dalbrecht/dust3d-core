@@ -1095,3 +1095,12 @@ observations, actual EOF and a matching scalar receipt, then returns copied mesh
 UV or original failure data. It does not authenticate or publish. The C bridge,
 XPC host and Apple broker adoption remain open; see
 [ADR0128](docs/adr/0128-persistent-service-reply-admission.md) and #179.
+
+Use `dust3d_worker_service_reply_create` before service submission to capture the
+expected connection generation. Feed actual framing bytes/EOF, then call
+`dust3d_worker_service_admit` with authoritative current identity, observed peer
+and control receipt. Copy decoded values before destroying owners. Ordinary
+semantic decode rejects service collectors. Receipt opcodes are raw integers
+validated before enum conversion. Neither API authenticates its caller inputs or
+publishes app state; real XPC/Apple adoption remains pending. See
+[ADR0129](docs/adr/0129-service-admission-c-boundary.md) and #180.

@@ -1,14 +1,16 @@
 // SPDX-License-Identifier: MIT
+#include "WorkerAdmission.h"
 #include "WorkerFailure.h"
 #include "WorkerReplyInternal.h"
 #include "WorkerUvMesh.h"
 #include <algorithm>
+#include <iterator>
 #include <memory>
 #include <new>
 #include <variant>
 using namespace dust3d::worker;
 struct Dust3DWorkerDecodedReply {
-    std::variant<MeshPayload, UvMeshPayload, FailurePayload> value;
+    AdmittedReply value;
 };
 namespace {
 void copyCause(Dust3DWorkerDecodeResult& result, const char* cause) noexcept
@@ -49,7 +51,9 @@ const UvPayload* uv(const Dust3DWorkerDecodedReply* reply) noexcept
     return pair ? &pair->uv : nullptr;
 }
 }
-extern "C" Dust3DWorkerDecodedReply* dust3d_worker_reply_decode(Dust3DWorkerReplyCollector* owner, uint64_t maximum, Dust3DWorkerDecodeResult* result) noexcept
+namespace {
+template <typename Action>
+Dust3DWorkerDecodedReply* protectDecoded(Dust3DWorkerReplyCollector* owner, uint64_t maximum, Dust3DWorkerDecodeResult* result, Action action) noexcept
 {
     if (!result)
         return nullptr;
@@ -61,33 +65,15 @@ extern "C" Dust3DWorkerDecodedReply* dust3d_worker_reply_decode(Dust3DWorkerRepl
         owner->isDecoded = true;
         if (!maximum || maximum > 128ULL * 1024 * 1024)
             throw ProtocolError(ProtocolErrorCode::invalidLimits, "Semantic decoded-byte budget is unsupported.");
-        const auto header = decodeHeader(owner->bytes.data(), headerBytes, owner->policy);
-        validateResponseIdentity(header, owner->expected);
-        const auto* body = owner->bytes.data() + headerBytes;
-        const auto size = owner->bytes.size() - headerBytes;
         auto decoded = std::make_unique<Dust3DWorkerDecodedReply>();
-        if (header.kind == FrameKind::failure) {
-            FailurePayloadLimits policy;
-            policy.maximumWireBytes = std::min(policy.maximumWireBytes, owner->policy.maximumFailureBytes);
-            policy.maximumCauseBytes = std::min({ policy.maximumCauseBytes, maximum, policy.maximumWireBytes });
-            decoded->value = decodeFailurePayload(body, size, policy);
-        } else if (header.operation == Operation::generateMesh) {
-            MeshPayloadLimits policy;
-            policy.maximumWireBytes = owner->policy.maximumOutputBytes;
-            policy.maximumDecodedBytes = maximum;
-            decoded->value = decodeMeshPayload(body, size, policy);
-        } else {
-            UvMeshPayloadLimits policy;
-            policy.maximumWireBytes = owner->policy.maximumOutputBytes;
-            policy.maximumDecodedBytes = maximum;
-            policy.geometry.maximumWireBytes = policy.maximumWireBytes;
-            policy.geometry.maximumDecodedBytes = maximum;
-            policy.uv.maximumWireBytes = policy.maximumWireBytes;
-            policy.uv.maximumDecodedBytes = maximum;
-            decoded->value = decodeUvMeshPayload(body, size, policy);
-        }
+        decoded->value = action(*owner, maximum);
         result->status = DUST3D_WORKER_DECODE_OK;
         return decoded.release();
+    } catch (const AdmissionError& cause) {
+        result->status = DUST3D_WORKER_DECODE_ADMISSION_REJECTED;
+        result->detail_source = DUST3D_WORKER_DETAIL_ADMISSION;
+        result->detail_code = static_cast<int32_t>(cause.code());
+        copyCause(*result, cause.what());
     } catch (const ProtocolError& cause) {
         result->status = DUST3D_WORKER_DECODE_PROTOCOL_REJECTED;
         result->detail_source = DUST3D_WORKER_DETAIL_FRAME;
@@ -116,6 +102,82 @@ extern "C" Dust3DWorkerDecodedReply* dust3d_worker_reply_decode(Dust3DWorkerRepl
         owner->isRejected = true;
     return nullptr;
 }
+}
+extern "C" Dust3DWorkerDecodedReply* dust3d_worker_reply_decode(Dust3DWorkerReplyCollector* owner, uint64_t maximum, Dust3DWorkerDecodeResult* result) noexcept
+{
+    return protectDecoded(owner, maximum, result, [](Dust3DWorkerReplyCollector& value, uint64_t maximum) -> AdmittedReply {
+        auto* owner = &value;
+        if (owner->serviceConnectionGeneration)
+            throw ProtocolError(ProtocolErrorCode::invalidInput, "Service collector requires service admission.");
+        const auto header = decodeHeader(owner->bytes.data(), headerBytes, owner->policy);
+        validateResponseIdentity(header, owner->expected);
+        const auto* body = owner->bytes.data() + headerBytes;
+        const auto size = owner->bytes.size() - headerBytes;
+        if (header.kind == FrameKind::failure) {
+            FailurePayloadLimits policy;
+            policy.maximumWireBytes = std::min(policy.maximumWireBytes, owner->policy.maximumFailureBytes);
+            policy.maximumCauseBytes = std::min({ policy.maximumCauseBytes, maximum, policy.maximumWireBytes });
+            return decodeFailurePayload(body, size, policy);
+        } else if (header.operation == Operation::generateMesh) {
+            MeshPayloadLimits policy;
+            policy.maximumWireBytes = owner->policy.maximumOutputBytes;
+            policy.maximumDecodedBytes = maximum;
+            return decodeMeshPayload(body, size, policy);
+        } else {
+            UvMeshPayloadLimits policy;
+            policy.maximumWireBytes = owner->policy.maximumOutputBytes;
+            policy.maximumDecodedBytes = maximum;
+            policy.geometry.maximumWireBytes = policy.maximumWireBytes;
+            policy.geometry.maximumDecodedBytes = maximum;
+            policy.uv.maximumWireBytes = policy.maximumWireBytes;
+            policy.uv.maximumDecodedBytes = maximum;
+            return decodeUvMeshPayload(body, size, policy);
+        }
+    });
+}
+extern "C" Dust3DWorkerDecodedReply* dust3d_worker_service_admit(Dust3DWorkerReplyCollector* owner,
+    Dust3DWorkerRequestIdentity active, Dust3DWorkerServiceObservation observed,
+    Dust3DWorkerServiceReceipt receipt, uint64_t maximum, Dust3DWorkerDecodeResult* result) noexcept
+{
+    return protectDecoded(owner, maximum, result, [=](Dust3DWorkerReplyCollector& value, uint64_t maximum) -> AdmittedReply {
+        if (!value.serviceConnectionGeneration)
+            throw ProtocolError(ProtocolErrorCode::invalidInput, "Service admission requires a service-specific collector.");
+        if (receipt.operation != DUST3D_WORKER_OPERATION_MESH && receipt.operation != DUST3D_WORKER_OPERATION_UV_MESH)
+            throw ProtocolError(ProtocolErrorCode::invalidInput, "Service receipt operation is unsupported.");
+        RequestIdentity identity;
+        std::copy(std::begin(active.document), std::end(active.document), identity.document.begin());
+        identity.request = active.request;
+        identity.revision = active.revision;
+        ServiceReceipt control;
+        control.runtimeStatus = receipt.runtime_status;
+        control.admissionStatus = receipt.admission_status;
+        control.operation = receipt.operation == DUST3D_WORKER_OPERATION_MESH ? Operation::generateMesh : Operation::generateUvMesh;
+        control.request = receipt.request_identity;
+        control.process = receipt.process_identifier;
+        control.systemError = receipt.system_error;
+        control.ioStage = receipt.io_stage;
+        control.detailSource = receipt.detail_source;
+        control.detailCode = receipt.detail_code;
+        control.messageTruncated = receipt.message_truncated;
+        control.finalizationError = receipt.finalization_error;
+        MeshPayloadLimits mesh;
+        mesh.maximumWireBytes = value.policy.maximumOutputBytes;
+        mesh.maximumDecodedBytes = maximum;
+        FailurePayloadLimits failure;
+        failure.maximumWireBytes = std::min(failure.maximumWireBytes, value.policy.maximumFailureBytes);
+        failure.maximumCauseBytes = std::min({ failure.maximumCauseBytes, maximum, failure.maximumWireBytes });
+        UvMeshPayloadLimits uv;
+        uv.maximumWireBytes = mesh.maximumWireBytes;
+        uv.maximumDecodedBytes = maximum;
+        uv.geometry = mesh;
+        uv.uv.maximumWireBytes = uv.maximumWireBytes;
+        uv.uv.maximumDecodedBytes = maximum;
+        PendingServiceReply pending(value.expected, value.serviceConnectionGeneration, value.policy);
+        return pending.complete(identity, { observed.connection_generation, observed.process_identifier, value.isFramed },
+            control, value.bytes.data(), value.bytes.size(), value.policy, mesh, failure, uv);
+    });
+}
+
 extern "C" Dust3DWorkerDecodedSummary dust3d_worker_decoded_summary(const Dust3DWorkerDecodedReply* reply) noexcept
 {
     Dust3DWorkerDecodedSummary result {};

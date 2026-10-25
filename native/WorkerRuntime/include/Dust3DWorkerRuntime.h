@@ -33,7 +33,8 @@ typedef enum Dust3DWorkerDetailSource {
     DUST3D_WORKER_DETAIL_UV_MESH = 5,
     DUST3D_WORKER_DETAIL_FAILURE = 6,
     DUST3D_WORKER_DETAIL_RUNTIME = 7,
-    DUST3D_WORKER_DETAIL_SYSTEM = 8
+    DUST3D_WORKER_DETAIL_SYSTEM = 8,
+    DUST3D_WORKER_DETAIL_ADMISSION = 9
 } Dust3DWorkerDetailSource;
 typedef enum Dust3DWorkerIOStage {
     DUST3D_WORKER_IO_NONE = 0,
@@ -165,7 +166,8 @@ typedef enum Dust3DWorkerDecodeStatus {
     DUST3D_WORKER_DECODE_PROTOCOL_REJECTED = 1,
     DUST3D_WORKER_DECODE_CODEC_REJECTED = 2,
     DUST3D_WORKER_DECODE_LIMIT_EXCEEDED = 3,
-    DUST3D_WORKER_DECODE_INTERNAL_FAILED = 4
+    DUST3D_WORKER_DECODE_INTERNAL_FAILED = 4,
+    DUST3D_WORKER_DECODE_ADMISSION_REJECTED = 5
 } Dust3DWorkerDecodeStatus;
 typedef struct Dust3DWorkerDecodeResult {
     Dust3DWorkerDecodeStatus status;
@@ -320,6 +322,60 @@ const uint8_t* dust3d_worker_request_bytes(const Dust3DWorkerRequest* request, s
 const uint8_t* dust3d_worker_request_header(const Dust3DWorkerRequest* request, size_t* size) DUST3D_WORKER_RUNTIME_NOEXCEPT;
 /** Destroy exactly one owner; NULL is harmless. */
 void dust3d_worker_request_destroy(Dust3DWorkerRequest* request) DUST3D_WORKER_RUNTIME_NOEXCEPT;
+/** Caller observations from its code-signing-enforced transport, not receipt data. */
+typedef struct Dust3DWorkerServiceObservation {
+    uint64_t connection_generation;
+    int64_t process_identifier;
+} Dust3DWorkerServiceObservation;
+/** Scalar service control receipt; preserves original numeric diagnostic context.
+ * Zero runtime/admission status means frame-written/accepted, not geometry success.
+ * Operation is a raw integer so unknown wire values can be rejected before enum conversion.
+ * These fields do not authenticate a connection or establish actual stream EOF.
+ */
+typedef struct Dust3DWorkerServiceReceipt {
+    uint32_t runtime_status, admission_status;
+    uint32_t operation;
+    uint64_t request_identity;
+    int64_t process_identifier;
+    int32_t system_error;
+    uint32_t io_stage, detail_source;
+    int32_t detail_code;
+    uint8_t message_truncated;
+    int32_t finalization_error;
+} Dust3DWorkerServiceReceipt;
+/** Create a service-specific collector before submitting work.
+ * @param expected_header Exact original request header, stable through this call.
+ * @param header_size Exact readable header byte count.
+ * @param connection_generation Nonzero trusted lifetime chosen before submission.
+ * @param limits Positive supported framing quotas; not RSS limits.
+ * @param result Required original framing receipt; NULL returns NULL without allocation.
+ * @return Exclusive collector with copied header/generation, or NULL with caught cause.
+ * Feed actual read bytes and call reply_finish only after actual EOF. Service
+ * collectors require service_admit; ordinary reply_decode rejects them.
+ */
+Dust3DWorkerReplyCollector* dust3d_worker_service_reply_create(const uint8_t* expected_header,
+    size_t header_size, uint64_t connection_generation, Dust3DWorkerWireLimits limits,
+    Dust3DWorkerReplyResult* result) DUST3D_WORKER_RUNTIME_NOEXCEPT;
+/** Consume one service collector into independent owned semantic values, once.
+ * @param collector Live service-specific EOF-framed owner, consumed before validation.
+ * @param active Authoritative current document/request/revision, not reply-derived.
+ * @param observed Actual authenticated-connection lifetime/OS peer observations.
+ * @param receipt Scalar callback from that connection; not trusted peer evidence.
+ * @param maximum_decoded_bytes Positive retained logical quota, at most128MiB.
+ * @param result Required original typed receipt; NULL leaves collector unconsumed.
+ * @return Independent decoded owner or NULL; all C++ exceptions are caught.
+ * ADMISSION_REJECTED preserves admission category/code/cause. Failure payloads
+ * remain owned typed results. Rejection retires the collector; never replay it.
+ * This function cannot authenticate caller inputs or publish app state. It makes
+ * a bounded temporary frame copy; quotas are not process-memory bounds.
+ * Example: service_admit(owner, active, observed, receipt, budget, &result), copy
+ * values, then destroy decoded and collector owners independently.
+ */
+Dust3DWorkerDecodedReply* dust3d_worker_service_admit(Dust3DWorkerReplyCollector* collector,
+    Dust3DWorkerRequestIdentity active, Dust3DWorkerServiceObservation observed,
+    Dust3DWorkerServiceReceipt receipt, uint64_t maximum_decoded_bytes,
+    Dust3DWorkerDecodeResult* result) DUST3D_WORKER_RUNTIME_NOEXCEPT;
+
 #ifdef __cplusplus
 }
 #endif
