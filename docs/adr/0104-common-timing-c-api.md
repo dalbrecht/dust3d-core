@@ -38,3 +38,25 @@ no protected app control or global SVG restore occurs.
 The corrected catalog-foundation-delivery branch remains the publication source
 for the earlier metadata extraction. Preserve its qmake registration/regression
 when transplanting later stages; this local branch retains the original stack.
+
+
+## Timing API delivery validation
+
+Replay the corrected scalar C/Swift API on the validated common-timing delivery,
+retaining accepted parent documentation, scene-binding verification and the single
+reference manifest contract. Runtime/new test source matches corrected `a0782d1e`.
+The C API copies static limits, clears outputs/diagnostics and catches guarded
+conversion errors while preserving their original cause. No frame allocation,
+legacy callback or animation evaluator executes.
+
+Fresh Debug build and all 108 ordinary CTest contracts pass (20.28 seconds): all
+107 prior commands unchanged, one inspected scalar C API contract added. Scoped
+C API ASan/UBSan, C11 header syntax, C++/Swift formatting and quarantine checks
+pass. Fresh SwiftPM archive builds in 8.31 seconds; a strict Swift 6 complete-
+concurrency/warnings-as-errors consumer verifies copied timing limits, unchanged
+1.125-second duration, independent owner lifetimes and actor transfer. Isolated
+contract symbols contain no sampler, rig, mesh or reference callback implementation.
+No production pin/quarantine changes or broad runtime/coverage acceptance claim.
+This stage remains local until its parents merge after completed clean exact-head
+automated review and all CI green. Audio metadata, editor adoption and full M6
+runtime acceptance remain pending.
