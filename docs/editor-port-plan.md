@@ -781,3 +781,15 @@ The helper has pure boundary tests and scoped complete coverage; reference calle
 are syntax-checked only. No sampler execution or root-cause confirmation occurred.
 Native sampling adoption, contextual diagnostics, forced-motion/output validation
 and full M6 acceptance remain open. No production pin or quarantine changes.
+
+
+### Independent worker cleanup diagnostics (#123)
+
+ADR 0107 adds an optional caller-owned, nonthrowing report for exceptional owned-
+child cleanup while preserving the original transport exception. Recording-only
+contracts cover ordering and independent causes without process/signal delivery;
+normal licensed transport and pre-start cancellation check empty/reset reports.
+Fresh ordinary CTest passes 111/111, scoped recording-policy ASan/UBSan passes,
+and the SwiftPM product builds. Actual exceptional OS cleanup remains unforced,
+reap can still block, and strong containment/Apple integration remain open. No
+production pin or quarantine changes; M8 and full parity remain incomplete.
