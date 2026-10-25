@@ -31,7 +31,8 @@ let package = Package(
             exclude: ["WorkerRuntime/README.md", "ExportCli/README.md"],
             sources: [
                 "Engine/WorkerJobIO.cc", "Engine/WorkerOperation.cc", "Engine/WorkerUvOperation.cc",
-                "Engine/WorkerProtocol.cc", "Engine/WorkerMesh.cc", "Engine/WorkerFailure.cc",
+                "Engine/WorkerProtocol.cc", "Engine/WorkerReplyCollector.cc", "Engine/WorkerMesh.cc",
+                "Engine/WorkerFailure.cc",
                 "Engine/WorkerUv.cc", "Engine/WorkerUvMesh.cc", "Engine/WorkerUvRequest.cc",
                 "WorkerRuntime/WorkerRuntimeBridge.cc",
             ],

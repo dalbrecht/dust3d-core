@@ -3,6 +3,7 @@
 #define _GNU_SOURCE
 #endif
 #include "WorkerTransport.h"
+#include "WorkerReplyCollector.h"
 #include <algorithm>
 #include <array>
 #include <cerrno>
@@ -241,7 +242,7 @@ namespace worker {
         CollectedJob result;
         bool hasExited = false;
         WorkerAttemptCapture capture(result, hasExited, supervision ? supervision->attemptReport : nullptr);
-        result.reply.reserve(headerBytes);
+        WorkerReplyCollector replyCollector(request.header, limits.wire, result.reply);
         result.diagnostic.reserve(limits.maximumCapturedDiagnosticBytes);
         // Declare the owner first: exceptions close every channel before blocking reap.
         Child child(supervision != nullptr, supervision ? supervision->cleanupReport : nullptr);
@@ -253,8 +254,6 @@ namespace worker {
         spawn(child, executable, input, output, diagnostic, resourceArguments);
         const auto started = std::chrono::steady_clock::now();
         size_t sent = 0;
-        uint64_t expectedReplyBytes = headerBytes;
-        bool hasHeader = false;
         std::array<uint8_t, 65536> bytes;
         while (supervision || input.parent.get() >= 0 || output.parent.get() >= 0 || diagnostic.parent.get() >= 0 || !hasExited) {
             if (supervision) {
@@ -305,21 +304,9 @@ namespace worker {
                     input.parent.close();
             }
             if (channels[1].revents) {
-                // Admit the fixed header before collecting body bytes.
-                const size_t remaining = static_cast<size_t>(expectedReplyBytes) - result.reply.size();
-                const size_t requested = hasHeader ? std::min(limits.maximumIoChunkBytes, remaining + 1) : std::min(limits.maximumIoChunkBytes, remaining);
-                const auto count = receive(output.parent, bytes.data(), requested, TransportErrorCode::output);
-                if (count > 0) {
-                    if (static_cast<uint64_t>(count) > remaining)
-                        throw ProtocolError(ProtocolErrorCode::trailingData, "Worker sent bytes beyond the advertised response");
-                    result.reply.insert(result.reply.end(), bytes.begin(), bytes.begin() + count);
-                    if (!hasHeader && result.reply.size() == headerBytes) {
-                        const auto header = decodeHeader(result.reply.data(), result.reply.size(), limits.wire);
-                        validateResponseIdentity(header, request.header);
-                        expectedReplyBytes = headerBytes + header.payloadBytes;
-                        hasHeader = true;
-                    }
-                }
+                const auto count = receive(output.parent, bytes.data(), replyCollector.nextReadBytes(limits.maximumIoChunkBytes), TransportErrorCode::output);
+                if (count > 0)
+                    replyCollector.append(bytes.data(), static_cast<size_t>(count));
             }
             if (channels[2].revents) {
                 const auto count = receive(diagnostic.parent, bytes.data(), limits.maximumIoChunkBytes, TransportErrorCode::diagnostic);

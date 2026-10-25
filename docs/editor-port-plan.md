@@ -901,3 +901,13 @@ changing its production pin. Parent bounded decoding, authenticated transaction
 admission, the real XPC service, async lifecycle and release containment remain
 required. Complete-frame status must never be treated as geometry success or
 observed process exit. All quarantines remain.
+
+### Incremental parent reply framing (#168)
+
+The existing Unix parent's bounded framing is now reusable for descriptor hosts:
+fixed-header validation precedes body retention; explicit EOF and sticky rejection
+are available independently (ADR 0117). All 125 ordinary core contracts, scoped
+pure sanitizers and rebuilt SwiftPM helper compatibility pass. No parent C API,
+authenticated transaction, isolated XPC engine service or production adoption is
+claimed. Those gates and full M4/M8 acceptance remain open; pins/quarantines stay
+unchanged. Framing success must never stand in for observed process completion.

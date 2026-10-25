@@ -1013,3 +1013,12 @@ configure global stdio/signals, launch or authenticate a service, or assert
 process exit. A complete frame can carry a native failure. Consume an exact
 reviewed revision and see [worker-host usage](native/WorkerRuntime/README.md) and
 ADR 0116/core #167 before any service integration. Production adoption stays gated.
+
+### Incremental parent reply framing
+
+`WorkerReplyCollector` shares the Unix parent's fixed-header-first read sizing
+and bounded copy logic with future descriptor hosts. It borrows empty output
+storage, validates exact pending identity/quota before retaining body bytes and
+requires explicit EOF when used independently. This is framing only: semantic
+admission, authoritative process/transaction completion and publication remain
+separate. See [ADR 0117](docs/adr/0117-incremental-worker-reply-framing.md).
