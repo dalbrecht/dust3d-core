@@ -4,9 +4,7 @@ import Dust3DWorkerRuntime
 import Foundation
 
 private struct EncodedRequest: Sendable {
-    let header: [UInt8]
     let frame: Data
-    let identity: Dust3DWorkerRequestIdentity
 }
 private func encodeRequest(archive: Data, operation: Dust3DWorkerOperation, request: UInt64) throws -> EncodedRequest {
     var identity = Dust3DWorkerRequestIdentity()
@@ -35,13 +33,11 @@ private func encodeRequest(archive: Data, operation: Dust3DWorkerOperation, requ
     defer { dust3d_worker_request_destroy(owner) }
     var headerSize = 0
     var frameSize = 0
-    guard let header = dust3d_worker_request_header(owner, &headerSize), headerSize == 64,
+    guard dust3d_worker_request_header(owner, &headerSize) != nil, headerSize == 64,
         let frame = dust3d_worker_request_bytes(owner, &frameSize), frameSize > headerSize,
         frameSize <= 1_048_576 + headerSize
     else { throw StaticFixtureError.invalid("Owned request views rejected") }
-    return EncodedRequest(
-        header: Array(UnsafeBufferPointer(start: header, count: headerSize)),
-        frame: Data(bytes: frame, count: frameSize), identity: identity)
+    return EncodedRequest(frame: Data(bytes: frame, count: frameSize))
 }
 
 private struct CopiedReply: Sendable {
@@ -58,40 +54,42 @@ private func framingFailure(_ reason: String, _ result: Dust3DWorkerReplyResult)
         "\(reason): status=\(result.status.rawValue) source=\(result.detail_source.rawValue) code=\(result.detail_code) truncated=\(result.message_truncated) cause=\(cause)"
     )
 }
-private func makeServiceCollector(header: [UInt8], generation: UInt64) throws -> OpaquePointer {
-    let limits = Dust3DWorkerWireLimits(
-        maximum_input_bytes: 1_048_576, maximum_output_bytes: 1_048_576, maximum_failure_bytes: 4096)
-    var framing = Dust3DWorkerReplyResult()
-    let created = header.withUnsafeBufferPointer {
-        dust3d_worker_service_reply_create($0.baseAddress, $0.count, generation, limits, &framing)
+private func prepareServiceRequest(frame: Data, generation: UInt64) throws -> (
+    queue: WorkerServiceQueue, request: WorkerServiceRequest
+) {
+    let queue = try WorkerServiceQueue(
+        limits: .init(
+            maximum_input_bytes: 1_048_576, maximum_output_bytes: 1_048_576, maximum_failure_bytes: 4096))
+    try queue.submit(frame)
+    guard case .started(let request) = try queue.begin(generation: generation) else {
+        throw StaticFixtureError.invalid("Fresh coordinator did not begin its captured request")
     }
-    guard let owner = created, framing.status == DUST3D_WORKER_REPLY_READY else {
-        throw framingFailure("Parent service framing preflight failed", framing)
-    }
-    return owner
+    return (queue, request)
 }
 private func readReply(
-    _ stream: FileHandle, owner: OpaquePointer, identity: Dust3DWorkerRequestIdentity,
+    _ stream: FileHandle, queue: WorkerServiceQueue,
     isUv: Bool, completion: WorkerOutcome<WorkerControlReceipt>, deadline: DispatchTime
 ) throws -> CopiedReply {
-    while true {
-        var count = 0
-        let sized = dust3d_worker_reply_next_read(owner, 97, &count)
-        guard sized.status == DUST3D_WORKER_REPLY_READY, count > 0, count <= 97
-        else {
-            throw framingFailure("Read sizing rejected count=\(count)", sized)
+    try queue.withReplyCollector { owner in
+        while true {
+            var count = 0
+            let sized = dust3d_worker_reply_next_read(owner, 97, &count)
+            guard sized.status == DUST3D_WORKER_REPLY_READY, count > 0, count <= 97
+            else {
+                throw framingFailure("Read sizing rejected count=\(count)", sized)
+            }
+            guard let data = try stream.read(upToCount: count), !data.isEmpty else { break }
+            let receipt = data.withUnsafeBytes {
+                dust3d_worker_reply_append(owner, $0.bindMemory(to: UInt8.self).baseAddress, $0.count)
+            }
+            guard receipt.status == DUST3D_WORKER_REPLY_READY else {
+                throw framingFailure("Correlated descriptor frame rejected", receipt)
+            }
         }
-        guard let data = try stream.read(upToCount: count), !data.isEmpty else { break }
-        let receipt = data.withUnsafeBytes {
-            dust3d_worker_reply_append(owner, $0.bindMemory(to: UInt8.self).baseAddress, $0.count)
+        let finished = dust3d_worker_reply_finish(owner)
+        guard finished.status == DUST3D_WORKER_REPLY_FRAMED else {
+            throw framingFailure("Actual channel EOF rejected", finished)
         }
-        guard receipt.status == DUST3D_WORKER_REPLY_READY else {
-            throw framingFailure("Correlated descriptor frame rejected", receipt)
-        }
-    }
-    let finished = dust3d_worker_reply_finish(owner)
-    guard finished.status == DUST3D_WORKER_REPLY_FRAMED else {
-        throw framingFailure("Actual channel EOF rejected", finished)
     }
     let control = try completion.wait(until: deadline)
     guard control.sandboxEntitlementVerified, control.observedProcess != getpid() else {
@@ -105,19 +103,14 @@ private func readReply(
         process_identifier: Int64(control.process), system_error: control.systemError,
         io_stage: control.stage, detail_source: control.source, detail_code: control.code,
         message_truncated: control.truncated, finalization_error: control.finalizationError)
-    var semantic = Dust3DWorkerDecodeResult()
-    guard let decoded = dust3d_worker_service_admit(owner, identity, observed, receipt, 1_048_576, &semantic),
-        semantic.status == DUST3D_WORKER_DECODE_OK
-    else {
-        let cause = withUnsafeBytes(of: semantic.message) {
-            String(decoding: $0.prefix { $0 != 0 }, as: UTF8.self)
-        }
-        throw StaticFixtureError.invalid(
-            "Service admission rejected: status=\(semantic.status.rawValue) source=\(semantic.detail_source.rawValue) code=\(semantic.detail_code) truncated=\(semantic.message_truncated) cause=\(cause)"
-        )
+    return try queue.withDecodedReply(observed: observed, receipt: receipt, maximumDecodedBytes: 1_048_576) { decoded in
+        print("Persistent service C admission accepted after actual EOF and OS peer observation")
+        print("Queue-authoritative service completion admitted")
+        return try copyDecodedReply(decoded, isUv: isUv)
     }
-    defer { dust3d_worker_decoded_destroy(decoded) }
-    print("Persistent service C admission accepted after actual EOF and OS peer observation")
+}
+
+private func copyDecodedReply(_ decoded: OpaquePointer, isUv: Bool) throws -> CopiedReply {
     let summary = dust3d_worker_decoded_summary(decoded)
     guard summary.kind == (isUv ? DUST3D_WORKER_DECODED_UV_MESH : DUST3D_WORKER_DECODED_MESH),
         summary.vertex_count == 240
@@ -205,10 +198,8 @@ private struct WorkerXPCHost {
         }
         let archive = try Data(contentsOf: source)
         let encoded = try encodeRequest(archive: archive, operation: operation, request: request)
-        let header = encoded.header
         let generation: UInt64 = 1  // This fixture owns exactly one connection; no reconnect/reuse.
-        let fileCollector = isStream ? nil : try makeServiceCollector(header: header, generation: generation)
-        defer { if let fileCollector { dust3d_worker_reply_destroy(fileCollector) } }
+        let fileAttempt = isStream ? nil : try prepareServiceRequest(frame: encoded.frame, generation: generation)
         let root = URL(fileURLWithPath: CommandLine.arguments[2])
         let inputURL = root.appendingPathComponent("request")
         let outputURL = root.appendingPathComponent("reply")
@@ -224,7 +215,8 @@ private struct WorkerXPCHost {
             input = incoming.reader
             output = outgoing.writer
         } else {
-            try encoded.frame.write(to: inputURL)
+            guard let fileAttempt else { throw StaticFixtureError.invalid("Missing prepared file request") }
+            try fileAttempt.request.frame.write(to: inputURL)
             try Data().write(to: outputURL)
             inputChannel = nil
             outputChannel = nil
@@ -237,18 +229,17 @@ private struct WorkerXPCHost {
         }
         let deadline = DispatchTime.now() + 20
         let outcome = WorkerOutcome<WorkerControlReceipt>()
-        let prepared = WorkerOutcome<Void>()
+        let prepared = WorkerOutcome<WorkerServiceRequest>()
         let reading = WorkerOutcome<CopiedReply>()
         let writing = WorkerOutcome<Void>()
         if let incoming = inputChannel, let outgoing = outputChannel {
             DispatchQueue(label: "org.dust3d.core.fixture.reply-reader").async {
                 do {
                     let copied = try withOwnedWorkerChannel(outgoing.reader) {
-                        let owner = try makeServiceCollector(header: header, generation: generation)
-                        defer { dust3d_worker_reply_destroy(owner) }
-                        prepared.finish(.success(()))
+                        let attempt = try prepareServiceRequest(frame: encoded.frame, generation: generation)
+                        prepared.finish(.success(attempt.request))
                         return try readReply(
-                            outgoing.reader, owner: owner, identity: encoded.identity,
+                            outgoing.reader, queue: attempt.queue,
                             isUv: isUv, completion: outcome, deadline: deadline)
                     }
                     reading.finish(.success(copied))
@@ -258,21 +249,32 @@ private struct WorkerXPCHost {
                 }
             }
             DispatchQueue(label: "org.dust3d.core.fixture.request-writer").async {
-                writing.finish(Result { try writeWorkerRequest(encoded.frame, to: incoming.writer) })
+                writing.finish(
+                    Result {
+                        let request = try prepared.wait(until: deadline)
+                        try writeWorkerRequest(request.frame, to: incoming.writer)
+                    })
             }
         }
-        if isStream { try prepared.wait(until: deadline) }
+        let submittedRequest: WorkerServiceRequest
+        if isStream {
+            submittedRequest = try prepared.wait(until: deadline)
+        } else {
+            guard let fileAttempt else { throw StaticFixtureError.invalid("Missing prepared file request") }
+            submittedRequest = fileAttempt.request
+        }
+        let capturedRequest = submittedRequest.identity.request
         try withWorkerXPCPeer(requirement: try developmentRequirement(pins.service), deadline: deadline) { peer in
             Task.detached {
                 do {
                     try await peer.submit(
-                        input: input, output: output, isStream: isStream, request: request,
+                        input: input, output: output, isStream: isStream, request: capturedRequest,
                         generation: generation, outcome: outcome)
                 } catch { outcome.finish(.failure(error)) }
             }
             let receipt = try outcome.wait(until: deadline)
             guard receipt.status == DUST3D_WORKER_JOB_COMPLETE.rawValue,
-                receipt.operation == operation.rawValue, receipt.request == request,
+                receipt.operation == operation.rawValue, receipt.request == capturedRequest,
                 receipt.systemError == 0, receipt.stage == 0, receipt.source == 0, receipt.code == 0,
                 receipt.truncated == 0, receipt.sandboxEntitlementVerified, receipt.finalizationError == 0,
                 receipt.admissionStatus == WorkerServiceAdmissionStatus.accepted.rawValue,
@@ -293,11 +295,11 @@ private struct WorkerXPCHost {
                 printResult(receipt, isUv: isUv, isStream: true)
                 return
             }
-            guard let fileCollector else { throw StaticFixtureError.invalid("Missing file service collector") }
+            guard let fileAttempt else { throw StaticFixtureError.invalid("Missing file service coordinator") }
             let stream = try FileHandle(forReadingFrom: outputURL)
             let copied = try withOwnedWorkerChannel(stream) {
                 try readReply(
-                    stream, owner: fileCollector, identity: encoded.identity,
+                    stream, queue: fileAttempt.queue,
                     isUv: isUv, completion: outcome, deadline: deadline)
             }
             try validateCopiedReply(copied, isUv: isUv)

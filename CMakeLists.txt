@@ -580,6 +580,29 @@ if(BUILD_TESTING)
         add_test(NAME worker_runtime_swift COMMAND "${DUST3D_SWIFT_WORKER_CONSUMER}"
             "${CMAKE_CURRENT_SOURCE_DIR}/tests/core/fixtures/Capsule.ds3" "${CMAKE_CURRENT_BINARY_DIR}")
         set_tests_properties(worker_runtime_swift PROPERTIES TIMEOUT 60)
+        set(DUST3D_SWIFT_SERVICE_QUEUE_CONSUMER "${CMAKE_CURRENT_BINARY_DIR}/worker-service-queue-swift")
+        add_custom_command(OUTPUT "${DUST3D_SWIFT_SERVICE_QUEUE_CONSUMER}"
+            COMMAND "${DUST3D_XCRUN}" swift-format lint --strict
+                "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerServiceQueue.swift"
+                "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerServiceQueueSmoke.swift"
+            COMMAND "${DUST3D_XCRUN}" swiftc -swift-version 6 -strict-concurrency=complete
+                -warnings-as-errors -parse-as-library
+                -module-cache-path "${CMAKE_CURRENT_BINARY_DIR}/swift-module-cache"
+                -I "${DUST3D_WORKER_SWIFT_MODULE_DIRECTORY}"
+                "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerServiceQueue.swift"
+                "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerServiceQueueSmoke.swift"
+                "$<TARGET_FILE:dust3d_worker_runtime>" "$<TARGET_FILE:dust3d_worker_job_io>"
+                "$<TARGET_FILE:dust3d_worker_operation>" "$<TARGET_FILE:dust3d_worker_protocol>"
+                "$<TARGET_FILE:dust3d_engine>" "$<TARGET_FILE:dust3d_core>"
+                "$<TARGET_FILE:dust3d_remesher>" "$<TARGET_FILE:dust3d_triangle>"
+                -lc++ -lz -o "${DUST3D_SWIFT_SERVICE_QUEUE_CONSUMER}"
+            DEPENDS tests/swift/WorkerServiceQueue.swift tests/swift/WorkerServiceQueueSmoke.swift
+                native/WorkerRuntime/include/Dust3DWorkerRuntime.h
+                dust3d_worker_runtime dust3d_worker_job_io dust3d_worker_operation dust3d_worker_protocol
+                dust3d_engine dust3d_core dust3d_remesher dust3d_triangle VERBATIM)
+        add_custom_target(dust3d_worker_service_queue_swift ALL DEPENDS "${DUST3D_SWIFT_SERVICE_QUEUE_CONSUMER}")
+        add_test(NAME worker_service_queue_swift COMMAND "${DUST3D_SWIFT_SERVICE_QUEUE_CONSUMER}")
+        set_tests_properties(worker_service_queue_swift PROPERTIES TIMEOUT 30)
         if(Python3_Interpreter_FOUND)
             set(DUST3D_CHANNEL_METADATA_BINARY "${CMAKE_CURRENT_BINARY_DIR}/worker-channel-metadata")
             add_custom_command(OUTPUT "${DUST3D_CHANNEL_METADATA_BINARY}"
@@ -641,7 +664,7 @@ if(BUILD_TESTING)
                 if(DUST3D_XPC_ROLE STREQUAL "Service")
                     list(APPEND DUST3D_XPC_SUPPORT_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerServiceOwnership.swift" "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerServiceScheduler.swift")
                 else()
-                    list(APPEND DUST3D_XPC_SUPPORT_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerOutcome.swift" "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerXPCPeer.swift")
+                    list(APPEND DUST3D_XPC_SUPPORT_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerOutcome.swift" "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerXPCPeer.swift" "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerServiceQueue.swift")
                 endif()
                 add_custom_command(OUTPUT "${DUST3D_XPC_BINARY}"
                     COMMAND "${DUST3D_XCRUN}" swift-format lint --strict ${DUST3D_XPC_SUPPORT_SOURCES}
