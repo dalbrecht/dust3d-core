@@ -52,3 +52,29 @@ Production SDK/UI adoption, parameter descriptors/units, pose-entry/exit tags,
 rig/pose/frame transport, Qt/native runtime interoperability, sampling/playback/
 audio and complete M6 acceptance remain open. Core #67/#69/#83/#84/#95 and Apple
 #199 quarantines, production pins and protected apps remain unchanged.
+
+
+## Owned catalog delivery validation
+
+Prepare this stage on PR #153 at `ae20c3d8`, retaining its qmake dependency fix,
+reference source-membership regression and reviewed OBJ scene-binding correction.
+Runtime and new test sources match the saved corrected `33ad3f93` checkpoint. The
+shared diagnostic and mutex bodies compare byte-for-byte with the parent definitions.
+The new owner copies fixed declaration data under that same construction lock;
+getters validate owner/index and clear invalid destination views.
+
+Fresh Debug CMake build and all 103 ordinary CTest contracts pass in 19.69 seconds.
+The 102 previous commands are unchanged; one reviewed ordinary ownership contract
+is added. Scoped C API ASan/UBSan passes without failure injection or freed-pointer
+reads. C11 public-header syntax, new C++ formatting, Swift formatting and optional
+verifier shell syntax pass. SwiftPM builds in 7.82 seconds. A strict Swift 6
+complete-concurrency/warnings-as-errors consumer copies every field before native
+owner destruction, compares independent loads and transfers immutable values across
+an actor. Its explicit module map names the current public header and links the
+fresh archive. The full optional Swift verifier is not rerun.
+
+Isolated C API contract symbols contain no animation generator, rig or mesh
+implementation; that does not describe the full engine archive. Construction
+allocation/exception branches remain unforced. Full inherited coverage, Qt runtime,
+production SDK/UI adoption, dynamic parameter schema and animation sampling,
+playback/audio remain open. No production pin or quarantine changes are made.
