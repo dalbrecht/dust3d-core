@@ -309,6 +309,11 @@ if(BUILD_TESTING)
     # Optional standard-library acceptance tooling does not add a production dependency.
     find_package(Python3 QUIET COMPONENTS Interpreter)
     if(Python3_Interpreter_FOUND)
+        add_test(NAME worker_xpc_entitlement_policy COMMAND "${Python3_EXECUTABLE}" -B -m unittest discover
+            -s "${CMAKE_CURRENT_SOURCE_DIR}/tests/core" -p test_worker_xpc_entitlements.py)
+        add_test(NAME worker_xpc_entitlement_policy_optimized COMMAND "${Python3_EXECUTABLE}" -B -O -m unittest discover
+            -s "${CMAKE_CURRENT_SOURCE_DIR}/tests/core" -p test_worker_xpc_entitlements.py)
+        set_tests_properties(worker_xpc_entitlement_policy worker_xpc_entitlement_policy_optimized PROPERTIES TIMEOUT 30)
         add_test(NAME generated_obj_verifier_contracts COMMAND "${Python3_EXECUTABLE}" -B -m unittest discover
             -s "${CMAKE_CURRENT_SOURCE_DIR}/tests/core" -p test_generated_obj_import.py)
         add_test(NAME generated_obj_verifier_optimized_contracts COMMAND "${Python3_EXECUTABLE}" -B -O -m unittest discover

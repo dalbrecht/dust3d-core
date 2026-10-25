@@ -24,3 +24,10 @@ The companion `worker_xpc_uv_mesh` case uses the same shared C request encoder
 and isolated service to verify 240 vertices/80 UV triangles. Both XPC cases share a
 CTest resource lock while recycling their development bundle IDs. They still use
 regular files and establish no live-pipe, sandbox or publication acceptance.
+
+The service fixture is explicitly sandbox-entitled. The controller verifies
+exactly App Sandbox plus one development read-only peer-file exception, and the
+service reports its own SecTask entitlement check before native work. Pure
+policy/extraction regressions run without denial probes. See
+[ADR0122](../../docs/adr/0122-sandbox-entitled-xpc-fixture.md) for evidence and
+limits; release trust and comprehensive permission enforcement remain open.

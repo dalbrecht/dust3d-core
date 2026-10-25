@@ -10,7 +10,7 @@ let staticServiceIdentifier = "org.dust3d.core.xpc-static-service.qa"
     func serve(
         _ input: FileHandle, output: FileHandle,
         withReply reply:
-            @escaping @Sendable (UInt32, UInt32, UInt64, Int32, UInt32, UInt32, Int32, UInt8, Int32) -> Void)
+            @escaping @Sendable (UInt32, UInt32, UInt64, Int32, UInt32, UInt32, Int32, UInt8, Int32, Bool) -> Void)
 }
 
 enum StaticFixtureError: Error {
