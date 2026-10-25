@@ -23,6 +23,7 @@
 #include <algorithm>
 #include <cmath>
 #include <dust3d/animation/animation_catalog.h>
+#include <dust3d/animation/animation_defaults.h>
 #include <dust3d/animation/animation_generator.h>
 #include <dust3d/animation/biped/block.h>
 #include <dust3d/animation/biped/cast.h>
@@ -101,23 +102,12 @@ namespace dust3d {
 
 std::pair<double, int> AnimationGenerator::defaultTiming(const std::string& type)
 {
-    const auto& catalog = animation::clipCatalog();
-    auto found = catalog.find(type);
-    return found == catalog.end() ? std::make_pair(3.0, 90)
-                                  : std::make_pair(found->second.duration, found->second.samples);
+    return animation::defaultTiming(type);
 }
 
 AnimationParams AnimationGenerator::defaultParameters(const std::string& type)
 {
-    AnimationParams result;
-    auto found = animation::clipCatalog().find(type);
-    if (found == animation::clipCatalog().end())
-        return result;
-    result.setValue("durationSeconds", found->second.duration);
-    result.setValue("frameCount", found->second.samples);
-    for (const auto& parameter : found->second.parameters)
-        result.setValue(parameter.first, parameter.second);
-    return result;
+    return animation::defaultParameters(type);
 }
 
 bool AnimationGenerator::generate(const RigStructure& rigStructure,

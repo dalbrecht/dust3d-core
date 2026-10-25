@@ -728,3 +728,18 @@ so the standalone metadata API links no mesh/rig/animation generator code. All
 build and strict Swift fixture pass. Production Swift SDK/UI adoption, parameter
 descriptors, pose/rig/frame transport, Qt/native interoperability, runtime sampling,
 playback/audio and full M6 acceptance remain open. No production pin/quarantine changes.
+
+### Generator-free presets and reference dependency closure (Apple #145)
+
+ADR0100 moves the inherited AnimationParams value and preset construction into
+pure metadata headers/source, retaining exact method bodies and reference-class
+forwarders. Native descriptor work can now obtain original string defaults without
+sampler linkage. A red source-membership test caught omitted qmake biped metadata;
+the current manifest registers it and the new preset sources. All 104 ordinary
+Debug CTest contracts, scoped preset ASan/UBSan and SwiftPM build pass. Full Qt
+build/execution remains unverified. Before publishing the earlier catalog foundation
+PR, backport the metadata qmake registration and its focused manifest regression;
+do not publish the known incomplete intermediate reference closure. Parameter
+schema porting must replace unchecked inverse slider casts with checked conversion
+before native adoption. Descriptor/C-Swift/UI/runtime/playback/audio and full M6
+remain open; production pins and all quarantines remain unchanged.

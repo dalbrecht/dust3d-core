@@ -29,3 +29,14 @@ The new Swift document library measures 98.51% line coverage. Domain and file-se
 ## Suggested improvements to shared coding-standards
 
 Add a C++ standard and `cpp` language detection/block mapping; describe RAII and C ABI ownership, enum/status errors, sanitizers, fuzzing, and numerical validity. Add a Swift 6/native desktop supplement covering actors, Metal callbacks, SwiftPM app bundles, local versus distribution signing, and document access. Define separate coverage scopes for new code, adopted legacy code, and GPU/UI boundaries, and make the setup script honor the selected agent without installing unrelated tools or overwriting hooks.
+
+## Observed animation adoption limits
+
+The reference parameter table's inverse slider callbacks use unchecked double-to-int
+casts. They remain reference-only and are not native descriptor implementations.
+Native adoption must validate finite values, conversion representability and control
+ranges before any cast. No invalid-value cast or sampler probe was run to inspect
+this source-level gap. The inherited AnimationParams tolerant getters were moved
+without semantic changes; they can fall back on parse errors and must not be used
+as validation of arbitrary stored intent. New native boundary errors must preserve
+the original cause. See ADR0100 and the M6 tracking issue for remaining work.

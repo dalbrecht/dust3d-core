@@ -23,7 +23,7 @@
 #ifndef DUST3D_ANIMATION_ANIMATION_GENERATOR_H_
 #define DUST3D_ANIMATION_ANIMATION_GENERATOR_H_
 
-#include <dust3d/base/string.h>
+#include <dust3d/animation/animation_parameters.h>
 #include <dust3d/rig/rig_generator.h>
 #include <map>
 #include <utility>
@@ -58,40 +58,6 @@ struct RigAnimationClip {
     float movementDirectionZ = 0.0f;
 };
 
-struct AnimationParams {
-    std::map<std::string, std::string> values;
-
-    double getValue(const std::string& name, double defaultValue) const
-    {
-        auto it = values.find(name);
-        if (it == values.end())
-            return defaultValue;
-
-        try {
-            return String::toDouble(it->second);
-        } catch (...) {
-            return defaultValue;
-        }
-    }
-
-    bool getBool(const std::string& name, bool defaultValue) const
-    {
-        auto it = values.find(name);
-        if (it == values.end())
-            return defaultValue;
-        return dust3d::String::isTrue(it->second);
-    }
-
-    void setValue(const std::string& name, double value)
-    {
-        values[name] = String::fromDouble(value);
-    }
-
-    void setBool(const std::string& name, bool value)
-    {
-        values[name] = value ? "true" : "false";
-    }
-};
 
 class AnimationGenerator {
 public:
