@@ -828,3 +828,13 @@ native paired producer or Apple adoption is enabled; source-correlated operation
 request options, parent dispatch and renderer integration remain required. Count
 matching is not source authentication. All pins/quarantines remain unchanged and
 M4/M8/full parity remain incomplete.
+
+### Development worker UV requests (#164)
+
+A bounded versioned request codec now retains archive bytes, atlas options and
+resolved image dimensions, rejects semantic UUID aliases, and validates every
+record and logical quota before retained copies (ADR 0111). Fresh 116 ordinary
+contracts and scoped value-only sanitizers pass. Same-owner native UV/geometry
+production, dispatch/admission, ordinary process acceptance, containment and Apple
+adoption remain required; this does not complete M4/M8. All quarantines and the
+production dependency remain unchanged.

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Encode bounded UV worker requests with independently owned archive bytes, resolved image dimensions and retained-metadata options (#164).
+
 - Atomically validate paired worker geometry/UV responses under aggregate output quotas before retained decoding (#163).
 
 - Add a bounded versioned worker UV metadata codec preserving binary64 corners, component association, charts and gradients (#162).
