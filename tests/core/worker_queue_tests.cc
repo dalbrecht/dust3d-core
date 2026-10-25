@@ -137,10 +137,124 @@ void failedAdmissionRecovery()
     rejectsQueue(QueueErrorCode::unexpectedCompletion, [&] { queue.abandon(first->header.identity); });
     require(!queue.begin(), "Abandoned work cannot publish or replay");
 }
+ServiceReceipt serviceReceipt(const Header& request)
+{
+    ServiceReceipt result;
+    result.runtimeStatus = result.admissionStatus = 0;
+    result.operation = request.operation;
+    result.request = request.identity.request;
+    result.process = 101;
+    return result;
+}
+void serviceScheduling()
+{
+    RequestQueue queue;
+    queue.submit(request(1));
+    rejectsQueue(QueueErrorCode::invalidServiceSession, [&] { queue.beginService(0); });
+    auto first = queue.beginService(9);
+    require(first && first->header.identity.request == 1, "Invalid generation never consumes waiting work");
+    require(!queue.beginService(10), "Active service work prevents a second begin");
+    const ServiceObservation observed { 9, 101, true };
+    auto receipt = serviceReceipt(first->header);
+    auto wire = failure(first->header);
+    rejectsQueue(QueueErrorCode::wrongCompletionMode, [&] { queue.complete(first->header.identity, { true, 0 }, wire.data(), wire.size()); });
+    auto foreign = first->header.identity;
+    ++foreign.request;
+    rejectsQueue(QueueErrorCode::unexpectedCompletion, [&] { queue.completeService(foreign, observed, receipt, nullptr, 0); });
+    queue.submit(request(2));
+    queue.submit(request(3));
+    rejects<AdmissionError>([&] { queue.completeService(first->header.identity, observed, receipt, wire.data(), wire.size()); });
+    auto latest = queue.beginService(10);
+    require(latest && latest->header.identity.request == 3, "Stale service completion releases slot for latest source");
+    receipt = serviceReceipt(latest->header);
+    wire = failure(latest->header);
+    rejects<AdmissionError>([&] { queue.completeService(latest->header.identity, observed, receipt, wire.data(), wire.size()); });
+    queue.submit(request(4));
+    auto current = queue.beginService(10);
+    receipt = serviceReceipt(current->header);
+    wire = failure(current->header);
+    auto admitted = queue.completeService(current->header.identity, { 10, 101, true }, receipt, wire.data(), wire.size());
+    wire.assign(wire.size(), 0);
+    require(std::get<FailurePayload>(admitted).cause == std::vector<uint8_t>({ 'x', 0, 255 }), "Queued service result owns original failure cause");
+    rejectsQueue(QueueErrorCode::unexpectedCompletion, [&] { queue.completeService(current->header.identity, { 10, 101, true }, receipt, nullptr, 0); });
+    queue.submit(request(5));
+    auto child = queue.begin();
+    receipt = serviceReceipt(child->header);
+    wire = failure(child->header);
+    rejectsQueue(QueueErrorCode::wrongCompletionMode, [&] { queue.completeService(child->header.identity, { 10, 101, true }, receipt, wire.data(), wire.size()); });
+    require(std::holds_alternative<FailurePayload>(queue.complete(child->header.identity, { true, 0 }, wire.data(), wire.size())), "Wrong service mode does not retire child work");
+}
+void serviceGenerationFreeze()
+{
+    RequestQueue queue;
+    require(!queue.beginService(9), "Empty service queue starts no work");
+    queue.submit(request(1));
+    auto active = queue.beginService(9);
+    require(!queue.beginService(10), "Busy begin returns no second request");
+    auto wire = failure(active->header);
+    require(std::holds_alternative<FailurePayload>(queue.completeService(active->header.identity, { 9, 101, true }, serviceReceipt(active->header), wire.data(), wire.size())), "Busy begin cannot replace captured generation");
+    queue.submit(request(2));
+    active = queue.beginService(10);
+    queue.abandon(active->header.identity);
+    rejectsQueue(QueueErrorCode::unexpectedCompletion, [&] { queue.completeService(active->header.identity, { 10, 101, true }, serviceReceipt(active->header), nullptr, 0); });
+    queue.submit(request(3));
+    auto child = queue.begin();
+    wire = failure(child->header);
+    require(std::holds_alternative<FailurePayload>(queue.complete(child->header.identity, { true, 0 }, wire.data(), wire.size())), "Abandoning service work permits fresh child admission");
+}
+void unmatchedServiceRetirement()
+{
+    RequestQueue queue;
+    queue.cancel(request(99).header.identity);
+    queue.submit(request(1));
+    auto active = queue.beginService(9);
+    queue.submit(request(2));
+    queue.cancel(request(99).header.identity);
+    queue.cancel(active->header.identity);
+    queue.abandon(active->header.identity);
+    auto latest = queue.beginService(10);
+    require(latest && latest->header.identity.request == 2, "Foreign/old cancellation and abandonment preserve newer source");
+    queue.cancel(latest->header.identity);
+    queue.abandon(latest->header.identity);
+    require(!queue.beginService(11), "Cancelled then abandoned work leaves no pending source");
+}
+void serviceRetirement()
+{
+    for (const bool close : { false, true }) {
+        RequestQueue queue;
+        queue.submit(request(1));
+        auto active = queue.beginService(9);
+        if (close)
+            queue.close();
+        else
+            queue.cancel(active->header.identity);
+        rejects<AdmissionError>([&] { queue.completeService(active->header.identity, { 9, 101, true }, serviceReceipt(active->header), nullptr, 0); });
+        if (close)
+            rejectsQueue(QueueErrorCode::closed, [&] { queue.submit(request(2)); });
+        else {
+            queue.submit(request(2));
+            auto next = queue.beginService(10);
+            require(next && next->header.identity.request == 2, "Cancelled service admission releases capacity");
+            queue.abandon(next->header.identity);
+        }
+    }
+    RequestQueue queue;
+    queue.submit(request(1));
+    auto active = queue.beginService(9);
+    rejects<ProtocolError>([&] { queue.completeService(active->header.identity, { 9, 101, true }, serviceReceipt(active->header), nullptr, 0); });
+    queue.submit(request(2));
+    auto next = queue.beginService(10);
+    require(next && next->header.identity.request == 2, "Malformed current completion releases active slot");
+}
+
 }
 int main()
 {
     try {
+        serviceScheduling();
+        serviceRetirement();
+        serviceGenerationFreeze();
+        unmatchedServiceRetirement();
         scheduling();
         cancellationAndValidation();
         failedAdmissionRecovery();

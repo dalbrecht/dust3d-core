@@ -9,7 +9,9 @@ namespace worker {
     enum class QueueErrorCode { closed,
         invalidRequest,
         reusedRequest,
-        unexpectedCompletion };
+        unexpectedCompletion,
+        invalidServiceSession,
+        wrongCompletionMode };
     class QueueError : public std::runtime_error {
     public:
         QueueError(QueueErrorCode code, const char* message);
@@ -19,7 +21,7 @@ namespace worker {
         QueueErrorCode m_code;
     };
     /// Single-owner, externally serialized scheduling state; never starts or stops a process.
-    /// Retains one waiting archive and active header only. Caller owns/drains/reaps active transport.
+    /// Retains one waiting archive and active header only. Caller drains transport and reaps owned children.
     /// Submit, cancel, close and complete must run on the same serialized owner, away from blocking I/O.
     class RequestQueue {
     public:
@@ -29,24 +31,51 @@ namespace worker {
         /// Validate before replacing waiting work; globally increasing nonzero request IDs cannot replay.
         /// Returns the replaced waiting identity. Throws QueueError or original ProtocolError.
         std::optional<RequestIdentity> submit(Frame request);
-        /// Transfer the waiting archive only when no transport is active; otherwise returns nullopt.
+        /// Transfer waiting child-process work only when no transport is active; otherwise nullopt.
         std::optional<Frame> begin();
+        /// Begin persistent-service work, freezing its connection lifetime before submission.
+        /// @param connectionGeneration Nonzero caller-trusted lifetime, not receipt-derived.
+        /// @return Owned waiting frame, or nullopt while active/empty; no process or I/O starts.
+        /// @throws QueueError(invalidServiceSession) without consuming waiting data for zero generation.
+        /// Example: auto next = queue.beginService(connectionGeneration);
+        std::optional<Frame> beginService(uint64_t connectionGeneration);
         /// Retire matching publication and discard matching waiting data; active transport still drains.
         void cancel(const RequestIdentity& identity) noexcept;
         /// Permanently reject new requests and retire publication; caller must still collect active I/O.
         void close() noexcept;
-        /// Release matching work after transport has cleaned up and reaped on error; publishes no data.
+        /// Release matching work after transport cleanup (and child reaping where applicable); no publication.
         /// The caller must retain/report the original transport cause. Throws QueueError on mismatch.
         void abandon(const RequestIdentity& collected);
         /// Release the matching active slot before admission; reject stale/cancelled/closed/replayed data.
         /// uvLimits applies to paired UV responses, independently of base mesh limits.
-        /// Foreign completions do not release active work. Typed admission/codec causes propagate.
+        /// Foreign or wrong-mode completions do not release active work. Typed admission/codec causes propagate.
         AdmittedReply complete(const RequestIdentity& collected, ProcessOutcome outcome,
             const uint8_t* bytes, size_t size, const MeshPayloadLimits& meshLimits = {},
             const FailurePayloadLimits& failureLimits = {}, const UvMeshPayloadLimits& uvLimits = {});
 
+        /// Complete matching persistent-service work after transport collection/cleanup.
+        /// @param collected Captured active identity supplied by the transport owner.
+        /// @param observed Real authenticated-connection lifetime/OS-peer/EOF observations.
+        /// @param receipt Scalar service callback; not trusted observation or current source.
+        /// @param bytes Exact collected frame borrowed during this call.
+        /// @param size Actual frame byte count.
+        /// @param meshLimits Base semantic/output policy.
+        /// @param failureLimits Original failure payload policy.
+        /// @param uvLimits Atomic paired geometry/UV policy.
+        /// @return Owned semantics only for authoritative current work, once.
+        /// @throws QueueError for foreign/mode mismatch (active retained), or original admission/codec errors
+        /// after releasing matching work. Never fabricates child exit or cancels native execution.
+        /// Example: queue.completeService(id, observed, receipt, bytes.data(), bytes.size()).
+        AdmittedReply completeService(const RequestIdentity& collected, const ServiceObservation& observed,
+            const ServiceReceipt& receipt, const uint8_t* bytes, size_t size,
+            const MeshPayloadLimits& meshLimits = {}, const FailurePayloadLimits& failureLimits = {},
+            const UvMeshPayloadLimits& uvLimits = {});
+
     private:
+        std::optional<Frame> beginWork(uint64_t connectionGeneration);
         Limits m_limits;
+        // Reserve zero so service work cannot pass the child-exit completion path.
+        uint64_t m_activeServiceGeneration = 0;
         uint64_t m_lastRequest = 0;
         bool m_isClosed = false;
         std::optional<RequestIdentity> m_current;

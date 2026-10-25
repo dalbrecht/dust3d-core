@@ -1113,3 +1113,11 @@ contracts pass; the four healthy isolated pilots verify the C acceptance marker.
 This is immutable-fixture evidence, not mutable editor publication/reconnect or
 release acceptance. See [ADR0130](docs/adr/0130-xpc-service-admission-integration.md)
 and #181.
+
+The existing `RequestQueue` now supports `beginService`/`completeService` with a
+connection generation frozen before submission and current-source retirement.
+Wrong-mode/foreign completions retain active work; matching failed admission
+releases capacity while preserving the latest waiting source. The child-exit
+path stays separate. Scoped queue tests cover every implementation line/branch;
+all 140 ordinary contracts pass. C/Swift runtime and host/editor adoption remain
+pending. See [ADR0131](docs/adr/0131-bounded-service-request-queue.md) and #182.

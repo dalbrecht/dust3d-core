@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Reuse the bounded request queue for persistent-service completion, with frozen connection generations, source retirement and cross-mode rejection (#182).
+
 - Verify healthy isolated XPC mesh/UV replies through the generation-bound C admission gate with actor-owned OS-peer observations and retained multi-reader completion (#181).
 
 - Expose generation-bound service collectors and single-use C reply admission, with raw receipt opcode validation and independent decoded ownership (#180).
