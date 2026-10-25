@@ -108,7 +108,7 @@ private func recordedScheduling() throws {
         throw AdmissionCheckError.invalid("Missing candidate")
     }
     let first = scheduler.submit(
-        owner: candidate, onCancelled: { events.append("unexpected cancellation") },
+        owner: candidate, requestIdentity: 100, onCancelled: { events.append("unexpected cancellation") },
         { lease in
             events.append("job")
             events.append(scheduler.complete(owner: candidate, lease) ? "released" : "invalid completion")
@@ -116,7 +116,7 @@ private func recordedScheduling() throws {
     guard case .accepted = first else { throw AdmissionCheckError.invalid("Initial recorded job not admitted") }
     try require(first.status == .accepted && executor.count == 1, "Admission enqueues exactly one action")
     let busy = scheduler.submit(
-        owner: candidate, onCancelled: { events.append("unexpected cancellation") },
+        owner: candidate, requestIdentity: 100, onCancelled: { events.append("unexpected cancellation") },
         { _ in
             events.append("unexpected busy action")
         })
@@ -124,7 +124,7 @@ private func recordedScheduling() throws {
     scheduler.retire(owner: candidate)
     scheduler.retire(owner: candidate)
     let closed = scheduler.submit(
-        owner: candidate, onCancelled: { events.append("unexpected cancellation") },
+        owner: candidate, requestIdentity: 100, onCancelled: { events.append("unexpected cancellation") },
         { _ in
             events.append("unexpected retired action")
         })
@@ -144,10 +144,10 @@ private func recordedScheduling() throws {
     guard let reusableCandidate = reusable.makeConnectionCandidate() else {
         throw AdmissionCheckError.invalid("Missing reusable candidate")
     }
-    for _ in 0..<2 {
+    for request in 1...2 {
         guard
             case .accepted = reusable.submit(
-                owner: reusableCandidate, onCancelled: {},
+                owner: reusableCandidate, requestIdentity: UInt64(request), onCancelled: {},
                 { lease in _ = reusable.complete(owner: reusableCandidate, lease) })
         else {
             throw AdmissionCheckError.invalid("Completed live service did not release capacity")
@@ -166,14 +166,14 @@ private func recordedOwnership() throws {
     }
     try require(!scheduler.retire(owner: other) && executor.count == 0, "Unclaimed disconnect cannot queue stop")
     let accepted = scheduler.submit(
-        owner: owner, onCancelled: { events.append("unexpected cancellation") },
+        owner: owner, requestIdentity: 100, onCancelled: { events.append("unexpected cancellation") },
         { lease in
             events.append(scheduler.complete(owner: owner, lease) ? "owner completed" : "invalid completion")
         })
     guard case .accepted(let lease) = accepted else { throw AdmissionCheckError.invalid("Owner claim missing") }
     try require(scheduler.ownershipSnapshot().owner == owner, "Invocation claims owner before native enqueue")
     let foreign = scheduler.submit(
-        owner: other, onCancelled: { events.append("unexpected cancellation") },
+        owner: other, requestIdentity: 100, onCancelled: { events.append("unexpected cancellation") },
         { _ in
             events.append("unexpected foreign job")
         })
@@ -189,7 +189,9 @@ private func recordedOwnership() throws {
         events.snapshot == ["owner completed"] && scheduler.snapshot().activeLease == nil,
         "Owner completion releases capacity")
     try require(
-        scheduler.submit(owner: other, onCancelled: {}, { _ in events.append("unexpected takeover") }) == .notOwner,
+        scheduler.submit(
+            owner: other, requestIdentity: 100, onCancelled: {}, { _ in events.append("unexpected takeover") })
+            == .notOwner,
         "Job completion never transfers connection ownership")
     try require(
         scheduler.retire(owner: owner) && !scheduler.retire(owner: owner) && executor.count == 1,
@@ -207,7 +209,7 @@ private func recordedQueuedCancellation() throws {
         throw AdmissionCheckError.invalid("Missing cancellation candidates")
     }
     let accepted = scheduler.submit(
-        owner: owner, onCancelled: { events.append("cancelled") },
+        owner: owner, requestIdentity: 100, onCancelled: { events.append("cancelled") },
         { _ in
             events.append("unexpected native action")
         })
@@ -218,7 +220,9 @@ private func recordedQueuedCancellation() throws {
     try require(
         scheduler.snapshot().activeLease == lease && executor.count == 1, "Cancellation retains one slot until drained")
     try require(
-        scheduler.submit(owner: owner, onCancelled: {}, { _ in events.append("unexpected replacement") }) == .busy,
+        scheduler.submit(
+            owner: owner, requestIdentity: 100, onCancelled: {}, { _ in events.append("unexpected replacement") })
+            == .busy,
         "Cancelled job cannot release admission before its callback drains")
     scheduler.retire(owner: owner)
     try executor.drainOne()
@@ -235,7 +239,7 @@ private func recordedQueuedCancellation() throws {
         throw AdmissionCheckError.invalid("Missing running owner")
     }
     let runningAccepted = running.submit(
-        owner: runningOwner, onCancelled: { events.append("unexpected cancellation") },
+        owner: runningOwner, requestIdentity: 100, onCancelled: { events.append("unexpected cancellation") },
         { runningLease in
             if running.cancelQueued(owner: runningOwner, runningLease) == .alreadyStarted { events.append("too late") }
             _ = running.complete(owner: runningOwner, runningLease)
@@ -249,6 +253,62 @@ private func recordedQueuedCancellation() throws {
         running.cancelQueued(owner: runningOwner, runningLease) == .stale, "Old lease cannot cancel a completed action")
 }
 
+private func recordedRequestCancellation() throws {
+    let executor = RecordingExecutor()
+    let events = AdmissionEvents()
+    let scheduler = WorkerServiceScheduler(executor: executor, onRetired: {})
+    guard let owner = scheduler.makeConnectionCandidate(), let other = scheduler.makeConnectionCandidate() else {
+        throw AdmissionCheckError.invalid("Missing request-routing candidates")
+    }
+    try require(
+        scheduler.submit(owner: owner, requestIdentity: 0, onCancelled: {}, { _ in }) == .invalidRequestIdentity,
+        "Zero request identity rejected")
+    guard
+        case .accepted = scheduler.submit(
+            owner: owner, requestIdentity: 42, onCancelled: {},
+            { lease in
+                _ = scheduler.complete(owner: owner, lease)
+            })
+    else { throw AdmissionCheckError.invalid("First routed request rejected") }
+    try executor.drainOne()
+    try require(
+        scheduler.submit(owner: owner, requestIdentity: 42, onCancelled: {}, { _ in }) == .invalidRequestIdentity,
+        "Completed identity cannot be reused")
+    guard
+        case .accepted = scheduler.submit(
+            owner: owner, requestIdentity: 43, onCancelled: { events.append("cancelled43") },
+            { _ in events.append("unexpected43") })
+    else {
+        throw AdmissionCheckError.invalid("Next routed request rejected")
+    }
+    try require(
+        scheduler.cancelQueued(owner: owner, requestIdentity: 42) == .stale, "Old identity cannot cancel newer work")
+    try require(
+        scheduler.cancelQueued(owner: other, requestIdentity: 43) == .notOwner,
+        "Foreign identity cannot cancel owner work")
+    try require(
+        scheduler.cancelQueued(owner: owner, requestIdentity: 43) == .cancelled, "Current identity cancels queued job")
+    try executor.drainOne()
+    try require(events.snapshot == ["cancelled43"], "Only current cancellation callback executes")
+    try require(
+        scheduler.cancelQueued(owner: owner, requestIdentity: 43) == .stale, "Drained identity no longer active")
+    guard
+        case .accepted = scheduler.submit(
+            owner: owner, requestIdentity: UInt64.max, onCancelled: {},
+            { lease in
+                if scheduler.cancelQueued(owner: owner, requestIdentity: UInt64.max) == .alreadyStarted {
+                    events.append("started")
+                }
+                _ = scheduler.complete(owner: owner, lease)
+            })
+    else { throw AdmissionCheckError.invalid("Final monotonic identity rejected") }
+    try executor.drainOne()
+    try require(events.snapshot == ["cancelled43", "started"], "Running request cannot be withdrawn")
+    try require(
+        scheduler.submit(owner: owner, requestIdentity: UInt64.max, onCancelled: {}, { _ in })
+            == .invalidRequestIdentity, "Identity exhaustion never wraps or reuses")
+}
+
 @main
 struct WorkerAdmissionSmoke {
     static func main() {
@@ -258,6 +318,7 @@ struct WorkerAdmissionSmoke {
             try recordedScheduling()
             try recordedOwnership()
             try recordedQueuedCancellation()
+            try recordedRequestCancellation()
             print("Pure one-slot admission and recorded scheduling passed; no native work")
         } catch {
             FileHandle.standardError.write(Data("Admission fixture failed: \(error)\n".utf8))

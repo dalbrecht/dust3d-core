@@ -13,6 +13,8 @@ final class WorkerServiceScheduler: @unchecked Sendable {
     // All state transitions and enqueue ordering share this lock. Execution never waits inside it.
     private let lock = NSLock()
     private var state = WorkerServiceAdmissionState()
+    private var lastAcceptedRequestIdentity: UInt64 = 0
+    private var activeRequestIdentity: UInt64?
     private var startedLease: WorkerServiceLease?
     private var cancelledLease: WorkerServiceLease?
     private var ownership = WorkerServiceOwnershipState()
@@ -32,17 +34,23 @@ final class WorkerServiceScheduler: @unchecked Sendable {
         }
     }
     func submit(
-        owner: WorkerServiceConnection, onCancelled: @escaping @Sendable () -> Void,
+        owner: WorkerServiceConnection, requestIdentity: UInt64, onCancelled: @escaping @Sendable () -> Void,
         _ operation: @escaping @Sendable (WorkerServiceLease) -> Void
     )
         -> WorkerServiceAdmissionDecision
     {
         lock.withLock {
             guard !ownership.isRetired else { return .closed }
+            guard requestIdentity != 0 else { return .invalidRequestIdentity }
             let claimed = ownership.claiming(owner)
             ownership = claimed.state
             guard claimed.didClaim else { return .notOwner }
             let transition = state.acquiring()
+            if case .accepted = transition.decision {
+                guard requestIdentity > lastAcceptedRequestIdentity else { return .invalidRequestIdentity }
+                lastAcceptedRequestIdentity = requestIdentity
+                activeRequestIdentity = requestIdentity
+            }
             state = transition.state
             if case .accepted(let lease) = transition.decision {
                 // Retain the admitted operation through completion, never queue a rejected one.
@@ -65,17 +73,27 @@ final class WorkerServiceScheduler: @unchecked Sendable {
             return transition.decision
         }
     }
+    func cancelQueued(owner: WorkerServiceConnection, requestIdentity: UInt64) -> WorkerServiceCancellationDecision {
+        lock.withLock {
+            guard ownership.owns(owner) else { return .notOwner }
+            guard activeRequestIdentity == requestIdentity, let lease = state.activeLease else { return .stale }
+            return cancelQueuedLocked(lease)
+        }
+    }
     func cancelQueued(owner: WorkerServiceConnection, _ lease: WorkerServiceLease) -> WorkerServiceCancellationDecision
     {
         lock.withLock {
             guard ownership.owns(owner) else { return .notOwner }
             guard state.activeLease == lease else { return .stale }
-            if startedLease == lease { return .alreadyStarted }
-            if cancelledLease == lease { return .alreadyCancelled }
-            // Retain admission until the queued callback releases captured resources.
-            cancelledLease = lease
-            return .cancelled
+            return cancelQueuedLocked(lease)
         }
+    }
+    private func cancelQueuedLocked(_ lease: WorkerServiceLease) -> WorkerServiceCancellationDecision {
+        if startedLease == lease { return .alreadyStarted }
+        if cancelledLease == lease { return .alreadyCancelled }
+        // Retain admission until the queued cancellation callback completes.
+        cancelledLease = lease
+        return .cancelled
     }
     func complete(owner: WorkerServiceConnection, _ lease: WorkerServiceLease) -> Bool {
         lock.withLock {
@@ -83,6 +101,7 @@ final class WorkerServiceScheduler: @unchecked Sendable {
             let transition = state.completing(lease)
             state = transition.state
             if transition.didComplete {
+                activeRequestIdentity = nil
                 startedLease = nil
                 cancelledLease = nil
             }

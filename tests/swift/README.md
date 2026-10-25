@@ -59,3 +59,11 @@ lease before native entry. Recording-executor tests verify slot retention and
 ordered cancellation/retirement; healthy native jobs remain unchanged. There is
 no XPC cancellation command or running-native interruption yet. See
 [ADR0126](../../docs/adr/0126-queued-worker-cancellation.md) and #177.
+
+Development XPC serve now carries a nonzero monotonic caller request identity,
+and queued cancellation routes by that identity and the owning connection. Pure
+recorded tests reject stale/reused/foreign routing without native cancellation.
+Healthy native serve checks pass; the remote cancellation method has not been
+invoked in integration. Publication, channel teardown, deadlines and running-job
+cancellation remain open. See [ADR0127](../../docs/adr/0127-request-routed-queued-cancellation.md)
+and #178.
