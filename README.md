@@ -929,3 +929,6 @@ controls outside this dynamic table and runtime M6 acceptance remain pending. Se
 [verification](docs/animation-parameter-catalog-verification.md) and
 [ADR 0101](docs/adr/0101-checked-animation-parameters.md). Production pins and all
 quarantines remain unchanged.
+
+
+ADR0102 exposes owned ordered animation control descriptors and checked C conversions, with Swift 6 lifetime/actor-transfer verification. Production SDK/UI adoption and common timing/audio controls remain pending.

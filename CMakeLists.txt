@@ -115,6 +115,17 @@ endif()
 
 include(CTest)
 if(BUILD_TESTING)
+    add_executable(dust3d_animation_control_api_tests
+        tests/core/animation_control_api_tests.cc
+        native/Engine/EngineSupport.cc
+        native/Engine/AnimationCatalogBridge.cc
+        dust3d/animation/parameter_catalog.cc
+        dust3d/animation/animation_defaults.cc
+        dust3d/animation/animation_catalog.cc
+        dust3d/animation/biped/clip_metadata.cc)
+    target_include_directories(dust3d_animation_control_api_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} native/Engine/include)
+    add_test(NAME animation_control_api_contracts COMMAND dust3d_animation_control_api_tests)
+    set_tests_properties(animation_control_api_contracts PROPERTIES TIMEOUT 10)
     add_executable(dust3d_animation_parameter_catalog_tests
         tests/core/animation_parameter_catalog_tests.cc
         dust3d/animation/parameter_catalog.cc
@@ -140,6 +151,8 @@ if(BUILD_TESTING)
         tests/core/animation_catalog_api_tests.cc
         native/Engine/EngineSupport.cc
         native/Engine/AnimationCatalogBridge.cc
+        dust3d/animation/parameter_catalog.cc
+        dust3d/animation/animation_defaults.cc
         dust3d/animation/animation_catalog.cc
         dust3d/animation/biped/clip_metadata.cc)
     target_include_directories(dust3d_animation_catalog_api_tests PRIVATE
