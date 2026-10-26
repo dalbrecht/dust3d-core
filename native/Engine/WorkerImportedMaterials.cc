@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 #include "WorkerImportedMaterials.h"
+#include "WorkerImportedCatalogViews.h"
 #include "WorkerImportedMaterialReader.h"
 #include "WorkerUtf8.h"
 #include "WorkerWire.h"
@@ -410,6 +411,18 @@ namespace worker {
     {
         WireReader reader(bytes, size, limits);
         return summary(detail::inspectImportedMaterialReader(reader, limits));
+    }
+    namespace detail {
+        void visitImportedMaterialModels(const uint8_t* bytes, size_t size, const ImportedMaterialsLimits& limits, const std::function<void(uint64_t, std::string_view, bool)>& visitor)
+        {
+            WireReader reader(bytes, size, limits);
+            const auto shape = inspectImportedMaterialReader(reader, limits);
+            reader.rewind();
+            for (uint64_t index = 0; index < shape.materialCount; ++index) {
+                const auto value = reader.readMaterial();
+                visitor(index, value.modelId, value.hasImage != 0);
+            }
+        }
     }
     ImportedMaterialsPayload decodeImportedMaterialsPayload(const uint8_t* bytes, size_t size, const ImportedMaterialsLimits& limits)
     {

@@ -267,3 +267,12 @@ surface owner after complete preflight. Repeating UVs and numerical RGB encoding
 are preserved without conversion. No opcode or Swift consumer is added here.
 See [ADR 0145](../../docs/adr/0145-imported-surface-worker-output.md) for layout,
 quotas, lifetime, measured verification and remaining adoption gates.
+
+### Joined imported rendering values
+
+`WorkerImportedRender.h` preserves complete source geometry, surface-ordered
+material definitions (including encoded bytes) and optional owned straight RGBA8
+pixels. Inspect validates inner schemas, exact identities, image presence and all
+aggregate quotas before decoded arrays. The codec does not decode images or prove
+archive provenance. See [ADR 0146](../../docs/adr/0146-imported-render-worker-values.md)
+for layout, charges, tests and producer/transport/Apple adoption gates.

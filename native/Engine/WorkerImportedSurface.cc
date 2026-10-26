@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 #include "WorkerImportedSurface.h"
+#include "WorkerImportedCatalogViews.h"
 #include "WorkerImportedSurfaceValidation.h"
 #include "WorkerUtf8.h"
 #include "WorkerWire.h"
@@ -268,6 +269,18 @@ namespace worker {
         }
     }
     namespace detail {
+        void visitImportedSurfaceModels(const uint8_t* bytes, size_t size, const ImportedSurfaceLimits& limits, const std::function<void(uint64_t, std::string_view)>& visitor)
+        {
+            const auto shape = describe(bytes, size, limits);
+            const auto* surface = bytes + importedSurfacePrefixBytes + shape.geometry;
+            size_t offset = shape.metadata.plan.keys;
+            for (uint64_t index = 0; index < shape.metadata.models; ++index) {
+                const auto count = static_cast<size_t>(readUnsigned(surface + offset, 4));
+                offset += 4;
+                visitor(index, { reinterpret_cast<const char*>(surface + offset), count });
+                offset += count;
+            }
+        }
         ImportedSurfaceMeasurement measureImportedSurface(uint64_t triangles, uint64_t models, uint64_t components, uint64_t text, uint64_t expected, const ImportedMetadataLimits& limits)
         {
             const auto shape = planSurface(triangles, models, components, text, expected, limits);

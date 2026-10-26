@@ -1155,3 +1155,13 @@ exact catalogs and native-owner preflight/copy. See
 platform image decoding in the worker, real metrics, transport/Swift integration
 and supported-range parity remain separate Apple #279/#280 gates. No production
 pin/backend or quarantine change; full M4–M8 acceptance remains incomplete.
+
+### Joined imported rendering checkpoint (#237)
+
+Surface-ordered material definitions and optional straight RGBA8 source samples
+now have a joined worker value, retaining encoded bytes alongside pixels. Complete
+inner/cross-catalog inspection precedes decoded arrays. See
+[ADR 0146](adr/0146-imported-render-worker-values.md). A same-archive producer and
+platform image decoding inside the Apple worker, real session metrics, transport,
+Swift ownership and supported-range parity remain open Apple #279/#280 gates.
+No production pin/backend or quarantine change; full M4–M8 remains incomplete.
