@@ -67,8 +67,9 @@ namespace worker {
             throw LegacyProducerError(LegacyProducerErrorCode::unavailableDecoder, "Source bake requires both declared image decoder roles.");
         PreparedSourceBakeImages result;
         uint64_t remaining = options.maximumDecodedImageBytes;
-        const auto validateReceipt = [&](const ImportedRenderImage& image) {
-            if (image.pixels.size() > remaining)
+        uint64_t proceduralRemaining = options.procedural.maximumDecodedImageBytes;
+        const auto validateReceipt = [&](const ImportedRenderImage& image, uint64_t suppliedMaximum) {
+            if (image.pixels.size() > suppliedMaximum)
                 throw LegacyProducerError(LegacyProducerErrorCode::decodedLimitExceeded, "Source image exceeds its remaining pixel quota.");
             if (image.width > 8192 || image.height > 8192)
                 throw LegacyProducerError(LegacyProducerErrorCode::invalidImage, "Source image exceeds native dimension bounds.");
@@ -77,10 +78,12 @@ namespace worker {
         };
         for (const auto& input : procedural) {
             try {
-                if (!remaining)
-                    throw LegacyProducerError(LegacyProducerErrorCode::decodedLimitExceeded, "Source pixel quota is exhausted.");
-                auto image = proceduralDecoder->decode(input, std::min(options.maximumEncodedImageBytes, options.procedural.images.maximumEncodedImageBytes), remaining);
-                validateReceipt(image);
+                const auto available = std::min(remaining, proceduralRemaining);
+                if (!available)
+                    throw LegacyProducerError(LegacyProducerErrorCode::decodedLimitExceeded, "Source procedural or shared pixel quota is exhausted.");
+                auto image = proceduralDecoder->decode(input, std::min(options.maximumEncodedImageBytes, options.procedural.images.maximumEncodedImageBytes), available);
+                validateReceipt(image, available);
+                proceduralRemaining -= image.pixels.size();
                 result.procedural.push_back(std::move(image));
             } catch (...) {
                 throw SourceImageError(SourceImageRole::procedural, input.identity, std::current_exception());
@@ -93,7 +96,7 @@ namespace worker {
                 if (!remaining)
                     throw LegacyProducerError(LegacyProducerErrorCode::decodedLimitExceeded, "Source pixel quota is exhausted.");
                 auto image = importedDecoder->decode(*material.image, material.modelId, std::min(options.maximumEncodedImageBytes, options.materials.maximumImageBytes), remaining);
-                validateReceipt(image);
+                validateReceipt(image, remaining);
                 result.models.push_back({ material.modelId, std::move(image) });
             } catch (...) {
                 throw SourceImageError(SourceImageRole::imported, material.modelId, std::current_exception());

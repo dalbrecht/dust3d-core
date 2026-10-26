@@ -27,7 +27,12 @@ public:
 class ReceiptDecoder final : public ProceduralImageDecoder, public ImportedRenderImageDecoder {
 public:
     ImportedRenderImage receipt { 1, 1, { 1, 2, 3, 4 } };
-    ProceduralDecodedImage decode(const ProceduralImageInput&, uint64_t, uint64_t) override { return receipt; }
+    std::vector<uint64_t> proceduralBudgets;
+    ProceduralDecodedImage decode(const ProceduralImageInput&, uint64_t, uint64_t maximum) override
+    {
+        proceduralBudgets.push_back(maximum);
+        return receipt;
+    }
     ImportedRenderImage decode(const ImportedEncodedImage&, std::string_view, uint64_t, uint64_t) override { return receipt; }
 };
 template <typename Action>
@@ -192,6 +197,28 @@ int main()
             throw std::runtime_error("Procedural receipts share the same remaining pixel quota");
         procedural.pop_back();
         ReceiptDecoder receipts;
+        auto independentPolicy = options;
+        independentPolicy.procedural.maximumDecodedImageBytes = 4;
+        auto twoProcedural = procedural;
+        twoProcedural.push_back(procedural.front());
+        bool independentRejected = false;
+        try {
+            (void)prepareSourceBakeImages(twoProcedural, {}, &receipts, nullptr, independentPolicy);
+        } catch (const SourceImageError& cause) {
+            independentRejected = cause.role() == SourceImageRole::procedural;
+        }
+        if (!independentRejected || receipts.proceduralBudgets != std::vector<uint64_t>({ 4 }))
+            throw std::runtime_error("Procedural aggregate host quota must tighten callback budget and prevent a second decode");
+        receipts.proceduralBudgets.clear();
+        receipts.receipt = { 2, 1, { 1, 2, 3, 4, 5, 6, 7, 8 } };
+        independentRejected = false;
+        try {
+            (void)prepareSourceBakeImages(procedural, {}, &receipts, nullptr, independentPolicy);
+        } catch (const SourceImageError& cause) {
+            independentRejected = cause.role() == SourceImageRole::procedural;
+        }
+        if (!independentRejected || receipts.proceduralBudgets != std::vector<uint64_t>({ 4 }))
+            throw std::runtime_error("Fake procedural receipt exceeding its tighter supplied quota must reject even within shared quota");
         for (const auto& receipt : { ImportedRenderImage { 8193, 1, { 1, 2, 3, 4 } }, ImportedRenderImage { 1, 8193, { 1, 2, 3, 4 } },
                  ImportedRenderImage { 1, 1, { 1, 2, 3 } }, ImportedRenderImage { 1, 1, std::vector<uint8_t>(12) } }) {
             receipts.receipt = receipt;

@@ -30,7 +30,9 @@ platform callbacks. All required declared imported images remain in preparation;
 this path does not compact to the imported-render surface catalog. Combined encoded
 budgets, required provider availability and the native model-image descriptor cap
 preflight before either decoder. Procedural decoding precedes imported decoding,
-sharing one remaining decoded pixel quota. Receipts require tight straight RGBA8
+sharing one remaining decoded pixel quota. Procedural images also consume their
+independent receiver quota; callbacks and receipts enforce the smaller remaining
+quota before retaining pixels. Receipts require tight straight RGBA8
 and native-compatible dimensions. Decoder roles stay distinct; portable code does
 not perform platform decoding.
 
@@ -52,8 +54,8 @@ explicit. Original diagnostic domain/code/status remain separate from outcome.
 
 ## Verification and limitations
 
-The final complete ordinary build and 191 CTests passed (44.91 seconds), followed
-by the SwiftPM runtime product (1.54 seconds). The known SwiftPM native-builder
+The final complete ordinary build and 191 CTests passed (43.76 seconds), followed
+by the SwiftPM runtime product (0.65 seconds). The known SwiftPM native-builder
 deprecation warning remains. Exact clang-format 18 checks and strict C11 public API
 compilation passed. A manifest of 41 changed source/build files remained unchanged
 through final gates. Positive native fixtures use existing Capsule/procedural
@@ -65,7 +67,7 @@ Eight scoped ASan/UBSan programs passed after refreshing the changed adapter.
 libraries are not. Leak detection is disabled. This does not establish whole-engine
 sanitizer, leak, RSS, time or cancellation-latency guarantees.
 
-Matching per-binary coverage is preparation 104/104 lines, 105/105 regions, 5/5
+Matching per-binary coverage is preparation 107/107 lines, 105/105 regions, 5/5
 functions and 80/80 branch outcomes; request 70/70 lines and 35/38 outcomes; native
 producer 83/103 lines and 24/32 outcomes. Other scoped observations are operation
 39/96 lines, failure codec 115/127 and baked C accessors 98/120. These are not
