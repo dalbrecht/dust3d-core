@@ -285,3 +285,12 @@ facts and surface from the same stable unchanged archive and releases native own
 before decoding. The platform implementation belongs in the eventual Apple worker.
 See [ADR 0147](../../docs/adr/0147-imported-render-producer.md) for contracts,
 layered limits, measured verification and remaining adoption gates.
+
+### Platform decoder ownership bridge
+
+`Dust3DWorkerImageDecoder.h` exposes callback-scoped encoded input, opaque owned
+straight RGBA8 images and self-owned bounded original diagnostics.
+`WorkerImageDecoder.h` adapts that callback to the portable producer and transfers
+returned pixels safely. No worker opcode or Apple decoder is registered here.
+See [ADR 0148](../../docs/adr/0148-worker-image-decoder-ownership.md) for lifetime,
+quotas, caller contracts and measured verification limits.

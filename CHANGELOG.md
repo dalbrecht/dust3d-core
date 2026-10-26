@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add explicit C image ownership and bounded callback diagnostics for worker-side platform decoding, with a portable producer adapter; runtime/Apple activation remains separate (#241).
+
 - Prepare imported rendering values from one unchanged archive through an explicit injected image decoder, preserving ordered definitions, original causes and layered quotas; platform/runtime adoption remains separate (#239).
 
 - Join imported geometry/source records, ordered material definitions and owned source pixels under complete cross-catalog and aggregate validation; producer/transport adoption remains separate (#237).

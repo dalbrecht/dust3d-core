@@ -1175,3 +1175,12 @@ original causes. See [ADR 0147](adr/0147-imported-render-producer.md). Actual pl
 PNG/JPEG decoding inside the Apple worker, transport/Swift ownership, real session
 metrics and supported-range parity remain open Apple #279/#280 gates. No default
 backend, production pin or quarantine change; full M4–M8 remains incomplete.
+
+### Worker platform decoder ownership checkpoint (#241)
+
+C-compatible callback input, opaque image owners and bounded original diagnostics
+now connect to the portable imported producer through an explicit C++ adapter.
+See [ADR 0148](adr/0148-worker-image-decoder-ownership.md). Actual Swift/ImageIO
+worker orchestration, runtime registration/transport, real metrics and supported
+range acceptance remain open. No production pin/backend or quarantine changes;
+full M4–M8 acceptance remains incomplete.
