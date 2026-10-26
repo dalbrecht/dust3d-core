@@ -1170,3 +1170,8 @@ An explicit C++ session producer now correlates source-budget requests with owne
 geometry/diagnostic/statistics responses and reserves diagnostic allowance before
 native work. Legacy serving/admission explicitly rejects the session operation;
 C/Swift adoption remains separate. See [ADR 0157](docs/adr/0157-worker-session-operation.md).
+
+Session output values now have an immutable C owner with const borrowed decoded
+views and copied actual statistics. This standalone body decoder is not authenticated
+host admission. See [ADR 0158](docs/adr/0158-worker-session-output-c.md) for lifetimes,
+validation and measured coverage limits.

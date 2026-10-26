@@ -1285,3 +1285,14 @@ and conservative reservation limits. Legacy stateless/C/host admission rejects t
 operation pending dedicated ownership support. Authenticated serving, C/Swift/XPC
 integration, Apple #279/#280 range parity and M4–M8 acceptance remain open. Production
 pin/backend and quarantines are unchanged.
+
+### C session-output ownership (#251)
+
+The complete session envelope now decodes into one immutable C root with borrowed
+geometry/source/failure views, explicit statistics availability and copied actual
+observations. Tiny pure contracts, an independent C11 consumer and ordinary Capsule
+cache/ownership compatibility pass, alongside all 202 contracts and the SwiftPM build.
+[ADR 0158](adr/0158-worker-session-output-c.md) records recovery-guard coverage gaps.
+Raw body decoding does not authenticate or admit current publication. Dedicated
+serving/admission, Swift/XPC ownership, platform decoding, Apple #279/#280 and M4–M8
+acceptance remain incomplete. Production pin/backend and quarantines are unchanged.

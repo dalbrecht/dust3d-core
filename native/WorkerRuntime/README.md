@@ -324,3 +324,19 @@ borrowed spans must be copied before release. Contextual image failures retain
 original cause bytes separately from role/identity. See
 [ADR 0152](../../docs/adr/0152-source-bake-worker-runtime.md) for wire layout,
 validation status and adoption limits.
+
+## Session output value ownership
+
+Include `Dust3DWorkerSessionOutput.h` to decode a complete session-envelope body
+into one immutable owner. Primary/source/statistics issue views are borrowed const
+decoded handles: use existing getters, copy needed data, and destroy only the root
+with `dust3d_worker_session_output_destroy`. Actual statistics availability is explicit;
+zero observations remain distinguishable from absent values. Cache diagnostics are
+opaque borrowed bytes. Sized/null getter behavior is documented in the header.
+
+This API only decodes values. It does not authenticate a peer, correlate current
+work or authorize publication. Legacy operation-9 serving/admission remains rejected
+until dedicated host ownership and admission are implemented. Source allowance zero
+uses 64 MiB; independent inner count/diagnostic limits still apply. See
+[ADR 0158](../../docs/adr/0158-worker-session-output-c.md) for quotas, verification
+and unforced recovery-guard coverage.
