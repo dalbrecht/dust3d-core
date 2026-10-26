@@ -1188,3 +1188,11 @@ live-generation reset and permanent idempotent close. Required result pointers
 preserve typed errors; NULL results do no work. Host authentication and object
 lifetime remain caller responsibilities. Channel serving and Apple adoption remain
 separate; see [ADR0160](docs/adr/0160-worker-session-c-lifecycle.md).
+
+### Explicit C session serving
+
+`dust3d_worker_session_request_create` builds operation9 requests;
+`dust3d_worker_session_serve` routes them through an existing host-scoped cache.
+Shared channel framing retains original I/O causes. Parent completion admission,
+authentication, resource isolation and Apple adoption remain separate. See
+[ADR0161](docs/adr/0161-worker-session-c-serving.md).

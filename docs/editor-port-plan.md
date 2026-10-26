@@ -1319,3 +1319,14 @@ records measured coverage and unforced recovery paths. C serving/request creatio
 Swift/XPC adoption, actual authenticated transport and Apple #279/#280 output/range
 acceptance remain open. Production pin/backend and quarantines remain unchanged;
 M4–M8/full-parity acceptance is still incomplete.
+
+### Explicit C retained-session serving foundation (#251)
+
+Operation9 request creation and channel serving now route through an existing
+host-scoped C owner, sharing exact EOF framing and I/O diagnostics with stateless
+jobs. Ordinary Capsule contracts show reuse across requests, rebuild after reset
+and owned output after destruction. All206 ordinary contracts and scoped positive
+sanitizer checks pass; [ADR0161](adr/0161-worker-session-c-serving.md) records measured
+coverage limits. Swift/XPC lifecycle/decoder adoption, actual authenticated transport,
+and Apple #279/#280 complete-output/range acceptance remain open. No production pin,
+backend, quarantine or M4–M8 parity acceptance change follows.

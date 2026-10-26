@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Serve explicit session requests through retained C worker owners and shared bounded channel framing, preserving actual cache observations across requests (#251).
+
 - Expose exclusive C worker-session lifecycle ownership with host scope, reset/close semantics and preserved original diagnostics (#251).
 
 - Admit correlated session envelopes through shared service/queue gates and dedicated C owners, preserving one-shot retirement and newer waiting work (#251).
