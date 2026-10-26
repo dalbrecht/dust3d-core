@@ -45,6 +45,8 @@ const MeshPayload* geometry(const Dust3DWorkerDecodedReply* reply) noexcept
         return nullptr;
     if (const auto* imported = std::get_if<ImportedRenderReply>(&reply->value))
         return imported->value ? &imported->value->surface.geometry : nullptr;
+    if (const auto* legacy = std::get_if<LegacyBakedPayload>(&reply->value))
+        return &legacy->geometry;
     if (auto* mesh = std::get_if<MeshPayload>(&reply->value))
         return mesh;
     if (auto* pair = std::get_if<UvMeshPayload>(&reply->value))
@@ -75,6 +77,8 @@ const UvPayload* uv(const Dust3DWorkerDecodedReply* reply) noexcept
 {
     if (!reply)
         return nullptr;
+    if (const auto* legacy = std::get_if<LegacyBakedPayload>(&reply->value))
+        return &legacy->uv;
     const auto* pair = std::get_if<UvMeshPayload>(&reply->value);
     return pair ? &pair->uv : nullptr;
 }
@@ -131,6 +135,10 @@ Dust3DWorkerDecodedReply* protectDecoded(Dust3DWorkerReplyCollector* owner, uint
         rejectCodec(*result, DUST3D_WORKER_DETAIL_INDEXED_MESH, cause);
     } catch (const IndexedSourcesPayloadError& cause) {
         rejectCodec(*result, DUST3D_WORKER_DETAIL_INDEXED_SOURCES, cause);
+    } catch (const LegacyBakedError& cause) {
+        rejectCodec(*result, DUST3D_WORKER_DETAIL_LEGACY_BAKED, cause);
+    } catch (const BakedTexturesError& cause) {
+        rejectCodec(*result, DUST3D_WORKER_DETAIL_BAKED_TEXTURES, cause);
     } catch (const ImportedRenderError& cause) {
         rejectCodec(*result, DUST3D_WORKER_DETAIL_IMPORTED_RENDER, cause);
     } catch (const ImportedSurfaceError& cause) {
@@ -169,6 +177,8 @@ extern "C" Dust3DWorkerDecodedReply* dust3d_worker_reply_decode(Dust3DWorkerRepl
         if (header.kind == FrameKind::failure)
             return decodeFailurePayload(body, size, policy.failure);
         switch (header.operation) {
+        case Operation::generateLegacyBaked:
+            return decodeLegacyBakedPayload(body, size, policy.legacy);
         case Operation::generateImportedRender:
             return ImportedRenderReply { size ? std::optional<ImportedRenderPayload>(decodeImportedRenderPayload(body, size, policy.imported)) : std::nullopt };
         case Operation::generateMesh:
@@ -199,7 +209,7 @@ extern "C" Dust3DWorkerDecodedReply* dust3d_worker_service_admit(Dust3DWorkerRep
         const auto policy = bridge::semanticPolicies(value.policy, maximum);
         PendingServiceReply pending(value.expected, value.serviceConnectionGeneration, value.policy);
         return pending.complete(identity, { observed.connection_generation, observed.process_identifier, value.isFramed },
-            control, value.bytes.data(), value.bytes.size(), value.policy, policy.mesh, policy.failure, policy.uv, policy.sources, policy.indexed, policy.imported);
+            control, value.bytes.data(), value.bytes.size(), value.policy, policy.mesh, policy.failure, policy.uv, policy.sources, policy.indexed, policy.imported, policy.legacy);
     });
 }
 
@@ -230,7 +240,7 @@ extern "C" Dust3DWorkerDecodedSummary dust3d_worker_decoded_summary(const Dust3D
         if (sources(reply))
             result.kind = DUST3D_WORKER_DECODED_SOURCED_MESH;
         if (const auto* atlas = uv(reply)) {
-            result.kind = DUST3D_WORKER_DECODED_UV_MESH;
+            result.kind = std::holds_alternative<LegacyBakedPayload>(reply->value) ? DUST3D_WORKER_DECODED_LEGACY_BAKED : DUST3D_WORKER_DECODED_UV_MESH;
             result.triangle_count = atlas->triangles.size();
             result.chart_count = atlas->charts.size();
             result.gradient_count = atlas->gradients.size();

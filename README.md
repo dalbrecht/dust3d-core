@@ -1136,3 +1136,10 @@ copy encoded bytes after metadata, per-image and aggregate admission. The native
 adapter reuses validated metadata reading and preserves component-tree order without
 GLB/pixel decoding. See [ADR 0150](docs/adr/0150-worker-procedural-image-inputs.md)
 and #245. Baking, platform decoding and default Apple runtime adoption remain separate.
+
+Complete legacy baking now has explicit worker requests, procedural decoder slots,
+correlated jobs/admission and owned C geometry/UV/tangent/base-map output. The
+procedural callback purpose preserves its distinct PNG policy; absent required
+providers fail explicitly. See [ADR 0151](docs/adr/0151-legacy-bake-worker-runtime.md)
+and #247 for settings, host caps, ownership and validation. Actual Apple decoding,
+source-baked/mip transport, real session metrics and supported-range acceptance remain open.

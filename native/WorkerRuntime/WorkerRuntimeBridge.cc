@@ -4,6 +4,7 @@
 #include "WorkerImportedRequest.h"
 #include "WorkerIndexedSources.h"
 #include "WorkerJobIO.h"
+#include "WorkerLegacyRequest.h"
 #include "WorkerSourceRequest.h"
 #include "WorkerSourcedMesh.h"
 #include "WorkerUvMesh.h"
@@ -43,7 +44,7 @@ extern "C" uint32_t dust3d_worker_runtime_abi_version() noexcept
     return DUST3D_WORKER_RUNTIME_ABI_VERSION;
 }
 namespace {
-Dust3DWorkerJobResult serve(int32_t input, int32_t output, const Dust3DWorkerImageDecoder* configuration) noexcept
+Dust3DWorkerJobResult serve(int32_t input, int32_t output, const Dust3DWorkerImageDecoder* configuration, const Dust3DWorkerImageDecoder* proceduralConfiguration = nullptr) noexcept
 {
     Dust3DWorkerJobResult result {};
     result.status = DUST3D_WORKER_JOB_INTERNAL_FAILED;
@@ -52,7 +53,10 @@ Dust3DWorkerJobResult serve(int32_t input, int32_t output, const Dust3DWorkerIma
         std::optional<CallbackImportedImageDecoder> decoder;
         if (configuration)
             decoder.emplace(*configuration);
-        serveWorkerJob(input, output, context, decoder ? &*decoder : nullptr);
+        std::optional<CallbackProceduralImageDecoder> procedural;
+        if (proceduralConfiguration)
+            procedural.emplace(*proceduralConfiguration);
+        serveWorkerJob(input, output, context, decoder ? &*decoder : nullptr, {}, procedural ? &*procedural : nullptr);
         result.status = DUST3D_WORKER_JOB_COMPLETE;
     } catch (const WorkerJobIOError& cause) {
         result.status = DUST3D_WORKER_JOB_IO_FAILED;
@@ -89,6 +93,16 @@ Dust3DWorkerJobResult serve(int32_t input, int32_t output, const Dust3DWorkerIma
         rejectCodec(result, DUST3D_WORKER_DETAIL_INDEXED_MESH, cause);
     } catch (const IndexedSourcesPayloadError& cause) {
         rejectCodec(result, DUST3D_WORKER_DETAIL_INDEXED_SOURCES, cause);
+    } catch (const LegacyRequestError& cause) {
+        rejectCodec(result, DUST3D_WORKER_DETAIL_LEGACY_REQUEST, cause);
+    } catch (const LegacyProducerError& cause) {
+        rejectCodec(result, DUST3D_WORKER_DETAIL_LEGACY_PRODUCER, cause);
+    } catch (const LegacyBakedError& cause) {
+        rejectCodec(result, DUST3D_WORKER_DETAIL_LEGACY_BAKED, cause);
+    } catch (const ProceduralImageError& cause) {
+        rejectCodec(result, DUST3D_WORKER_DETAIL_PROCEDURAL_IMAGES, cause);
+    } catch (const BakedTexturesError& cause) {
+        rejectCodec(result, DUST3D_WORKER_DETAIL_BAKED_TEXTURES, cause);
     } catch (const ImportedRequestError& cause) {
         rejectCodec(result, DUST3D_WORKER_DETAIL_IMPORTED_REQUEST, cause);
     } catch (const WorkerImageDecoderError& cause) {
@@ -130,6 +144,8 @@ Dust3DWorkerJobResult serve(int32_t input, int32_t output, const Dust3DWorkerIma
         result.operation = DUST3D_WORKER_OPERATION_INDEXED_MESH;
     if (context.operation == Operation::generateImportedRender)
         result.operation = DUST3D_WORKER_OPERATION_IMPORTED_RENDER;
+    if (context.operation == Operation::generateLegacyBaked)
+        result.operation = DUST3D_WORKER_OPERATION_LEGACY_BAKED;
     return result;
 }
 
@@ -148,4 +164,18 @@ extern "C" Dust3DWorkerJobResult dust3d_worker_serve_with_image_decoder(int32_t 
         return result;
     }
     return serve(input, output, configuration);
+}
+
+extern "C" Dust3DWorkerJobResult dust3d_worker_serve_with_decoders(int32_t input, int32_t output, const Dust3DWorkerDecoders* configuration) noexcept
+{
+    if (!configuration || configuration->struct_size != sizeof(*configuration)) {
+        Dust3DWorkerJobResult result {};
+        result.status = DUST3D_WORKER_JOB_CODEC_REJECTED;
+        result.detail_source = DUST3D_WORKER_DETAIL_IMAGE_DECODER;
+        copyCause(result, "Worker purpose-specific decoder configuration is missing or invalid.");
+        return result;
+    }
+    const auto present = [](const Dust3DWorkerImageDecoder& slot) { return slot.struct_size || slot.context || slot.decode; };
+    return serve(input, output, present(configuration->imported) ? &configuration->imported : nullptr,
+        present(configuration->procedural) ? &configuration->procedural : nullptr);
 }

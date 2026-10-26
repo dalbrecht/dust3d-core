@@ -2,6 +2,7 @@
 #ifndef DUST3D_WORKER_IMAGE_DECODER_ADAPTER_H_
 #define DUST3D_WORKER_IMAGE_DECODER_ADAPTER_H_
 #include "WorkerImportedProducer.h"
+#include "WorkerLegacyProducer.h"
 #include <Dust3DWorkerImageDecoder.h>
 namespace dust3d {
 namespace worker {
@@ -29,7 +30,25 @@ namespace worker {
         ImportedRenderImage decode(const ImportedEncodedImage& encoded, std::string_view modelId, uint64_t maximumEncodedBytes, uint64_t maximumDecodedBytes) override;
 
     private:
+        friend class CallbackProceduralImageDecoder;
+        ImportedRenderImage decodeBorrowed(const uint8_t* bytes, size_t size, ImportedImageEncoding encoding,
+            std::string_view identity, uint64_t maximumEncodedBytes, uint64_t maximumDecodedBytes);
         Dust3DWorkerImageDecoder m_configuration;
+    };
+    /// Separate procedural role: caller supplies a callback implementing the legacy
+    /// PNG grayscale-transparency rule. Pixel ownership/receipt checks are shared;
+    /// encoded source storage is borrowed without an intermediate encoded copy.
+    class CallbackProceduralImageDecoder final : public ProceduralImageDecoder {
+    public:
+        /// Validate/copy exclusive configuration; throws original WorkerImageDecoderError.
+        /// Example: CallbackProceduralImageDecoder decoder(configuration);
+        explicit CallbackProceduralImageDecoder(Dust3DWorkerImageDecoder configuration);
+        /// Invoke only the procedural callback slot with PNG encoding and image identity.
+        /// Input/context/code stay live through return; original typed failures propagate.
+        ProceduralDecodedImage decode(const ProceduralImageInput& input, uint64_t maximumEncodedBytes, uint64_t maximumDecodedBytes) override;
+
+    private:
+        CallbackImportedImageDecoder m_decoder;
     };
 }
 }

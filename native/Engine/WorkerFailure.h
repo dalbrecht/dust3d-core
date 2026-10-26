@@ -24,7 +24,13 @@ namespace worker {
         surface = 4,
         materials = 5,
         render = 6,
-        standard = 7 };
+        standard = 7,
+        legacyBaked = 8,
+        proceduralImages = 9,
+        bakedTextures = 10,
+        uv = 11,
+        legacyProducer = 12,
+        mesh = 13 };
     struct FailureDetail {
         FailureDomain domain;
         int32_t code = 0;

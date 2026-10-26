@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Route complete legacy bakes through budgeted worker requests, distinct procedural decoding, native production, child/service/queue admission and owned C UV/tangent/map output (#247).
+
 - Prepare independently owned referenced procedural image bytes through bounded metadata admission and the validated native archive reader, without decoding imported GLB payloads (#245).
 
 - Route complete imported rendering through explicit decoder-equipped worker jobs, child/service/queue admission and owned C getters, preserving request budgets and detailed original failures (#243).

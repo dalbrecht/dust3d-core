@@ -29,6 +29,18 @@ int main(void)
         || memcmp(bytes + 144, archive, sizeof(archive)))
         return 5;
     dust3d_worker_request_destroy(owner);
+    Dust3DWorkerRequestLegacyOptions legacy = { 0 };
+    legacy.struct_size = sizeof(legacy);
+    legacy.atlas_texture_size = 8;
+    owner = dust3d_worker_legacy_request_create(identity, archive, sizeof(archive), &legacy,
+        (Dust3DWorkerWireLimits) { 4096, 4096, 4096 }, &result);
+    if (!owner || result.status != DUST3D_WORKER_REQUEST_OK)
+        return 6;
+    bytes = dust3d_worker_request_bytes(owner, &size);
+    if (!bytes || size != 195 || bytes[19] != 7 || bytes[65] != 1 || bytes[67] != 128
+        || memcmp(bytes + 192, archive, sizeof(archive)))
+        return 7;
+    dust3d_worker_request_destroy(owner);
     dust3d_worker_request_destroy(NULL);
     return 0;
 }

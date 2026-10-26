@@ -97,13 +97,18 @@ namespace worker {
     }
     ImportedRenderImage CallbackImportedImageDecoder::decode(const ImportedEncodedImage& encoded, std::string_view model, uint64_t maximumEncoded, uint64_t maximumDecoded)
     {
+        return decodeBorrowed(encoded.bytes.data(), encoded.bytes.size(), encoded.encoding, model, maximumEncoded, maximumDecoded);
+    }
+    ImportedRenderImage CallbackImportedImageDecoder::decodeBorrowed(const uint8_t* bytes, size_t count, ImportedImageEncoding encoding,
+        std::string_view model, uint64_t maximumEncoded, uint64_t maximumDecoded)
+    {
         if (!maximumEncoded || maximumEncoded > maximumPayloadBytes || !maximumDecoded || maximumDecoded > maximumPayloadBytes
-            || encoded.bytes.empty() || model.empty() || model.size() > 38 || !detail::isIdentityUtf8(model)
-            || (encoded.encoding != ImportedImageEncoding::png && encoded.encoding != ImportedImageEncoding::jpeg))
+            || (!bytes || !count) || model.empty() || model.size() > 38 || !detail::isIdentityUtf8(model)
+            || (encoding != ImportedImageEncoding::png && encoding != ImportedImageEncoding::jpeg))
             throw WorkerImageDecoderError(diagnostic(DUST3D_WORKER_IMAGE_INVALID_INPUT, "Worker image callback input or policies are invalid."));
-        if (encoded.bytes.size() > maximumEncoded)
+        if (count > maximumEncoded)
             throw WorkerImageDecoderError(diagnostic(DUST3D_WORKER_IMAGE_LIMIT_EXCEEDED, "Worker encoded image exceeds its input quota."));
-        Dust3DWorkerImageInput input { sizeof(Dust3DWorkerImageInput), encoded.bytes.data(), encoded.bytes.size(), reinterpret_cast<const uint8_t*>(model.data()), model.size(), static_cast<uint32_t>(encoded.encoding), maximumEncoded, maximumDecoded };
+        Dust3DWorkerImageInput input { sizeof(Dust3DWorkerImageInput), bytes, count, reinterpret_cast<const uint8_t*>(model.data()), model.size(), static_cast<uint32_t>(encoding), maximumEncoded, maximumDecoded };
         Dust3DWorkerImageResult result {};
         std::unique_ptr<Dust3DWorkerImage, decltype(&dust3d_worker_image_destroy)> image(m_configuration.decode(m_configuration.context, &input, &result), dust3d_worker_image_destroy);
         if (result.cause_length > sizeof(result.cause) || result.cause_truncated > 1 || (result.status != DUST3D_WORKER_IMAGE_OK && !isFailure(result.status)))
@@ -117,5 +122,15 @@ namespace worker {
         detail::validateImportedRenderImage(image->value.width, image->value.height, image->value.pixels.size(), true);
         return std::move(image->value);
     }
+    CallbackProceduralImageDecoder::CallbackProceduralImageDecoder(Dust3DWorkerImageDecoder configuration)
+        : m_decoder(configuration)
+    {
+    }
+    ProceduralDecodedImage CallbackProceduralImageDecoder::decode(const ProceduralImageInput& input, uint64_t maximumEncoded, uint64_t maximumDecoded)
+    {
+        return m_decoder.decodeBorrowed(input.encoded.data(), input.encoded.size(), ImportedImageEncoding::png,
+            input.identity, maximumEncoded, maximumDecoded);
+    }
+
 }
 }
