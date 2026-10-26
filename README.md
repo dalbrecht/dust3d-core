@@ -1196,3 +1196,11 @@ separate; see [ADR0160](docs/adr/0160-worker-session-c-lifecycle.md).
 Shared channel framing retains original I/O causes. Parent completion admission,
 authentication, resource isolation and Apple adoption remain separate. See
 [ADR0161](docs/adr/0161-worker-session-c-serving.md).
+
+### Swift session importer contract
+
+The explicit `Dust3DWorkerRuntime` module map exposes runtime/image/session headers
+for SwiftPM consumers. A Swift6 integration contract verifies retained session use,
+dedicated completion admission and copied Sendable output after owner destruction
+against both CMake and SwiftPM static output. It is not an authenticated XPC/backend
+activation claim; see [ADR0162](docs/adr/0162-worker-session-swift-consumer.md).

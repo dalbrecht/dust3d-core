@@ -382,3 +382,14 @@ before displaying anything. Cache state persists across calls until reset/close;
 reset does not reset replay protection. Stateless serving still rejects operation9.
 Actual authenticated XPC and full Apple output/range acceptance remain pending.
 See [ADR0161](../../docs/adr/0161-worker-session-c-serving.md).
+
+### Swift module and ownership evidence
+
+The checked-in `include/module.modulemap` explicitly exports runtime, image,
+session-output and session-owner headers; SwiftPM uses this instead of an incomplete
+automatic target-named umbrella. `worker_session_swift` checks Swift6 strict
+concurrency and warnings-as-errors, both module-import paths, ordinary retained-cache
+serving and copied Sendable values after native destruction. Its same-process peer
+observations exercise correlation, not XPC authentication. The same consumer was
+also linked/run against the actual SwiftPM static archive. See
+[ADR0162](../../docs/adr/0162-worker-session-swift-consumer.md).

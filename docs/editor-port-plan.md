@@ -1330,3 +1330,14 @@ sanitizer checks pass; [ADR0161](adr/0161-worker-session-c-serving.md) records m
 coverage limits. Swift/XPC lifecycle/decoder adoption, actual authenticated transport,
 and Apple #279/#280 complete-output/range acceptance remain open. No production pin,
 backend, quarantine or M4–M8 parity acceptance change follows.
+
+### Swift session importer/ownership evidence (#251)
+
+Explicit public module exports now expose the additive session headers under
+SwiftPM and standalone CMake importing. A Swift6 strict consumer keeps native handles
+inside one detached task, verifies ordinary reuse/reset/close and copies geometry,
+selected source bytes and actual observations before actor transfer. All207 ordinary
+contracts pass, plus an independent link/run against actual SwiftPM output.
+[ADR0162](adr/0162-worker-session-swift-consumer.md) distinguishes this evidence from
+actual authenticated XPC, complete output/range and app acceptance. Those #251 and
+Apple #279/#280 gates, production pin/backend and quarantines remain unchanged.
