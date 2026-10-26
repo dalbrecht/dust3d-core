@@ -3,6 +3,7 @@
 #define DUST3D_NATIVE_WORKER_FAILURE_H_
 #include "WorkerProtocol.h"
 #include <optional>
+#include <string>
 
 namespace dust3d {
 namespace worker {
@@ -30,18 +31,27 @@ namespace worker {
         bakedTextures = 10,
         uv = 11,
         legacyProducer = 12,
-        mesh = 13 };
+        mesh = 13,
+        sourceBaked = 14 };
     struct FailureDetail {
         FailureDomain domain;
         int32_t code = 0;
         uint32_t status = 0;
         uint8_t causeTruncated = 0;
     };
+    constexpr size_t contextualFailurePrefixBytes = 32;
+    enum class FailureResourceRole : uint16_t { proceduralImage = 1,
+        importedImage = 2 };
+    struct FailureResourceContext {
+        FailureResourceRole role;
+        std::string identity;
+    };
     /// Original diagnostic bytes are opaque data, never commands, format strings or logs.
     struct FailurePayload {
         FailureStatus status = FailureStatus::generationFailed;
         std::vector<uint8_t> cause;
         std::optional<FailureDetail> detail = std::nullopt;
+        std::optional<FailureResourceContext> context = std::nullopt;
     };
     /// Logical body limits exclude roots/capacities/allocator overhead and do not cap RSS.
     struct FailurePayloadLimits {
@@ -65,7 +75,7 @@ namespace worker {
     private:
         FailurePayloadErrorCode m_code;
     };
-    /// Encode a known non-success status and bounded original cause using v1 when details are absent, v2 when present.
+    /// Encode a known non-success status and bounded original cause using v1 without details, v2 with details, v3 with separate resource context.
     /// Empty and non-UTF-8 causes survive unchanged. Throws FailurePayloadError or allocation errors.
     std::vector<uint8_t> encodeFailurePayload(const FailurePayload& failure, const FailurePayloadLimits& limits);
     /// Decode one exact complete payload into owned bytes; never log or interpret the cause.

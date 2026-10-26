@@ -73,6 +73,21 @@ int main(void)
         return 9;
     if (dust3d_worker_serve_with_decoders(-1, -1, NULL).status != DUST3D_WORKER_JOB_CODEC_REJECTED)
         return 10;
+    Dust3DWorkerBakedTriangle source_triangle;
+    Dust3DWorkerFailureContext source_context = dust3d_worker_decoded_failure_context(NULL);
+    if (source_context.identity || source_context.role || source_context.identity_size
+        || dust3d_worker_decoded_baked_surface_summary(NULL).model_count
+        || dust3d_worker_decoded_baked_triangle(NULL, 0, &source_triangle)
+        || dust3d_worker_decoded_baked_model(NULL, 0, &size)
+        || dust3d_worker_decoded_baked_component(NULL, 0, &size)
+        || dust3d_worker_decoded_baked_component_kind(NULL, 0))
+        return 11;
+    Dust3DWorkerRequestSourceBakeOptions source_options = { 0 };
+    source_options.struct_size = sizeof(source_options);
+    source_options.legacy.struct_size = sizeof(source_options.legacy);
+    if (dust3d_worker_source_bake_request_create((Dust3DWorkerRequestIdentity) { { 0 }, 0, 0 },
+            NULL, 0, &source_options, (Dust3DWorkerWireLimits) { 64, 64, 64 }, NULL))
+        return 12;
     dust3d_worker_decoded_destroy(NULL);
     return 0;
 }

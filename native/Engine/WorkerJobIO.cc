@@ -4,6 +4,7 @@
 #include "WorkerIndexedSourceOperation.h"
 #include "WorkerLegacyOperation.h"
 #include "WorkerOperation.h"
+#include "WorkerSourceBakeOperation.h"
 #include "WorkerSourceOperation.h"
 #include "WorkerUvOperation.h"
 #include <algorithm>
@@ -61,6 +62,8 @@ namespace worker {
             return "generateIndexedMesh";
         if (operation == Operation::generateImportedRender)
             return "generateImportedRender";
+        if (operation == Operation::generateSourceBaked)
+            return "generateSourceBaked";
         if (operation == Operation::generateLegacyBaked)
             return "generateLegacyBaked";
         return "unknown";
@@ -83,7 +86,7 @@ namespace worker {
         }
         return { true, 0 };
     }
-    void serveWorkerJob(int input, int output, WorkerJobContext& context, ImportedRenderImageDecoder* decoder, const NativeImportedProducerLimits& importedLimits, ProceduralImageDecoder* proceduralDecoder, const LegacyProducerOptions& legacyLimits)
+    void serveWorkerJob(int input, int output, WorkerJobContext& context, ImportedRenderImageDecoder* decoder, const NativeImportedProducerLimits& importedLimits, ProceduralImageDecoder* proceduralDecoder, const LegacyProducerOptions& legacyLimits, const NativeSourceProducerOptions& sourceBakeLimits)
     {
         context = {};
         if (input < 0 || output < 0 || input == output)
@@ -105,6 +108,9 @@ namespace worker {
             throw WorkerJobIOError(WorkerJobStage::input, end.error);
         Frame response;
         switch (header.operation) {
+        case Operation::generateSourceBaked:
+            response = generateSourceBakedReply(request, proceduralDecoder, decoder, sourceBakeLimits);
+            break;
         case Operation::generateLegacyBaked:
             response = generateLegacyBakedReply(request, proceduralDecoder, legacyLimits);
             break;

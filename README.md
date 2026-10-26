@@ -1143,3 +1143,7 @@ procedural callback purpose preserves its distinct PNG policy; absent required
 providers fail explicitly. See [ADR 0151](docs/adr/0151-legacy-bake-worker-runtime.md)
 and #247 for settings, host caps, ownership and validation. Actual Apple decoding,
 source-baked/mip transport, real session metrics and supported-range acceptance remain open.
+
+Source-baked worker rendering now has explicit requests, native production and
+owned C geometry/surface/catalog/mip output. Its validation status and remaining
+Apple adoption requirements are recorded in [ADR 0152](docs/adr/0152-source-bake-worker-runtime.md).

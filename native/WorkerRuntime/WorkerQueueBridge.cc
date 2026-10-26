@@ -187,7 +187,7 @@ extern "C" Dust3DWorkerDecodedReply* dust3d_worker_service_queue_admit(Dust3DWor
             hasStartedCompletion = true;
             auto value = owner.state.completeService(reply->expected.identity,
                 { observed.connection_generation, observed.process_identifier, true }, control,
-                reply->bytes.data(), reply->bytes.size(), policy.mesh, policy.failure, policy.uv, policy.sources, policy.indexed, policy.imported, policy.legacy);
+                reply->bytes.data(), reply->bytes.size(), policy.mesh, policy.failure, policy.uv, policy.sources, policy.indexed, policy.imported, policy.legacy, policy.sourceBake);
             auto* decoded = bridge::adoptDecodedReply(std::move(value));
             result->status = DUST3D_WORKER_DECODE_OK;
             return decoded;
@@ -216,6 +216,8 @@ extern "C" Dust3DWorkerDecodedReply* dust3d_worker_service_queue_admit(Dust3DWor
         reject(*result, DUST3D_WORKER_DECODE_CODEC_REJECTED, DUST3D_WORKER_DETAIL_INDEXED_MESH, cause);
     } catch (const IndexedSourcesPayloadError& cause) {
         reject(*result, DUST3D_WORKER_DECODE_CODEC_REJECTED, DUST3D_WORKER_DETAIL_INDEXED_SOURCES, cause);
+    } catch (const SourceBakedError& cause) {
+        reject(*result, DUST3D_WORKER_DECODE_CODEC_REJECTED, DUST3D_WORKER_DETAIL_SOURCE_BAKED, cause);
     } catch (const LegacyBakedError& cause) {
         reject(*result, DUST3D_WORKER_DECODE_CODEC_REJECTED, DUST3D_WORKER_DETAIL_LEGACY_BAKED, cause);
     } catch (const BakedTexturesError& cause) {

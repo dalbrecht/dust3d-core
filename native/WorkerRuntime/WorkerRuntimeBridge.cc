@@ -144,6 +144,8 @@ Dust3DWorkerJobResult serve(int32_t input, int32_t output, const Dust3DWorkerIma
         result.operation = DUST3D_WORKER_OPERATION_INDEXED_MESH;
     if (context.operation == Operation::generateImportedRender)
         result.operation = DUST3D_WORKER_OPERATION_IMPORTED_RENDER;
+    if (context.operation == Operation::generateSourceBaked)
+        result.operation = DUST3D_WORKER_OPERATION_SOURCE_BAKED;
     if (context.operation == Operation::generateLegacyBaked)
         result.operation = DUST3D_WORKER_OPERATION_LEGACY_BAKED;
     return result;

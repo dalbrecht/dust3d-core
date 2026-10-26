@@ -72,6 +72,11 @@ namespace worker {
     /// Validate supported positive count/text/encoded/wire/logical policies without output allocation.
     /// Throws ImportedMaterialsError(invalidLimits). Example: validateImportedMaterialsLimits({});
     void validateImportedMaterialsLimits(const ImportedMaterialsLimits& limits);
+    /// Inspect owned immutable facts and all quotas without an encoded output copy.
+    /// Returns counts/charges; bounded validation lookup workspace is excluded.
+    /// Throws original ImportedMaterialsError or workspace allocation errors.
+    /// Example: auto shape = inspectImportedMaterialsPayload(facts, {});
+    ImportedMaterialsInspection inspectImportedMaterialsPayload(const ImportedMaterialsPayload& value, const ImportedMaterialsLimits& limits);
     /// Inspect all material/sampler/image declarations, keys, bindings and quotas before wire allocation.
     /// @param value Stable borrowed facts; exact primitive bits, optional presence, bytes and order retained.
     /// @param limits Supported independent policies, excluding validation sets/native workspace/RSS.

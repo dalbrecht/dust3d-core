@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 #include "WorkerImportedRequest.h"
 #include "WorkerLegacyRequest.h"
+#include "WorkerSourceBakeRequest.h"
 #include "WorkerSourceRequest.h"
 #include "WorkerUvRequest.h"
 #include <Dust3DWorkerRuntime.h>
@@ -49,6 +50,11 @@ extern "C" Dust3DWorkerRequest* dust3d_worker_request_create(Dust3DWorkerOperati
             throw ProtocolError(ProtocolErrorCode::invalidInput, "Worker request archive is null or empty.");
         if (size > maximumPayloadBytes)
             throw ProtocolError(ProtocolErrorCode::limitExceeded, "Worker archive exceeds supported request size.");
+        if (operation == DUST3D_WORKER_OPERATION_SOURCE_BAKED) {
+            if (options)
+                throw ProtocolError(ProtocolErrorCode::invalidInput, "Source bake request cannot carry UV options.");
+            return dust3d_worker_source_bake_request_create(identity, archive, size, nullptr, limits, result);
+        }
         if (operation == DUST3D_WORKER_OPERATION_LEGACY_BAKED) {
             if (options)
                 throw ProtocolError(ProtocolErrorCode::invalidInput, "Legacy request cannot carry UV options.");
@@ -239,6 +245,72 @@ extern "C" Dust3DWorkerRequest* dust3d_worker_legacy_request_create(Dust3DWorker
     } catch (...) {
         result->detail_source = DUST3D_WORKER_DETAIL_RUNTIME;
         copyCause(*result, "Legacy request exception has no available diagnostic.");
+    }
+    return nullptr;
+}
+extern "C" Dust3DWorkerRequest* dust3d_worker_source_bake_request_create(Dust3DWorkerRequestIdentity identity,
+    const uint8_t* archive, size_t size, const Dust3DWorkerRequestSourceBakeOptions* options,
+    Dust3DWorkerWireLimits limits, Dust3DWorkerRequestResult* result) noexcept
+{
+    if (!result)
+        return nullptr;
+    *result = {};
+    result->status = DUST3D_WORKER_REQUEST_INTERNAL_FAILED;
+    try {
+        if (!archive || !size)
+            throw LegacyRequestError(LegacyRequestErrorCode::invalidInput, "Source bake request archive is null or empty.");
+        if (size > maximumPayloadBytes - legacyRequestPrefixBytes - sourceBakeRequestPrefixBytes)
+            throw LegacyRequestError(LegacyRequestErrorCode::limitExceeded, "Source bake request archive exceeds supported framed size.");
+        LegacyRequestOptions requested;
+        SourceBakeRequestOptions sourceOptions;
+        if (options) {
+            if (options->struct_size != sizeof(*options) || options->legacy.struct_size != sizeof(options->legacy))
+                throw LegacyRequestError(LegacyRequestErrorCode::invalidInput, "Source bake request option layout is invalid.");
+            requested = { options->legacy.maximum_uv_native_bytes, options->legacy.maximum_bake_native_bytes,
+                options->legacy.maximum_encoded_image_bytes, options->legacy.maximum_encoded_total_bytes, options->legacy.maximum_input_copy_bytes,
+                options->legacy.maximum_decoded_pixel_bytes, options->legacy.maximum_output_copy_bytes, options->legacy.maximum_output_wire_bytes,
+                options->legacy.atlas_texture_size, options->legacy.color_size, options->legacy.normal_size, options->legacy.material_size,
+                options->legacy.maximum_spatial_grid_entries, options->legacy.maximum_asset_name_bytes };
+            sourceOptions = { options->maximum_material_native_bytes, options->maximum_sampler_native_bytes,
+                options->maximum_atlas_native_bytes, options->maximum_output_native_bytes, options->maximum_chart_count,
+                options->maximum_raster_samples, options->should_generate_mips, options->maximum_levels,
+                options->maximum_output_copy_bytes, options->maximum_output_wire_bytes };
+        }
+        validateLegacyRequestOptions(requested);
+        Header request;
+        request.operation = Operation::generateSourceBaked;
+        request.payloadBytes = sourceBakeRequestPrefixBytes + legacyRequestPrefixBytes + size;
+        std::copy(std::begin(identity.document), std::end(identity.document), request.identity.document.begin());
+        request.identity.request = identity.request;
+        request.identity.revision = identity.revision;
+        const auto header = encodeHeader(request, { limits.maximum_input_bytes, limits.maximum_output_bytes, limits.maximum_failure_bytes });
+        requested.maximumOutputWireBytes = std::min(requested.maximumOutputWireBytes ? requested.maximumOutputWireBytes : maximumPayloadBytes, limits.maximum_output_bytes);
+        auto owner = std::make_unique<Dust3DWorkerRequest>();
+        sourceOptions.maximumOutputWireBytes = std::min(sourceOptions.maximumOutputWireBytes ? sourceOptions.maximumOutputWireBytes : maximumPayloadBytes, limits.maximum_output_bytes);
+        owner->bytes = encodeSourceBakeRequestView({ archive, size, requested }, sourceOptions, { limits.maximum_input_bytes, limits.maximum_input_bytes });
+        owner->bytes.insert(owner->bytes.begin(), header.begin(), header.end());
+        result->status = DUST3D_WORKER_REQUEST_OK;
+        return owner.release();
+    } catch (const ProtocolError& cause) {
+        result->status = DUST3D_WORKER_REQUEST_PROTOCOL_REJECTED;
+        result->detail_source = DUST3D_WORKER_DETAIL_FRAME;
+        result->detail_code = static_cast<int32_t>(cause.code());
+        copyCause(*result, cause.what());
+    } catch (const LegacyRequestError& cause) {
+        result->status = DUST3D_WORKER_REQUEST_SOURCE_BAKE_REJECTED;
+        result->detail_source = DUST3D_WORKER_DETAIL_SOURCE_BAKE_REQUEST;
+        result->detail_code = static_cast<int32_t>(cause.code());
+        copyCause(*result, cause.what());
+    } catch (const std::bad_alloc& cause) {
+        result->status = DUST3D_WORKER_REQUEST_LIMIT_EXCEEDED;
+        result->detail_source = DUST3D_WORKER_DETAIL_RUNTIME;
+        copyCause(*result, cause.what());
+    } catch (const std::exception& cause) {
+        result->detail_source = DUST3D_WORKER_DETAIL_RUNTIME;
+        copyCause(*result, cause.what());
+    } catch (...) {
+        result->detail_source = DUST3D_WORKER_DETAIL_RUNTIME;
+        copyCause(*result, "Source bake request exception has no available diagnostic.");
     }
     return nullptr;
 }

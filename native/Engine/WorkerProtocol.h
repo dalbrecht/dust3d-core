@@ -22,7 +22,8 @@ namespace worker {
         generateIndexedSourcedMesh = 4,
         generateIndexedMesh = 5,
         generateImportedRender = 6,
-        generateLegacyBaked = 7 };
+        generateLegacyBaked = 7,
+        generateSourceBaked = 8 };
     enum class ProtocolErrorCode { invalidInput,
         invalidLimits,
         truncated,
