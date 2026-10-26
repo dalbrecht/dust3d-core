@@ -1156,3 +1156,7 @@ Worker-owned document sessions now retain native caches across indexed/source
 requests, resolve ordinary fallback inside the session, and preserve statistics-only
 errors separately. Connection/transport and Apple adoption remain open; see
 [ADR 0154](docs/adr/0154-worker-native-session.md).
+
+Connection-scoped cache owners now reject foreign/replayed requests, preserve ordering
+through reset, and release native state on close. Host transport adoption remains
+separate; see [ADR 0155](docs/adr/0155-worker-session-lifecycle.md).

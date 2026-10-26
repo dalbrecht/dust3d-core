@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Bind worker cache ownership to host document/connection lifetimes, preserve replay protection through reset, and release native state on close (#251).
+
 - Retain worker-owned document generation caches with same-call owned indexed/source output, native statistics, and in-worker ordinary fallback (#251).
 
 - Preserve optional actual generation-cache statistics in bounded worker values with exact native snapshot copying; persistent worker sessions remain separate (#251).

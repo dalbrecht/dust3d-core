@@ -1252,3 +1252,13 @@ contracts pass, with scoped positive native sanitizers and complete pure-result
 policy coverage. See [ADR 0154](adr/0154-worker-native-session.md). Connection/host
 lifecycle, request/revision correlation, C/Swift transport, Apple #279/#280 and full
 M4–M8 acceptance remain incomplete. Production pin and quarantines are unchanged.
+
+### Worker connection lifecycle (#251)
+
+A host-owned document/connection wrapper now exclusively owns native cache lifetime,
+rejects foreign or replayed requests, preserves ordering through reset and retires
+on close. Pure scope and ordinary Capsule lifecycle tests pass; all 197 contracts
+and the SwiftPM runtime build pass. See [ADR 0155](adr/0155-worker-session-lifecycle.md).
+Actual authenticated host adoption, request/result transport, C/Swift ownership,
+statistics cause mapping, Apple #279/#280 and M4–M8 acceptance remain open. Production
+pin and quarantines are unchanged.
