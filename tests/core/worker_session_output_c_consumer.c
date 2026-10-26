@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: MIT */
-#include <Dust3DWorkerSessionOutput.h>
+#include <Dust3DWorkerSession.h>
 #include <stdint.h>
 int main(void)
 {
@@ -29,5 +29,12 @@ int main(void)
     if (dust3d_worker_session_service_queue_admit(0, observed, receipt, limits, &result)
         || result.status != DUST3D_WORKER_DECODE_PROTOCOL_REJECTED)
         return 4;
+    Dust3DWorkerSessionConfiguration configuration = { { 1 }, 9, 0 };
+    Dust3DWorkerSession* session = dust3d_worker_session_create(configuration, &result);
+    if (!session || !dust3d_worker_session_reset(session, 9, &result)
+        || !dust3d_worker_session_close(session, &result))
+        return 5;
+    dust3d_worker_session_destroy(session);
+    dust3d_worker_session_destroy(0);
     return 0;
 }

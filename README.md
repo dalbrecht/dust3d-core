@@ -1180,3 +1180,11 @@ Dedicated service/queue admission now correlates session envelopes with current
 host identity, captured connection lifetime, peer/EOF observations and callback
 controls before returning owned C results. Actual transport authentication and
 native C serving remain separate; see [ADR 0159](docs/adr/0159-worker-session-admission.md).
+
+### C worker-session lifecycle
+
+`Dust3DWorkerSession.h` exposes exclusive connection/document cache ownership,
+live-generation reset and permanent idempotent close. Required result pointers
+preserve typed errors; NULL results do no work. Host authentication and object
+lifetime remain caller responsibilities. Channel serving and Apple adoption remain
+separate; see [ADR0160](docs/adr/0160-worker-session-c-lifecycle.md).

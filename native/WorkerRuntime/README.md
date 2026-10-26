@@ -357,3 +357,15 @@ admission remains unsuitable for session envelopes, and native C session serving
 and request factories remain pending. See
 [ADR 0159](../../docs/adr/0159-worker-session-admission.md) for gate rules, lifetime
 contracts and scoped verification limits.
+
+### Connection-scoped C session ownership
+
+Include `Dust3DWorkerSession.h`. Fill `Dust3DWorkerSessionConfiguration` from the
+host-authenticated document and connection lifetime, then call
+`dust3d_worker_session_create(configuration, &result)`. Zero cache allowance disables
+retention; the256MiB ceiling counts logical retained payload only. Reset validates
+the live generation and preserves replay ordering; close permanently releases cache
+and is idempotent. Destroy the owner after all calls finish. No concurrent destruction.
+Required result pointers preserve original typed errors; NULL performs no work.
+This owner has no C channel-serving method yet and does not authenticate peers,
+interrupt generation or activate an Apple backend. See [ADR0160](../../docs/adr/0160-worker-session-c-lifecycle.md).

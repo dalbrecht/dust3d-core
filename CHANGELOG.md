@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Expose exclusive C worker-session lifecycle ownership with host scope, reset/close semantics and preserved original diagnostics (#251).
+
 - Admit correlated session envelopes through shared service/queue gates and dedicated C owners, preserving one-shot retirement and newer waiting work (#251).
 
 - Add immutable C ownership and borrowed geometry/diagnostic/statistics views for decoded session output values; authenticated host admission remains separate (#251).
