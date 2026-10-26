@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Retain worker-owned document generation caches with same-call owned indexed/source output, native statistics, and in-worker ordinary fallback (#251).
+
 - Preserve optional actual generation-cache statistics in bounded worker values with exact native snapshot copying; persistent worker sessions remain separate (#251).
 
 - Add explicit source-bake worker production, request/admission and owned C surface/catalog/mip output with contextual original image diagnostics; validation and Apple adoption remain separate (#249).

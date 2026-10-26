@@ -118,14 +118,16 @@ namespace worker {
         (void)encodeIndexedSourcesPayload(result, limits);
         return result;
     }
-    IndexedSourceGenerationResult generateIndexedSourcedMesh(const std::vector<uint8_t>& archive, const IndexedSourcesPayloadLimits& limits)
+    static IndexedSourceGenerationResult generateIndexedSourcedMeshImpl(Dust3DGenerationSession* session, const std::vector<uint8_t>& archive, const IndexedSourcesPayloadLimits& limits)
     {
         validateIndexedSourcesPayloadLimits(limits);
         try {
             Dust3DError error {};
             Dust3DSourceOptions options { sizeof(options), static_cast<size_t>(limits.sources.maximumDecodedBytes) };
             std::unique_ptr<Dust3DSourcedMesh, decltype(&dust3d_sourced_mesh_destroy)> source(
-                dust3d_sourced_mesh_load(archive.data(), archive.size(), &options, &error), dust3d_sourced_mesh_destroy);
+                session ? dust3d_generation_session_load_sourced(session, archive.data(), archive.size(), &options, &error)
+                        : dust3d_sourced_mesh_load(archive.data(), archive.size(), &options, &error),
+                dust3d_sourced_mesh_destroy);
             if (error.status != DUST3D_STATUS_OK)
                 return copyNativeFailure(error);
             if (!source)
@@ -160,13 +162,15 @@ namespace worker {
             return copyFailure(FailureStatus::generationFailed, "Native indexed/source operation threw without a diagnostic.");
         }
     }
-    IndexedGenerationResult generateIndexedMesh(const std::vector<uint8_t>& archive, const IndexedMeshPayloadLimits& limits)
+    static IndexedGenerationResult generateIndexedMeshImpl(Dust3DGenerationSession* session, const std::vector<uint8_t>& archive, const IndexedMeshPayloadLimits& limits)
     {
         validateIndexedMeshPayloadLimits(limits);
         try {
             Dust3DError error {};
             std::unique_ptr<Dust3DMesh, decltype(&dust3d_mesh_destroy)> source(
-                dust3d_mesh_load(archive.data(), archive.size(), &error), dust3d_mesh_destroy);
+                session ? dust3d_generation_session_load(session, archive.data(), archive.size(), &error)
+                        : dust3d_mesh_load(archive.data(), archive.size(), &error),
+                dust3d_mesh_destroy);
             if (error.status != DUST3D_STATUS_OK)
                 return copyNativeFailure(error);
             if (!source)
@@ -193,6 +197,26 @@ namespace worker {
         } catch (...) {
             return copyFailure(FailureStatus::generationFailed, "Native indexed operation threw without a diagnostic.");
         }
+    }
+    IndexedSourceGenerationResult generateIndexedSourcedMesh(const std::vector<uint8_t>& archive, const IndexedSourcesPayloadLimits& limits)
+    {
+        return generateIndexedSourcedMeshImpl(nullptr, archive, limits);
+    }
+    IndexedGenerationResult generateIndexedMesh(const std::vector<uint8_t>& archive, const IndexedMeshPayloadLimits& limits)
+    {
+        return generateIndexedMeshImpl(nullptr, archive, limits);
+    }
+    IndexedSourceGenerationResult generateSessionIndexedSourcedMesh(Dust3DGenerationSession* session, const std::vector<uint8_t>& archive, const IndexedSourcesPayloadLimits& limits)
+    {
+        if (!session)
+            throw ProtocolError(ProtocolErrorCode::invalidInput, "Cached source generation requires a session owner.");
+        return generateIndexedSourcedMeshImpl(session, archive, limits);
+    }
+    IndexedGenerationResult generateSessionIndexedMesh(Dust3DGenerationSession* session, const std::vector<uint8_t>& archive, const IndexedMeshPayloadLimits& limits)
+    {
+        if (!session)
+            throw ProtocolError(ProtocolErrorCode::invalidInput, "Cached indexed generation requires a session owner.");
+        return generateIndexedMeshImpl(session, archive, limits);
     }
     Frame generateIndexedSourcesReply(const Frame& request, const IndexedSourcesPayloadLimits& limits)
     {

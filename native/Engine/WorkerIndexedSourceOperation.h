@@ -40,6 +40,15 @@ namespace worker {
     /// Native lookup workspace, CPU and RSS are outside the logical record allowance.
     /// Example: auto result = generateIndexedMesh(archive, {});
     IndexedGenerationResult generateIndexedMesh(const std::vector<uint8_t>& archive, const IndexedMeshPayloadLimits& limits);
+    /// Same owned source/index copy path using a borrowed existing native cache owner.
+    /// Caller serializes session lifetime/generation/statistics. NULL rejects before work;
+    /// preserves original generation errors and independent quotas. No stateless fallback.
+    /// Example: auto result = generateSessionIndexedSourcedMesh(session, archive, limits);
+    IndexedSourceGenerationResult generateSessionIndexedSourcedMesh(Dust3DGenerationSession* session, const std::vector<uint8_t>& archive, const IndexedSourcesPayloadLimits& limits);
+    /// Ordinary indexed equivalent using the same session. Caller serializes access.
+    /// NULL rejects; typed failures/copy quotas match generateIndexedMesh.
+    /// Example: auto result = generateSessionIndexedMesh(session, archive, limits);
+    IndexedGenerationResult generateSessionIndexedMesh(Dust3DGenerationSession* session, const std::vector<uint8_t>& archive, const IndexedMeshPayloadLimits& limits);
     /// Validate a complete indexed-source request and return a correlated pair/failure frame.
     /// @param request Stable exact source-budget request, operation 4, request kind.
     /// @param limits Supported aggregate/inner policies; requested budget can only tighten them.

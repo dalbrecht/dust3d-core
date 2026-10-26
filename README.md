@@ -1151,3 +1151,8 @@ Apple adoption requirements are recorded in [ADR 0152](docs/adr/0152-source-bake
 Worker statistics now have a bounded owned codec and native snapshot adapter,
 with unavailable values distinct from measured zeros. This does not activate
 persistent worker sessions; see [ADR 0153](docs/adr/0153-worker-generation-statistics.md).
+
+Worker-owned document sessions now retain native caches across indexed/source
+requests, resolve ordinary fallback inside the session, and preserve statistics-only
+errors separately. Connection/transport and Apple adoption remain open; see
+[ADR 0154](docs/adr/0154-worker-native-session.md).
