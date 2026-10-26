@@ -393,3 +393,14 @@ serving and copied Sendable values after native destruction. Its same-process pe
 observations exercise correlation, not XPC authentication. The same consumer was
 also linked/run against the actual SwiftPM static archive. See
 [ADR0162](../../docs/adr/0162-worker-session-swift-consumer.md).
+
+### Lazy Swift connection owner
+
+`tests/swift/WorkerServiceSession.swift` coordinates a synchronous backend under
+one lock: immutable first scope, lazy creation, matching reset, permanent close and
+final destruction. Jobs/receipts are Sendable and opaque handles stay private.
+`WorkerNativeServiceSession.swift` adapts existing C calls and copies original
+opaque diagnostics. The ordinary Swift consumer uses both; fake-only lifecycle
+contracts cover failures without inducing native faults. The XPC fixture has not
+yet been switched to this coordinator. See
+[ADR0163](../../docs/adr/0163-worker-service-session-lifetime.md).

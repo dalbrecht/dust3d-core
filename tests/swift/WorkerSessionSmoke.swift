@@ -73,7 +73,8 @@ private func copyOutput(_ owner: OpaquePointer) throws -> Snapshot {
         rebuilt: statistics.rebuilt_components, cacheCause: cacheCause)
 }
 private func generate(
-    _ session: OpaquePointer, _ identity: Dust3DWorkerRequestIdentity, _ archive: Data, _ directory: URL
+    _ session: WorkerServiceSession<WorkerNativeServiceSession>, _ scope: WorkerServiceSessionScope,
+    _ identity: Dust3DWorkerRequestIdentity, _ archive: Data, _ directory: URL
 ) throws -> Snapshot {
     let wire = Dust3DWorkerWireLimits(
         maximum_input_bytes: 128 * 1024 * 1024, maximum_output_bytes: 256 * 1024 * 1024, maximum_failure_bytes: 4096)
@@ -108,7 +109,9 @@ private func generate(
         try? input.close()
         try? output.close()
     }
-    let job = dust3d_worker_session_serve(session, 9, input.fileDescriptor, output.fileDescriptor, limits)
+    let job = try session.serve(
+        scope: scope,
+        job: WorkerSessionChannelJob(input: input.fileDescriptor, output: output.fileDescriptor, limits: limits))
     try require(
         job.status == DUST3D_WORKER_JOB_COMPLETE
             && job.operation == DUST3D_WORKER_OPERATION_SESSION_INDEXED_SOURCED_MESH
@@ -152,27 +155,23 @@ private func generate(
     return try copyOutput(owner)
 }
 private func runSession(_ archive: Data, _ directory: URL) throws -> [Snapshot] {
-    var configuration = Dust3DWorkerSessionConfiguration()
-    configuration.document.0 = 1
-    configuration.connection_generation = 9
-    configuration.maximum_cache_payload_bytes = 64 * 1024 * 1024
-    var result = Dust3DWorkerDecodeResult()
-    guard let owner = dust3d_worker_session_create(configuration, &result), result.status == DUST3D_WORKER_DECODE_OK
-    else { throw SessionSmokeError.invalid("Session creation") }
-    defer { dust3d_worker_session_destroy(owner) }
+    let document = UUID(uuid: (1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
+    let scope = try WorkerServiceSessionScope(
+        document: document, connectionGeneration: 9, maximumCachePayloadBytes: 64 * 1024 * 1024)
+    let owner = WorkerServiceSession(backend: WorkerNativeServiceSession())
     var identity = Dust3DWorkerRequestIdentity()
     identity.document.0 = 1
     identity.request = 1
     identity.revision = 42
-    let first = try generate(owner, identity, archive, directory)
+    let first = try generate(owner, scope, identity, archive, directory)
     identity.request += 1
-    let reused = try generate(owner, identity, archive, directory)
+    let reused = try generate(owner, scope, identity, archive, directory)
     try require(reused.reused > 0, "Actual reuse")
-    try require(dust3d_worker_session_reset(owner, 9, &result) == 1, "Reset")
+    try owner.reset(scope: scope)
     identity.request += 1
-    let rebuilt = try generate(owner, identity, archive, directory)
+    let rebuilt = try generate(owner, scope, identity, archive, directory)
     try require(rebuilt.rebuilt > 0, "Actual rebuild")
-    try require(dust3d_worker_session_close(owner, &result) == 1, "Close")
+    try owner.close()
     return [first, reused, rebuilt]
 }
 @main
@@ -185,6 +184,20 @@ private enum WorkerSessionSmoke {
     }
     static func run() async throws {
         try require(CommandLine.arguments.count == 3, "Fixture and shared scratch required")
+        // Synthetic diagnostic values exercise copying only, never a native failure.
+        var diagnosticValue = Dust3DWorkerDecodeResult()
+        diagnosticValue.status = DUST3D_WORKER_DECODE_ADMISSION_REJECTED
+        diagnosticValue.detail_source = DUST3D_WORKER_DETAIL_SESSION_SCOPE
+        diagnosticValue.detail_code = -3
+        diagnosticValue.message_truncated = 1
+        diagnosticValue.message.0 = CChar(bitPattern: 255)
+        let diagnostic = WorkerSessionBoundaryError(diagnosticValue)
+        try require(
+            diagnostic.status == DUST3D_WORKER_DECODE_ADMISSION_REJECTED.rawValue
+                && diagnostic.source == DUST3D_WORKER_DETAIL_SESSION_SCOPE.rawValue
+                && diagnostic.code == -3 && diagnostic.isTruncated && diagnostic.cause == Data([255]),
+            "Original opaque diagnostic copy")
+
         let fixture = URL(fileURLWithPath: CommandLine.arguments[1])
         let directory = URL(fileURLWithPath: CommandLine.arguments[2]).appendingPathComponent(
             "session-\(UUID().uuidString)")
