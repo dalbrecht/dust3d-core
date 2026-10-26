@@ -23,7 +23,9 @@ typedef enum Dust3DWorkerOperation {
     DUST3D_WORKER_OPERATION_UNKNOWN = 0,
     DUST3D_WORKER_OPERATION_MESH = 1,
     DUST3D_WORKER_OPERATION_UV_MESH = 2,
-    DUST3D_WORKER_OPERATION_SOURCED_MESH = 3
+    DUST3D_WORKER_OPERATION_SOURCED_MESH = 3,
+    DUST3D_WORKER_OPERATION_INDEXED_SOURCED_MESH = 4,
+    DUST3D_WORKER_OPERATION_INDEXED_MESH = 5
 } Dust3DWorkerOperation;
 typedef enum Dust3DWorkerDetailSource {
     DUST3D_WORKER_DETAIL_NONE = 0,
@@ -39,7 +41,9 @@ typedef enum Dust3DWorkerDetailSource {
     DUST3D_WORKER_DETAIL_QUEUE = 10,
     DUST3D_WORKER_DETAIL_SOURCE_REQUEST = 11,
     DUST3D_WORKER_DETAIL_SOURCE_HINTS = 12,
-    DUST3D_WORKER_DETAIL_SOURCED_MESH = 13
+    DUST3D_WORKER_DETAIL_SOURCED_MESH = 13,
+    DUST3D_WORKER_DETAIL_INDEXED_MESH = 14,
+    DUST3D_WORKER_DETAIL_INDEXED_SOURCES = 15
 } Dust3DWorkerDetailSource;
 typedef enum Dust3DWorkerIOStage {
     DUST3D_WORKER_IO_NONE = 0,
@@ -71,7 +75,7 @@ typedef struct Dust3DWorkerJobResult {
 /** Return the header/layout version. No I/O, allocation, logging or exception. */
 uint32_t dust3d_worker_runtime_abi_version(void) DUST3D_WORKER_RUNTIME_NOEXCEPT;
 
-/** Serve one bounded frame plus EOF through the maintained base/UV/source runtime.
+/** Serve one bounded frame plus EOF through the maintained expanded/indexed/UV/source runtime.
  * @param input_descriptor Separate borrowed readable job channel, never closed.
  * @param output_descriptor Borrowed writable reply channel, never closed.
  * @return Independent result with original cause/request/operation. C++ exceptions
@@ -187,9 +191,13 @@ typedef enum Dust3DWorkerDecodedKind {
     DUST3D_WORKER_DECODED_MESH = 1,
     DUST3D_WORKER_DECODED_UV_MESH = 2,
     DUST3D_WORKER_DECODED_FAILURE = 3,
-    DUST3D_WORKER_DECODED_SOURCED_MESH = 4
+    DUST3D_WORKER_DECODED_SOURCED_MESH = 4,
+    DUST3D_WORKER_DECODED_INDEXED_MESH = 5,
+    DUST3D_WORKER_DECODED_INDEXED_SOURCED_MESH = 6
 } Dust3DWorkerDecodedKind;
-/** Scalar summary. Zero for NULL. failure_status is a known wire status:
+/** Scalar summary. Zero for NULL. vertex_count is unique-table count for indexed
+ * kinds, expanded count otherwise; triangle_count is derived from indexed corners
+ * or the UV triangle table. Index count is available separately. failure_status:
  * 1 invalid document, 2 unsupported asset, 3 generation failed, 4 limit exceeded,
  * 5 no geometry, 6 cancelled. Zero means this is not a native failure.
  */
@@ -205,6 +213,17 @@ typedef struct Dust3DWorkerDecodedSummary {
 typedef struct Dust3DWorkerVertex {
     float position[3], normal[3], color[4];
 } Dust3DWorkerVertex;
+/** Read immutable triangle-index count for indexed kinds; zero for NULL/wrong kind. */
+size_t dust3d_worker_decoded_index_count(const Dust3DWorkerDecodedReply* reply) DUST3D_WORKER_RUNTIME_NOEXCEPT;
+/** Copy an indexed range in original triangle-corner order, without allocation.
+ * @param reply Immutable decoded indexed or indexed/source owner, retained until return.
+ * @param first First index ordinal, at most index_count.
+ * @param count Count at most index_count-first; checked before addition or writes.
+ * @param output Independent writable UInt32 storage; NULL allowed for a valid empty range.
+ * @return 1 on success, 0 for NULL/wrong kind/bad range/storage, without writing on rejection.
+ * Example: dust3d_worker_decoded_indices(owner, 0, count, copied_indices).
+ */
+int dust3d_worker_decoded_indices(const Dust3DWorkerDecodedReply* reply, size_t first, size_t count, uint32_t* output) DUST3D_WORKER_RUNTIME_NOEXCEPT;
 /** Source counts; zero for NULL or a different decoded kind. */
 typedef struct Dust3DWorkerSourceSummary {
     size_t identity_count, corner_count, influence_count;
@@ -336,8 +355,8 @@ typedef struct Dust3DWorkerRequestResult {
     char message[512];
 } Dust3DWorkerRequestResult;
 typedef struct Dust3DWorkerRequest Dust3DWorkerRequest;
-/** Encode one independent base/UV request through shared codecs; no native generation.
- * Source requests use dust3d_worker_source_request_create instead.
+/** Encode one independent base/ordinary-indexed/UV request; no native generation.
+ * Source variants use their dedicated source_request_create functions instead.
  * @param operation Base or UV mesh, no unknown enum values.
  * @param identity Parent-issued copied correlation values.
  * @param archive Stable readable independent opaque archive, non-NULL/nonempty.
@@ -365,6 +384,14 @@ Dust3DWorkerRequest* dust3d_worker_request_create(Dust3DWorkerOperation operatio
  * Example: owner = dust3d_worker_source_request_create(id, bytes, size, 0, limits, &result).
  */
 Dust3DWorkerRequest* dust3d_worker_source_request_create(Dust3DWorkerRequestIdentity identity,
+    const uint8_t* archive, size_t archive_size, uint64_t maximum_source_bytes,
+    Dust3DWorkerWireLimits limits, Dust3DWorkerRequestResult* result) DUST3D_WORKER_RUNTIME_NOEXCEPT;
+/** Indexed/source equivalent of source_request_create, operation 4, same ownership/quotas.
+ * Creates one complete independent frame without archive parsing, generation or I/O.
+ * Required result preserves original typed diagnostics; NULL returns NULL without work.
+ * Example: owner = dust3d_worker_indexed_source_request_create(id, bytes, size, 0, limits, &result).
+ */
+Dust3DWorkerRequest* dust3d_worker_indexed_source_request_create(Dust3DWorkerRequestIdentity identity,
     const uint8_t* archive, size_t archive_size, uint64_t maximum_source_bytes,
     Dust3DWorkerWireLimits limits, Dust3DWorkerRequestResult* result) DUST3D_WORKER_RUNTIME_NOEXCEPT;
 /** Borrow full frame or exact expected request header until owner destruction.

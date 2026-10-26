@@ -187,7 +187,7 @@ extern "C" Dust3DWorkerDecodedReply* dust3d_worker_service_queue_admit(Dust3DWor
             hasStartedCompletion = true;
             auto value = owner.state.completeService(reply->expected.identity,
                 { observed.connection_generation, observed.process_identifier, true }, control,
-                reply->bytes.data(), reply->bytes.size(), policy.mesh, policy.failure, policy.uv, policy.sources);
+                reply->bytes.data(), reply->bytes.size(), policy.mesh, policy.failure, policy.uv, policy.sources, policy.indexed);
             auto* decoded = bridge::adoptDecodedReply(std::move(value));
             result->status = DUST3D_WORKER_DECODE_OK;
             return decoded;
@@ -212,6 +212,10 @@ extern "C" Dust3DWorkerDecodedReply* dust3d_worker_service_queue_admit(Dust3DWor
         reject(*result, DUST3D_WORKER_DECODE_CODEC_REJECTED, DUST3D_WORKER_DETAIL_SOURCE_HINTS, cause);
     } catch (const SourcedMeshPayloadError& cause) {
         reject(*result, DUST3D_WORKER_DECODE_CODEC_REJECTED, DUST3D_WORKER_DETAIL_SOURCED_MESH, cause);
+    } catch (const IndexedMeshPayloadError& cause) {
+        reject(*result, DUST3D_WORKER_DECODE_CODEC_REJECTED, DUST3D_WORKER_DETAIL_INDEXED_MESH, cause);
+    } catch (const IndexedSourcesPayloadError& cause) {
+        reject(*result, DUST3D_WORKER_DECODE_CODEC_REJECTED, DUST3D_WORKER_DETAIL_INDEXED_SOURCES, cause);
     } catch (const FailurePayloadError& cause) {
         reject(*result, DUST3D_WORKER_DECODE_CODEC_REJECTED, DUST3D_WORKER_DETAIL_FAILURE, cause);
     } catch (const std::bad_alloc& cause) {

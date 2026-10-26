@@ -1085,3 +1085,14 @@ Apple #280 also records that prototype aggregate ceilings do not yet preserve
 the editor's separate default geometry/source payload range. That range must be
 preserved before default adoption; no silent tightening or parent-engine fallback.
 No Apple production pin or feature/fault quarantine changes in this checkpoint.
+
+### Indexed worker runtime checkpoint (#225)
+
+Indexed/source and ordinary indexed operations now provide request construction,
+generation, semantic admission and owned C vertex/index/source output. All 152
+ordinary contracts pass. The existing editor's optional-source recovery on status
+3/4 can later stay within the worker using the ordinary indexed route, preserving
+the original issue. No retry controller or Apple backend/pin change is made here.
+See [ADR0140](adr/0140-indexed-worker-runtime.md). Swift conversion, full rendering
+data/statistics, supported-range parity (#280), source-aware XPC/editor acceptance
+and later milestones remain open under Apple #279; no full parity claim.

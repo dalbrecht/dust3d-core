@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 #include "WorkerJobIO.h"
+#include "WorkerIndexedSourceOperation.h"
 #include "WorkerOperation.h"
 #include "WorkerSourceOperation.h"
 #include "WorkerUvOperation.h"
@@ -52,6 +53,10 @@ namespace worker {
             return "generateUvMesh";
         if (operation == Operation::generateSourcedMesh)
             return "generateSourcedMesh";
+        if (operation == Operation::generateIndexedSourcedMesh)
+            return "generateIndexedSourcedMesh";
+        if (operation == Operation::generateIndexedMesh)
+            return "generateIndexedMesh";
         return "unknown";
     }
     WorkerIoResult writeWorkerBytes(int descriptor, const uint8_t* bytes, size_t size) noexcept
@@ -92,9 +97,24 @@ namespace worker {
             throw ProtocolError(ProtocolErrorCode::trailingData, "Worker accepts exactly one request followed by EOF.");
         if (end.error)
             throw WorkerJobIOError(WorkerJobStage::input, end.error);
-        auto response = header.operation == Operation::generateSourcedMesh ? generateSourcedMeshReply(request, {})
-            : header.operation == Operation::generateUvMesh                ? generateUvMeshReply(request, {})
-                                                                           : generateMeshReply(request, {});
+        Frame response;
+        switch (header.operation) {
+        case Operation::generateMesh:
+            response = generateMeshReply(request, {});
+            break;
+        case Operation::generateUvMesh:
+            response = generateUvMeshReply(request, {});
+            break;
+        case Operation::generateSourcedMesh:
+            response = generateSourcedMeshReply(request, {});
+            break;
+        case Operation::generateIndexedSourcedMesh:
+            response = generateIndexedSourcesReply(request, {});
+            break;
+        case Operation::generateIndexedMesh:
+            response = generateIndexedMeshReply(request, {});
+            break;
+        }
         std::vector<uint8_t>().swap(request.payload);
         const auto reply = encodeFrame(response, {});
         const auto written = writeWorkerBytes(output, reply.data(), reply.size());

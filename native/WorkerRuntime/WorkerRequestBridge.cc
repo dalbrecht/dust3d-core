@@ -52,10 +52,12 @@ extern "C" Dust3DWorkerRequest* dust3d_worker_request_create(Dust3DWorkerOperati
             request.operation = Operation::generateMesh;
         else if (operation == DUST3D_WORKER_OPERATION_UV_MESH)
             request.operation = Operation::generateUvMesh;
+        else if (operation == DUST3D_WORKER_OPERATION_INDEXED_MESH)
+            request.operation = Operation::generateIndexedMesh;
         else
             throw ProtocolError(ProtocolErrorCode::unsupportedOperation, "Worker request operation is unknown.");
-        if (operation == DUST3D_WORKER_OPERATION_MESH && options)
-            throw ProtocolError(ProtocolErrorCode::invalidInput, "Base mesh request cannot carry UV options.");
+        if (operation != DUST3D_WORKER_OPERATION_UV_MESH && options)
+            throw ProtocolError(ProtocolErrorCode::invalidInput, "Base/indexed mesh request cannot carry UV options.");
         UvRequestLimits uvLimits;
         uvLimits.maximumWireBytes = limits.maximum_input_bytes;
         const auto imageCount = options ? options->image_count : 0;
@@ -71,7 +73,7 @@ extern "C" Dust3DWorkerRequest* dust3d_worker_request_create(Dust3DWorkerOperati
         request.identity.revision = identity.revision;
         const auto header = encodeHeader(request, { limits.maximum_input_bytes, limits.maximum_output_bytes, limits.maximum_failure_bytes });
         auto owner = std::make_unique<Dust3DWorkerRequest>();
-        if (operation == DUST3D_WORKER_OPERATION_MESH)
+        if (operation != DUST3D_WORKER_OPERATION_UV_MESH)
             owner->bytes.assign(archive, archive + size);
         else {
             std::vector<UvRequestImage> images;
@@ -111,7 +113,8 @@ extern "C" Dust3DWorkerRequest* dust3d_worker_request_create(Dust3DWorkerOperati
     return nullptr;
 }
 extern "C" const uint8_t* dust3d_worker_request_bytes(const Dust3DWorkerRequest* request, size_t* size) noexcept { return borrow(request, size, false); }
-extern "C" Dust3DWorkerRequest* dust3d_worker_source_request_create(Dust3DWorkerRequestIdentity identity,
+namespace {
+Dust3DWorkerRequest* createSourceRequest(Operation operation, Dust3DWorkerRequestIdentity identity,
     const uint8_t* archive, size_t size, uint64_t maximum, Dust3DWorkerWireLimits limits, Dust3DWorkerRequestResult* result) noexcept
 {
     if (!result)
@@ -124,7 +127,7 @@ extern "C" Dust3DWorkerRequest* dust3d_worker_source_request_create(Dust3DWorker
         if (size > maximumPayloadBytes - sourceRequestPrefixBytes)
             throw SourceRequestError(SourceRequestErrorCode::limitExceeded, "Source archive exceeds supported request size.");
         Header request;
-        request.operation = Operation::generateSourcedMesh;
+        request.operation = operation;
         request.payloadBytes = sourceRequestPrefixBytes + size;
         std::copy(std::begin(identity.document), std::end(identity.document), request.identity.document.begin());
         request.identity.request = identity.request;
@@ -157,6 +160,17 @@ extern "C" Dust3DWorkerRequest* dust3d_worker_source_request_create(Dust3DWorker
         copyCause(*result, "Source request exception has no available diagnostic.");
     }
     return nullptr;
+}
+}
+extern "C" Dust3DWorkerRequest* dust3d_worker_source_request_create(Dust3DWorkerRequestIdentity identity,
+    const uint8_t* archive, size_t size, uint64_t maximum, Dust3DWorkerWireLimits limits, Dust3DWorkerRequestResult* result) noexcept
+{
+    return createSourceRequest(Operation::generateSourcedMesh, identity, archive, size, maximum, limits, result);
+}
+extern "C" Dust3DWorkerRequest* dust3d_worker_indexed_source_request_create(Dust3DWorkerRequestIdentity identity,
+    const uint8_t* archive, size_t size, uint64_t maximum, Dust3DWorkerWireLimits limits, Dust3DWorkerRequestResult* result) noexcept
+{
+    return createSourceRequest(Operation::generateIndexedSourcedMesh, identity, archive, size, maximum, limits, result);
 }
 extern "C" const uint8_t* dust3d_worker_request_header(const Dust3DWorkerRequest* request, size_t* size) noexcept { return borrow(request, size, true); }
 extern "C" void dust3d_worker_request_destroy(Dust3DWorkerRequest* request) noexcept { delete request; }

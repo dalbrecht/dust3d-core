@@ -2,6 +2,7 @@
 #ifndef DUST3D_NATIVE_WORKER_ADMISSION_H_
 #define DUST3D_NATIVE_WORKER_ADMISSION_H_
 #include "WorkerFailure.h"
+#include "WorkerIndexedSources.h"
 #include "WorkerSourcedMesh.h"
 #include "WorkerUvMesh.h"
 #include <string>
@@ -31,7 +32,12 @@ namespace worker {
     private:
         AdmissionErrorCode m_code;
     };
-    using AdmittedReply = std::variant<MeshPayload, FailurePayload, UvMeshPayload, SourcedMeshPayload>;
+    using AdmittedReply = std::variant<MeshPayload, FailurePayload, UvMeshPayload, SourcedMeshPayload, IndexedMeshPayload, IndexedSourcesPayload>;
+    /// Independent ordinary-indexed and atomic indexed/source output policies.
+    struct IndexedReplyLimits {
+        IndexedMeshPayloadLimits mesh;
+        IndexedSourcesPayloadLimits sourcedMesh;
+    };
 
     /// Trusted caller observations, never reconstructed from service-supplied bytes.
     /// Generation identifies the authenticated connection lifetime; process is its OS-observed PID.
@@ -84,13 +90,14 @@ namespace worker {
         /// @param failureLimits Original failure payload/text limits.
         /// @param uvLimits Atomic paired geometry/UV semantic/output limits.
         /// @param sourceLimits Atomic geometry/source semantic/output limits.
-        /// @return Independent base/UV/source mesh or original typed failure, once only.
+        /// @param indexedLimits Independent ordinary/indexed-source semantic policies.
+        /// @return Independent expanded/indexed/UV/source values or original typed failure, once only.
         /// @throws AdmissionError, codec or allocation errors; rejection leaves this gate retired.
         /// Example: pending.complete(active, observed, receipt, collected.data(), collected.size()).
         AdmittedReply complete(const RequestIdentity& active, const ServiceObservation& observed,
             const ServiceReceipt& receipt, const uint8_t* bytes, size_t size,
             const Limits& wireLimits = {}, const MeshPayloadLimits& meshLimits = {},
-            const FailurePayloadLimits& failureLimits = {}, const UvMeshPayloadLimits& uvLimits = {}, const SourcedMeshPayloadLimits& sourceLimits = {});
+            const FailurePayloadLimits& failureLimits = {}, const UvMeshPayloadLimits& uvLimits = {}, const SourcedMeshPayloadLimits& sourceLimits = {}, const IndexedReplyLimits& indexedLimits = {});
 
     private:
         Header m_request;
@@ -113,13 +120,13 @@ namespace worker {
         void retire() noexcept { m_isRetired = true; }
         bool isRetired() const noexcept { return m_isRetired; }
         /// Retire first, then require terminal exit zero, current identity, exact frame and payload semantics.
-        /// UV/source opcode responses use uvLimits/sourceLimits; base mesh and failure policies remain independent.
+        /// UV/source/indexed responses use their matching independent policies; base mesh/failure limits remain separate.
         /// Returns independent owned data only once. Every rejected completion remains retired.
         /// Throws AdmissionError, codec errors or allocation errors; original typed causes propagate.
         AdmittedReply complete(const RequestIdentity& active, ProcessOutcome outcome,
             const uint8_t* bytes, size_t size, const Limits& wireLimits = {},
             const MeshPayloadLimits& meshLimits = {}, const FailurePayloadLimits& failureLimits = {},
-            const UvMeshPayloadLimits& uvLimits = {}, const SourcedMeshPayloadLimits& sourceLimits = {});
+            const UvMeshPayloadLimits& uvLimits = {}, const SourcedMeshPayloadLimits& sourceLimits = {}, const IndexedReplyLimits& indexedLimits = {});
 
     private:
         Header m_request;

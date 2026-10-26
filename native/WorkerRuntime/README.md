@@ -176,3 +176,22 @@ alone does not authenticate provenance. No active opcode/C ABI/Apple pin changes
 Runtime/Swift adoption, material/mip/statistics parity and the supported-range
 audit in Apple #280 remain open. See
 [ADR 0139](../../docs/adr/0139-indexed-source-generation.md) and #223.
+
+## Indexed runtime output
+
+Operations 4 (indexed/source) and 5 (ordinary indexed) now route through request
+construction, native generation, child/service/queue admission and owned C output.
+Use `dust3d_worker_indexed_source_request_create` for source-budget requests, or
+`dust3d_worker_request_create` with ordinary indexed operation and no UV options.
+Decoded kinds 5/6 expose unique vertex counts, derived triangle counts and a
+separate index count/range-copy API. Sources remain per index position. Existing
+expanded, UV and source kinds/layouts remain supported.
+
+The editor currently recovers from optional source status 3/4 by generating
+ordinary indexed geometry and retaining the original source issue. Operation 5
+provides that future worker capability; this stage does not implement a retry
+controller or permit parent native fallback. No Apple pin/backend changes.
+ABI version 1 remains a layout version, not feature negotiation; matching pinned
+client/helper revisions are required. Payload-range (#280), Swift conversion,
+materials/mips/statistics and source-aware XPC/editor acceptance remain open under
+Apple #279. See [ADR 0140](../../docs/adr/0140-indexed-worker-runtime.md) and #225.
