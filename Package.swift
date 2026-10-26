@@ -32,6 +32,8 @@ let package = Package(
             sources: [
                 "Engine/WorkerJobIO.cc", "Engine/WorkerOperation.cc", "Engine/WorkerUvOperation.cc",
                 "Engine/WorkerSourceOperation.cc", "Engine/WorkerSourceRequest.cc",
+                "Engine/WorkerIndexedCopyBudget.cc", "Engine/WorkerIndexedSourceOperation.cc",
+                "Engine/WorkerIndexedSources.cc",
                 "Engine/WorkerIndexedMesh.cc", "Engine/WorkerSourcedMesh.cc", "Engine/WorkerSourceHints.cc",
                 "Engine/WorkerProtocol.cc",
                 "Engine/WorkerReplyCollector.cc",

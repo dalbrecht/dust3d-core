@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 #include "WorkerSourceOperation.h"
+#include "WorkerSourceCopy.h"
 #include <algorithm>
 #include <limits>
 #include <memory>
@@ -97,6 +98,22 @@ namespace worker {
         }
     }
 
+    namespace detail {
+        NativeSourceHintInspection inspectNativeSourceHints(const Dust3DSourcedMesh* owner, const SourceHintPayloadLimits& limits)
+        {
+            validateSourceHintPayloadLimits(limits);
+            const auto shape = inspectNativeSources(owner, limits);
+            return { shape.identities, shape.corners, shape.influences, shape.wire, shape.logical };
+        }
+        SourceHintPayload copyNativeSourceHints(const Dust3DSourcedMesh* owner, const SourceHintPayloadLimits& limits)
+        {
+            validateSourceHintPayloadLimits(limits);
+            const auto shape = inspectNativeSources(owner, limits);
+            auto result = copyNativeSources(owner, shape);
+            (void)measureSourceHintPayload(result, limits);
+            return result;
+        }
+    }
     SourcedMeshPayload copyNativeSourcedMesh(const Dust3DSourcedMesh* owner, const SourcedMeshPayloadLimits& limits)
     {
         validateSourcedMeshPayloadLimits(limits);

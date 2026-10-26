@@ -1072,3 +1072,16 @@ See [ADR0137](adr/0137-source-aware-worker-runtime.md). This closes one source-o
 gap, not Apple #279 or M8: owned Swift conversion, indexed/material/mip parity,
 reviewed dependency adoption and native editor/host acceptance remain open. The
 Apple production pin and all feature/fault quarantines remain unchanged.
+
+### Indexed geometry/source ownership checkpoint (#223)
+
+Indexed geometry and source hints now have atomic pair admission and an owned
+same-generation native adapter. Source corner count matches triangle-index count,
+not unique vertices. Pure export-budget arithmetic is tested without native
+failure/resource probes; all 151 ordinary contracts pass. See
+[ADR0139](adr/0139-indexed-source-generation.md). Runtime/C/Swift adoption,
+material/mip/statistics parity and native editor acceptance remain required.
+Apple #280 also records that prototype aggregate ceilings do not yet preserve
+the editor's separate default geometry/source payload range. That range must be
+preserved before default adoption; no silent tightening or parent-engine fallback.
+No Apple production pin or feature/fault quarantine changes in this checkpoint.
