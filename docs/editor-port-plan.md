@@ -1107,3 +1107,16 @@ has 100% measured line/branch coverage. All 153 ordinary contracts pass. See
 geometry/UV/tangent/policy/catalog pairing, request/runtime/Swift consumption and
 actual editor acceptance remain open under Apple #279/#280. No platform decoder,
 Apple pin/backend change or full-parity claim is introduced; M4–M8 remain open.
+
+### Coherent source-baked output checkpoint (#229)
+
+A source-baked worker value now retains matching expanded geometry, packed UVs,
+tangents, optional alpha policies, model/component catalogs and exact texture/mip
+chains. A preflighted copy reads one stable native owner; it does not infer source
+correspondence from counts. All 155 ordinary contracts pass; named pure codec and
+shared UTF-8/texture validation have full measured line/branch coverage. Defensive
+native-copy guards remain below the adapter coverage target. See
+[ADR 0142](adr/0142-source-baked-worker-output.md). Request/C/Swift transport,
+imported-only and legacy material paths, real statistics/native metrics, supported
+payload range and editor acceptance remain open under Apple #279/#280. No Apple
+pin/backend or quarantine change; this does not prove full M4–M8 completion.

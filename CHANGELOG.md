@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Preserve coherent source-baked geometry, triangle policies, catalogs and texture/mip values in worker codecs, with preflighted copying from one native owner; runtime/editor adoption remains separate (#229).
+
 - Preserve exact baked texture pixels, optional maps, mip chains and producer sampling caps in bounded portable worker values; runtime/editor binding remains separate (#227).
 
 - Route indexed geometry with optional source hints through worker requests, generation, admission and owned C index output; editor adoption remains separate (#225).

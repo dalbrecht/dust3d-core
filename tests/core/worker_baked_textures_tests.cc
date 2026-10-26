@@ -2,6 +2,7 @@
 #include <cmath>
 #include <iostream>
 #include <limits>
+#include <native/Engine/WorkerBakedTextureViews.h>
 #include <native/Engine/WorkerBakedTextures.h>
 #include <native/Engine/WorkerWire.h>
 #include <stdexcept>
@@ -156,6 +157,34 @@ void values()
             reject(BakedTexturesErrorCode::invalidLimits, [&] { inspectBakedTexturesPayload(wire.data(), wire.size(), limits); });
         }
 }
+void borrowedViews()
+{
+    auto value = sample();
+    detail::BakedTextureViews views;
+    views.maximumSamplingLod = value.maximumSamplingLod;
+    for (size_t role = 0; role < value.maps.size(); ++role) {
+        views.counts[role] = uint32_t(value.maps[role].size());
+        for (size_t level = 0; level < value.maps[role].size(); ++level) {
+            const auto& image = value.maps[role][level];
+            views.maps[role][level] = { image.width, image.height, image.pixels.size(), image.pixels.data() };
+        }
+    }
+    const auto wire = encodeBakedTexturesPayload(value, {});
+    const auto shape = detail::inspectBakedTextureViews(views, {});
+    require(shape.wireBytes == wire.size() && shape.logicalBytes == inspectBakedTexturesPayload(wire.data(), wire.size(), {}).logicalBytes, "Borrowed and wire rules share exact measures");
+    auto owned = detail::copyBakedTextureViews(views, {});
+    value.maps[0][0].pixels.assign(32, 0);
+    require(encodeBakedTexturesPayload(owned, {}) == wire, "Borrowed views are copied independently");
+    auto invalid = views;
+    invalid.maps[0][0].pixels = nullptr;
+    reject(BakedTexturesErrorCode::invalidImage, [&] { detail::copyBakedTextureViews(invalid, {}); });
+    invalid = views;
+    invalid.counts[0] = 15;
+    reject(BakedTexturesErrorCode::invalidLayout, [&] { detail::inspectBakedTextureViews(invalid, {}); });
+    invalid = views;
+    invalid.counts[0] = 0;
+    reject(BakedTexturesErrorCode::invalidLayout, [&] { detail::inspectBakedTextureViews(invalid, {}); });
+}
 void framing()
 {
     auto wire = encodeBakedTexturesPayload(sample(), {});
@@ -196,6 +225,7 @@ int main()
     try {
         roundTrip();
         values();
+        borrowedViews();
         framing();
         std::cout << "Baked texture worker contracts passed\n";
     } catch (const std::exception& cause) {

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 #include "WorkerSourceHints.h"
+#include "WorkerUtf8.h"
 #include "WorkerWire.h"
 #include <cmath>
 #include <cstring>
@@ -49,41 +50,8 @@ namespace worker {
         {
             if (!size || size > limits.maximumIdentityBytes)
                 reject(SourceHintPayloadErrorCode::invalidIdentity, "Worker source identity length is invalid.");
-            size_t index = 0;
-            while (index < size) {
-                const auto first = bytes[index++];
-                if (!first)
-                    reject(SourceHintPayloadErrorCode::invalidIdentity, "Worker source identity contains NUL.");
-                if (first < 128)
-                    continue;
-                uint32_t code = 0, minimum = 0;
-                size_t extra = 0;
-                if (first >= 0xc2 && first <= 0xdf) {
-                    code = first & 0x1f;
-                    minimum = 0x80;
-                    extra = 1;
-                } else if (first >= 0xe0 && first <= 0xef) {
-                    code = first & 0x0f;
-                    minimum = 0x800;
-                    extra = 2;
-                } else if (first >= 0xf0 && first <= 0xf4) {
-                    code = first & 7;
-                    minimum = 0x10000;
-                    extra = 3;
-                } else {
-                    reject(SourceHintPayloadErrorCode::invalidIdentity, "Worker source identity is not UTF-8.");
-                }
-                if (extra > size - index)
-                    reject(SourceHintPayloadErrorCode::invalidIdentity, "Worker source identity UTF-8 is truncated.");
-                for (size_t next = 0; next < extra; ++next) {
-                    const auto continuation = bytes[index++];
-                    if ((continuation & 0xc0) != 0x80)
-                        reject(SourceHintPayloadErrorCode::invalidIdentity, "Worker source identity continuation is invalid.");
-                    code = (code << 6) | (continuation & 0x3f);
-                }
-                if (code < minimum || code > 0x10ffff || (code >= 0xd800 && code <= 0xdfff))
-                    reject(SourceHintPayloadErrorCode::invalidIdentity, "Worker source identity code point is invalid.");
-            }
+            if (!detail::isIdentityUtf8({ reinterpret_cast<const char*>(bytes), size }))
+                reject(SourceHintPayloadErrorCode::invalidIdentity, "Worker source identity is not non-NUL UTF-8.");
         }
         void validateInfluence(const SourceHintInfluence& value, uint64_t identities)
         {

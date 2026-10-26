@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 #include "WorkerBakedTextures.h"
+#include "WorkerBakedTextureViews.h"
 #include "WorkerWire.h"
 #include <algorithm>
 #include <cstring>
@@ -59,7 +60,7 @@ namespace worker {
         }
         void append(Plan& plan, uint32_t width, uint32_t height, uint64_t size, const uint8_t* pixels, size_t level, const BakedTexturesLimits& limits)
         {
-            if (size != pixelSize(width, height))
+            if (!pixels || size != pixelSize(width, height))
                 reject(BakedTexturesErrorCode::invalidImage, "Baked worker texture requires exact tight RGBA8 bytes.");
             if (level) {
                 const auto& previous = plan.levels[plan.count - 1];
@@ -144,6 +145,40 @@ namespace worker {
                 reject(BakedTexturesErrorCode::invalidLayout, "Baked worker texture aggregate pixel count is inconsistent.");
             return plan;
         }
+        Plan describeViews(const detail::BakedTextureViews& views, const BakedTexturesLimits& limits)
+        {
+            validateBakedTexturesLimits(limits);
+            Plan plan;
+            plan.counts = views.counts;
+            requireColorMap(plan.counts);
+            for (const auto count : plan.counts)
+                if (count > maximumTextureLevels)
+                    reject(BakedTexturesErrorCode::invalidLayout, "Baked worker texture chain exceeds fourteen levels.");
+            std::memcpy(&plan.lodBits, &views.maximumSamplingLod, sizeof(plan.lodBits));
+            samplingLod(plan.lodBits, plan.counts);
+            for (size_t role = 0; role < bakedTextureRoleCount; ++role)
+                for (size_t level = 0; level < plan.counts[role]; ++level) {
+                    const auto& view = views.maps[role][level];
+                    append(plan, view.width, view.height, view.byteCount, view.pixels, level, limits);
+                }
+            return plan;
+        }
+        BakedTexturesPayload copyPlan(const Plan& plan)
+        {
+            BakedTexturesPayload value;
+            value.maximumSamplingLod = samplingLod(plan.lodBits, plan.counts);
+            size_t index = 0;
+            for (size_t role = 0; role < bakedTextureRoleCount; ++role) {
+                auto& chain = value.maps[role];
+                chain.reserve(plan.counts[role]);
+                for (size_t level = 0; level < plan.counts[role]; ++level) {
+                    const auto& span = plan.levels[index++];
+                    chain.push_back({ span.width, span.height, { span.pixels, span.pixels + span.size } });
+                }
+            }
+            return value;
+        }
+
     }
     BakedTexturesError::BakedTexturesError(BakedTexturesErrorCode code, const char* cause)
         : std::runtime_error(cause)
@@ -188,19 +223,18 @@ namespace worker {
     }
     BakedTexturesPayload decodeBakedTexturesPayload(const uint8_t* bytes, size_t size, const BakedTexturesLimits& limits)
     {
-        const auto plan = describeWire(bytes, size, limits);
-        BakedTexturesPayload value;
-        value.maximumSamplingLod = samplingLod(plan.lodBits, plan.counts);
-        size_t index = 0;
-        for (size_t role = 0; role < bakedTextureRoleCount; ++role) {
-            auto& chain = value.maps[role];
-            chain.reserve(plan.counts[role]);
-            for (size_t level = 0; level < plan.counts[role]; ++level) {
-                const auto& span = plan.levels[index++];
-                chain.push_back({ span.width, span.height, { span.pixels, span.pixels + span.size } });
-            }
+        return copyPlan(describeWire(bytes, size, limits));
+    }
+    namespace detail {
+        BakedTextureViewsInspection inspectBakedTextureViews(const BakedTextureViews& views, const BakedTexturesLimits& limits)
+        {
+            const auto plan = describeViews(views, limits);
+            return { plan.wireBytes, plan.logicalBytes };
         }
-        return value;
+        BakedTexturesPayload copyBakedTextureViews(const BakedTextureViews& views, const BakedTexturesLimits& limits)
+        {
+            return copyPlan(describeViews(views, limits));
+        }
     }
 }
 }

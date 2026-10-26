@@ -211,3 +211,20 @@ No C runtime alternative/opcode, native copying, geometry/triangle/material pair
 or Swift consumer is added here. Existing public operations remain unchanged. Full
 rendering/statistics, supported-range (#280) and authenticated editor acceptance
 remain required under Apple #279. No Apple pin/backend/quarantine change.
+
+## Coherent source-baked output
+
+The internal `SourceBakedPayload` pairs expanded retained geometry with its exact
+packed UV/tangent/alpha-policy records, byte-exact model/component catalogs and
+baked texture/mip values. Complete inner and aggregate inspection precedes decoded
+arrays. `copyNativeSourceBakedMesh` preflights and copies all families from one
+stable borrowed source-baked owner; no foreign geometry/source hints are paired
+by count. Fixed borrowed image slots share the existing texture validation rules.
+See [ADR 0142](../../docs/adr/0142-source-baked-worker-output.md) and #229 for the
+wire layouts, ownership, scoped coverage and defensive-boundary limits.
+
+There is no new C decoded kind/opcode, Swift consumer or Apple pin/backend change.
+Imported authored samplers/factors/images and legacy charts remain distinct paths.
+Native payload/session/cache metrics, range parity (#280), complete transport and
+editor acceptance remain open under Apple #279. Logical quotas exclude native and
+encoded-wire workspace, validation sets, capacity and process RSS.
