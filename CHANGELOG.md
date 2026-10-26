@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Preserve authored imported material factors, sampler/filter presence, encoded image declarations and instance bindings in bounded worker facts with shared native-copy validation; rendering/transport adoption remains separate (#233).
+
 - Preserve complete legacy baked geometry, UV charts/gradients, tangent frames and base maps in coherent worker values, sharing native preflight rules; runtime/editor adoption remains separate (#231).
 
 - Preserve coherent source-baked geometry, triangle policies, catalogs and texture/mip values in worker codecs, with preflighted copying from one native owner; runtime/editor adoption remains separate (#229).

@@ -244,3 +244,17 @@ No request/C/Swift activation or Apple pin/backend change is included. Imported
 samplers/factors/images, real metrics, range parity (#280), complete transport and
 editor acceptance remain open under Apple #279. Logical quotas exclude roots,
 capacity, validation/wire/native workspace and process RSS.
+
+## Authored imported material facts
+
+`ImportedMaterialsPayload` preserves original PBR factors, alpha policy, optional
+samplers/filter presence, GL wrapping, declared PNG/JPEG bytes and part/component
+bindings. Owned/wire/native readers share complete scalar/key/reference/storage
+and quota validation before retained arrays or encoded-image copies. Native copying
+uses one stable imported-assets owner and never generates geometry or decodes
+pixels. See [ADR 0144](../../docs/adr/0144-imported-material-worker-facts.md) and
+#233 for layouts, ownership and measured pure/native boundary coverage.
+
+A declaration does not prove valid pixels. Full authored surface/decoded-image
+pairing, real metrics, range parity (#280), request/C/Swift transport and editor
+acceptance remain open under Apple #279. No Apple pin/backend or quarantine change.

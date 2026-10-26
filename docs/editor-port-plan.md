@@ -1133,3 +1133,15 @@ coverage remains partial and below the adoption target. See
 bake, activate a backend, change a production pin/quarantine or prove M4–M8 parity.
 Imported authored material data, real metrics, payload-range preservation, complete
 transport/Swift consumption and editor acceptance remain open under Apple #279/#280.
+
+### Authored material facts checkpoint (#233)
+
+A portable worker fact codec now retains exact imported PBR factors, optional
+sampler/filter state, image declarations/encoded bytes and instance bindings.
+Native copying shares pure preflight and owns all returned storage. All 159
+ordinary contracts pass; the named pure codec has full measured line/branch
+coverage, while native boundary coverage stays partial below the adoption target.
+See [ADR 0144](adr/0144-imported-material-worker-facts.md). This is not image
+decoding or full imported-render output: source geometry, decoded pixels, real
+metrics, supported range and transport/Swift/editor acceptance remain open under
+Apple #279/#280. No production pin/backend or quarantine change; M4–M8 remains open.
