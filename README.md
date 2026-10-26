@@ -1121,3 +1121,12 @@ releases capacity while preserving the latest waiting source. The child-exit
 path stays separate. Scoped queue tests cover every implementation line/branch;
 all 140 ordinary contracts pass. C/Swift runtime and host/editor adoption remain
 pending. See [ADR0131](docs/adr/0131-bounded-service-request-queue.md) and #182.
+
+Imported rendering now has an explicit worker request/runtime path, including
+independent producer budgets, optional complete replies, detailed callback errors
+and owned C geometry/material/source-pixel accessors. The worker caller must supply
+a decoder with `dust3d_worker_serve_with_image_decoder`; the ordinary entry point
+reports its absence explicitly. Copy all borrowed output spans before destroying
+the decoded owner. See [ADR 0149](docs/adr/0149-imported-render-worker-runtime.md)
+and #243 for framing, ownership, tests and limits. Actual Apple ImageIO integration,
+real session metrics, supported-range parity and default editor adoption remain open.

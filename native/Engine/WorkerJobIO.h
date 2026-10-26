@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 #ifndef DUST3D_NATIVE_WORKER_JOB_IO_H_
 #define DUST3D_NATIVE_WORKER_JOB_IO_H_
+#include "WorkerImportedProducerNative.h"
 #include "WorkerProtocol.h"
 #include <optional>
 namespace dust3d {
@@ -48,7 +49,7 @@ namespace worker {
     /// isolation before calling. Blocking I/O requires a non-UI worker; this is not containment or
     /// cancellation. Host closes job channels after return/throw and preserves original failures.
     /// Example: WorkerJobContext context; serveWorkerJob(inputFD, outputFD, context);
-    void serveWorkerJob(int input, int output, WorkerJobContext& context);
+    void serveWorkerJob(int input, int output, WorkerJobContext& context, ImportedRenderImageDecoder* decoder = nullptr, const NativeImportedProducerLimits& importedLimits = {});
 }
 }
 #endif

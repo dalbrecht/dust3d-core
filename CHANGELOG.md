@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Route complete imported rendering through explicit decoder-equipped worker jobs, child/service/queue admission and owned C getters, preserving request budgets and detailed original failures (#243).
+
 - Add explicit C image ownership and bounded callback diagnostics for worker-side platform decoding, with a portable producer adapter; runtime/Apple activation remains separate (#241).
 
 - Prepare imported rendering values from one unchanged archive through an explicit injected image decoder, preserving ordered definitions, original causes and layered quotas; platform/runtime adoption remains separate (#239).

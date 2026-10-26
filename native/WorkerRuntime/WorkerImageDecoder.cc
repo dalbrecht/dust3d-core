@@ -79,9 +79,15 @@ extern "C" uint8_t dust3d_worker_image_copy_pixels(const Dust3DWorkerImage* imag
 namespace dust3d {
 namespace worker {
     WorkerImageDecoderError::WorkerImageDecoderError(const Dust3DWorkerImageResult& result)
-        : std::runtime_error(std::string(reinterpret_cast<const char*>(result.cause), result.cause_length))
+        : ImportedImageDecoderFailure(std::string(reinterpret_cast<const char*>(result.cause), result.cause_length))
         , m_result(result)
     {
+    }
+    FailurePayload WorkerImageDecoderError::failure() const
+    {
+        return { m_result.status == DUST3D_WORKER_IMAGE_LIMIT_EXCEEDED ? FailureStatus::limitExceeded : FailureStatus::unsupportedAsset,
+            { m_result.cause, m_result.cause + m_result.cause_length },
+            FailureDetail { FailureDomain::imageDecoder, m_result.code, static_cast<uint32_t>(m_result.status), m_result.cause_truncated } };
     }
     CallbackImportedImageDecoder::CallbackImportedImageDecoder(Dust3DWorkerImageDecoder configuration)
         : m_configuration(configuration)

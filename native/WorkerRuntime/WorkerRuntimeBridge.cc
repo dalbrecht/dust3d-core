@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: MIT
 #include "WorkerFailure.h"
+#include "WorkerImageDecoder.h"
+#include "WorkerImportedRequest.h"
 #include "WorkerIndexedSources.h"
 #include "WorkerJobIO.h"
 #include "WorkerSourceRequest.h"
@@ -40,13 +42,17 @@ extern "C" uint32_t dust3d_worker_runtime_abi_version() noexcept
 {
     return DUST3D_WORKER_RUNTIME_ABI_VERSION;
 }
-extern "C" Dust3DWorkerJobResult dust3d_worker_serve(int32_t input, int32_t output) noexcept
+namespace {
+Dust3DWorkerJobResult serve(int32_t input, int32_t output, const Dust3DWorkerImageDecoder* configuration) noexcept
 {
     Dust3DWorkerJobResult result {};
     result.status = DUST3D_WORKER_JOB_INTERNAL_FAILED;
     WorkerJobContext context;
     try {
-        serveWorkerJob(input, output, context);
+        std::optional<CallbackImportedImageDecoder> decoder;
+        if (configuration)
+            decoder.emplace(*configuration);
+        serveWorkerJob(input, output, context, decoder ? &*decoder : nullptr);
         result.status = DUST3D_WORKER_JOB_COMPLETE;
     } catch (const WorkerJobIOError& cause) {
         result.status = DUST3D_WORKER_JOB_IO_FAILED;
@@ -83,6 +89,21 @@ extern "C" Dust3DWorkerJobResult dust3d_worker_serve(int32_t input, int32_t outp
         rejectCodec(result, DUST3D_WORKER_DETAIL_INDEXED_MESH, cause);
     } catch (const IndexedSourcesPayloadError& cause) {
         rejectCodec(result, DUST3D_WORKER_DETAIL_INDEXED_SOURCES, cause);
+    } catch (const ImportedRequestError& cause) {
+        rejectCodec(result, DUST3D_WORKER_DETAIL_IMPORTED_REQUEST, cause);
+    } catch (const WorkerImageDecoderError& cause) {
+        result.status = DUST3D_WORKER_JOB_CODEC_REJECTED;
+        result.detail_source = DUST3D_WORKER_DETAIL_IMAGE_DECODER;
+        result.detail_code = cause.result().code;
+        copyCause(result, cause.what());
+    } catch (const ImportedProducerError& cause) {
+        rejectCodec(result, DUST3D_WORKER_DETAIL_IMPORTED_PRODUCER, cause);
+    } catch (const ImportedSurfaceError& cause) {
+        rejectCodec(result, DUST3D_WORKER_DETAIL_IMPORTED_SURFACE, cause);
+    } catch (const ImportedMaterialsError& cause) {
+        rejectCodec(result, DUST3D_WORKER_DETAIL_IMPORTED_MATERIALS, cause);
+    } catch (const ImportedRenderError& cause) {
+        rejectCodec(result, DUST3D_WORKER_DETAIL_IMPORTED_RENDER, cause);
     } catch (const FailurePayloadError& cause) {
         rejectCodec(result, DUST3D_WORKER_DETAIL_FAILURE, cause);
     } catch (const std::bad_alloc& cause) {
@@ -107,5 +128,24 @@ extern "C" Dust3DWorkerJobResult dust3d_worker_serve(int32_t input, int32_t outp
         result.operation = DUST3D_WORKER_OPERATION_INDEXED_SOURCED_MESH;
     else if (context.operation == Operation::generateIndexedMesh)
         result.operation = DUST3D_WORKER_OPERATION_INDEXED_MESH;
+    if (context.operation == Operation::generateImportedRender)
+        result.operation = DUST3D_WORKER_OPERATION_IMPORTED_RENDER;
     return result;
+}
+
+}
+extern "C" Dust3DWorkerJobResult dust3d_worker_serve(int32_t input, int32_t output) noexcept
+{
+    return serve(input, output, nullptr);
+}
+extern "C" Dust3DWorkerJobResult dust3d_worker_serve_with_image_decoder(int32_t input, int32_t output, const Dust3DWorkerImageDecoder* configuration) noexcept
+{
+    if (!configuration) {
+        Dust3DWorkerJobResult result {};
+        result.status = DUST3D_WORKER_JOB_CODEC_REJECTED;
+        result.detail_source = DUST3D_WORKER_DETAIL_IMAGE_DECODER;
+        copyCause(result, "Worker image decoder configuration is missing.");
+        return result;
+    }
+    return serve(input, output, configuration);
 }

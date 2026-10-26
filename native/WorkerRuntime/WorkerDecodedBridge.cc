@@ -12,9 +12,6 @@
 #include <utility>
 #include <variant>
 using namespace dust3d::worker;
-struct Dust3DWorkerDecodedReply {
-    AdmittedReply value;
-};
 namespace dust3d::worker::bridge {
 Dust3DWorkerDecodedReply* adoptDecodedReply(AdmittedReply value)
 {
@@ -46,6 +43,8 @@ const MeshPayload* geometry(const Dust3DWorkerDecodedReply* reply) noexcept
 {
     if (!reply)
         return nullptr;
+    if (const auto* imported = std::get_if<ImportedRenderReply>(&reply->value))
+        return imported->value ? &imported->value->surface.geometry : nullptr;
     if (auto* mesh = std::get_if<MeshPayload>(&reply->value))
         return mesh;
     if (auto* pair = std::get_if<UvMeshPayload>(&reply->value))
@@ -132,6 +131,12 @@ Dust3DWorkerDecodedReply* protectDecoded(Dust3DWorkerReplyCollector* owner, uint
         rejectCodec(*result, DUST3D_WORKER_DETAIL_INDEXED_MESH, cause);
     } catch (const IndexedSourcesPayloadError& cause) {
         rejectCodec(*result, DUST3D_WORKER_DETAIL_INDEXED_SOURCES, cause);
+    } catch (const ImportedRenderError& cause) {
+        rejectCodec(*result, DUST3D_WORKER_DETAIL_IMPORTED_RENDER, cause);
+    } catch (const ImportedSurfaceError& cause) {
+        rejectCodec(*result, DUST3D_WORKER_DETAIL_IMPORTED_SURFACE, cause);
+    } catch (const ImportedMaterialsError& cause) {
+        rejectCodec(*result, DUST3D_WORKER_DETAIL_IMPORTED_MATERIALS, cause);
     } catch (const FailurePayloadError& cause) {
         rejectCodec(*result, DUST3D_WORKER_DETAIL_FAILURE, cause);
     } catch (const std::bad_alloc& cause) {
@@ -164,6 +169,8 @@ extern "C" Dust3DWorkerDecodedReply* dust3d_worker_reply_decode(Dust3DWorkerRepl
         if (header.kind == FrameKind::failure)
             return decodeFailurePayload(body, size, policy.failure);
         switch (header.operation) {
+        case Operation::generateImportedRender:
+            return ImportedRenderReply { size ? std::optional<ImportedRenderPayload>(decodeImportedRenderPayload(body, size, policy.imported)) : std::nullopt };
         case Operation::generateMesh:
             return decodeMeshPayload(body, size, policy.mesh);
         case Operation::generateUvMesh:
@@ -192,14 +199,24 @@ extern "C" Dust3DWorkerDecodedReply* dust3d_worker_service_admit(Dust3DWorkerRep
         const auto policy = bridge::semanticPolicies(value.policy, maximum);
         PendingServiceReply pending(value.expected, value.serviceConnectionGeneration, value.policy);
         return pending.complete(identity, { observed.connection_generation, observed.process_identifier, value.isFramed },
-            control, value.bytes.data(), value.bytes.size(), value.policy, policy.mesh, policy.failure, policy.uv, policy.sources, policy.indexed);
+            control, value.bytes.data(), value.bytes.size(), value.policy, policy.mesh, policy.failure, policy.uv, policy.sources, policy.indexed, policy.imported);
     });
 }
 
 extern "C" Dust3DWorkerDecodedSummary dust3d_worker_decoded_summary(const Dust3DWorkerDecodedReply* reply) noexcept
 {
     Dust3DWorkerDecodedSummary result {};
-    if (const auto* mesh = indexedGeometry(reply)) {
+    if (reply && std::get_if<ImportedRenderReply>(&reply->value)) {
+        result.kind = DUST3D_WORKER_DECODED_IMPORTED_RENDER;
+        const auto& imported = std::get<ImportedRenderReply>(reply->value).value;
+        if (imported) {
+            result.vertex_count = imported->surface.geometry.vertices.size();
+            result.node_count = imported->surface.geometry.nodeCount;
+            result.part_count = imported->surface.geometry.partCount;
+            result.triangle_count = imported->surface.triangles.size();
+            result.component_count = imported->surface.components.size();
+        }
+    } else if (const auto* mesh = indexedGeometry(reply)) {
         result.kind = sources(reply) ? DUST3D_WORKER_DECODED_INDEXED_SOURCED_MESH : DUST3D_WORKER_DECODED_INDEXED_MESH;
         result.vertex_count = mesh->vertices.size();
         result.triangle_count = mesh->indices.size() / 3;
@@ -222,9 +239,10 @@ extern "C" Dust3DWorkerDecodedSummary dust3d_worker_decoded_summary(const Dust3D
         }
     } else if (reply) {
         // Only fully constructed immutable variants are published to C callers.
-        const auto& failure = std::get<FailurePayload>(reply->value);
-        result.kind = DUST3D_WORKER_DECODED_FAILURE;
-        result.failure_status = static_cast<uint32_t>(failure.status);
+        if (const auto* failure = std::get_if<FailurePayload>(&reply->value)) {
+            result.kind = DUST3D_WORKER_DECODED_FAILURE;
+            result.failure_status = static_cast<uint32_t>(failure->status);
+        }
     }
     return result;
 }

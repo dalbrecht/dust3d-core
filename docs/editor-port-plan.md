@@ -1184,3 +1184,14 @@ See [ADR 0148](adr/0148-worker-image-decoder-ownership.md). Actual Swift/ImageIO
 worker orchestration, runtime registration/transport, real metrics and supported
 range acceptance remain open. No production pin/backend or quarantine changes;
 full M4–M8 acceptance remains incomplete.
+
+### Imported rendering runtime checkpoint (#243)
+
+Explicit budgeted imported requests now reach worker jobs with an injected decoder,
+then child/service/queue admission and independently owned C rendering output.
+Successful absence and detailed original callback failures remain distinct. See
+[ADR 0149](adr/0149-imported-render-worker-runtime.md). All 173 ordinary contracts
+pass; scoped request/getter coverage is complete. Actual ImageIO inside the Apple
+worker, Swift orchestration, source-baked/legacy transport, real persistent session
+metrics, Apple #280 range parity and M4–M8 acceptance remain open. Production pin,
+default editor backend and feature quarantines remain unchanged.

@@ -25,7 +25,8 @@ namespace worker {
                 reject(ProtocolErrorCode::unsupportedKind, "Unknown worker frame kind.");
             if (header.operation != Operation::generateMesh && header.operation != Operation::generateUvMesh
                 && header.operation != Operation::generateSourcedMesh && header.operation != Operation::generateIndexedSourcedMesh
-                && header.operation != Operation::generateIndexedMesh)
+                && header.operation != Operation::generateIndexedMesh
+                && header.operation != Operation::generateImportedRender)
                 reject(ProtocolErrorCode::unsupportedOperation, "Unknown worker operation.");
             if (!header.identity.request || std::all_of(header.identity.document.begin(), header.identity.document.end(), [](uint8_t value) { return value == 0; }))
                 reject(ProtocolErrorCode::invalidIdentity, "Worker frames require a document and nonzero request identity.");

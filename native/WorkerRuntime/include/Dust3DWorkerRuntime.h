@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: MIT */
 #ifndef DUST3D_WORKER_RUNTIME_H_
 #define DUST3D_WORKER_RUNTIME_H_
+#include "Dust3DWorkerImageDecoder.h"
 #include <stddef.h>
 #include <stdint.h>
 #define DUST3D_WORKER_RUNTIME_ABI_VERSION 1
@@ -25,7 +26,8 @@ typedef enum Dust3DWorkerOperation {
     DUST3D_WORKER_OPERATION_UV_MESH = 2,
     DUST3D_WORKER_OPERATION_SOURCED_MESH = 3,
     DUST3D_WORKER_OPERATION_INDEXED_SOURCED_MESH = 4,
-    DUST3D_WORKER_OPERATION_INDEXED_MESH = 5
+    DUST3D_WORKER_OPERATION_INDEXED_MESH = 5,
+    DUST3D_WORKER_OPERATION_IMPORTED_RENDER = 6
 } Dust3DWorkerOperation;
 typedef enum Dust3DWorkerDetailSource {
     DUST3D_WORKER_DETAIL_NONE = 0,
@@ -43,7 +45,13 @@ typedef enum Dust3DWorkerDetailSource {
     DUST3D_WORKER_DETAIL_SOURCE_HINTS = 12,
     DUST3D_WORKER_DETAIL_SOURCED_MESH = 13,
     DUST3D_WORKER_DETAIL_INDEXED_MESH = 14,
-    DUST3D_WORKER_DETAIL_INDEXED_SOURCES = 15
+    DUST3D_WORKER_DETAIL_INDEXED_SOURCES = 15,
+    DUST3D_WORKER_DETAIL_IMAGE_DECODER = 16,
+    DUST3D_WORKER_DETAIL_IMPORTED_PRODUCER = 17,
+    DUST3D_WORKER_DETAIL_IMPORTED_SURFACE = 18,
+    DUST3D_WORKER_DETAIL_IMPORTED_MATERIALS = 19,
+    DUST3D_WORKER_DETAIL_IMPORTED_RENDER = 20,
+    DUST3D_WORKER_DETAIL_IMPORTED_REQUEST = 21
 } Dust3DWorkerDetailSource;
 typedef enum Dust3DWorkerIOStage {
     DUST3D_WORKER_IO_NONE = 0,
@@ -92,6 +100,14 @@ uint32_t dust3d_worker_runtime_abi_version(void) DUST3D_WORKER_RUNTIME_NOEXCEPT;
  * @endcode
  */
 Dust3DWorkerJobResult dust3d_worker_serve(int32_t input_descriptor, int32_t output_descriptor) DUST3D_WORKER_RUNTIME_NOEXCEPT;
+/** Serve with an explicit callback copied for this exclusive synchronous worker job.
+ * Decoder configuration/context/code must remain valid through return; null rejects
+ * before I/O. Same channel/resource/isolation obligations as dust3d_worker_serve.
+ * Original callback failures travel in detailed failure frames, not generic success.
+ * No platform decoder is installed globally and no parent fallback is selected.
+ * Example: result = dust3d_worker_serve_with_image_decoder(input_fd, output_fd, &decoder); */
+Dust3DWorkerJobResult dust3d_worker_serve_with_image_decoder(int32_t input_descriptor, int32_t output_descriptor, const Dust3DWorkerImageDecoder* decoder) DUST3D_WORKER_RUNTIME_NOEXCEPT;
+
 /** Parent-owned incremental frame collector; never share it concurrently. */
 typedef struct Dust3DWorkerReplyCollector Dust3DWorkerReplyCollector;
 typedef struct Dust3DWorkerWireLimits {
@@ -193,7 +209,8 @@ typedef enum Dust3DWorkerDecodedKind {
     DUST3D_WORKER_DECODED_FAILURE = 3,
     DUST3D_WORKER_DECODED_SOURCED_MESH = 4,
     DUST3D_WORKER_DECODED_INDEXED_MESH = 5,
-    DUST3D_WORKER_DECODED_INDEXED_SOURCED_MESH = 6
+    DUST3D_WORKER_DECODED_INDEXED_SOURCED_MESH = 6,
+    DUST3D_WORKER_DECODED_IMPORTED_RENDER = 7
 } Dust3DWorkerDecodedKind;
 /** Scalar summary. Zero for NULL. vertex_count is unique-table count for indexed
  * kinds, expanded count otherwise; triangle_count is derived from indexed corners
@@ -314,6 +331,68 @@ int dust3d_worker_decoded_gradient(const Dust3DWorkerDecodedReply* reply, size_t
 const char* dust3d_worker_decoded_warning(const Dust3DWorkerDecodedReply* reply, size_t* size) DUST3D_WORKER_RUNTIME_NOEXCEPT;
 const char* dust3d_worker_decoded_component(const Dust3DWorkerDecodedReply* reply, size_t index, size_t* size) DUST3D_WORKER_RUNTIME_NOEXCEPT;
 const uint8_t* dust3d_worker_decoded_failure_cause(const Dust3DWorkerDecodedReply* reply, size_t* size) DUST3D_WORKER_RUNTIME_NOEXCEPT;
+/** Imported values retain their own distinct kind even for successful absence.
+ * Counts are zero for absent/NULL/wrong kind. decoded_pixel_bytes counts actual RGBA
+ * storage only, not allocator/native payload metrics. */
+typedef struct Dust3DWorkerImportedSummary {
+    uint8_t has_value;
+    size_t model_count, component_count, triangle_count;
+    uint64_t decoded_pixel_bytes;
+} Dust3DWorkerImportedSummary;
+typedef struct Dust3DWorkerImportedTriangle {
+    double uv[3][2], colors[3][4];
+    uint64_t model_index, component_index;
+    uint32_t color_encoding;
+    uint8_t uv_known;
+} Dust3DWorkerImportedTriangle;
+/** Independent scalar copy with owner-scoped immutable borrowed spans. Model is
+ * exact UTF8 bytes. Encoded bytes are opaque PNG1/JPEG2, never decoded here. */
+typedef struct Dust3DWorkerImportedMaterial {
+    const char* model_id;
+    size_t model_id_size;
+    double base_color[4], metallic, roughness, emissive[3], alpha_cutoff;
+    uint32_t alpha_mode;
+    uint8_t is_double_sided, has_sampler, has_magnification_filter, has_minification_filter;
+    uint32_t magnification_filter, minification_filter, wrap_s, wrap_t;
+    uint8_t has_image;
+    uint32_t image_encoding;
+    const uint8_t* encoded;
+    size_t encoded_count;
+} Dust3DWorkerImportedMaterial;
+typedef struct Dust3DWorkerImportedImage {
+    uint32_t width, height;
+    uint64_t row_stride;
+    const uint8_t* pixels;
+    size_t byte_count;
+} Dust3DWorkerImportedImage;
+/** Detailed v2 failure metadata; zero when absent/NULL/wrong kind. Existing failure
+ * status/cause accessors remain valid for both v1 and v2. Domain1 native,2 image
+ * decoder,3 producer,4 surface,5 material,6 render,7 standard; status/code preserve
+ * source-native values and cause_truncated is explicit. */
+typedef struct Dust3DWorkerFailureDetail {
+    uint8_t has_detail;
+    uint16_t domain;
+    int32_t code;
+    uint32_t status;
+    uint8_t cause_truncated;
+} Dust3DWorkerFailureDetail;
+Dust3DWorkerImportedSummary dust3d_worker_decoded_imported_summary(const Dust3DWorkerDecodedReply* reply) DUST3D_WORKER_RUNTIME_NOEXCEPT;
+Dust3DWorkerFailureDetail dust3d_worker_decoded_failure_detail(const Dust3DWorkerDecodedReply* reply) DUST3D_WORKER_RUNTIME_NOEXCEPT;
+/** Borrow exact validated catalog bytes until reply destruction. Required size is
+ * reset to zero on rejection; null size returns null. Component kinds1 original/2
+ * generated are membership only, not Boolean provenance. Copy before owner release. */
+const char* dust3d_worker_decoded_imported_model(const Dust3DWorkerDecodedReply* reply, size_t index, size_t* size) DUST3D_WORKER_RUNTIME_NOEXCEPT;
+const char* dust3d_worker_decoded_imported_component(const Dust3DWorkerDecodedReply* reply, size_t index, size_t* size) DUST3D_WORKER_RUNTIME_NOEXCEPT;
+uint32_t dust3d_worker_decoded_imported_component_kind(const Dust3DWorkerDecodedReply* reply, size_t index) DUST3D_WORKER_RUNTIME_NOEXCEPT;
+/** Copy one validated record; return1 on valid owner/index/output, otherwise0 and
+ * clear nonnull output. UINT64_MAX denotes unknown model/component identity.
+ * Authored UVs may repeat outside0..1; color encoding0 sRGB/1 linear RGB. */
+int dust3d_worker_decoded_imported_triangle(const Dust3DWorkerDecodedReply* reply, size_t index, Dust3DWorkerImportedTriangle* output) DUST3D_WORKER_RUNTIME_NOEXCEPT;
+/** Borrowed material/image spans remain valid until reply destruction. Return1 for
+ * an existing record even when image is absent (all image fields zero), otherwise0
+ * and clear nonnull output. Swift copies all spans before releasing the owner. */
+int dust3d_worker_decoded_imported_material(const Dust3DWorkerDecodedReply* reply, size_t index, Dust3DWorkerImportedMaterial* output) DUST3D_WORKER_RUNTIME_NOEXCEPT;
+int dust3d_worker_decoded_imported_image(const Dust3DWorkerDecodedReply* reply, size_t index, Dust3DWorkerImportedImage* output) DUST3D_WORKER_RUNTIME_NOEXCEPT;
 /** Destroy exactly once; NULL is harmless. Copy all borrowed bytes first.
  * Example: read summary, copy vertices/text, then destroy decoded and framed owners.
  */
@@ -344,7 +423,8 @@ typedef enum Dust3DWorkerRequestStatus {
     DUST3D_WORKER_REQUEST_UV_REJECTED = 2,
     DUST3D_WORKER_REQUEST_LIMIT_EXCEEDED = 3,
     DUST3D_WORKER_REQUEST_INTERNAL_FAILED = 4,
-    DUST3D_WORKER_REQUEST_SOURCE_REJECTED = 5
+    DUST3D_WORKER_REQUEST_SOURCE_REJECTED = 5,
+    DUST3D_WORKER_REQUEST_IMPORTED_REJECTED = 6
 } Dust3DWorkerRequestStatus;
 /** Self-owned original category/code/diagnostic; same bounded-byte rules as job results. */
 typedef struct Dust3DWorkerRequestResult {
@@ -355,13 +435,13 @@ typedef struct Dust3DWorkerRequestResult {
     char message[512];
 } Dust3DWorkerRequestResult;
 typedef struct Dust3DWorkerRequest Dust3DWorkerRequest;
-/** Encode one independent base/ordinary-indexed/UV request; no native generation.
+/** Encode one independent base/ordinary-indexed/UV/imported request; no native generation.
  * Source variants use their dedicated source_request_create functions instead.
- * @param operation Base or UV mesh, no unknown enum values.
+ * @param operation Base/indexed/UV/imported, no unknown enum values.
  * @param identity Parent-issued copied correlation values.
  * @param archive Stable readable independent opaque archive, non-NULL/nonempty.
  * @param archive_size Exact readable byte count, bounded before retained body copy.
- * @param uv NULL for base mesh. UV accepts NULL/defaults or stable options/image spans.
+ * @param uv NULL for ordinary/imported requests. UV accepts NULL/defaults or stable options/image spans.
  * @param limits Positive supported wire quotas; logical sizes, not allocator/RSS caps.
  * @param result Required writable receipt; NULL returns NULL without allocation.
  * @return Immutable owner or NULL with original caught cause. No archive parsing,
@@ -372,6 +452,24 @@ Dust3DWorkerRequest* dust3d_worker_request_create(Dust3DWorkerOperation operatio
     Dust3DWorkerRequestIdentity identity, const uint8_t* archive, size_t archive_size,
     const Dust3DWorkerRequestUvOptions* uv, Dust3DWorkerWireLimits limits,
     Dust3DWorkerRequestResult* result) DUST3D_WORKER_RUNTIME_NOEXCEPT;
+/** Per-request imported producer budgets. Zero selects maintained defaults; positive
+ * values <=256MiB can only tighten receiver policy. struct_size must match exactly.
+ * Input/output logical quotas exclude root/capacity/native/decoder workspace and RSS. */
+typedef struct Dust3DWorkerRequestImportedOptions {
+    size_t struct_size;
+    uint64_t maximum_material_native_bytes, maximum_surface_native_bytes;
+    uint64_t maximum_facts_copy_bytes, maximum_surface_copy_bytes;
+    uint64_t maximum_encoded_image_bytes, maximum_decoded_pixel_bytes;
+    uint64_t maximum_aggregate_decoded_bytes, maximum_output_wire_bytes;
+} Dust3DWorkerRequestImportedOptions;
+/** Encode an owned imported request without native parsing. Options may be null for
+ * defaults. Output wire budget also tightens to limits.maximum_output_bytes. All
+ * framing/policies validate before retained output allocation. C++ exceptions are
+ * caught in the required result. Archive is borrowed only for the call.
+ * Example: owner = dust3d_worker_imported_request_create(id, bytes, size, &options, limits, &result); */
+Dust3DWorkerRequest* dust3d_worker_imported_request_create(Dust3DWorkerRequestIdentity identity,
+    const uint8_t* archive, size_t archive_size, const Dust3DWorkerRequestImportedOptions* options,
+    Dust3DWorkerWireLimits limits, Dust3DWorkerRequestResult* result) DUST3D_WORKER_RUNTIME_NOEXCEPT;
 /** Create one independent source-aware request, without parsing or generating archive data.
  * @param identity Nonzero document/request identity; revision zero is valid.
  * @param archive Stable nonempty readable archive span, borrowed only during this call.

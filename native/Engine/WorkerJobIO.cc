@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 #include "WorkerJobIO.h"
+#include "WorkerImportedOperation.h"
 #include "WorkerIndexedSourceOperation.h"
 #include "WorkerOperation.h"
 #include "WorkerSourceOperation.h"
@@ -57,6 +58,8 @@ namespace worker {
             return "generateIndexedSourcedMesh";
         if (operation == Operation::generateIndexedMesh)
             return "generateIndexedMesh";
+        if (operation == Operation::generateImportedRender)
+            return "generateImportedRender";
         return "unknown";
     }
     WorkerIoResult writeWorkerBytes(int descriptor, const uint8_t* bytes, size_t size) noexcept
@@ -77,7 +80,7 @@ namespace worker {
         }
         return { true, 0 };
     }
-    void serveWorkerJob(int input, int output, WorkerJobContext& context)
+    void serveWorkerJob(int input, int output, WorkerJobContext& context, ImportedRenderImageDecoder* decoder, const NativeImportedProducerLimits& importedLimits)
     {
         context = {};
         if (input < 0 || output < 0 || input == output)
@@ -99,6 +102,9 @@ namespace worker {
             throw WorkerJobIOError(WorkerJobStage::input, end.error);
         Frame response;
         switch (header.operation) {
+        case Operation::generateImportedRender:
+            response = generateImportedRenderReply(request, decoder, importedLimits);
+            break;
         case Operation::generateMesh:
             response = generateMeshReply(request, {});
             break;

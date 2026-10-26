@@ -5,11 +5,6 @@
 #include "WorkerImportedProducer.h"
 namespace dust3d {
 namespace worker {
-    struct NativeImportedProducerLimits {
-        ImportedProducerLimits preparation;
-        uint64_t maximumMaterialNativeBytes = 64ULL * 1024 * 1024;
-        uint64_t maximumSurfaceNativeBytes = 64ULL * 1024 * 1024;
-    };
     /// Original mapped status/opaque diagnostic from a failed native load.
     class ImportedProducerNativeError : public std::runtime_error {
     public:

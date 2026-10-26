@@ -14,10 +14,7 @@ namespace worker {
     std::optional<ImportedRenderPayload> generateImportedRender(const std::vector<uint8_t>& archive,
         ImportedRenderImageDecoder& decoder, const NativeImportedProducerLimits& limits)
     {
-        validateImportedProducerLimits(limits.preparation);
-        if (!limits.maximumMaterialNativeBytes || limits.maximumMaterialNativeBytes > maximumPayloadBytes
-            || !limits.maximumSurfaceNativeBytes || limits.maximumSurfaceNativeBytes > maximumPayloadBytes)
-            throw ImportedProducerError(ImportedProducerErrorCode::invalidLimits, "Native imported producer policies are outside supported positive bounds.");
+        validateNativeImportedProducerLimits(limits);
         if (archive.empty() || archive.size() > maximumPayloadBytes)
             throw ImportedProducerError(ImportedProducerErrorCode::invalidLimits, "Imported producer archive length is outside supported positive bounds.");
         Dust3DError error {};
@@ -26,8 +23,11 @@ namespace worker {
         materialOptions.maximum_payload_bytes = static_cast<size_t>(limits.maximumMaterialNativeBytes);
         std::unique_ptr<Dust3DImportedAssets, decltype(&dust3d_imported_assets_destroy)> assets(
             dust3d_imported_assets_load(archive.data(), archive.size(), &materialOptions, &error), dust3d_imported_assets_destroy);
-        if (!assets)
-            throw ImportedProducerNativeError(copyNativeFailure(error));
+        if (!assets) {
+            auto failure = copyNativeFailure(error);
+            failure.detail = FailureDetail { FailureDomain::native, static_cast<int32_t>(error.status), static_cast<uint32_t>(error.status), 0 };
+            throw ImportedProducerNativeError(std::move(failure));
+        }
         auto facts = copyNativeImportedMaterials(assets.get(), limits.preparation.facts);
         assets.reset();
         if (facts.materials.empty())
@@ -37,8 +37,11 @@ namespace worker {
         surfaceOptions.maximum_payload_bytes = static_cast<size_t>(limits.maximumSurfaceNativeBytes);
         std::unique_ptr<Dust3DImportedSurfaceMesh, decltype(&dust3d_imported_surface_mesh_destroy)> surface(
             dust3d_imported_surface_mesh_load(archive.data(), archive.size(), &surfaceOptions, &error), dust3d_imported_surface_mesh_destroy);
-        if (!surface)
-            throw ImportedProducerNativeError(copyNativeFailure(error));
+        if (!surface) {
+            auto failure = copyNativeFailure(error);
+            failure.detail = FailureDetail { FailureDomain::native, static_cast<int32_t>(error.status), static_cast<uint32_t>(error.status), 0 };
+            throw ImportedProducerNativeError(std::move(failure));
+        }
         auto geometry = copyNativeImportedSurface(surface.get(), limits.preparation.render.surface);
         surface.reset();
         return prepareImportedRender(std::move(geometry), std::move(facts), decoder, limits.preparation);

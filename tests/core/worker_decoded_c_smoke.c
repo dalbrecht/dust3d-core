@@ -56,6 +56,14 @@ int main(void)
     if (!cause || size != 2 || cause[0] != 255 || cause[1] != 0)
         return 7;
     dust3d_worker_decoded_destroy(decoded);
+    Dust3DWorkerImportedTriangle triangle;
+    Dust3DWorkerImportedMaterial material;
+    Dust3DWorkerImportedImage image;
+    Dust3DWorkerImportedSummary imported = dust3d_worker_decoded_imported_summary(NULL);
+    Dust3DWorkerFailureDetail detail = dust3d_worker_decoded_failure_detail(NULL);
+    if (imported.has_value || detail.has_detail || dust3d_worker_decoded_imported_triangle(NULL, 0, &triangle)
+        || dust3d_worker_decoded_imported_material(NULL, 0, &material) || dust3d_worker_decoded_imported_image(NULL, 0, &image))
+        return 8;
     dust3d_worker_decoded_destroy(NULL);
     return 0;
 }
