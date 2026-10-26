@@ -60,7 +60,7 @@ let package = Package(
                 "Engine/WorkerUv.cc", "Engine/WorkerUvMesh.cc", "Engine/WorkerUvRequest.cc",
                 "WorkerRuntime/WorkerBakedDecodedBridge.cc",
                 "WorkerRuntime/WorkerImportedDecodedBridge.cc", "WorkerRuntime/WorkerImageDecoder.cc",
-                "WorkerRuntime/WorkerRuntimeBridge.cc",
+                "WorkerRuntime/WorkerRuntimeBridge.cc", "WorkerRuntime/WorkerSessionOutputBridge.cc",
                 "WorkerRuntime/WorkerReplyBridge.cc",
                 "WorkerRuntime/WorkerDecodedBridge.cc", "WorkerRuntime/WorkerRequestBridge.cc",
                 "WorkerRuntime/WorkerQueueBridge.cc",

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add immutable C ownership and borrowed geometry/diagnostic/statistics views for decoded session output values; authenticated host admission remains separate (#251).
+
 - Add an explicit correlated session-generation producer with diagnostic reservation and host-quota truncation; legacy serving/admission remains unsupported (#251).
 
 - Preserve worker session outcome, fallback diagnostics and actual optional statistics together in a bounded owned result envelope (#251).
