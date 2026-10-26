@@ -1204,3 +1204,11 @@ for SwiftPM consumers. A Swift6 integration contract verifies retained session u
 dedicated completion admission and copied Sendable output after owner destruction
 against both CMake and SwiftPM static output. It is not an authenticated XPC/backend
 activation claim; see [ADR0162](docs/adr/0162-worker-session-swift-consumer.md).
+
+### Swift session lifetime prototype
+
+The worker prototype now has a lazy immutable-scope coordinator and native adapter.
+It serializes jobs/lifecycle and destroys native owners after close errors while
+preserving original causes. Fake lifecycle and ordinary Capsule contracts cover
+these boundaries; actual connection RPC wiring remains separate. See
+[ADR0163](docs/adr/0163-worker-service-session-lifetime.md).

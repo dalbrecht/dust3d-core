@@ -1341,3 +1341,13 @@ contracts pass, plus an independent link/run against actual SwiftPM output.
 [ADR0162](adr/0162-worker-session-swift-consumer.md) distinguishes this evidence from
 actual authenticated XPC, complete output/range and app acceptance. Those #251 and
 Apple #279/#280 gates, production pin/backend and quarantines remain unchanged.
+
+### Lazy Swift session lifetime coordinator (#251)
+
+The Swift worker prototype now binds one immutable host-selected scope lazily and
+serializes native jobs/reset/close/destruction. Its native adapter preserves original
+opaque diagnostics. Fake-only errors/lifetimes and ordinary Capsule reuse/reset/copy
+contracts pass; all208 ordinary contracts pass. [ADR0163](adr/0163-worker-service-session-lifetime.md)
+records exact coverage gaps. Authenticated XPC RPC/ordered-retirement integration,
+full-output/range acceptance #279/#280 and M4–M8 parity remain incomplete. Production
+pin/backend and quarantines remain unchanged.

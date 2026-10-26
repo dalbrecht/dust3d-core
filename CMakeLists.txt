@@ -755,22 +755,28 @@ if(BUILD_TESTING)
         set(DUST3D_SWIFT_SESSION_CONSUMER "${CMAKE_CURRENT_BINARY_DIR}/worker-session-swift")
         add_custom_command(OUTPUT "${DUST3D_SWIFT_SESSION_CONSUMER}"
             COMMAND "${DUST3D_XCRUN}" swift-format lint --strict "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerSessionSmoke.swift"
+                "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerServiceSession.swift"
+                "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerNativeServiceSession.swift"
             COMMAND "${DUST3D_XCRUN}" swiftc -typecheck -swift-version 6 -strict-concurrency=complete
                 -warnings-as-errors -parse-as-library
                 -module-cache-path "${CMAKE_CURRENT_BINARY_DIR}/swift-module-cache"
                 -I "${CMAKE_CURRENT_SOURCE_DIR}/native/WorkerRuntime/include"
+                "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerServiceSession.swift"
+                "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerNativeServiceSession.swift"
                 "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerSessionSmoke.swift"
             COMMAND "${DUST3D_XCRUN}" swiftc -swift-version 6 -strict-concurrency=complete
                 -warnings-as-errors -parse-as-library
                 -module-cache-path "${CMAKE_CURRENT_BINARY_DIR}/swift-module-cache"
                 -I "${DUST3D_WORKER_SWIFT_MODULE_DIRECTORY}"
+                "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerServiceSession.swift"
+                "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerNativeServiceSession.swift"
                 "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerSessionSmoke.swift"
                 "$<TARGET_FILE:dust3d_worker_runtime>" "$<TARGET_FILE:dust3d_worker_job_io>"
                 "$<TARGET_FILE:dust3d_worker_operation>" "$<TARGET_FILE:dust3d_worker_protocol>"
                 "$<TARGET_FILE:dust3d_engine>" "$<TARGET_FILE:dust3d_core>"
                 "$<TARGET_FILE:dust3d_remesher>" "$<TARGET_FILE:dust3d_triangle>"
                 -lc++ -lz -o "${DUST3D_SWIFT_SESSION_CONSUMER}"
-            DEPENDS tests/swift/WorkerSessionSmoke.swift native/WorkerRuntime/include/module.modulemap
+            DEPENDS tests/swift/WorkerServiceSession.swift tests/swift/WorkerNativeServiceSession.swift tests/swift/WorkerSessionSmoke.swift native/WorkerRuntime/include/module.modulemap
                 native/WorkerRuntime/include/Dust3DWorkerSession.h
                 native/WorkerRuntime/include/Dust3DWorkerSessionOutput.h native/WorkerRuntime/include/Dust3DWorkerRuntime.h
                 dust3d_worker_runtime dust3d_worker_job_io dust3d_worker_operation dust3d_worker_protocol
@@ -780,6 +786,21 @@ if(BUILD_TESTING)
         add_test(NAME worker_session_swift COMMAND "${DUST3D_SWIFT_SESSION_CONSUMER}"
             "${CMAKE_CURRENT_SOURCE_DIR}/tests/core/fixtures/Capsule.ds3" "${CMAKE_CURRENT_BINARY_DIR}")
         set_tests_properties(worker_session_swift PROPERTIES TIMEOUT 60)
+        set(DUST3D_SWIFT_SESSION_LIFETIME "${CMAKE_CURRENT_BINARY_DIR}/worker-session-lifecycle-swift")
+        add_custom_command(OUTPUT "${DUST3D_SWIFT_SESSION_LIFETIME}"
+            COMMAND "${DUST3D_XCRUN}" swift-format lint --strict
+                "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerServiceSession.swift"
+                "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerSessionLifecycleSmoke.swift"
+            COMMAND "${DUST3D_XCRUN}" swiftc -swift-version 6 -strict-concurrency=complete
+                -warnings-as-errors -parse-as-library
+                -module-cache-path "${CMAKE_CURRENT_BINARY_DIR}/swift-module-cache"
+                "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerServiceSession.swift"
+                "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerSessionLifecycleSmoke.swift"
+                -o "${DUST3D_SWIFT_SESSION_LIFETIME}"
+            DEPENDS tests/swift/WorkerServiceSession.swift tests/swift/WorkerSessionLifecycleSmoke.swift VERBATIM)
+        add_custom_target(dust3d_worker_session_lifetime_swift ALL DEPENDS "${DUST3D_SWIFT_SESSION_LIFETIME}")
+        add_test(NAME worker_session_lifetime_swift COMMAND "${DUST3D_SWIFT_SESSION_LIFETIME}")
+        set_tests_properties(worker_session_lifetime_swift PROPERTIES TIMEOUT 30)
 
         set(DUST3D_SWIFT_SERVICE_QUEUE_CONSUMER "${CMAKE_CURRENT_BINARY_DIR}/worker-service-queue-swift")
         add_custom_command(OUTPUT "${DUST3D_SWIFT_SERVICE_QUEUE_CONSUMER}"
