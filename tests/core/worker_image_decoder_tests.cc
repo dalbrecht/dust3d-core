@@ -70,6 +70,13 @@ void adapter()
             decoder.decode(encoded, "Model", 3, 4);
         } catch (const WorkerImageDecoderError& cause) {
             const auto& result = cause.result();
+            const auto failure = cause.failure();
+            const auto wire = encodeFailurePayload(failure, {});
+            const auto receipt = decodeFailurePayload(wire.data(), wire.size(), {});
+            require(receipt.detail && receipt.detail->domain == FailureDomain::imageDecoder && receipt.detail->code == result.code
+                    && receipt.detail->status == static_cast<uint32_t>(result.status) && receipt.detail->causeTruncated == result.cause_truncated
+                    && receipt.cause == std::vector<uint8_t>(result.cause, result.cause + result.cause_length),
+                "Callback status, code, truncation and opaque diagnostics survive explicit failure transport");
             if (mode == 2 || mode == 3)
                 rejected = result.status == DUST3D_WORKER_IMAGE_DECODE_FAILED && result.code == 42 && result.cause_length == 3
                     && result.cause[0] == 'a' && result.cause[1] == 0 && result.cause[2] == 255;

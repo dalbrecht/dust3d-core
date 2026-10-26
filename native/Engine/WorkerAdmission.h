@@ -2,6 +2,7 @@
 #ifndef DUST3D_NATIVE_WORKER_ADMISSION_H_
 #define DUST3D_NATIVE_WORKER_ADMISSION_H_
 #include "WorkerFailure.h"
+#include "WorkerImportedRender.h"
 #include "WorkerIndexedSources.h"
 #include "WorkerSourcedMesh.h"
 #include "WorkerUvMesh.h"
@@ -32,7 +33,11 @@ namespace worker {
     private:
         AdmissionErrorCode m_code;
     };
-    using AdmittedReply = std::variant<MeshPayload, FailurePayload, UvMeshPayload, SourcedMeshPayload, IndexedMeshPayload, IndexedSourcesPayload>;
+    /// Successful imported absence is distinct from both geometry and failure.
+    struct ImportedRenderReply {
+        std::optional<ImportedRenderPayload> value;
+    };
+    using AdmittedReply = std::variant<MeshPayload, FailurePayload, UvMeshPayload, SourcedMeshPayload, IndexedMeshPayload, IndexedSourcesPayload, ImportedRenderReply>;
     /// Independent ordinary-indexed and atomic indexed/source output policies.
     struct IndexedReplyLimits {
         IndexedMeshPayloadLimits mesh;
@@ -97,7 +102,7 @@ namespace worker {
         AdmittedReply complete(const RequestIdentity& active, const ServiceObservation& observed,
             const ServiceReceipt& receipt, const uint8_t* bytes, size_t size,
             const Limits& wireLimits = {}, const MeshPayloadLimits& meshLimits = {},
-            const FailurePayloadLimits& failureLimits = {}, const UvMeshPayloadLimits& uvLimits = {}, const SourcedMeshPayloadLimits& sourceLimits = {}, const IndexedReplyLimits& indexedLimits = {});
+            const FailurePayloadLimits& failureLimits = {}, const UvMeshPayloadLimits& uvLimits = {}, const SourcedMeshPayloadLimits& sourceLimits = {}, const IndexedReplyLimits& indexedLimits = {}, const ImportedRenderLimits& importedLimits = {});
 
     private:
         Header m_request;
@@ -126,7 +131,7 @@ namespace worker {
         AdmittedReply complete(const RequestIdentity& active, ProcessOutcome outcome,
             const uint8_t* bytes, size_t size, const Limits& wireLimits = {},
             const MeshPayloadLimits& meshLimits = {}, const FailurePayloadLimits& failureLimits = {},
-            const UvMeshPayloadLimits& uvLimits = {}, const SourcedMeshPayloadLimits& sourceLimits = {}, const IndexedReplyLimits& indexedLimits = {});
+            const UvMeshPayloadLimits& uvLimits = {}, const SourcedMeshPayloadLimits& sourceLimits = {}, const IndexedReplyLimits& indexedLimits = {}, const ImportedRenderLimits& importedLimits = {});
 
     private:
         Header m_request;

@@ -20,7 +20,8 @@ namespace worker {
         generateUvMesh = 2,
         generateSourcedMesh = 3,
         generateIndexedSourcedMesh = 4,
-        generateIndexedMesh = 5 };
+        generateIndexedMesh = 5,
+        generateImportedRender = 6 };
     enum class ProtocolErrorCode { invalidInput,
         invalidLimits,
         truncated,

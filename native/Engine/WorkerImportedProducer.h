@@ -1,10 +1,17 @@
 // SPDX-License-Identifier: MIT
 #ifndef DUST3D_NATIVE_WORKER_IMPORTED_PRODUCER_H_
 #define DUST3D_NATIVE_WORKER_IMPORTED_PRODUCER_H_
+#include "WorkerFailure.h"
 #include "WorkerImportedRender.h"
 #include <string_view>
 namespace dust3d {
 namespace worker {
+    /// Portable original decoder failure receipt; implemented by platform adapters.
+    class ImportedImageDecoderFailure : public std::runtime_error {
+    public:
+        using std::runtime_error::runtime_error;
+        virtual FailurePayload failure() const = 0;
+    };
     /// Injected platform boundary, executed in the worker calling thread. Implementation
     /// must honor input/output quotas before allocation, return straight tight RGBA8 in
     /// source scanline order and preserve original errors. No platform types cross here.
@@ -18,6 +25,14 @@ namespace worker {
         ImportedMaterialsLimits facts;
         uint64_t maximumEncodedImageBytes = 16ULL * 1024 * 1024;
     };
+    struct NativeImportedProducerLimits {
+        ImportedProducerLimits preparation;
+        uint64_t maximumMaterialNativeBytes = 64ULL * 1024 * 1024;
+        uint64_t maximumSurfaceNativeBytes = 64ULL * 1024 * 1024;
+    };
+    /// Validate independent positive native/preparation policies without executing native code.
+    /// Throws original typed policy errors. Example: validateNativeImportedProducerLimits({});
+    void validateNativeImportedProducerLimits(const NativeImportedProducerLimits& limits);
     enum class ImportedProducerErrorCode { invalidLimits,
         missingMaterial,
         decodeLimitExceeded };

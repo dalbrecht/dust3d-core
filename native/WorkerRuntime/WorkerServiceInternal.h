@@ -26,7 +26,7 @@ inline ServiceReceipt copyServiceReceipt(const Dust3DWorkerServiceReceipt& sourc
 {
     if (source.operation != DUST3D_WORKER_OPERATION_MESH && source.operation != DUST3D_WORKER_OPERATION_UV_MESH
         && source.operation != DUST3D_WORKER_OPERATION_SOURCED_MESH
-        && source.operation != DUST3D_WORKER_OPERATION_INDEXED_SOURCED_MESH && source.operation != DUST3D_WORKER_OPERATION_INDEXED_MESH)
+        && source.operation != DUST3D_WORKER_OPERATION_INDEXED_SOURCED_MESH && source.operation != DUST3D_WORKER_OPERATION_INDEXED_MESH && source.operation != DUST3D_WORKER_OPERATION_IMPORTED_RENDER)
         throw ProtocolError(ProtocolErrorCode::invalidInput, "Service receipt operation is unsupported.");
     ServiceReceipt result;
     result.runtimeStatus = source.runtime_status;
@@ -48,6 +48,7 @@ struct SemanticPolicies {
     UvMeshPayloadLimits uv;
     SourcedMeshPayloadLimits sources;
     IndexedReplyLimits indexed;
+    ImportedRenderLimits imported;
 };
 inline SemanticPolicies semanticPolicies(const Limits& wire, uint64_t maximum)
 {
@@ -75,6 +76,18 @@ inline SemanticPolicies semanticPolicies(const Limits& wire, uint64_t maximum)
     result.indexed.sourcedMesh.geometry = result.indexed.mesh;
     result.indexed.sourcedMesh.sources.maximumWireBytes = wire.maximumOutputBytes;
     result.indexed.sourcedMesh.sources.maximumDecodedBytes = std::min(result.indexed.sourcedMesh.sources.maximumDecodedBytes, maximum);
+    result.imported.maximumWireBytes = wire.maximumOutputBytes;
+    result.imported.maximumDecodedBytes = maximum;
+    result.imported.maximumDecodedPixelBytes = std::min(result.imported.maximumDecodedPixelBytes, maximum);
+    result.imported.surface.maximumWireBytes = wire.maximumOutputBytes;
+    result.imported.surface.maximumDecodedBytes = maximum;
+    result.imported.surface.geometry = result.mesh;
+    result.imported.surface.surface.maximumWireBytes = wire.maximumOutputBytes;
+    result.imported.surface.surface.maximumDecodedBytes = maximum;
+    result.imported.materials.maximumWireBytes = wire.maximumOutputBytes;
+    result.imported.materials.maximumDecodedBytes = std::min(result.imported.materials.maximumDecodedBytes, maximum);
+    result.imported.materials.maximumEncodedBytes = std::min(result.imported.materials.maximumEncodedBytes, maximum);
+    result.imported.materials.maximumImageBytes = std::min(result.imported.materials.maximumImageBytes, maximum);
     return result;
 }
 }

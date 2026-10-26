@@ -82,7 +82,7 @@ void malformed()
         changed[offset] = byte;
         reject(code, [&] { decodeFailurePayload(changed.data(), changed.size(), {}); });
     };
-    mutate(1, 2, FailurePayloadErrorCode::unsupportedVersion);
+    mutate(1, 3, FailurePayloadErrorCode::unsupportedVersion);
     mutate(3, 15, FailurePayloadErrorCode::invalidLayout);
     mutate(7, 1, FailurePayloadErrorCode::invalidLayout);
     mutate(11, 1, FailurePayloadErrorCode::invalidLayout);

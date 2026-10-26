@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: MIT
+#include "WorkerImportedRequest.h"
 #include "WorkerSourceRequest.h"
 #include "WorkerUvRequest.h"
 #include <Dust3DWorkerRuntime.h>
@@ -47,6 +48,11 @@ extern "C" Dust3DWorkerRequest* dust3d_worker_request_create(Dust3DWorkerOperati
             throw ProtocolError(ProtocolErrorCode::invalidInput, "Worker request archive is null or empty.");
         if (size > maximumPayloadBytes)
             throw ProtocolError(ProtocolErrorCode::limitExceeded, "Worker archive exceeds supported request size.");
+        if (operation == DUST3D_WORKER_OPERATION_IMPORTED_RENDER) {
+            if (options)
+                throw ProtocolError(ProtocolErrorCode::invalidInput, "Imported request cannot carry UV options.");
+            return dust3d_worker_imported_request_create(identity, archive, size, nullptr, limits, result);
+        }
         Header request;
         if (operation == DUST3D_WORKER_OPERATION_MESH)
             request.operation = Operation::generateMesh;
@@ -57,7 +63,7 @@ extern "C" Dust3DWorkerRequest* dust3d_worker_request_create(Dust3DWorkerOperati
         else
             throw ProtocolError(ProtocolErrorCode::unsupportedOperation, "Worker request operation is unknown.");
         if (operation != DUST3D_WORKER_OPERATION_UV_MESH && options)
-            throw ProtocolError(ProtocolErrorCode::invalidInput, "Base/indexed mesh request cannot carry UV options.");
+            throw ProtocolError(ProtocolErrorCode::invalidInput, "Ordinary/imported request cannot carry UV options.");
         UvRequestLimits uvLimits;
         uvLimits.maximumWireBytes = limits.maximum_input_bytes;
         const auto imageCount = options ? options->image_count : 0;
@@ -109,6 +115,64 @@ extern "C" Dust3DWorkerRequest* dust3d_worker_request_create(Dust3DWorkerOperati
     } catch (...) {
         result->detail_source = DUST3D_WORKER_DETAIL_RUNTIME;
         copyCause(*result, "Worker request exception has no available diagnostic.");
+    }
+    return nullptr;
+}
+extern "C" Dust3DWorkerRequest* dust3d_worker_imported_request_create(Dust3DWorkerRequestIdentity identity,
+    const uint8_t* archive, size_t size, const Dust3DWorkerRequestImportedOptions* options,
+    Dust3DWorkerWireLimits limits, Dust3DWorkerRequestResult* result) noexcept
+{
+    if (!result)
+        return nullptr;
+    *result = {};
+    result->status = DUST3D_WORKER_REQUEST_INTERNAL_FAILED;
+    try {
+        if (!archive || !size)
+            throw ImportedRequestError(ImportedRequestErrorCode::invalidInput, "Imported request archive is null or empty.");
+        if (size > maximumPayloadBytes - importedRequestPrefixBytes)
+            throw ImportedRequestError(ImportedRequestErrorCode::limitExceeded, "Imported request archive exceeds supported framed size.");
+        ImportedRequestOptions requested;
+        if (options) {
+            if (options->struct_size != sizeof(*options))
+                throw ImportedRequestError(ImportedRequestErrorCode::invalidInput, "Imported request option layout is invalid.");
+            requested = { options->maximum_material_native_bytes, options->maximum_surface_native_bytes,
+                options->maximum_facts_copy_bytes, options->maximum_surface_copy_bytes, options->maximum_encoded_image_bytes,
+                options->maximum_decoded_pixel_bytes, options->maximum_aggregate_decoded_bytes, options->maximum_output_wire_bytes };
+        }
+        validateImportedRequestOptions(requested);
+        Header request;
+        request.operation = Operation::generateImportedRender;
+        request.payloadBytes = importedRequestPrefixBytes + size;
+        std::copy(std::begin(identity.document), std::end(identity.document), request.identity.document.begin());
+        request.identity.request = identity.request;
+        request.identity.revision = identity.revision;
+        const auto header = encodeHeader(request, { limits.maximum_input_bytes, limits.maximum_output_bytes, limits.maximum_failure_bytes });
+        requested.maximumOutputWireBytes = std::min(requested.maximumOutputWireBytes ? requested.maximumOutputWireBytes : maximumPayloadBytes, limits.maximum_output_bytes);
+        auto owner = std::make_unique<Dust3DWorkerRequest>();
+        owner->bytes = encodeImportedRequestView({ archive, size, requested }, { limits.maximum_input_bytes, limits.maximum_input_bytes });
+        owner->bytes.insert(owner->bytes.begin(), header.begin(), header.end());
+        result->status = DUST3D_WORKER_REQUEST_OK;
+        return owner.release();
+    } catch (const ProtocolError& cause) {
+        result->status = DUST3D_WORKER_REQUEST_PROTOCOL_REJECTED;
+        result->detail_source = DUST3D_WORKER_DETAIL_FRAME;
+        result->detail_code = static_cast<int32_t>(cause.code());
+        copyCause(*result, cause.what());
+    } catch (const ImportedRequestError& cause) {
+        result->status = DUST3D_WORKER_REQUEST_IMPORTED_REJECTED;
+        result->detail_source = DUST3D_WORKER_DETAIL_IMPORTED_REQUEST;
+        result->detail_code = static_cast<int32_t>(cause.code());
+        copyCause(*result, cause.what());
+    } catch (const std::bad_alloc& cause) {
+        result->status = DUST3D_WORKER_REQUEST_LIMIT_EXCEEDED;
+        result->detail_source = DUST3D_WORKER_DETAIL_RUNTIME;
+        copyCause(*result, cause.what());
+    } catch (const std::exception& cause) {
+        result->detail_source = DUST3D_WORKER_DETAIL_RUNTIME;
+        copyCause(*result, cause.what());
+    } catch (...) {
+        result->detail_source = DUST3D_WORKER_DETAIL_RUNTIME;
+        copyCause(*result, "Imported request exception has no available diagnostic.");
     }
     return nullptr;
 }

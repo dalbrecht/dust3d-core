@@ -26,6 +26,13 @@ namespace worker {
         if (!limits.maximumEncodedImageBytes || limits.maximumEncodedImageBytes > maximumPayloadBytes)
             reject(ImportedProducerErrorCode::invalidLimits, "Imported decoder input policy is outside supported positive bounds.");
     }
+    void validateNativeImportedProducerLimits(const NativeImportedProducerLimits& limits)
+    {
+        validateImportedProducerLimits(limits.preparation);
+        if (!limits.maximumMaterialNativeBytes || limits.maximumMaterialNativeBytes > maximumPayloadBytes
+            || !limits.maximumSurfaceNativeBytes || limits.maximumSurfaceNativeBytes > maximumPayloadBytes)
+            throw ImportedProducerError(ImportedProducerErrorCode::invalidLimits, "Native imported producer policies are outside supported positive bounds.");
+    }
     std::optional<ImportedRenderPayload> prepareImportedRender(ImportedSurfacePayload surface, ImportedMaterialsPayload facts,
         ImportedRenderImageDecoder& decoder, const ImportedProducerLimits& limits)
     {

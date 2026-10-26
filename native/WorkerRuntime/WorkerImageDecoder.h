@@ -6,9 +6,11 @@
 namespace dust3d {
 namespace worker {
     /// Bounded original callback receipt; raw bytes survive embedded NUL/non-UTF8.
-    class WorkerImageDecoderError : public std::runtime_error {
+    class WorkerImageDecoderError : public ImportedImageDecoderFailure {
     public:
         const Dust3DWorkerImageResult& result() const noexcept { return m_result; }
+        /// Copy original status/code/truncation/opaque cause for explicit worker failure transport.
+        FailurePayload failure() const override;
 
     private:
         friend class CallbackImportedImageDecoder;
