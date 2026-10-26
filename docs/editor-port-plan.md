@@ -1218,3 +1218,16 @@ complete while native error branches remain explicitly unforced. Actual worker
 ImageIO/Swift orchestration, source-baked/mip transport, real persistent session
 metrics, Apple #280 range parity and M4–M8 acceptance remain open. Production pin,
 default backend and feature quarantines are unchanged.
+
+
+### Source bake runtime validation checkpoint (#249)
+
+The source-baked path now has explicit worker requests, complete native ownership,
+child/service/queue semantic admission and C surface/catalog/mip output. Distinct
+procedural/imported decoder roles share admitted encoded/pixel budgets; contextual
+image failures preserve original diagnostics. The ordinary 191-test gate and
+SwiftPM runtime build pass. See [ADR 0152](adr/0152-source-bake-worker-runtime.md).
+Scoped sanitizer checks pass and measured coverage limits are recorded in the ADR;
+automated review and all CI remain required. This does not close actual
+ImageIO/Swift worker orchestration, persistent session/cache/native metrics,
+Apple #280 supported ranges, visual/LOD acceptance or M4–M8 feature parity.

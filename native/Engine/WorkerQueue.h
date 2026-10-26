@@ -54,7 +54,7 @@ namespace worker {
         /// Foreign or wrong-mode completions do not release active work. Typed admission/codec causes propagate.
         AdmittedReply complete(const RequestIdentity& collected, ProcessOutcome outcome,
             const uint8_t* bytes, size_t size, const MeshPayloadLimits& meshLimits = {},
-            const FailurePayloadLimits& failureLimits = {}, const UvMeshPayloadLimits& uvLimits = {}, const SourcedMeshPayloadLimits& sourceLimits = {}, const IndexedReplyLimits& indexedLimits = {}, const ImportedRenderLimits& importedLimits = {}, const LegacyBakedLimits& legacyLimits = {});
+            const FailurePayloadLimits& failureLimits = {}, const UvMeshPayloadLimits& uvLimits = {}, const SourcedMeshPayloadLimits& sourceLimits = {}, const IndexedReplyLimits& indexedLimits = {}, const ImportedRenderLimits& importedLimits = {}, const LegacyBakedLimits& legacyLimits = {}, const SourceBakedLimits& sourceBakeLimits = {});
 
         /// Complete matching persistent-service work after transport collection/cleanup.
         /// @param collected Captured active identity supplied by the transport owner.
@@ -74,7 +74,7 @@ namespace worker {
         AdmittedReply completeService(const RequestIdentity& collected, const ServiceObservation& observed,
             const ServiceReceipt& receipt, const uint8_t* bytes, size_t size,
             const MeshPayloadLimits& meshLimits = {}, const FailurePayloadLimits& failureLimits = {},
-            const UvMeshPayloadLimits& uvLimits = {}, const SourcedMeshPayloadLimits& sourceLimits = {}, const IndexedReplyLimits& indexedLimits = {}, const ImportedRenderLimits& importedLimits = {}, const LegacyBakedLimits& legacyLimits = {});
+            const UvMeshPayloadLimits& uvLimits = {}, const SourcedMeshPayloadLimits& sourceLimits = {}, const IndexedReplyLimits& indexedLimits = {}, const ImportedRenderLimits& importedLimits = {}, const LegacyBakedLimits& legacyLimits = {}, const SourceBakedLimits& sourceBakeLimits = {});
 
     private:
         std::optional<Frame> beginWork(uint64_t connectionGeneration);

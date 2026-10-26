@@ -4,6 +4,7 @@
 #include "WorkerImportedProducerNative.h"
 #include "WorkerLegacyProducerNative.h"
 #include "WorkerProtocol.h"
+#include "WorkerSourceProducerNative.h"
 #include <optional>
 namespace dust3d {
 namespace worker {
@@ -51,7 +52,7 @@ namespace worker {
     /// cancellation. Host closes job channels after return/throw and preserves original failures.
     /// Example: WorkerJobContext context; serveWorkerJob(inputFD, outputFD, context);
     void serveWorkerJob(int input, int output, WorkerJobContext& context, ImportedRenderImageDecoder* decoder = nullptr, const NativeImportedProducerLimits& importedLimits = {},
-        ProceduralImageDecoder* proceduralDecoder = nullptr, const LegacyProducerOptions& legacyLimits = {});
+        ProceduralImageDecoder* proceduralDecoder = nullptr, const LegacyProducerOptions& legacyLimits = {}, const NativeSourceProducerOptions& sourceBakeLimits = {});
 }
 }
 #endif

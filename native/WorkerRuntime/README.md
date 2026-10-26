@@ -316,3 +316,11 @@ getters. Copy all borrowed map bytes before owner destruction. These counts desc
 actual retained pixels and tangent records, not native cache/session metrics. See
 [ADR 0151](../../docs/adr/0151-legacy-bake-worker-runtime.md) for measured verification,
 remaining native error coverage and open Apple/range/acceptance gates.
+
+Source-baked rendering uses opcode8 and decoded kind9. Dedicated source-bake
+request creation retains complete settings/archive framing. Source surface/catalog
+and existing baked texture/tangent getters return one coherent owner's values;
+borrowed spans must be copied before release. Contextual image failures retain
+original cause bytes separately from role/identity. See
+[ADR 0152](../../docs/adr/0152-source-bake-worker-runtime.md) for wire layout,
+validation status and adoption limits.

@@ -350,6 +350,11 @@ namespace worker {
             return result;
         }
     }
+    ImportedMaterialsInspection inspectImportedMaterialsPayload(const ImportedMaterialsPayload& value, const ImportedMaterialsLimits& limits)
+    {
+        OwnedReader reader(value);
+        return summary(detail::inspectImportedMaterialReader(reader, limits));
+    }
     std::vector<uint8_t> encodeImportedMaterialsPayload(const ImportedMaterialsPayload& value, const ImportedMaterialsLimits& limits)
     {
         OwnedReader reader(value);

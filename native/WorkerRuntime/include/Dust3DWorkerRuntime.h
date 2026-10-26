@@ -28,7 +28,8 @@ typedef enum Dust3DWorkerOperation {
     DUST3D_WORKER_OPERATION_INDEXED_SOURCED_MESH = 4,
     DUST3D_WORKER_OPERATION_INDEXED_MESH = 5,
     DUST3D_WORKER_OPERATION_IMPORTED_RENDER = 6,
-    DUST3D_WORKER_OPERATION_LEGACY_BAKED = 7
+    DUST3D_WORKER_OPERATION_LEGACY_BAKED = 7,
+    DUST3D_WORKER_OPERATION_SOURCE_BAKED = 8
 } Dust3DWorkerOperation;
 typedef enum Dust3DWorkerDetailSource {
     DUST3D_WORKER_DETAIL_NONE = 0,
@@ -57,7 +58,9 @@ typedef enum Dust3DWorkerDetailSource {
     DUST3D_WORKER_DETAIL_LEGACY_PRODUCER = 23,
     DUST3D_WORKER_DETAIL_LEGACY_BAKED = 24,
     DUST3D_WORKER_DETAIL_PROCEDURAL_IMAGES = 25,
-    DUST3D_WORKER_DETAIL_BAKED_TEXTURES = 26
+    DUST3D_WORKER_DETAIL_BAKED_TEXTURES = 26,
+    DUST3D_WORKER_DETAIL_SOURCE_BAKED = 27,
+    DUST3D_WORKER_DETAIL_SOURCE_BAKE_REQUEST = 28
 } Dust3DWorkerDetailSource;
 typedef enum Dust3DWorkerIOStage {
     DUST3D_WORKER_IO_NONE = 0,
@@ -235,7 +238,8 @@ typedef enum Dust3DWorkerDecodedKind {
     DUST3D_WORKER_DECODED_INDEXED_MESH = 5,
     DUST3D_WORKER_DECODED_INDEXED_SOURCED_MESH = 6,
     DUST3D_WORKER_DECODED_IMPORTED_RENDER = 7,
-    DUST3D_WORKER_DECODED_LEGACY_BAKED = 8
+    DUST3D_WORKER_DECODED_LEGACY_BAKED = 8,
+    DUST3D_WORKER_DECODED_SOURCE_BAKED = 9
 } Dust3DWorkerDecodedKind;
 /** Scalar summary. Zero for NULL. vertex_count is unique-table count for indexed
  * kinds, expanded count otherwise; triangle_count is derived from indexed corners
@@ -392,6 +396,36 @@ size_t dust3d_worker_decoded_baked_level_count(const Dust3DWorkerDecodedReply* r
 int dust3d_worker_decoded_baked_texture(const Dust3DWorkerDecodedReply* reply, uint32_t role,
     size_t level, Dust3DWorkerTextureView* output) DUST3D_WORKER_RUNTIME_NOEXCEPT;
 
+/** Source-baked catalogs and packed surface policy, distinct from legacy charts.
+ * Zero counts for NULL/wrong kind; model/component catalogs preserve exact order. */
+typedef struct Dust3DWorkerBakedSurfaceSummary {
+    size_t triangle_count, model_count, component_count;
+} Dust3DWorkerBakedSurfaceSummary;
+/** Independent scalar copy. UINT64_MAX indicates unknown catalog association.
+ * Unknown mapping/policy remains explicit; no Boolean provenance is inferred. */
+typedef struct Dust3DWorkerBakedTriangle {
+    double uv[3][2], alpha_cutoff;
+    uint64_t model_index, component_index;
+    uint32_t alpha_mode;
+    uint8_t uv_known, policy_known, is_double_sided;
+} Dust3DWorkerBakedTriangle;
+/** Return source surface counts, zero for NULL/wrong kind.
+ * Example: shape = dust3d_worker_decoded_baked_surface_summary(owner). */
+Dust3DWorkerBakedSurfaceSummary dust3d_worker_decoded_baked_surface_summary(const Dust3DWorkerDecodedReply* reply) DUST3D_WORKER_RUNTIME_NOEXCEPT;
+/** Copy one source triangle, returning1/0. Nonnull output clears on rejection.
+ * Example: ok = dust3d_worker_decoded_baked_triangle(owner, index, &triangle). */
+int dust3d_worker_decoded_baked_triangle(const Dust3DWorkerDecodedReply* reply, size_t index, Dust3DWorkerBakedTriangle* output) DUST3D_WORKER_RUNTIME_NOEXCEPT;
+/** Borrow exact UTF8 catalog bytes until owner destruction; copy before release.
+ * Required size clears on invalid kind/index, NULL size returns NULL.
+ * Example: bytes = dust3d_worker_decoded_baked_model(owner, index, &size). */
+const char* dust3d_worker_decoded_baked_model(const Dust3DWorkerDecodedReply* reply, size_t index, size_t* size) DUST3D_WORKER_RUNTIME_NOEXCEPT;
+/** Same borrowing contract as baked_model, for the independent component catalog.
+ * Example: bytes = dust3d_worker_decoded_baked_component(owner, index, &size). */
+const char* dust3d_worker_decoded_baked_component(const Dust3DWorkerDecodedReply* reply, size_t index, size_t* size) DUST3D_WORKER_RUNTIME_NOEXCEPT;
+/** Membership1 original/2 generated; zero for invalid. This does not prove provenance.
+ * Example: kind = dust3d_worker_decoded_baked_component_kind(owner, index). */
+uint32_t dust3d_worker_decoded_baked_component_kind(const Dust3DWorkerDecodedReply* reply, size_t index) DUST3D_WORKER_RUNTIME_NOEXCEPT;
+
 /** Imported values retain their own distinct kind even for successful absence.
  * Counts are zero for absent/NULL/wrong kind. decoded_pixel_bytes counts actual RGBA
  * storage only, not allocator/native payload metrics. */
@@ -430,7 +464,7 @@ typedef struct Dust3DWorkerImportedImage {
  * status/cause accessors remain valid for both v1 and v2. Domain1 native,2 image
  * decoder,3 producer,4 surface,5 material,6 render,7 standard; status/code preserve
  * source-native values and cause_truncated is explicit. Additional domains:8 legacy bake,
- * 9 procedural inputs,10 baked textures,11 UV,12 legacy producer,13 mesh. */
+ * 9 procedural inputs,10 baked textures,11 UV,12 legacy producer,13 mesh,14 source bake. */
 typedef struct Dust3DWorkerFailureDetail {
     uint8_t has_detail;
     uint16_t domain;
@@ -439,6 +473,17 @@ typedef struct Dust3DWorkerFailureDetail {
     uint8_t cause_truncated;
 } Dust3DWorkerFailureDetail;
 Dust3DWorkerImportedSummary dust3d_worker_decoded_imported_summary(const Dust3DWorkerDecodedReply* reply) DUST3D_WORKER_RUNTIME_NOEXCEPT;
+/** Optional contextual v3 failure resource. Role1 procedural PNG,2 imported image.
+ * Identity borrows exact UTF8 bytes until decoded owner destruction; copy before
+ * release. All fields zero for absent/NULL/wrong kind. Original cause is separate. */
+typedef struct Dust3DWorkerFailureContext {
+    uint16_t role;
+    const char* identity;
+    size_t identity_size;
+} Dust3DWorkerFailureContext;
+/** Borrow optional resource context; no allocation.
+ * Example: context = dust3d_worker_decoded_failure_context(owner). */
+Dust3DWorkerFailureContext dust3d_worker_decoded_failure_context(const Dust3DWorkerDecodedReply* reply) DUST3D_WORKER_RUNTIME_NOEXCEPT;
 Dust3DWorkerFailureDetail dust3d_worker_decoded_failure_detail(const Dust3DWorkerDecodedReply* reply) DUST3D_WORKER_RUNTIME_NOEXCEPT;
 /** Borrow exact validated catalog bytes until reply destruction. Required size is
  * reset to zero on rejection; null size returns null. Component kinds1 original/2
@@ -487,7 +532,8 @@ typedef enum Dust3DWorkerRequestStatus {
     DUST3D_WORKER_REQUEST_INTERNAL_FAILED = 4,
     DUST3D_WORKER_REQUEST_SOURCE_REJECTED = 5,
     DUST3D_WORKER_REQUEST_IMPORTED_REJECTED = 6,
-    DUST3D_WORKER_REQUEST_LEGACY_REJECTED = 7
+    DUST3D_WORKER_REQUEST_LEGACY_REJECTED = 7,
+    DUST3D_WORKER_REQUEST_SOURCE_BAKE_REJECTED = 8
 } Dust3DWorkerRequestStatus;
 /** Self-owned original category/code/diagnostic; same bounded-byte rules as job results. */
 typedef struct Dust3DWorkerRequestResult {
@@ -537,6 +583,26 @@ typedef struct Dust3DWorkerRequestLegacyOptions {
     uint64_t atlas_texture_size, color_size, normal_size, material_size;
     uint64_t maximum_spatial_grid_entries, maximum_asset_name_bytes;
 } Dust3DWorkerRequestLegacyOptions;
+/** Explicit source-bake policies; both struct sizes must match. Zero byte policies
+ * select maintained defaults; work settings independently honor receiver host caps. */
+typedef struct Dust3DWorkerRequestSourceBakeOptions {
+    size_t struct_size;
+    Dust3DWorkerRequestLegacyOptions legacy;
+    uint64_t maximum_material_native_bytes, maximum_sampler_native_bytes;
+    uint64_t maximum_atlas_native_bytes, maximum_output_native_bytes;
+    uint64_t maximum_chart_count, maximum_raster_samples;
+    uint64_t should_generate_mips, maximum_levels;
+    uint64_t maximum_output_copy_bytes, maximum_output_wire_bytes;
+} Dust3DWorkerRequestSourceBakeOptions;
+/** Own a complete source-bake request without native parsing. NULL options select
+ * defaults. Required result preserves caught category/code/cause; NULL result does
+ * no work. All framing/options validate before output allocation. Wire output policy
+ * also tightens to limits. Destroy once; no C++ exception escapes.
+ * Example: owner = dust3d_worker_source_bake_request_create(id, bytes, size, &options, limits, &result). */
+Dust3DWorkerRequest* dust3d_worker_source_bake_request_create(Dust3DWorkerRequestIdentity identity,
+    const uint8_t* archive, size_t archive_size, const Dust3DWorkerRequestSourceBakeOptions* options,
+    Dust3DWorkerWireLimits limits, Dust3DWorkerRequestResult* result) DUST3D_WORKER_RUNTIME_NOEXCEPT;
+
 /** Encode a complete independent legacy request without archive/native/image parsing.
  * Options may be null for defaults; otherwise struct_size must match exactly. All
  * byte policies/settings/framing validate before output allocation. Output wire also

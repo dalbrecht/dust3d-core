@@ -27,7 +27,8 @@ inline ServiceReceipt copyServiceReceipt(const Dust3DWorkerServiceReceipt& sourc
     if (source.operation != DUST3D_WORKER_OPERATION_MESH && source.operation != DUST3D_WORKER_OPERATION_UV_MESH
         && source.operation != DUST3D_WORKER_OPERATION_SOURCED_MESH
         && source.operation != DUST3D_WORKER_OPERATION_INDEXED_SOURCED_MESH && source.operation != DUST3D_WORKER_OPERATION_INDEXED_MESH && source.operation != DUST3D_WORKER_OPERATION_IMPORTED_RENDER
-        && source.operation != DUST3D_WORKER_OPERATION_LEGACY_BAKED)
+        && source.operation != DUST3D_WORKER_OPERATION_LEGACY_BAKED
+        && source.operation != DUST3D_WORKER_OPERATION_SOURCE_BAKED)
         throw ProtocolError(ProtocolErrorCode::invalidInput, "Service receipt operation is unsupported.");
     ServiceReceipt result;
     result.runtimeStatus = source.runtime_status;
@@ -51,6 +52,7 @@ struct SemanticPolicies {
     IndexedReplyLimits indexed;
     ImportedRenderLimits imported;
     LegacyBakedLimits legacy;
+    SourceBakedLimits sourceBake;
 };
 inline SemanticPolicies semanticPolicies(const Limits& wire, uint64_t maximum)
 {
@@ -97,6 +99,12 @@ inline SemanticPolicies semanticPolicies(const Limits& wire, uint64_t maximum)
     result.legacy.textures.maximumWireBytes = wire.maximumOutputBytes;
     result.legacy.textures.maximumDecodedBytes = std::min(result.legacy.textures.maximumDecodedBytes, maximum);
     result.legacy.textures.maximumPixelBytes = std::min(result.legacy.textures.maximumPixelBytes, maximum);
+    result.sourceBake.maximumWireBytes = wire.maximumOutputBytes;
+    result.sourceBake.maximumDecodedBytes = maximum;
+    result.sourceBake.geometry = result.mesh;
+    result.sourceBake.surface.maximumWireBytes = wire.maximumOutputBytes;
+    result.sourceBake.surface.maximumDecodedBytes = std::min(result.sourceBake.surface.maximumDecodedBytes, maximum);
+    result.sourceBake.textures = result.legacy.textures;
     return result;
 }
 }
