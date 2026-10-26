@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Pair indexed geometry with source hints under aggregate admission and copy both from one native generation, with a pure bounded index-export policy; runtime adoption remains separate (#223).
+
 - Preserve indexed vertex tables, triangle-corner index order and source counts in a bounded worker geometry codec sharing existing mesh validation; runtime adoption remains separate (#221).
 
 - Route source-aware worker requests through native generation, child/service/queue admission and independently owned C source output; editor adoption remains separate (#219).

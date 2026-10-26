@@ -160,3 +160,19 @@ inspection precedes decoded arrays; no deduplication or normalization occurs in
 the codec. This closes a wire-value prerequisite, not indexed/source runtime or
 editor adoption. See [ADR 0138](../../docs/adr/0138-indexed-worker-geometry.md)
 and #221.
+
+`WorkerIndexedSources` now pairs indexed geometry and source hints with a
+version-two pair prefix. Source corners correspond to triangle **indices**, not
+unique vertex rows. Both full inner payloads, source counts and aggregate quotas
+validate before decoded arrays. Original inner error categories survive rejection.
+
+`WorkerIndexedSourceOperation` generates one source owner, derives its indexed
+mesh from that same borrowed geometry and copies the complete pair. Shared source
+inspection bounds records/text; a pure export-budget calculation reserves source,
+warning, index and vertex allowances before indexing. Native lookup/generation
+workspace and encoding temporaries are outside these logical quotas. Direct copy
+callers must supply owners with the same-generation derivation; count agreement
+alone does not authenticate provenance. No active opcode/C ABI/Apple pin changes.
+Runtime/Swift adoption, material/mip/statistics parity and the supported-range
+audit in Apple #280 remain open. See
+[ADR 0139](../../docs/adr/0139-indexed-source-generation.md) and #223.
