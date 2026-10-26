@@ -276,3 +276,12 @@ pixels. Inspect validates inner schemas, exact identities, image presence and al
 aggregate quotas before decoded arrays. The codec does not decode images or prove
 archive provenance. See [ADR 0146](../../docs/adr/0146-imported-render-worker-values.md)
 for layout, charges, tests and producer/transport/Apple adoption gates.
+
+### Imported render preparation
+
+`WorkerImportedProducer.h` selects surface-order definitions and invokes an explicit
+quota-aware `ImportedRenderImageDecoder`. `WorkerImportedProducerNative.h` loads
+facts and surface from the same stable unchanged archive and releases native owners
+before decoding. The platform implementation belongs in the eventual Apple worker.
+See [ADR 0147](../../docs/adr/0147-imported-render-producer.md) for contracts,
+layered limits, measured verification and remaining adoption gates.

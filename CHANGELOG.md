@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Prepare imported rendering values from one unchanged archive through an explicit injected image decoder, preserving ordered definitions, original causes and layered quotas; platform/runtime adoption remains separate (#239).
+
 - Join imported geometry/source records, ordered material definitions and owned source pixels under complete cross-catalog and aggregate validation; producer/transport adoption remains separate (#237).
 
 - Preserve authored imported UVs, vertex colors, encoding and exact identity catalogs with matching geometry in bounded worker values; transport/editor adoption remains separate (#235).
