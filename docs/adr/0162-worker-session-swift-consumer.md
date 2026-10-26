@@ -43,8 +43,11 @@ match final validation. Quarantine guard and manifest lint pass.
 No C++ implementation, parser, wire or ownership contract changed in this stage.
 No new sanitizer/whole-engine coverage claim is made for these Swift integration
 checks. The tiny fixture size assertion is a test expectation, not a product range
-limit. No new malformed native input, crash/fault/signal/native-cancellation,
-pressure/exhaustion probes, XPC/native host probes or app control were performed.
+limit. The full gate includes the four existing healthy stateless XPC integration fixtures
+(file/socket base/UV); they ran successfully. No new XPC cases were introduced, and
+those existing cases do not establish session-operation authentication. No new
+malformed native input, crash/fault/signal/native-cancellation, pressure/exhaustion
+probes or app control were performed.
 No manual GPU or distribution acceptance follows.
 
 ## Remaining work
