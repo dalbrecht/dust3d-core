@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Export worker-session APIs explicitly to Swift consumers and verify copied session output/cache observations across Swift6 actor ownership (#251).
+
 - Serve explicit session requests through retained C worker owners and shared bounded channel framing, preserving actual cache observations across requests (#251).
 
 - Expose exclusive C worker-session lifecycle ownership with host scope, reset/close semantics and preserved original diagnostics (#251).
