@@ -1147,3 +1147,7 @@ source-baked/mip transport, real session metrics and supported-range acceptance 
 Source-baked worker rendering now has explicit requests, native production and
 owned C geometry/surface/catalog/mip output. Its validation status and remaining
 Apple adoption requirements are recorded in [ADR 0152](docs/adr/0152-source-bake-worker-runtime.md).
+
+Worker statistics now have a bounded owned codec and native snapshot adapter,
+with unavailable values distinct from measured zeros. This does not activate
+persistent worker sessions; see [ADR 0153](docs/adr/0153-worker-generation-statistics.md).

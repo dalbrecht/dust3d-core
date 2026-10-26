@@ -72,10 +72,10 @@ add_library(dust3d_engine STATIC
 target_include_directories(dust3d_engine PUBLIC native/Engine/include)
 target_link_libraries(dust3d_engine PRIVATE dust3d_core ZLIB::ZLIB)
 
-add_library(dust3d_worker_protocol STATIC native/Engine/WorkerSourceBakeRequest.cc native/Engine/WorkerSourceProducer.cc native/Engine/WorkerLegacyRequest.cc native/Engine/WorkerLegacyProducer.cc native/Engine/WorkerProceduralImages.cc native/Engine/WorkerImportedRequest.cc native/Engine/WorkerImportedProducer.cc native/Engine/WorkerImportedRender.cc native/Engine/WorkerImportedSurface.cc native/Engine/WorkerImportedMaterials.cc native/Engine/WorkerLegacyBaked.cc native/Engine/WorkerSourceBaked.cc native/Engine/WorkerBakedTextures.cc native/Engine/WorkerIndexedCopyBudget.cc native/Engine/WorkerIndexedSources.cc native/Engine/WorkerIndexedMesh.cc native/Engine/WorkerSourceRequest.cc native/Engine/WorkerSourcedMesh.cc native/Engine/WorkerSourceHints.cc native/Engine/WorkerProtocol.cc native/Engine/WorkerReplyCollector.cc native/Engine/WorkerMesh.cc native/Engine/WorkerFailure.cc native/Engine/WorkerAdmission.cc native/Engine/WorkerQueue.cc native/Engine/WorkerLifetime.cc native/Engine/WorkerCleanup.cc native/Engine/WorkerAttempt.cc native/Engine/WorkerUv.cc native/Engine/WorkerUvMesh.cc native/Engine/WorkerUvRequest.cc native/Engine/WorkerResources.cc native/Engine/WorkerResourceLaunch.cc)
+add_library(dust3d_worker_protocol STATIC native/Engine/WorkerGenerationStatistics.cc native/Engine/WorkerSourceBakeRequest.cc native/Engine/WorkerSourceProducer.cc native/Engine/WorkerLegacyRequest.cc native/Engine/WorkerLegacyProducer.cc native/Engine/WorkerProceduralImages.cc native/Engine/WorkerImportedRequest.cc native/Engine/WorkerImportedProducer.cc native/Engine/WorkerImportedRender.cc native/Engine/WorkerImportedSurface.cc native/Engine/WorkerImportedMaterials.cc native/Engine/WorkerLegacyBaked.cc native/Engine/WorkerSourceBaked.cc native/Engine/WorkerBakedTextures.cc native/Engine/WorkerIndexedCopyBudget.cc native/Engine/WorkerIndexedSources.cc native/Engine/WorkerIndexedMesh.cc native/Engine/WorkerSourceRequest.cc native/Engine/WorkerSourcedMesh.cc native/Engine/WorkerSourceHints.cc native/Engine/WorkerProtocol.cc native/Engine/WorkerReplyCollector.cc native/Engine/WorkerMesh.cc native/Engine/WorkerFailure.cc native/Engine/WorkerAdmission.cc native/Engine/WorkerQueue.cc native/Engine/WorkerLifetime.cc native/Engine/WorkerCleanup.cc native/Engine/WorkerAttempt.cc native/Engine/WorkerUv.cc native/Engine/WorkerUvMesh.cc native/Engine/WorkerUvRequest.cc native/Engine/WorkerResources.cc native/Engine/WorkerResourceLaunch.cc)
 target_include_directories(dust3d_worker_protocol PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
-add_library(dust3d_worker_operation STATIC native/Engine/WorkerSourceBakeOperation.cc native/Engine/WorkerSourceProducerNative.cc native/Engine/WorkerLegacyOperation.cc native/Engine/WorkerLegacyProducerNative.cc native/Engine/WorkerProceduralImagesNative.cc native/Engine/WorkerImportedOperation.cc native/Engine/WorkerImportedProducerNative.cc native/Engine/WorkerImportedSurfaceCopy.cc native/Engine/WorkerImportedMaterialsCopy.cc native/Engine/WorkerLegacyBakedCopy.cc native/Engine/WorkerMeshCopyInspection.cc native/Engine/WorkerSourceBakedCopy.cc native/Engine/WorkerOperation.cc native/Engine/WorkerUvOperation.cc native/Engine/WorkerSourceOperation.cc native/Engine/WorkerIndexedSourceOperation.cc)
+add_library(dust3d_worker_operation STATIC native/Engine/WorkerGenerationStatisticsCopy.cc native/Engine/WorkerSourceBakeOperation.cc native/Engine/WorkerSourceProducerNative.cc native/Engine/WorkerLegacyOperation.cc native/Engine/WorkerLegacyProducerNative.cc native/Engine/WorkerProceduralImagesNative.cc native/Engine/WorkerImportedOperation.cc native/Engine/WorkerImportedProducerNative.cc native/Engine/WorkerImportedSurfaceCopy.cc native/Engine/WorkerImportedMaterialsCopy.cc native/Engine/WorkerLegacyBakedCopy.cc native/Engine/WorkerMeshCopyInspection.cc native/Engine/WorkerSourceBakedCopy.cc native/Engine/WorkerOperation.cc native/Engine/WorkerUvOperation.cc native/Engine/WorkerSourceOperation.cc native/Engine/WorkerIndexedSourceOperation.cc)
 target_link_libraries(dust3d_worker_operation PUBLIC dust3d_worker_protocol dust3d_engine)
 
 add_library(dust3d_worker_resource_setup STATIC native/Engine/WorkerResourceSetup.cc)
@@ -1116,4 +1116,17 @@ if(BUILD_TESTING)
     add_executable(dust3d_worker_source_bake_admission_tests tests/core/worker_source_bake_admission_tests.cc)
     target_link_libraries(dust3d_worker_source_bake_admission_tests PRIVATE dust3d_worker_protocol)
     add_test(NAME worker_source_bake_admission_contracts COMMAND dust3d_worker_source_bake_admission_tests)
+endif()
+
+if(BUILD_TESTING)
+    add_executable(dust3d_worker_generation_statistics_tests tests/core/worker_generation_statistics_tests.cc)
+    target_link_libraries(dust3d_worker_generation_statistics_tests PRIVATE dust3d_worker_protocol)
+    add_test(NAME worker_generation_statistics_contracts COMMAND dust3d_worker_generation_statistics_tests)
+endif()
+
+if(BUILD_TESTING)
+    add_executable(dust3d_worker_generation_statistics_copy_tests tests/core/worker_generation_statistics_copy_tests.cc)
+    target_link_libraries(dust3d_worker_generation_statistics_copy_tests PRIVATE dust3d_worker_operation)
+    add_test(NAME worker_generation_statistics_copy_contracts COMMAND dust3d_worker_generation_statistics_copy_tests ${CMAKE_CURRENT_SOURCE_DIR}/tests/core/fixtures)
+    set_tests_properties(worker_generation_statistics_copy_contracts PROPERTIES TIMEOUT 60)
 endif()

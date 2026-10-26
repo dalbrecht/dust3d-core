@@ -1231,3 +1231,13 @@ Scoped sanitizer checks pass and measured coverage limits are recorded in the AD
 automated review and all CI remain required. This does not close actual
 ImageIO/Swift worker orchestration, persistent session/cache/native metrics,
 Apple #280 supported ranges, visual/LOD acceptance or M4–M8 feature parity.
+
+
+### Worker statistics foundation (#251)
+
+Actual native cache/count/status/diagnostic snapshots can now be copied into bounded
+owned worker values without replacing unavailable metrics with zeros. Pure codec
+coverage is complete; ordinary sequential Capsule reuse/reset and scoped adapter
+checks pass. See [ADR 0153](adr/0153-worker-generation-statistics.md). This does not
+complete persistent worker lifecycle, same-call output correlation, host/Swift
+transport, Apple #279/#280 or M4–M8 acceptance. The production pin is unchanged.

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Preserve optional actual generation-cache statistics in bounded worker values with exact native snapshot copying; persistent worker sessions remain separate (#251).
+
 - Add explicit source-bake worker production, request/admission and owned C surface/catalog/mip output with contextual original image diagnostics; validation and Apple adoption remain separate (#249).
 
 - Route complete legacy bakes through budgeted worker requests, distinct procedural decoding, native production, child/service/queue admission and owned C UV/tangent/map output (#247).
