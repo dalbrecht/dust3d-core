@@ -1308,3 +1308,14 @@ records selected-function coverage and unforced recovery guards. Host authentica
 native C serving/lifecycle, request factories, Swift/XPC integration, Apple #279/#280
 and M4–M8 acceptance remain incomplete. Production pin/backend and quarantines are
 unchanged.
+
+### C connection-session ownership foundation (#251)
+
+Exclusive C lifecycle ownership now wraps the existing document/connection cache:
+configuration, create, live-generation reset, permanent idempotent close and destroy.
+It preserves original scope/native diagnostic codes and truncation. All205 ordinary
+contracts and scoped lifecycle sanitizer checks pass; [ADR0160](adr/0160-worker-session-c-lifecycle.md)
+records measured coverage and unforced recovery paths. C serving/request creation,
+Swift/XPC adoption, actual authenticated transport and Apple #279/#280 output/range
+acceptance remain open. Production pin/backend and quarantines remain unchanged;
+M4–M8/full-parity acceptance is still incomplete.

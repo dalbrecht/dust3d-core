@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: MIT
+#include "WorkerConnectionSession.h"
 #include "WorkerQueue.h"
 #include "WorkerReplyInternal.h"
 #include "WorkerServiceInternal.h"
@@ -74,6 +75,17 @@ void rejectSessionOutputException(const std::exception_ptr& exception, Dust3DWor
     result->status = DUST3D_WORKER_DECODE_INTERNAL_FAILED;
     try {
         std::rethrow_exception(exception);
+    } catch (const SessionScopeError& cause) {
+        result->status = DUST3D_WORKER_DECODE_ADMISSION_REJECTED;
+        result->detail_source = DUST3D_WORKER_DETAIL_SESSION_SCOPE;
+        result->detail_code = static_cast<int32_t>(cause.code());
+        copyCause(*result, cause.what());
+    } catch (const NativeSessionError& cause) {
+        result->detail_source = DUST3D_WORKER_DETAIL_NATIVE_SESSION;
+        result->detail_code = cause.failure().detail ? cause.failure().detail->code : static_cast<int32_t>(cause.failure().status);
+        copyCause(*result, cause.what());
+        if (cause.failure().detail && cause.failure().detail->causeTruncated)
+            result->message_truncated = 1;
     } catch (const AdmissionError& cause) {
         result->status = DUST3D_WORKER_DECODE_ADMISSION_REJECTED;
         result->detail_source = DUST3D_WORKER_DETAIL_ADMISSION;
