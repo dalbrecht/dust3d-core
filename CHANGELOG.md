@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Preserve exact baked texture pixels, optional maps, mip chains and producer sampling caps in bounded portable worker values; runtime/editor binding remains separate (#227).
+
 - Route indexed geometry with optional source hints through worker requests, generation, admission and owned C index output; editor adoption remains separate (#225).
 
 - Pair indexed geometry with source hints under aggregate admission and copy both from one native generation, with a pure bounded index-export policy; runtime adoption remains separate (#223).

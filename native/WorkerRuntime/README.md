@@ -195,3 +195,19 @@ ABI version 1 remains a layout version, not feature negotiation; matching pinned
 client/helper revisions are required. Payload-range (#280), Swift conversion,
 materials/mips/statistics and source-aware XPC/editor acceptance remain open under
 Apple #279. See [ADR 0140](../../docs/adr/0140-indexed-worker-runtime.md) and #225.
+
+## Baked texture value transport
+
+The internal portable `WorkerBakedTextures` codec preserves five map roles, exact
+straight RGBA8 pixels, base-inclusive mip chains and the producer's chart-safe
+sampling LOD. It inspects the entire packet in fixed stack storage before decoded
+arrays. Mandatory color and optional maps, tight dimensions, halving shape,
+1×1 termination, independent quotas and exact framing are validated. There is no
+image decoding/filtering or inferred chart safety. See
+[ADR 0141](../../docs/adr/0141-worker-baked-textures.md) and #227 for the schema and
+measured pure validation coverage.
+
+No C runtime alternative/opcode, native copying, geometry/triangle/material pairing
+or Swift consumer is added here. Existing public operations remain unchanged. Full
+rendering/statistics, supported-range (#280) and authenticated editor acceptance
+remain required under Apple #279. No Apple pin/backend/quarantine change.

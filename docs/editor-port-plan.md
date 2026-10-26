@@ -1096,3 +1096,14 @@ the original issue. No retry controller or Apple backend/pin change is made here
 See [ADR0140](adr/0140-indexed-worker-runtime.md). Swift conversion, full rendering
 data/statistics, supported-range parity (#280), source-aware XPC/editor acceptance
 and later milestones remain open under Apple #279; no full parity claim.
+
+### Baked texture value checkpoint (#227)
+
+A portable owned codec now preserves five map roles, exact RGBA8 pixels, optional
+map presence, base-inclusive mip chains and the producer's chart-safe LOD. Full
+framing/shape/aggregate inspection precedes decoded arrays; the named pure codec
+has 100% measured line/branch coverage. All 153 ordinary contracts pass. See
+[ADR 0141](adr/0141-worker-baked-textures.md). Native copying, full matching
+geometry/UV/tangent/policy/catalog pairing, request/runtime/Swift consumption and
+actual editor acceptance remain open under Apple #279/#280. No platform decoder,
+Apple pin/backend change or full-parity claim is introduced; M4–M8 remain open.
