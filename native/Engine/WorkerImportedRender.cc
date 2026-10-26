@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 #include "WorkerImportedRender.h"
 #include "WorkerImportedCatalogViews.h"
+#include "WorkerImportedRenderValidation.h"
 #include "WorkerWire.h"
 #include <algorithm>
 namespace dust3d {
@@ -102,6 +103,9 @@ namespace worker {
                 reject(ImportedRenderErrorCode::invalidLayout, "Imported render image framing/aggregate is inconsistent.");
             return { static_cast<size_t>(surface), static_cast<size_t>(materials), static_cast<size_t>(images), std::move(catalog), { count, pixels, logical } };
         }
+    }
+    namespace detail {
+        void validateImportedRenderImage(uint64_t width, uint64_t height, uint64_t bytes, bool present) { image(width, height, bytes, present); }
     }
     ImportedRenderError::ImportedRenderError(ImportedRenderErrorCode code, const char* cause)
         : std::runtime_error(cause)

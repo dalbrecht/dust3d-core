@@ -1165,3 +1165,13 @@ inner/cross-catalog inspection precedes decoded arrays. See
 platform image decoding inside the Apple worker, real session metrics, transport,
 Swift ownership and supported-range parity remain open Apple #279/#280 gates.
 No production pin/backend or quarantine change; full M4–M8 remains incomplete.
+
+### Imported render producer checkpoint (#239)
+
+An explicit native producer now loads facts/surface from one unchanged archive and
+prepares catalog-order definitions through an injected portable decoder boundary.
+Native owners are released before decoding; receipt checks preserve limits and
+original causes. See [ADR 0147](adr/0147-imported-render-producer.md). Actual platform
+PNG/JPEG decoding inside the Apple worker, transport/Swift ownership, real session
+metrics and supported-range parity remain open Apple #279/#280 gates. No default
+backend, production pin or quarantine change; full M4–M8 remains incomplete.
