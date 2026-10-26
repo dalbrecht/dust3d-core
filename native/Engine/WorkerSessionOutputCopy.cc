@@ -65,10 +65,14 @@ namespace worker {
         else if (generated.ordinaryMesh)
             result.outcome = std::move(*generated.ordinaryMesh);
         else if (generated.failure)
-            result.outcome = std::move(*generated.failure);
-        result.sourceIssue = std::move(generated.sourceIssue);
+            result.outcome = boundFailure(std::move(*generated.failure), limits);
+        if (generated.sourceIssue)
+            result.sourceIssue = boundFailure(std::move(*generated.sourceIssue), limits);
         result.statistics = std::move(generated.statistics);
-        result.statisticsIssue = generated.statisticsException ? copyException(generated.statisticsException, limits) : std::move(generated.statisticsIssue);
+        if (generated.statisticsException)
+            result.statisticsIssue = copyException(generated.statisticsException, limits);
+        else if (generated.statisticsIssue)
+            result.statisticsIssue = boundFailure(std::move(*generated.statisticsIssue), limits);
         return result;
     }
 }

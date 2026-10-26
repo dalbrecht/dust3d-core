@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add an explicit correlated session-generation producer with diagnostic reservation and host-quota truncation; legacy serving/admission remains unsupported (#251).
+
 - Preserve worker session outcome, fallback diagnostics and actual optional statistics together in a bounded owned result envelope (#251).
 
 - Bind worker cache ownership to host document/connection lifetimes, preserve replay protection through reset, and release native state on close (#251).

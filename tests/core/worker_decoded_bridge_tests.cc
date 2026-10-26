@@ -148,6 +148,14 @@ void rejected(Framed& owner, uint64_t maximum, Dust3DWorkerDecodeStatus status, 
     size_t size = 42;
     require(!dust3d_worker_reply_bytes(owner.get(), &size) && !size, "Semantic rejection hides framed bytes");
 }
+void unsupportedSessionOutput()
+{
+    const auto body = encodeFailurePayload({ FailureStatus::generationFailed, { 1 } }, {});
+    for (const auto kind : { FrameKind::response, FrameKind::failure }) {
+        auto owner = frame(body, Operation::generateSessionIndexedSourcedMesh, kind);
+        rejected(owner, 1048576, DUST3D_WORKER_DECODE_PROTOCOL_REJECTED, DUST3D_WORKER_DETAIL_FRAME, static_cast<int>(ProtocolErrorCode::unsupportedOperation));
+    }
+}
 void policyAndMalformed()
 {
     auto source = sample();
@@ -278,6 +286,7 @@ void serviceAdmission()
 int main()
 {
     try {
+        unsupportedSessionOutput();
         serviceAdmission();
         geometryAndAtlas();
         baseFailureAndNull();

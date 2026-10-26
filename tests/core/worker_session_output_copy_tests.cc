@@ -89,6 +89,17 @@ int main()
             }
             require(rejected);
         }
+        NativeSessionGeneration boundedResult;
+        boundedResult.failure = FailurePayload { FailureStatus::unsupportedAsset, { 1, 2, 3 } };
+        boundedResult.sourceIssue = FailurePayload { FailureStatus::generationFailed, { 4, 5, 6 } };
+        boundedResult.statisticsIssue = FailurePayload { FailureStatus::generationFailed, { 7, 8, 9 } };
+        FailurePayloadLimits oneByte;
+        oneByte.maximumCauseBytes = 1;
+        copied = copySessionOutput(std::move(boundedResult), oneByte);
+        require(std::get<FailurePayload>(copied.outcome).cause == std::vector<uint8_t> { 1 }
+            && copied.sourceIssue->cause == std::vector<uint8_t> { 4 }
+            && copied.statisticsIssue->cause == std::vector<uint8_t> { 7 }
+            && copied.sourceIssue->detail->causeTruncated == 1);
         NativeSessionGeneration invalid;
         bool rejected = false;
         try {

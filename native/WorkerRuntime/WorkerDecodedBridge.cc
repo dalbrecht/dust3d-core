@@ -178,9 +178,11 @@ extern "C" Dust3DWorkerDecodedReply* dust3d_worker_reply_decode(Dust3DWorkerRepl
         const auto* body = owner->bytes.data() + headerBytes;
         const auto size = owner->bytes.size() - headerBytes;
         const auto policy = bridge::semanticPolicies(owner->policy, maximum);
-        if (header.kind == FrameKind::failure)
+        if (header.kind == FrameKind::failure && header.operation != Operation::generateSessionIndexedSourcedMesh)
             return decodeFailurePayload(body, size, policy.failure);
         switch (header.operation) {
+        case Operation::generateSessionIndexedSourcedMesh:
+            throw ProtocolError(ProtocolErrorCode::unsupportedOperation, "Session output requires dedicated C ownership and admission.");
         case Operation::generateSourceBaked:
             return decodeSourceBakedPayload(body, size, policy.sourceBake);
         case Operation::generateLegacyBaked:

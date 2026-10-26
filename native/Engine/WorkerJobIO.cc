@@ -50,6 +50,8 @@ namespace worker {
     }
     const char* workerOperationName(std::optional<Operation> operation) noexcept
     {
+        if (operation == Operation::generateSessionIndexedSourcedMesh)
+            return "generateSessionIndexedSourcedMesh";
         if (operation == Operation::generateMesh)
             return "generateMesh";
         if (operation == Operation::generateUvMesh)
@@ -108,6 +110,8 @@ namespace worker {
             throw WorkerJobIOError(WorkerJobStage::input, end.error);
         Frame response;
         switch (header.operation) {
+        case Operation::generateSessionIndexedSourcedMesh:
+            throw ProtocolError(ProtocolErrorCode::unsupportedOperation, "Stateless worker channels do not own a host generation session.");
         case Operation::generateSourceBaked:
             response = generateSourceBakedReply(request, proceduralDecoder, decoder, sourceBakeLimits);
             break;

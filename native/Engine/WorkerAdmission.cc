@@ -16,6 +16,8 @@ namespace worker {
         {
             const auto frame = decodeFrame(bytes, size, wireLimits);
             validateResponseIdentity(frame.header, request);
+            if (request.operation == Operation::generateSessionIndexedSourcedMesh)
+                throw ProtocolError(ProtocolErrorCode::unsupportedOperation, "Session output requires dedicated host admission.");
             if (frame.header.kind == FrameKind::response) {
                 if (request.operation == Operation::generateSourceBaked)
                     return decodeSourceBakedPayload(frame.payload.data(), frame.payload.size(), sourceBakeLimits);

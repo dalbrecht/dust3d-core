@@ -28,7 +28,8 @@ namespace worker {
                 && header.operation != Operation::generateIndexedMesh
                 && header.operation != Operation::generateImportedRender
                 && header.operation != Operation::generateLegacyBaked
-                && header.operation != Operation::generateSourceBaked)
+                && header.operation != Operation::generateSourceBaked
+                && header.operation != Operation::generateSessionIndexedSourcedMesh)
                 reject(ProtocolErrorCode::unsupportedOperation, "Unknown worker operation.");
             if (!header.identity.request || std::all_of(header.identity.document.begin(), header.identity.document.end(), [](uint8_t value) { return value == 0; }))
                 reject(ProtocolErrorCode::invalidIdentity, "Worker frames require a document and nonzero request identity.");

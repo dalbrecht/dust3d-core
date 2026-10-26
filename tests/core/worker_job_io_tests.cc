@@ -6,6 +6,7 @@
 #include <iostream>
 #include <iterator>
 #include <native/Engine/WorkerJobIO.h>
+#include <native/Engine/WorkerSourceRequest.h>
 #include <native/Engine/WorkerUvMesh.h>
 #include <native/Engine/WorkerUvRequest.h>
 #include <stdexcept>
@@ -56,11 +57,25 @@ void job(const std::vector<uint8_t>& archive, const std::string& scratch, Operat
         request.textureSize = 64;
         body = encodeUvRequest(request, {});
     }
+    if (operation == Operation::generateSessionIndexedSourcedMesh)
+        body = encodeSourceRequest({ archive, 0 }, {});
     header.payloadBytes = body.size();
     const auto wire = encodeFrame({ header, body }, {});
     require(writeWorkerBytes(input.descriptor(), wire.data(), wire.size()).complete, "Ordinary request writes");
     input.rewind();
     WorkerJobContext context;
+    if (operation == Operation::generateSessionIndexedSourcedMesh) {
+        bool rejected = false;
+        try {
+            serveWorkerJob(input.descriptor(), output.descriptor(), context);
+        } catch (const ProtocolError& cause) {
+            rejected = cause.code() == ProtocolErrorCode::unsupportedOperation;
+        }
+        require(rejected && context.operation == operation && context.requestIdentity == 42
+                && ::lseek(output.descriptor(), 0, SEEK_END) == 0,
+            "Stateless channels reject a valid session request without native generation or reply bytes");
+        return;
+    }
     serveWorkerJob(input.descriptor(), output.descriptor(), context);
     require(context.requestIdentity == 42 && context.operation == operation, "Job context preserves actual request and operation");
     require(::fcntl(input.descriptor(), F_GETFD) >= 0 && ::fcntl(output.descriptor(), F_GETFD) >= 0, "Job borrows both channels without closing them");
@@ -111,6 +126,8 @@ int main(int argc, char** argv)
         } catch (const ProtocolError& cause) {
             require(cause.code() == ProtocolErrorCode::invalidInput && rejected.requestIdentity == 0 && !rejected.operation, "Invalid job resets stale context before I/O");
         }
+        require(std::string(workerOperationName(Operation::generateSessionIndexedSourcedMesh)) == "generateSessionIndexedSourcedMesh", "Session diagnostic label remains content independent");
+        job(archive, argv[2], Operation::generateSessionIndexedSourcedMesh);
         job(archive, argv[2], Operation::generateMesh);
         job(archive, argv[2], Operation::generateUvMesh);
     } catch (const std::exception& error) {
