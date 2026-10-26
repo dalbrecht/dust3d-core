@@ -258,3 +258,12 @@ pixels. See [ADR 0144](../../docs/adr/0144-imported-material-worker-facts.md) an
 A declaration does not prove valid pixels. Full authored surface/decoded-image
 pairing, real metrics, range parity (#280), request/C/Swift transport and editor
 acceptance remain open under Apple #279. No Apple pin/backend or quarantine change.
+
+### Authored imported surface values
+
+`WorkerImportedSurface.h` encodes/inspects/decodes owned geometry and authored
+UV/color/catalog records. `WorkerImportedSurfaceCopy.h` copies one stable native
+surface owner after complete preflight. Repeating UVs and numerical RGB encoding
+are preserved without conversion. No opcode or Swift consumer is added here.
+See [ADR 0145](../../docs/adr/0145-imported-surface-worker-output.md) for layout,
+quotas, lifetime, measured verification and remaining adoption gates.

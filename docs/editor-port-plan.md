@@ -1145,3 +1145,13 @@ See [ADR 0144](adr/0144-imported-material-worker-facts.md). This is not image
 decoding or full imported-render output: source geometry, decoded pixels, real
 metrics, supported range and transport/Swift/editor acceptance remain open under
 Apple #279/#280. No production pin/backend or quarantine change; M4–M8 remains open.
+
+### Authored imported surface checkpoint (#235)
+
+Matching geometry, original finite repeating UVs, per-corner binary64 straight
+RGBA and numerical RGB encoding now have an owned portable value and codec, with
+exact catalogs and native-owner preflight/copy. See
+[ADR 0145](adr/0145-imported-surface-worker-output.md). Material-owner provenance,
+platform image decoding in the worker, real metrics, transport/Swift integration
+and supported-range parity remain separate Apple #279/#280 gates. No production
+pin/backend or quarantine change; full M4–M8 acceptance remains incomplete.

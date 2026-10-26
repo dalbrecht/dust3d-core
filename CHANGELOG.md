@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Preserve authored imported UVs, vertex colors, encoding and exact identity catalogs with matching geometry in bounded worker values; transport/editor adoption remains separate (#235).
+
 - Preserve authored imported material factors, sampler/filter presence, encoded image declarations and instance bindings in bounded worker facts with shared native-copy validation; rendering/transport adoption remains separate (#233).
 
 - Preserve complete legacy baked geometry, UV charts/gradients, tangent frames and base maps in coherent worker values, sharing native preflight rules; runtime/editor adoption remains separate (#231).
