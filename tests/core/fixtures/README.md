@@ -79,3 +79,12 @@ without pixels. The same contract reuses licensed Sword and synthetic
 RoundedCrossing above for gradient and unmapped-Boolean UV transport. It adds no
 binary fixture or rendered snapshot baseline. See
 `docs/worker-uv-visual-verification.md` for independent assertions and limits.
+
+`ProceduralImage.ds3` is a small MIT positive metadata fixture for core #245.
+It retains Capsule.ds3 geometry/parts/component identity, adds only the existing
+component colorImageId `{eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee}`, and embeds the
+existing synthetic ImportedMaterial.png unchanged under its matching images key.
+Python ElementTree serializes the model; an independent byte writer recomputes
+archive offsets and lengths. No native writer, fault case or image decoder is
+used to create it. Metadata extraction asserts exact encoded PNG ownership; this
+is not rendered pixel evidence. SHA256: 93f13ca989621318a39dae7f87131c1d4d554526fa29b64eac01217134a568f5.

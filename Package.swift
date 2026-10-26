@@ -34,6 +34,7 @@ let package = Package(
                 "Engine/WorkerSourceOperation.cc", "Engine/WorkerSourceRequest.cc",
                 "Engine/WorkerIndexedCopyBudget.cc", "Engine/WorkerIndexedSourceOperation.cc",
                 "Engine/WorkerIndexedSources.cc",
+                "Engine/WorkerProceduralImages.cc", "Engine/WorkerProceduralImagesNative.cc",
                 "Engine/WorkerImportedRequest.cc", "Engine/WorkerImportedOperation.cc",
                 "Engine/WorkerImportedProducer.cc",
                 "Engine/WorkerImportedProducerNative.cc",
@@ -57,7 +58,7 @@ let package = Package(
                 "WorkerRuntime/WorkerQueueBridge.cc",
             ],
             publicHeadersPath: "WorkerRuntime/include",
-            cxxSettings: [.headerSearchPath("Engine")]
+            cxxSettings: [.headerSearchPath("Engine"), .headerSearchPath("..")]
         ),
         .target(
             name: "TriangleIntersection",

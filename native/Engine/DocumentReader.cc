@@ -118,7 +118,7 @@ namespace native {
         }
     }
 
-    std::unique_ptr<Snapshot> readDocument(const uint8_t* bytes, size_t size, std::string& warning, DocumentAssetObserver* observer, ImportedModels* imports, bool canReadEmptyGeometry)
+    static std::unique_ptr<Snapshot> readDocumentInternal(const uint8_t* bytes, size_t size, std::string& warning, DocumentAssetObserver* observer, ImportedModels* imports, bool canReadEmptyGeometry, bool metadataOnly)
     {
         if (!bytes || !size)
             throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Choose a nonempty .ds3 document.");
@@ -164,9 +164,10 @@ namespace native {
                 if (itemSize > maximumModelSize)
                     throw DocumentError(DUST3D_STATUS_LIMIT_EXCEEDED, "The model XML exceeds the 16 MiB limit.");
             } else if (type == "asset" && name.compare(0, 7, "models/") == 0) {
-                if (!imports)
+                if (!imports && !metadataOnly)
                     throw DocumentError(DUST3D_STATUS_UNSUPPORTED_ASSET, "This operation does not yet support imported GLB materials and UVs.");
-                modelAssets.push_back({ name, bytes + binaryOffset + offset, itemSize });
+                if (imports)
+                    modelAssets.push_back({ name, bytes + binaryOffset + offset, itemSize });
             } else if (type == "asset" && name.compare(0, 7, "images/") == 0) {
                 warning = "Untextured preview: image textures are not yet displayed.";
             }
@@ -190,7 +191,7 @@ namespace native {
         validateModelXml(modelBytes);
         auto snapshot = std::make_unique<Snapshot>();
         loadSnapshotFromXmlString(snapshot.get(), reinterpret_cast<char*>(modelBytes.data()));
-        validateSnapshot(*snapshot, imports != nullptr, canReadEmptyGeometry);
+        validateSnapshot(*snapshot, imports != nullptr || metadataOnly, canReadEmptyGeometry);
         for (const auto& component : snapshot->components) {
             if (!String::valueOrEmpty(component.second, "colorImageId").empty()
                 || !String::valueOrEmpty(component.second, "wrapPattern").empty()
@@ -200,6 +201,15 @@ namespace native {
         if (imports)
             imports->load(*snapshot, modelAssets, warning);
         return snapshot;
+    }
+
+    std::unique_ptr<Snapshot> readDocument(const uint8_t* bytes, size_t size, std::string& warning, DocumentAssetObserver* observer, ImportedModels* imports, bool canReadEmptyGeometry)
+    {
+        return readDocumentInternal(bytes, size, warning, observer, imports, canReadEmptyGeometry, false);
+    }
+    std::unique_ptr<Snapshot> readDocumentMetadata(const uint8_t* bytes, size_t size, std::string& warning, DocumentAssetObserver* observer)
+    {
+        return readDocumentInternal(bytes, size, warning, observer, nullptr, true, true);
     }
 
 }

@@ -1195,3 +1195,14 @@ pass; scoped request/getter coverage is complete. Actual ImageIO inside the Appl
 worker, Swift orchestration, source-baked/legacy transport, real persistent session
 metrics, Apple #280 range parity and M4–M8 acceptance remain open. Production pin,
 default editor backend and feature quarantines remain unchanged.
+
+### Procedural worker image-input checkpoint (#245)
+
+Bounded procedural image-reference admission and validated native metadata extraction
+now retain exact ordered image identities, keys and encoded bytes before platform
+decoding. Metadata inspection skips GLB decoding and is not generation validation.
+See [ADR 0150](adr/0150-worker-procedural-image-inputs.md). All 175 ordinary contracts
+pass; pure resolver coverage is complete and native defensive paths remain explicitly
+unprobed. Distinct procedural/imported ImageIO policies, full baked-output producer
+and runtime adoption, persistent session metrics, Apple #280 range parity and M4–M8
+acceptance remain open. Production pin/backend and feature quarantines are unchanged.

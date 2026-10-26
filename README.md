@@ -1130,3 +1130,9 @@ reports its absence explicitly. Copy all borrowed output spans before destroying
 the decoded owner. See [ADR 0149](docs/adr/0149-imported-render-worker-runtime.md)
 and #243 for framing, ownership, tests and limits. Actual Apple ImageIO integration,
 real session metrics, supported-range parity and default editor adoption remain open.
+
+Procedural worker image inputs can now resolve exact referenced archive keys and
+copy encoded bytes after metadata, per-image and aggregate admission. The native
+adapter reuses validated metadata reading and preserves component-tree order without
+GLB/pixel decoding. See [ADR 0150](docs/adr/0150-worker-procedural-image-inputs.md)
+and #245. Baking, platform decoding and default Apple runtime adoption remain separate.
