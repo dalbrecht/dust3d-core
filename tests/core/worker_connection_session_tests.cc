@@ -3,6 +3,7 @@
 #include <iostream>
 #include <iterator>
 #include <native/Engine/WorkerConnectionSession.h>
+#include <native/Engine/WorkerSessionOutputCopy.h>
 using namespace dust3d::worker;
 void require(bool value)
 {
@@ -36,6 +37,10 @@ int main(int argc, char** argv)
         request.request = 3;
         auto afterReset = session.generateSourcedIndexed(archive, request, 7, {});
         require(afterReset.mesh && afterReset.statistics && afterReset.statistics->reusedComponents == 0);
+        const auto wire = encodeSessionOutput(copySessionOutput(std::move(afterReset), {}), {});
+        const auto transported = decodeSessionOutput(wire.data(), wire.size(), {});
+        require(std::get<IndexedSourcesPayload>(transported.outcome).geometry.vertices.size() == first.mesh->geometry.vertices.size()
+            && transported.statistics && transported.statistics->reusedComponents == 0 && !transported.statisticsIssue);
         session.close();
         session.close();
         rejected = false;

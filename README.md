@@ -1160,3 +1160,8 @@ errors separately. Connection/transport and Apple adoption remain open; see
 Connection-scoped cache owners now reject foreign/replayed requests, preserve ordering
 through reset, and release native state on close. Host transport adoption remains
 separate; see [ADR 0155](docs/adr/0155-worker-session-lifecycle.md).
+
+Worker session output can now preserve sourced/ordinary/empty/failure outcomes,
+original fallback diagnostics and actual optional statistics in one bounded owned
+envelope, with explicit mapping of statistics-only exceptions. Host/C/Swift adoption
+remains separate; see [ADR 0156](docs/adr/0156-worker-session-output.md).

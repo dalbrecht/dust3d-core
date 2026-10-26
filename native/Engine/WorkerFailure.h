@@ -32,7 +32,8 @@ namespace worker {
         uv = 11,
         legacyProducer = 12,
         mesh = 13,
-        sourceBaked = 14 };
+        sourceBaked = 14,
+        generationStatistics = 15 };
     struct FailureDetail {
         FailureDomain domain;
         int32_t code = 0;
