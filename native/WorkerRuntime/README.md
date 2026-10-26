@@ -294,3 +294,25 @@ straight RGBA8 images and self-owned bounded original diagnostics.
 returned pixels safely. No worker opcode or Apple decoder is registered here.
 See [ADR 0148](../../docs/adr/0148-worker-image-decoder-ownership.md) for lifetime,
 quotas, caller contracts and measured verification limits.
+
+## Legacy baked rendering
+
+Use `dust3d_worker_legacy_request_create` for opcode 7 with explicit optional
+`Dust3DWorkerRequestLegacyOptions`. Byte budgets only tighten receiver policy;
+dimensions/grid select native settings within separate host work caps. The ordinary
+factory can create default legacy requests with no UV options. No archive parsing
+or generation occurs in either factory.
+
+Inside the worker, `dust3d_worker_serve_with_decoders` distinguishes imported and
+procedural callback slots. The procedural callback must preserve the legacy PNG
+transparent-grayscale policy. An all-zero slot is unavailable. No provider is needed
+for a legacy archive without referenced images; an unavailable required provider
+returns an original failure frame. Copy/decode owners and channel duties follow the
+same admission/cleanup contracts above.
+
+A `LEGACY_BAKED` decoded owner supports existing vertex/UV/chart/gradient/component
+getters plus `dust3d_worker_decoded_baked_summary`, tangent, level-count and texture
+getters. Copy all borrowed map bytes before owner destruction. These counts describe
+actual retained pixels and tangent records, not native cache/session metrics. See
+[ADR 0151](../../docs/adr/0151-legacy-bake-worker-runtime.md) for measured verification,
+remaining native error coverage and open Apple/range/acceptance gates.

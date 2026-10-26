@@ -26,7 +26,8 @@ inline ServiceReceipt copyServiceReceipt(const Dust3DWorkerServiceReceipt& sourc
 {
     if (source.operation != DUST3D_WORKER_OPERATION_MESH && source.operation != DUST3D_WORKER_OPERATION_UV_MESH
         && source.operation != DUST3D_WORKER_OPERATION_SOURCED_MESH
-        && source.operation != DUST3D_WORKER_OPERATION_INDEXED_SOURCED_MESH && source.operation != DUST3D_WORKER_OPERATION_INDEXED_MESH && source.operation != DUST3D_WORKER_OPERATION_IMPORTED_RENDER)
+        && source.operation != DUST3D_WORKER_OPERATION_INDEXED_SOURCED_MESH && source.operation != DUST3D_WORKER_OPERATION_INDEXED_MESH && source.operation != DUST3D_WORKER_OPERATION_IMPORTED_RENDER
+        && source.operation != DUST3D_WORKER_OPERATION_LEGACY_BAKED)
         throw ProtocolError(ProtocolErrorCode::invalidInput, "Service receipt operation is unsupported.");
     ServiceReceipt result;
     result.runtimeStatus = source.runtime_status;
@@ -49,6 +50,7 @@ struct SemanticPolicies {
     SourcedMeshPayloadLimits sources;
     IndexedReplyLimits indexed;
     ImportedRenderLimits imported;
+    LegacyBakedLimits legacy;
 };
 inline SemanticPolicies semanticPolicies(const Limits& wire, uint64_t maximum)
 {
@@ -88,6 +90,13 @@ inline SemanticPolicies semanticPolicies(const Limits& wire, uint64_t maximum)
     result.imported.materials.maximumDecodedBytes = std::min(result.imported.materials.maximumDecodedBytes, maximum);
     result.imported.materials.maximumEncodedBytes = std::min(result.imported.materials.maximumEncodedBytes, maximum);
     result.imported.materials.maximumImageBytes = std::min(result.imported.materials.maximumImageBytes, maximum);
+    result.legacy.maximumWireBytes = wire.maximumOutputBytes;
+    result.legacy.maximumDecodedBytes = maximum;
+    result.legacy.geometry = result.mesh;
+    result.legacy.uv = result.uv.uv;
+    result.legacy.textures.maximumWireBytes = wire.maximumOutputBytes;
+    result.legacy.textures.maximumDecodedBytes = std::min(result.legacy.textures.maximumDecodedBytes, maximum);
+    result.legacy.textures.maximumPixelBytes = std::min(result.legacy.textures.maximumPixelBytes, maximum);
     return result;
 }
 }

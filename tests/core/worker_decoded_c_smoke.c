@@ -64,6 +64,15 @@ int main(void)
     if (imported.has_value || detail.has_detail || dust3d_worker_decoded_imported_triangle(NULL, 0, &triangle)
         || dust3d_worker_decoded_imported_material(NULL, 0, &material) || dust3d_worker_decoded_imported_image(NULL, 0, &image))
         return 8;
+    Dust3DWorkerTextureView baked_image;
+    Dust3DWorkerTextureTangent baked_tangent;
+    if (dust3d_worker_decoded_baked_summary(NULL).tangent_count
+        || dust3d_worker_decoded_baked_tangent(NULL, 0, &baked_tangent)
+        || dust3d_worker_decoded_baked_texture(NULL, 0, 0, &baked_image)
+        || dust3d_worker_decoded_baked_level_count(NULL, 0))
+        return 9;
+    if (dust3d_worker_serve_with_decoders(-1, -1, NULL).status != DUST3D_WORKER_JOB_CODEC_REJECTED)
+        return 10;
     dust3d_worker_decoded_destroy(NULL);
     return 0;
 }

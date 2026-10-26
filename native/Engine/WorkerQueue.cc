@@ -75,7 +75,7 @@ namespace worker {
     }
     AdmittedReply RequestQueue::complete(const RequestIdentity& collected, ProcessOutcome outcome,
         const uint8_t* bytes, size_t size, const MeshPayloadLimits& meshLimits,
-        const FailurePayloadLimits& failureLimits, const UvMeshPayloadLimits& uvLimits, const SourcedMeshPayloadLimits& sourceLimits, const IndexedReplyLimits& indexedLimits, const ImportedRenderLimits& importedLimits)
+        const FailurePayloadLimits& failureLimits, const UvMeshPayloadLimits& uvLimits, const SourcedMeshPayloadLimits& sourceLimits, const IndexedReplyLimits& indexedLimits, const ImportedRenderLimits& importedLimits, const LegacyBakedLimits& legacyLimits)
     {
         if (!m_active || !(m_active->identity == collected))
             throw QueueError(QueueErrorCode::unexpectedCompletion, "Worker completion has no matching active request");
@@ -87,11 +87,11 @@ namespace worker {
         if (!m_current)
             pending.retire();
         return pending.complete(m_current.value_or(request.identity), outcome, bytes, size,
-            m_limits, meshLimits, failureLimits, uvLimits, sourceLimits, indexedLimits, importedLimits);
+            m_limits, meshLimits, failureLimits, uvLimits, sourceLimits, indexedLimits, importedLimits, legacyLimits);
     }
     AdmittedReply RequestQueue::completeService(const RequestIdentity& collected, const ServiceObservation& observed,
         const ServiceReceipt& receipt, const uint8_t* bytes, size_t size,
-        const MeshPayloadLimits& meshLimits, const FailurePayloadLimits& failureLimits, const UvMeshPayloadLimits& uvLimits, const SourcedMeshPayloadLimits& sourceLimits, const IndexedReplyLimits& indexedLimits, const ImportedRenderLimits& importedLimits)
+        const MeshPayloadLimits& meshLimits, const FailurePayloadLimits& failureLimits, const UvMeshPayloadLimits& uvLimits, const SourcedMeshPayloadLimits& sourceLimits, const IndexedReplyLimits& indexedLimits, const ImportedRenderLimits& importedLimits, const LegacyBakedLimits& legacyLimits)
     {
         if (!m_active || !(m_active->identity == collected))
             throw QueueError(QueueErrorCode::unexpectedCompletion, "Service completion has no matching active request");
@@ -105,7 +105,7 @@ namespace worker {
         if (!m_current)
             pending.retire();
         return pending.complete(m_current.value_or(request.identity), observed, receipt, bytes, size,
-            m_limits, meshLimits, failureLimits, uvLimits, sourceLimits, indexedLimits, importedLimits);
+            m_limits, meshLimits, failureLimits, uvLimits, sourceLimits, indexedLimits, importedLimits, legacyLimits);
     }
 
 }

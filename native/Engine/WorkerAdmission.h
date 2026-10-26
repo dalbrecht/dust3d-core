@@ -4,6 +4,7 @@
 #include "WorkerFailure.h"
 #include "WorkerImportedRender.h"
 #include "WorkerIndexedSources.h"
+#include "WorkerLegacyBaked.h"
 #include "WorkerSourcedMesh.h"
 #include "WorkerUvMesh.h"
 #include <string>
@@ -37,7 +38,7 @@ namespace worker {
     struct ImportedRenderReply {
         std::optional<ImportedRenderPayload> value;
     };
-    using AdmittedReply = std::variant<MeshPayload, FailurePayload, UvMeshPayload, SourcedMeshPayload, IndexedMeshPayload, IndexedSourcesPayload, ImportedRenderReply>;
+    using AdmittedReply = std::variant<MeshPayload, FailurePayload, UvMeshPayload, SourcedMeshPayload, IndexedMeshPayload, IndexedSourcesPayload, ImportedRenderReply, LegacyBakedPayload>;
     /// Independent ordinary-indexed and atomic indexed/source output policies.
     struct IndexedReplyLimits {
         IndexedMeshPayloadLimits mesh;
@@ -102,7 +103,7 @@ namespace worker {
         AdmittedReply complete(const RequestIdentity& active, const ServiceObservation& observed,
             const ServiceReceipt& receipt, const uint8_t* bytes, size_t size,
             const Limits& wireLimits = {}, const MeshPayloadLimits& meshLimits = {},
-            const FailurePayloadLimits& failureLimits = {}, const UvMeshPayloadLimits& uvLimits = {}, const SourcedMeshPayloadLimits& sourceLimits = {}, const IndexedReplyLimits& indexedLimits = {}, const ImportedRenderLimits& importedLimits = {});
+            const FailurePayloadLimits& failureLimits = {}, const UvMeshPayloadLimits& uvLimits = {}, const SourcedMeshPayloadLimits& sourceLimits = {}, const IndexedReplyLimits& indexedLimits = {}, const ImportedRenderLimits& importedLimits = {}, const LegacyBakedLimits& legacyLimits = {});
 
     private:
         Header m_request;
@@ -131,7 +132,7 @@ namespace worker {
         AdmittedReply complete(const RequestIdentity& active, ProcessOutcome outcome,
             const uint8_t* bytes, size_t size, const Limits& wireLimits = {},
             const MeshPayloadLimits& meshLimits = {}, const FailurePayloadLimits& failureLimits = {},
-            const UvMeshPayloadLimits& uvLimits = {}, const SourcedMeshPayloadLimits& sourceLimits = {}, const IndexedReplyLimits& indexedLimits = {}, const ImportedRenderLimits& importedLimits = {});
+            const UvMeshPayloadLimits& uvLimits = {}, const SourcedMeshPayloadLimits& sourceLimits = {}, const IndexedReplyLimits& indexedLimits = {}, const ImportedRenderLimits& importedLimits = {}, const LegacyBakedLimits& legacyLimits = {});
 
     private:
         Header m_request;

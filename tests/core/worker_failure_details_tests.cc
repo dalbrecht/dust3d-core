@@ -43,7 +43,7 @@ int main()
         require(encodeFailurePayload(copy, exact) == bytes, "Exact detailed error quota accepts");
         --exact.maximumWireBytes;
         reject(FailurePayloadErrorCode::limitExceeded, [&] { encodeFailurePayload(copy, exact); });
-        for (uint16_t domain : { uint16_t(0), uint16_t(8) }) {
+        for (uint16_t domain : { uint16_t(0), uint16_t(14) }) {
             auto invalid = value;
             invalid.detail->domain = static_cast<FailureDomain>(domain);
             reject(FailurePayloadErrorCode::invalidLayout, [&] { encodeFailurePayload(invalid, {}); });
@@ -53,7 +53,7 @@ int main()
         reject(FailurePayloadErrorCode::invalidLayout, [&] { encodeFailurePayload(invalid, {}); });
         for (size_t offset : { size_t(6), size_t(20) }) {
             auto wire = bytes;
-            detail::writeUnsigned(wire.data() + offset, offset == 6 ? 8 : 2, offset == 6 ? 2 : 4);
+            detail::writeUnsigned(wire.data() + offset, offset == 6 ? 14 : 2, offset == 6 ? 2 : 4);
             reject(FailurePayloadErrorCode::invalidLayout, [&] { decodeFailurePayload(wire.data(), wire.size(), {}); });
         }
         auto shortPrefix = bytes;

@@ -12,11 +12,13 @@ namespace worker {
         }
         AdmittedReply decodeReply(const Header& request, const uint8_t* bytes, size_t size,
             const Limits& wireLimits, const MeshPayloadLimits& meshLimits,
-            const FailurePayloadLimits& failureLimits, const UvMeshPayloadLimits& uvLimits, const SourcedMeshPayloadLimits& sourceLimits, const IndexedReplyLimits& indexedLimits, const ImportedRenderLimits& importedLimits)
+            const FailurePayloadLimits& failureLimits, const UvMeshPayloadLimits& uvLimits, const SourcedMeshPayloadLimits& sourceLimits, const IndexedReplyLimits& indexedLimits, const ImportedRenderLimits& importedLimits, const LegacyBakedLimits& legacyLimits)
         {
             const auto frame = decodeFrame(bytes, size, wireLimits);
             validateResponseIdentity(frame.header, request);
             if (frame.header.kind == FrameKind::response) {
+                if (request.operation == Operation::generateLegacyBaked)
+                    return decodeLegacyBakedPayload(frame.payload.data(), frame.payload.size(), legacyLimits);
                 if (request.operation == Operation::generateImportedRender) {
                     validateImportedRenderLimits(importedLimits);
                     return ImportedRenderReply { frame.payload.empty() ? std::nullopt : std::optional<ImportedRenderPayload>(decodeImportedRenderPayload(frame.payload.data(), frame.payload.size(), importedLimits)) };
@@ -47,7 +49,7 @@ namespace worker {
     AdmittedReply PendingReply::complete(const RequestIdentity& active, ProcessOutcome outcome,
         const uint8_t* bytes, size_t size, const Limits& wireLimits,
         const MeshPayloadLimits& meshLimits, const FailurePayloadLimits& failureLimits,
-        const UvMeshPayloadLimits& uvLimits, const SourcedMeshPayloadLimits& sourceLimits, const IndexedReplyLimits& indexedLimits, const ImportedRenderLimits& importedLimits)
+        const UvMeshPayloadLimits& uvLimits, const SourcedMeshPayloadLimits& sourceLimits, const IndexedReplyLimits& indexedLimits, const ImportedRenderLimits& importedLimits, const LegacyBakedLimits& legacyLimits)
     {
         if (m_isRetired)
             throw AdmissionError(AdmissionErrorCode::retired, "Worker request is already retired");
@@ -58,7 +60,7 @@ namespace worker {
                 "Worker completion rejected: normal=" + std::to_string(outcome.exitedNormally) + " code=" + std::to_string(outcome.exitCode));
         if (!(active == m_request.identity))
             throw AdmissionError(AdmissionErrorCode::staleRequest, "Worker request is no longer active");
-        return decodeReply(m_request, bytes, size, wireLimits, meshLimits, failureLimits, uvLimits, sourceLimits, indexedLimits, importedLimits);
+        return decodeReply(m_request, bytes, size, wireLimits, meshLimits, failureLimits, uvLimits, sourceLimits, indexedLimits, importedLimits, legacyLimits);
     }
     PendingServiceReply::PendingServiceReply(const Header& request, uint64_t connectionGeneration, const Limits& requestLimits)
         : m_request(request)
@@ -70,7 +72,7 @@ namespace worker {
     }
     AdmittedReply PendingServiceReply::complete(const RequestIdentity& active, const ServiceObservation& observed,
         const ServiceReceipt& receipt, const uint8_t* bytes, size_t size, const Limits& wireLimits,
-        const MeshPayloadLimits& meshLimits, const FailurePayloadLimits& failureLimits, const UvMeshPayloadLimits& uvLimits, const SourcedMeshPayloadLimits& sourceLimits, const IndexedReplyLimits& indexedLimits, const ImportedRenderLimits& importedLimits)
+        const MeshPayloadLimits& meshLimits, const FailurePayloadLimits& failureLimits, const UvMeshPayloadLimits& uvLimits, const SourcedMeshPayloadLimits& sourceLimits, const IndexedReplyLimits& indexedLimits, const ImportedRenderLimits& importedLimits, const LegacyBakedLimits& legacyLimits)
     {
         if (m_isRetired)
             throw AdmissionError(AdmissionErrorCode::retired, "Service request is already retired");
@@ -90,7 +92,7 @@ namespace worker {
                     + " stage=" + std::to_string(receipt.ioStage) + " source=" + std::to_string(receipt.detailSource)
                     + " code=" + std::to_string(receipt.detailCode) + " truncated=" + std::to_string(receipt.messageTruncated)
                     + " finalization=" + std::to_string(receipt.finalizationError));
-        return decodeReply(m_request, bytes, size, wireLimits, meshLimits, failureLimits, uvLimits, sourceLimits, indexedLimits, importedLimits);
+        return decodeReply(m_request, bytes, size, wireLimits, meshLimits, failureLimits, uvLimits, sourceLimits, indexedLimits, importedLimits, legacyLimits);
     }
 
 }

@@ -33,7 +33,7 @@ namespace worker {
         }
         void validateDetail(const FailureDetail& detail)
         {
-            if (static_cast<uint16_t>(detail.domain) < 1 || static_cast<uint16_t>(detail.domain) > 7 || detail.causeTruncated > 1)
+            if (static_cast<uint16_t>(detail.domain) < 1 || static_cast<uint16_t>(detail.domain) > 13 || detail.causeTruncated > 1)
                 reject(FailurePayloadErrorCode::invalidLayout, "Worker failure diagnostic domain or truncation flag is invalid.");
         }
         size_t plan(uint64_t causeBytes, size_t prefix, const FailurePayloadLimits& limits)

@@ -1206,3 +1206,15 @@ pass; pure resolver coverage is complete and native defensive paths remain expli
 unprobed. Distinct procedural/imported ImageIO policies, full baked-output producer
 and runtime adoption, persistent session metrics, Apple #280 range parity and M4–M8
 acceptance remain open. Production pin/backend and feature quarantines are unchanged.
+
+### Legacy bake runtime checkpoint (#247)
+
+Complete legacy rendering now traverses budgeted requests, a distinct procedural
+provider, one native baked owner, child/service/queue admission and owned C
+geometry/UV/tangent/base-map accessors. Host work caps remain separate from request
+settings. See [ADR 0151](adr/0151-legacy-bake-worker-runtime.md). All 184 ordinary
+contracts and scoped sanitizers pass; pure request/policy/preparation coverage is
+complete while native error branches remain explicitly unforced. Actual worker
+ImageIO/Swift orchestration, source-baked/mip transport, real persistent session
+metrics, Apple #280 range parity and M4–M8 acceptance remain open. Production pin,
+default backend and feature quarantines are unchanged.
