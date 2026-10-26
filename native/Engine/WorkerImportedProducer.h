@@ -11,8 +11,7 @@ namespace worker {
     class ImportedRenderImageDecoder {
     public:
         virtual ~ImportedRenderImageDecoder() = default;
-        virtual ImportedRenderImage decode(const ImportedEncodedImage& encoded, std::string_view modelId,
-            uint64_t maximumEncodedBytes, uint64_t maximumDecodedBytes) = 0;
+        virtual ImportedRenderImage decode(const ImportedEncodedImage& encoded, std::string_view modelId, uint64_t maximumEncodedBytes, uint64_t maximumDecodedBytes) = 0;
     };
     struct ImportedProducerLimits {
         ImportedRenderLimits render;

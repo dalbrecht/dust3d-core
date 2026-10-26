@@ -61,7 +61,7 @@ quota/shape failures, native scalar-policy guards and owned native failure data.
 Native integration uses only existing positive ImportedSurface and Capsule fixtures
 with a fake decoder. These tests do not claim actual PNG/JPEG pixel correctness.
 
-All 164 ordinary CTests pass (34.72 seconds), with ten source/build-spec hashes
+All 164 ordinary CTests pass (40.36 seconds), with ten source/build-spec hashes
 unchanged across the final gate. SwiftPM runtime builds (1.36 seconds), retaining
 its existing native-builder deprecation. Selected pure/native producer code passes
 ASan/UBSan with leak detection disabled. Pure producer: 70/70 lines, 41/41 regions,
@@ -75,3 +75,9 @@ No opcode, C decoded kind, ImageIO implementation, Swift consumer, backend defau
 or production dependency pin changes. Platform worker integration, real generation
 session/cache metrics, C/Swift transport, supported-range parity and full M4–M8
 acceptance remain open. All feature quarantines remain intact.
+
+Linux CI initially rejected a multiline pure-virtual declaration under clang-format
+18 although local clang-format 22 accepted it. A single-line declaration passes
+both versions; the complete local gate was rerun after that formatting-only fix.
+Formatter 18 was cached as a validation tool in the single shared build root;
+repository dependencies and CI configuration were unchanged.
