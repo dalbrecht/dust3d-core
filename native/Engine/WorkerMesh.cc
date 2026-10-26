@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 #include "WorkerMesh.h"
+#include "WorkerMeshValidation.h"
 #include "WorkerWire.h"
 #include <algorithm>
 #include <cmath>
@@ -80,22 +81,24 @@ namespace worker {
             std::memcpy(&bits, &value, sizeof(bits));
             return (bits & 0x7f800000U) != 0x7f800000U;
         }
+        void validateVertex(const MeshVertex& vertex)
+        {
+            double normalLengthSquared = 0;
+            for (size_t axis = 0; axis < 3; ++axis) {
+                if (!finiteFloat(vertex.position[axis]) || !finiteFloat(vertex.normal[axis]))
+                    reject(MeshPayloadErrorCode::invalidGeometry, "Worker mesh contains nonfinite geometry.");
+                normalLengthSquared += static_cast<double>(vertex.normal[axis]) * vertex.normal[axis];
+            }
+            if (std::abs(normalLengthSquared - 1) > 0.001)
+                reject(MeshPayloadErrorCode::invalidGeometry, "Worker mesh normals must have unit length.");
+            for (const auto value : vertex.color)
+                if (!finiteFloat(value) || value < 0 || value > 1)
+                    reject(MeshPayloadErrorCode::invalidGeometry, "Worker mesh colors must be finite unit values.");
+        }
         void validateTriangle(const MeshVertex* vertices)
         {
-            for (size_t corner = 0; corner < 3; ++corner) {
-                const auto& vertex = vertices[corner];
-                double normalLengthSquared = 0;
-                for (size_t axis = 0; axis < 3; ++axis) {
-                    if (!finiteFloat(vertex.position[axis]) || !finiteFloat(vertex.normal[axis]))
-                        reject(MeshPayloadErrorCode::invalidGeometry, "Worker mesh contains nonfinite geometry.");
-                    normalLengthSquared += static_cast<double>(vertex.normal[axis]) * vertex.normal[axis];
-                }
-                if (std::abs(normalLengthSquared - 1) > 0.001)
-                    reject(MeshPayloadErrorCode::invalidGeometry, "Worker mesh normals must have unit length.");
-                for (const auto value : vertex.color)
-                    if (!finiteFloat(value) || value < 0 || value > 1)
-                        reject(MeshPayloadErrorCode::invalidGeometry, "Worker mesh colors must be finite unit values.");
-            }
+            for (size_t corner = 0; corner < 3; ++corner)
+                validateVertex(vertices[corner]);
             std::array<double, 3> first;
             std::array<double, 3> second;
             for (size_t axis = 0; axis < 3; ++axis) {
@@ -138,6 +141,29 @@ namespace worker {
             return result;
         }
     }
+    namespace detail {
+        void validateMeshVertex(const MeshVertex& value) { validateVertex(value); }
+        void validateMeshTriangle(const std::array<MeshVertex, 3>& value) { validateTriangle(value.data()); }
+        void validateMeshWarning(const uint8_t* bytes, size_t size)
+        {
+            if (!bytes && size)
+                reject(MeshPayloadErrorCode::invalidInput, "Worker warning bytes are missing.");
+            validateText(bytes, size);
+        }
+        MeshVertex readMeshVertex(const uint8_t* bytes) { return readVertex(bytes); }
+        void writeMeshVertex(uint8_t* bytes, const MeshVertex& value)
+        {
+            for (const auto* values : { &value.position, &value.normal })
+                for (const auto scalar : *values) {
+                    writeFloat(bytes, scalar);
+                    bytes += 4;
+                }
+            for (const auto scalar : value.color) {
+                writeFloat(bytes, scalar);
+                bytes += 4;
+            }
+        }
+    }
     MeshPayloadError::MeshPayloadError(MeshPayloadErrorCode code, const char* message)
         : std::runtime_error(message)
         , m_code(code)
@@ -164,15 +190,8 @@ namespace worker {
         std::copy(mesh.warning.begin(), mesh.warning.end(), result.begin() + meshPrefixBytes);
         size_t offset = layout.vertices;
         for (const auto& vertex : mesh.vertices) {
-            for (const auto* values : { &vertex.position, &vertex.normal })
-                for (const auto value : *values) {
-                    writeFloat(result.data() + offset, value);
-                    offset += 4;
-                }
-            for (const auto value : vertex.color) {
-                writeFloat(result.data() + offset, value);
-                offset += 4;
-            }
+            detail::writeMeshVertex(result.data() + offset, vertex);
+            offset += meshVertexBytes;
         }
         return result;
     }
