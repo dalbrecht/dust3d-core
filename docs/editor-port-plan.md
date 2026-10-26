@@ -1262,3 +1262,14 @@ and the SwiftPM runtime build pass. See [ADR 0155](adr/0155-worker-session-lifec
 Actual authenticated host adoption, request/result transport, C/Swift ownership,
 statistics cause mapping, Apple #279/#280 and M4–M8 acceptance remain open. Production
 pin and quarantines are unchanged.
+
+### Atomic worker session output (#251)
+
+A portable result envelope now retains final sourced/ordinary/empty/failure outcomes,
+original source/statistics issues and actual optional cache observations together.
+Native statistics exceptions are explicitly mapped with bounded original causes.
+All199 contracts and the SwiftPM runtime build pass; scoped sanitizer/coverage limits
+and positive Capsule round-trip evidence are in [ADR 0156](adr/0156-worker-session-output.md).
+Authenticated host adoption, correlated transport, C/Swift ownership, platform
+decoding, Apple #279/#280 and M4–M8 acceptance remain incomplete. Production pin,
+backend and feature quarantines are unchanged.

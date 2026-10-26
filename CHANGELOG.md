@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Preserve worker session outcome, fallback diagnostics and actual optional statistics together in a bounded owned result envelope (#251).
+
 - Bind worker cache ownership to host document/connection lifetimes, preserve replay protection through reset, and release native state on close (#251).
 
 - Retain worker-owned document generation caches with same-call owned indexed/source output, native statistics, and in-worker ordinary fallback (#251).
