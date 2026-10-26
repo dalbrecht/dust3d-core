@@ -36,5 +36,10 @@ int main(void)
         return 5;
     dust3d_worker_session_destroy(session);
     dust3d_worker_session_destroy(0);
+    if (dust3d_worker_session_request_create(active, 0, 0, 0, (Dust3DWorkerWireLimits) { 4096, 4096, 4096 }, 0))
+        return 6;
+    Dust3DWorkerJobResult job = dust3d_worker_session_serve(0, 9, -1, -1, limits);
+    if (job.status != DUST3D_WORKER_JOB_PROTOCOL_REJECTED || job.detail_source != DUST3D_WORKER_DETAIL_FRAME)
+        return 7;
     return 0;
 }

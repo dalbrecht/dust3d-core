@@ -5,6 +5,7 @@
 #include "WorkerSourceRequest.h"
 #include "WorkerUvRequest.h"
 #include <Dust3DWorkerRuntime.h>
+#include <Dust3DWorkerSession.h>
 #include <algorithm>
 #include <iterator>
 #include <memory>
@@ -376,3 +377,9 @@ extern "C" Dust3DWorkerRequest* dust3d_worker_indexed_source_request_create(Dust
 }
 extern "C" const uint8_t* dust3d_worker_request_header(const Dust3DWorkerRequest* request, size_t* size) noexcept { return borrow(request, size, true); }
 extern "C" void dust3d_worker_request_destroy(Dust3DWorkerRequest* request) noexcept { delete request; }
+
+extern "C" Dust3DWorkerRequest* dust3d_worker_session_request_create(Dust3DWorkerRequestIdentity identity,
+    const uint8_t* archive, size_t size, uint64_t maximum, Dust3DWorkerWireLimits limits, Dust3DWorkerRequestResult* result) noexcept
+{
+    return createSourceRequest(Operation::generateSessionIndexedSourcedMesh, identity, archive, size, maximum, limits, result);
+}

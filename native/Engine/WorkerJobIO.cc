@@ -88,7 +88,7 @@ namespace worker {
         }
         return { true, 0 };
     }
-    void serveWorkerJob(int input, int output, WorkerJobContext& context, ImportedRenderImageDecoder* decoder, const NativeImportedProducerLimits& importedLimits, ProceduralImageDecoder* proceduralDecoder, const LegacyProducerOptions& legacyLimits, const NativeSourceProducerOptions& sourceBakeLimits)
+    Frame readWorkerRequest(int input, int output, WorkerJobContext& context)
     {
         context = {};
         if (input < 0 || output < 0 || input == output)
@@ -108,6 +108,26 @@ namespace worker {
             throw ProtocolError(ProtocolErrorCode::trailingData, "Worker accepts exactly one request followed by EOF.");
         if (end.error)
             throw WorkerJobIOError(WorkerJobStage::input, end.error);
+        return request;
+    }
+    void writeWorkerReply(int output, const Frame& response)
+    {
+        const auto reply = encodeFrame(response, {});
+        const auto written = writeWorkerBytes(output, reply.data(), reply.size());
+        if (!written.complete)
+            throw WorkerJobIOError(WorkerJobStage::output, written.error);
+    }
+    void serveWorkerSessionJob(int input, int output, WorkerJobContext& context, ConnectionGenerationSession& session, uint64_t generation, const SessionOutputLimits& limits)
+    {
+        auto request = readWorkerRequest(input, output, context);
+        auto response = generateSessionReply(request, session, generation, limits);
+        std::vector<uint8_t>().swap(request.payload);
+        writeWorkerReply(output, response);
+    }
+    void serveWorkerJob(int input, int output, WorkerJobContext& context, ImportedRenderImageDecoder* decoder, const NativeImportedProducerLimits& importedLimits, ProceduralImageDecoder* proceduralDecoder, const LegacyProducerOptions& legacyLimits, const NativeSourceProducerOptions& sourceBakeLimits)
+    {
+        auto request = readWorkerRequest(input, output, context);
+        const auto& header = request.header;
         Frame response;
         switch (header.operation) {
         case Operation::generateSessionIndexedSourcedMesh:
@@ -138,10 +158,7 @@ namespace worker {
             break;
         }
         std::vector<uint8_t>().swap(request.payload);
-        const auto reply = encodeFrame(response, {});
-        const auto written = writeWorkerBytes(output, reply.data(), reply.size());
-        if (!written.complete)
-            throw WorkerJobIOError(WorkerJobStage::output, written.error);
+        writeWorkerReply(output, response);
     }
 }
 }

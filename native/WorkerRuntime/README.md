@@ -369,3 +369,16 @@ and is idempotent. Destroy the owner after all calls finish. No concurrent destr
 Required result pointers preserve original typed errors; NULL performs no work.
 This owner has no C channel-serving method yet and does not authenticate peers,
 interrupt generation or activate an Apple backend. See [ADR0160](../../docs/adr/0160-worker-session-c-lifecycle.md).
+
+### Retained-session job channels
+
+Use `dust3d_worker_session_request_create` for an owned operation9 request frame,
+then `dust3d_worker_session_serve` on a live session with an independent trusted
+connection generation. The host owns separate channels, serializes jobs/lifecycle,
+establishes resource/signal/sandbox/stdout policy and closes channels after return.
+COMPLETE means a full envelope was written, including valid generation failures.
+Inspect output outcome and complete the dedicated current-publication admission
+before displaying anything. Cache state persists across calls until reset/close;
+reset does not reset replay protection. Stateless serving still rejects operation9.
+Actual authenticated XPC and full Apple output/range acceptance remain pending.
+See [ADR0161](../../docs/adr/0161-worker-session-c-serving.md).

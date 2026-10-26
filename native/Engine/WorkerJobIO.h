@@ -4,6 +4,7 @@
 #include "WorkerImportedProducerNative.h"
 #include "WorkerLegacyProducerNative.h"
 #include "WorkerProtocol.h"
+#include "WorkerSessionOperation.h"
 #include "WorkerSourceProducerNative.h"
 #include <optional>
 namespace dust3d {
@@ -42,6 +43,21 @@ namespace worker {
     /// @return Complete or original errno/EIO; interrupted calls retry, no deadline is imposed.
     /// Example: auto outcome = writeWorkerBytes(fd, bytes.data(), bytes.size());
     WorkerIoResult writeWorkerBytes(int descriptor, const uint8_t* bytes, size_t size) noexcept;
+    /// Read one exact request plus EOF on separate borrowed job channels.
+    /// Resets context before any I/O; validates bounded framing before allocation.
+    /// Throws original protocol/I/O/allocation causes. No native work/descriptor close.
+    /// Example: auto frame = readWorkerRequest(input, output, context);
+    Frame readWorkerRequest(int input, int output, WorkerJobContext& context);
+    /// Encode/write an owned reply, preserving original output I/O errors.
+    /// Borrowed descriptor; host establishes signal/resource policy. Never closes it.
+    /// Example: writeWorkerReply(output, response);
+    void writeWorkerReply(int output, const Frame& response);
+    /// Serve one operation9 request through a retained host-owned session.
+    /// Same channel, isolation, lifetime and exception obligations as serveWorkerJob.
+    /// Trusted generation is supplied by host, never inferred from wire bytes.
+    /// Caller serializes jobs/lifecycle and keeps session alive; no native interruption.
+    /// Example: serveWorkerSessionJob(input, output, context, session, generation, {});
+    void serveWorkerSessionJob(int input, int output, WorkerJobContext& context, ConnectionGenerationSession& session, uint64_t generation, const SessionOutputLimits& limits);
     /// Serve one bounded frame followed by EOF on borrowed channels, through serialized native C ABI.
     /// @param input Borrowed readable request channel, exclusively owned by the host for this job.
     /// @param output Separate host-owned writable reply channel; no path is opened or closed.

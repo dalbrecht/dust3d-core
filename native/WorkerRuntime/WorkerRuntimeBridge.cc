@@ -5,6 +5,8 @@
 #include "WorkerIndexedSources.h"
 #include "WorkerJobIO.h"
 #include "WorkerLegacyRequest.h"
+#include "WorkerSessionInternal.h"
+#include "WorkerSessionOutputInternal.h"
 #include "WorkerSourceRequest.h"
 #include "WorkerSourcedMesh.h"
 #include "WorkerUvMesh.h"
@@ -44,7 +46,12 @@ extern "C" uint32_t dust3d_worker_runtime_abi_version() noexcept
     return DUST3D_WORKER_RUNTIME_ABI_VERSION;
 }
 namespace {
-Dust3DWorkerJobResult serve(int32_t input, int32_t output, const Dust3DWorkerImageDecoder* configuration, const Dust3DWorkerImageDecoder* proceduralConfiguration = nullptr) noexcept
+struct SessionInvocation {
+    Dust3DWorkerSession* owner;
+    uint64_t generation;
+    Dust3DWorkerSessionOutputLimits limits;
+};
+Dust3DWorkerJobResult serve(int32_t input, int32_t output, const Dust3DWorkerImageDecoder* configuration, const Dust3DWorkerImageDecoder* proceduralConfiguration = nullptr, const SessionInvocation* session = nullptr) noexcept
 {
     Dust3DWorkerJobResult result {};
     result.status = DUST3D_WORKER_JOB_INTERNAL_FAILED;
@@ -56,7 +63,13 @@ Dust3DWorkerJobResult serve(int32_t input, int32_t output, const Dust3DWorkerIma
         std::optional<CallbackProceduralImageDecoder> procedural;
         if (proceduralConfiguration)
             procedural.emplace(*proceduralConfiguration);
-        serveWorkerJob(input, output, context, decoder ? &*decoder : nullptr, {}, procedural ? &*procedural : nullptr);
+        if (session) {
+            if (!session->owner)
+                throw ProtocolError(ProtocolErrorCode::invalidInput, "C worker session owner is null.");
+            const auto limits = bridge::sessionOutputPolicy(session->limits);
+            serveWorkerSessionJob(input, output, context, session->owner->value, session->generation, limits);
+        } else
+            serveWorkerJob(input, output, context, decoder ? &*decoder : nullptr, {}, procedural ? &*procedural : nullptr);
         result.status = DUST3D_WORKER_JOB_COMPLETE;
     } catch (const WorkerJobIOError& cause) {
         result.status = DUST3D_WORKER_JOB_IO_FAILED;
@@ -75,6 +88,21 @@ Dust3DWorkerJobResult serve(int32_t input, int32_t output, const Dust3DWorkerIma
         result.detail_source = DUST3D_WORKER_DETAIL_FRAME;
         result.detail_code = static_cast<int32_t>(cause.code());
         copyCause(result, cause.what());
+    } catch (const SessionScopeError& cause) {
+        result.status = DUST3D_WORKER_JOB_PROTOCOL_REJECTED;
+        result.detail_source = DUST3D_WORKER_DETAIL_SESSION_SCOPE;
+        result.detail_code = static_cast<int32_t>(cause.code());
+        copyCause(result, cause.what());
+    } catch (const NativeSessionError& cause) {
+        result.detail_source = DUST3D_WORKER_DETAIL_NATIVE_SESSION;
+        result.detail_code = cause.failure().detail ? cause.failure().detail->code : static_cast<int32_t>(cause.failure().status);
+        copyCause(result, cause.what());
+        if (cause.failure().detail && cause.failure().detail->causeTruncated)
+            result.message_truncated = 1;
+    } catch (const SessionOutputError& cause) {
+        rejectCodec(result, DUST3D_WORKER_DETAIL_SESSION_OUTPUT, cause);
+    } catch (const GenerationStatisticsError& cause) {
+        rejectCodec(result, DUST3D_WORKER_DETAIL_GENERATION_STATISTICS, cause);
     } catch (const SourceRequestError& cause) {
         rejectCodec(result, DUST3D_WORKER_DETAIL_SOURCE_REQUEST, cause);
     } catch (const UvRequestError& cause) {
@@ -132,7 +160,9 @@ Dust3DWorkerJobResult serve(int32_t input, int32_t output, const Dust3DWorkerIma
         copyCause(result, "Worker runtime exception has no available diagnostic.");
     }
     result.request_identity = context.requestIdentity;
-    if (context.operation == Operation::generateMesh)
+    if (context.operation == Operation::generateSessionIndexedSourcedMesh)
+        result.operation = DUST3D_WORKER_OPERATION_SESSION_INDEXED_SOURCED_MESH;
+    else if (context.operation == Operation::generateMesh)
         result.operation = DUST3D_WORKER_OPERATION_MESH;
     else if (context.operation == Operation::generateUvMesh)
         result.operation = DUST3D_WORKER_OPERATION_UV_MESH;
@@ -180,4 +210,11 @@ extern "C" Dust3DWorkerJobResult dust3d_worker_serve_with_decoders(int32_t input
     const auto present = [](const Dust3DWorkerImageDecoder& slot) { return slot.struct_size || slot.context || slot.decode; };
     return serve(input, output, present(configuration->imported) ? &configuration->imported : nullptr,
         present(configuration->procedural) ? &configuration->procedural : nullptr);
+}
+
+extern "C" Dust3DWorkerJobResult dust3d_worker_session_serve(Dust3DWorkerSession* owner, uint64_t generation,
+    int32_t input, int32_t output, Dust3DWorkerSessionOutputLimits limits) noexcept
+{
+    const SessionInvocation invocation { owner, generation, limits };
+    return serve(input, output, nullptr, nullptr, &invocation);
 }
