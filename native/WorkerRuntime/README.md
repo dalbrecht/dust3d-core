@@ -228,3 +228,19 @@ Imported authored samplers/factors/images and legacy charts remain distinct path
 Native payload/session/cache metrics, range parity (#280), complete transport and
 editor acceptance remain open under Apple #279. Logical quotas exclude native and
 encoded-wire workspace, validation sets, capacity and process RSS.
+
+## Legacy procedural baked output
+
+`LegacyBakedPayload` retains the existing procedural geometry, full UV
+charts/gradients/associations, per-triangle tangent frames and optional base maps.
+It validates complete inner spans, mapping correspondence and aggregate quotas
+before decoded arrays. `copyNativeLegacyBakedMesh` preflights and copies one
+stable borrowed baked owner. Shared native geometry/UV inspection and scalar
+validators avoid maintaining a second set of copy rules; source-baked output keeps
+its own metadata contract. See [ADR 0143](../../docs/adr/0143-legacy-baked-worker-output.md)
+and #231 for schemas, ownership, measured coverage and defensive-boundary limits.
+
+No request/C/Swift activation or Apple pin/backend change is included. Imported
+samplers/factors/images, real metrics, range parity (#280), complete transport and
+editor acceptance remain open under Apple #279. Logical quotas exclude roots,
+capacity, validation/wire/native workspace and process RSS.

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 #include "WorkerSourceBaked.h"
 #include "WorkerSourceBakedValidation.h"
+#include "WorkerTangentValidation.h"
 #include "WorkerUtf8.h"
 #include "WorkerWire.h"
 #include <algorithm>
@@ -63,13 +64,8 @@ namespace worker {
                 for (const auto coordinate : uv)
                     if (!std::isfinite(coordinate) || coordinate < 0 || coordinate > 1 || (!value.uvKnown && coordinate != 0))
                         reject(SourceBakedErrorCode::invalidMetadata, "Source-baked packed UVs are invalid or unknown mapping is nonzero.");
-            for (const auto direction : value.tangent)
-                if (!std::isfinite(direction))
-                    reject(SourceBakedErrorCode::invalidMetadata, "Source-baked tangent direction is not finite.");
-            const float length = value.tangent[0] * value.tangent[0] + value.tangent[1] * value.tangent[1] + value.tangent[2] * value.tangent[2];
-            if ((value.handedness != 1 && value.handedness != -1)
-                || (value.tangentKnown && (!value.uvKnown || !std::isfinite(length) || std::abs(length - 1) >= 0.0001F)))
-                reject(SourceBakedErrorCode::invalidMetadata, "Source-baked tangent mapping, unit length or handedness is invalid.");
+            if (!detail::isValidTextureTangent(value.tangent, value.handedness, value.tangentKnown, value.uvKnown))
+                reject(SourceBakedErrorCode::invalidMetadata, "Source-baked tangent direction, mapping, unit length or handedness is invalid.");
             if (value.policyKnown && (value.alphaMode > 2 || !std::isfinite(value.alphaCutoff) || value.alphaCutoff < 0))
                 reject(SourceBakedErrorCode::invalidMetadata, "Source-baked known alpha policy is invalid.");
         }

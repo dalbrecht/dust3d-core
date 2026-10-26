@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 #include "WorkerSourceBakedCopy.h"
 #include "WorkerBakedTextureViews.h"
-#include "WorkerMeshValidation.h"
+#include "WorkerMeshCopyInspection.h"
 #include "WorkerOperation.h"
 #include "WorkerSourceBakedValidation.h"
 namespace dust3d {
@@ -44,41 +44,22 @@ namespace worker {
             result.alphaMode = static_cast<uint32_t>(value.alpha_mode);
             return result;
         }
-        MeshVertex vertex(const Dust3DVertex& value)
-        {
-            return { { value.position[0], value.position[1], value.position[2] }, { value.normal[0], value.normal[1], value.normal[2] },
-                { value.color[0], value.color[1], value.color[2], value.color[3] } };
-        }
         struct GeometryShape {
             uint64_t wire, logical;
         };
         GeometryShape inspectGeometry(const Dust3DMesh* geometry, uint64_t triangles, const MeshPayloadLimits& limits)
         {
             const auto count = dust3d_mesh_vertex_count(geometry);
-            const auto* vertices = dust3d_mesh_vertices(geometry);
-            if (!vertices || !count || count % 3 || count / 3 != triangles)
+            if (!dust3d_mesh_vertices(geometry) || !count || count % 3 || count / 3 != triangles)
                 reject(SourceBakedErrorCode::countMismatch, "Native source-baked geometry/triangle correspondence is invalid.");
-            if (count > limits.maximumVertices || dust3d_mesh_node_count(geometry) > limits.maximumNodeCount || dust3d_mesh_part_count(geometry) > limits.maximumPartCount)
-                reject(SourceBakedErrorCode::limitExceeded, "Native source-baked geometry counts exceed configured limits.");
-            const auto* warning = dust3d_mesh_warning(geometry);
-            if (!warning)
-                throw MeshPayloadError(MeshPayloadErrorCode::invalidText, "Native source-baked warning storage is missing.");
-            size_t text = 0;
-            while (text <= limits.maximumWarningBytes && warning[text])
-                ++text;
-            if (text > limits.maximumWarningBytes)
-                reject(SourceBakedErrorCode::limitExceeded, "Native source-baked warning exceeds configured limits.");
-            uint64_t wire = meshPrefixBytes, logical = 0;
-            charge(wire, count, meshVertexBytes, limits.maximumWireBytes);
-            charge(wire, text, 1, limits.maximumWireBytes);
-            charge(logical, count, sizeof(MeshVertex), limits.maximumDecodedBytes);
-            charge(logical, text, 1, limits.maximumDecodedBytes);
-            detail::validateMeshWarning(reinterpret_cast<const uint8_t*>(warning), text);
-            for (size_t index = 0; index < count; ++index)
-                detail::validateMeshVertex(vertex(vertices[index]));
-            for (size_t index = 0; index < count; index += 3)
-                detail::validateMeshTriangle({ vertex(vertices[index]), vertex(vertices[index + 1]), vertex(vertices[index + 2]) });
-            return { wire, logical };
+            try {
+                const auto shape = detail::inspectNativeMeshCopy(geometry, limits);
+                return { shape.wire, shape.logical };
+            } catch (const MeshPayloadError& cause) {
+                if (cause.code() == MeshPayloadErrorCode::limitExceeded)
+                    reject(SourceBakedErrorCode::limitExceeded, cause.what());
+                throw;
+            }
         }
         detail::BakedTextureViews textureViews(const Dust3DSourceBakedMesh* owner)
         {
