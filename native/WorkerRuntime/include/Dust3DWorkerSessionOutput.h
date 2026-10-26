@@ -73,6 +73,34 @@ int dust3d_worker_session_output_statistics(const Dust3DWorkerSessionOutput* own
  * Bytes may contain NUL/non-UTF8. Never log/interpret them as commands or format text.
  */
 const uint8_t* dust3d_worker_session_output_cache_cause(const Dust3DWorkerSessionOutput* owner, size_t* size) DUST3D_WORKER_SESSION_NOEXCEPT;
+/** Admit one dedicated operation9 service response after transport cleanup.
+ * @param collector Unused actual-EOF-framed service owner; queue-bound owners reject.
+ * @param active Authoritative current host document/request/revision.
+ * @param observed Independent authenticated connection generation and OS peer.
+ * @param receipt Callback controls; never authoritative peer/current identity evidence.
+ * @param limits Independent session semantic policies.
+ * @param result Required self-owned typed receipt; NULL leaves attempt untouched.
+ * @return Independent session owner or NULL. Non-NULL result consumes
+ * this collector once, including on rejection. Host authenticates transport and supplies actual observations;
+ * this function only correlates them. No I/O, native generation or cancellation.
+ * Example: output = dust3d_worker_session_service_admit(collector, active, observed, receipt, limits, &result);
+ */
+Dust3DWorkerSessionOutput* dust3d_worker_session_service_admit(Dust3DWorkerReplyCollector* collector,
+    Dust3DWorkerRequestIdentity active, Dust3DWorkerServiceObservation observed,
+    Dust3DWorkerServiceReceipt receipt, Dust3DWorkerSessionOutputLimits limits, Dust3DWorkerDecodeResult* result) DUST3D_WORKER_SESSION_NOEXCEPT;
+/** Admit through the queue's private active identity/generation and current source.
+ * @param queue Externally serialized service coordinator, retained through return.
+ * @param observed Independent authenticated transport lifetime and OS peer.
+ * @param receipt Callback controls from that connection.
+ * @param limits Independent session semantic policies.
+ * @param result Required typed receipt; NULL leaves active attempt untouched.
+ * @return Independent root or NULL. Matching collection releases its slot on success
+ * or rejection while preserving newer waiting work. No authentication or I/O occurs.
+ * Example: output = dust3d_worker_session_service_queue_admit(queue, observed, receipt, limits, &result);
+ */
+Dust3DWorkerSessionOutput* dust3d_worker_session_service_queue_admit(Dust3DWorkerServiceQueue* queue,
+    Dust3DWorkerServiceObservation observed, Dust3DWorkerServiceReceipt receipt,
+    Dust3DWorkerSessionOutputLimits limits, Dust3DWorkerDecodeResult* result) DUST3D_WORKER_SESSION_NOEXCEPT;
 /** Destroy the root and all borrowed views after consumers copy needed data.
  * NULL harmless; caller keeps owner alive through all getters and never destroys
  * a borrowed primary/issue with dust3d_worker_decoded_destroy.

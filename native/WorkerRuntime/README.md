@@ -340,3 +340,20 @@ until dedicated host ownership and admission are implemented. Source allowance z
 uses 64 MiB; independent inner count/diagnostic limits still apply. See
 [ADR 0158](../../docs/adr/0158-worker-session-output-c.md) for quotas, verification
 and unforced recovery-guard coverage.
+
+## Correlated session service admission
+
+Use `dust3d_worker_session_service_admit` with an unused EOF-framed service collector,
+authoritative current identity, independent connection/peer observations and the
+callback receipt. Use `dust3d_worker_session_service_queue_admit` for queue-bound
+collectors; current identity and captured lifetime then come from the coordinator's
+private active slot. A null result pointer leaves the attempt untouched. Matching
+attempts are single-use even on rejection, and queue cleanup retains newer waiting
+work. Preserve original framing receipts and abandon after transport cleanup.
+
+The host still authenticates the connection and provides actual observed peer/EOF;
+these APIs correlate that evidence and never control a process. Legacy generic
+admission remains unsuitable for session envelopes, and native C session serving
+and request factories remain pending. See
+[ADR 0159](../../docs/adr/0159-worker-session-admission.md) for gate rules, lifetime
+contracts and scoped verification limits.

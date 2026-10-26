@@ -1296,3 +1296,15 @@ cache/ownership compatibility pass, alongside all 202 contracts and the SwiftPM 
 Raw body decoding does not authenticate or admit current publication. Dedicated
 serving/admission, Swift/XPC ownership, platform decoding, Apple #279/#280 and M4–M8
 acceptance remain incomplete. Production pin/backend and quarantines are unchanged.
+
+### Dedicated session service admission (#251)
+
+Session envelopes now pass the same shared current-source/connection/peer/EOF/receipt
+gates as existing service output, with dedicated C and queue-owned result adoption.
+Foreign/mode mismatches retain active work; matching stale, cancelled, closed or
+invalid completion retires publication while preserving newer waiting work. All204
+contracts and scoped sanitizer checks pass; [ADR 0159](adr/0159-worker-session-admission.md)
+records selected-function coverage and unforced recovery guards. Host authentication,
+native C serving/lifecycle, request factories, Swift/XPC integration, Apple #279/#280
+and M4–M8 acceptance remain incomplete. Production pin/backend and quarantines are
+unchanged.

@@ -3,6 +3,7 @@
 #include "WorkerQueue.h"
 #include "WorkerReplyInternal.h"
 #include "WorkerServiceInternal.h"
+#include "WorkerSessionOutputInternal.h"
 #include <memory>
 #include <new>
 #include <utility>
@@ -244,3 +245,42 @@ extern "C" Dust3DWorkerDecodedReply* dust3d_worker_service_queue_admit(Dust3DWor
     return nullptr;
 }
 extern "C" void dust3d_worker_service_queue_destroy(Dust3DWorkerServiceQueue* queue) noexcept { delete queue; }
+
+extern "C" Dust3DWorkerSessionOutput* dust3d_worker_session_service_queue_admit(Dust3DWorkerServiceQueue* queue,
+    Dust3DWorkerServiceObservation observed, Dust3DWorkerServiceReceipt receipt,
+    Dust3DWorkerSessionOutputLimits limits, Dust3DWorkerDecodeResult* result) noexcept
+{
+    if (!result)
+        return nullptr;
+    *result = {};
+    result->status = DUST3D_WORKER_DECODE_INTERNAL_FAILED;
+    try {
+        auto& owner = checked(queue);
+        if (!owner.reply)
+            throw QueueError(QueueErrorCode::unexpectedCompletion, "Session completion has no active service attempt.");
+        auto reply = std::move(owner.reply);
+        std::vector<uint8_t>().swap(owner.activeWire);
+        bool hasStartedCompletion = false;
+        try {
+            if (reply->isRejected || !reply->isFramed || reply->isDecoded)
+                throw ProtocolError(ProtocolErrorCode::invalidInput, "Session queue admission requires one unused EOF-framed owner.");
+            reply->isDecoded = true;
+            const auto policy = bridge::sessionOutputPolicy(limits);
+            const auto control = bridge::copyServiceReceipt(receipt);
+            hasStartedCompletion = true;
+            auto value = owner.state.completeSessionService(reply->expected.identity,
+                { observed.connection_generation, observed.process_identifier, reply->isFramed }, control,
+                reply->bytes.data(), reply->bytes.size(), policy);
+            auto* output = bridge::adoptSessionOutput(std::move(value));
+            result->status = DUST3D_WORKER_DECODE_OK;
+            return output;
+        } catch (...) {
+            if (!hasStartedCompletion)
+                owner.state.abandon(reply->expected.identity);
+            throw;
+        }
+    } catch (...) {
+        bridge::rejectSessionOutputException(std::current_exception(), *result);
+    }
+    return nullptr;
+}

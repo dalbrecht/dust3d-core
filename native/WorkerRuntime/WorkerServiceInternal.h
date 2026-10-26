@@ -28,7 +28,8 @@ inline ServiceReceipt copyServiceReceipt(const Dust3DWorkerServiceReceipt& sourc
         && source.operation != DUST3D_WORKER_OPERATION_SOURCED_MESH
         && source.operation != DUST3D_WORKER_OPERATION_INDEXED_SOURCED_MESH && source.operation != DUST3D_WORKER_OPERATION_INDEXED_MESH && source.operation != DUST3D_WORKER_OPERATION_IMPORTED_RENDER
         && source.operation != DUST3D_WORKER_OPERATION_LEGACY_BAKED
-        && source.operation != DUST3D_WORKER_OPERATION_SOURCE_BAKED)
+        && source.operation != DUST3D_WORKER_OPERATION_SOURCE_BAKED
+        && source.operation != DUST3D_WORKER_OPERATION_SESSION_INDEXED_SOURCED_MESH)
         throw ProtocolError(ProtocolErrorCode::invalidInput, "Service receipt operation is unsupported.");
     ServiceReceipt result;
     result.runtimeStatus = source.runtime_status;

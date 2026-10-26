@@ -20,5 +20,14 @@ int main(void)
         return 2;
     dust3d_worker_session_output_destroy(owner);
     dust3d_worker_session_output_destroy(0);
+    Dust3DWorkerRequestIdentity active = { 0 };
+    Dust3DWorkerServiceObservation observed = { 0 };
+    Dust3DWorkerServiceReceipt receipt = { 0 };
+    if (dust3d_worker_session_service_admit(0, active, observed, receipt, limits, &result)
+        || result.status != DUST3D_WORKER_DECODE_PROTOCOL_REJECTED)
+        return 3;
+    if (dust3d_worker_session_service_queue_admit(0, observed, receipt, limits, &result)
+        || result.status != DUST3D_WORKER_DECODE_PROTOCOL_REJECTED)
+        return 4;
     return 0;
 }

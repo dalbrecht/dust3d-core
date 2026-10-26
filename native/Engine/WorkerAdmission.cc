@@ -74,9 +74,7 @@ namespace worker {
         if (!connectionGeneration)
             throw AdmissionError(AdmissionErrorCode::invalidServiceSession, "Service connection generation must be nonzero");
     }
-    AdmittedReply PendingServiceReply::complete(const RequestIdentity& active, const ServiceObservation& observed,
-        const ServiceReceipt& receipt, const uint8_t* bytes, size_t size, const Limits& wireLimits,
-        const MeshPayloadLimits& meshLimits, const FailurePayloadLimits& failureLimits, const UvMeshPayloadLimits& uvLimits, const SourcedMeshPayloadLimits& sourceLimits, const IndexedReplyLimits& indexedLimits, const ImportedRenderLimits& importedLimits, const LegacyBakedLimits& legacyLimits, const SourceBakedLimits& sourceBakeLimits)
+    void PendingServiceReply::admit(const RequestIdentity& active, const ServiceObservation& observed, const ServiceReceipt& receipt)
     {
         if (m_isRetired)
             throw AdmissionError(AdmissionErrorCode::retired, "Service request is already retired");
@@ -96,7 +94,26 @@ namespace worker {
                     + " stage=" + std::to_string(receipt.ioStage) + " source=" + std::to_string(receipt.detailSource)
                     + " code=" + std::to_string(receipt.detailCode) + " truncated=" + std::to_string(receipt.messageTruncated)
                     + " finalization=" + std::to_string(receipt.finalizationError));
+    }
+    AdmittedReply PendingServiceReply::complete(const RequestIdentity& active, const ServiceObservation& observed,
+        const ServiceReceipt& receipt, const uint8_t* bytes, size_t size, const Limits& wireLimits,
+        const MeshPayloadLimits& meshLimits, const FailurePayloadLimits& failureLimits, const UvMeshPayloadLimits& uvLimits, const SourcedMeshPayloadLimits& sourceLimits, const IndexedReplyLimits& indexedLimits, const ImportedRenderLimits& importedLimits, const LegacyBakedLimits& legacyLimits, const SourceBakedLimits& sourceBakeLimits)
+    {
+        admit(active, observed, receipt);
         return decodeReply(m_request, bytes, size, wireLimits, meshLimits, failureLimits, uvLimits, sourceLimits, indexedLimits, importedLimits, legacyLimits, sourceBakeLimits);
+    }
+
+    SessionOutput PendingServiceReply::completeSession(const RequestIdentity& active, const ServiceObservation& observed,
+        const ServiceReceipt& receipt, const uint8_t* bytes, size_t size, const Limits& wireLimits, const SessionOutputLimits& limits)
+    {
+        admit(active, observed, receipt);
+        if (m_request.operation != Operation::generateSessionIndexedSourcedMesh)
+            throw ProtocolError(ProtocolErrorCode::unsupportedOperation, "Session admission requires its exact operation.");
+        const auto frame = decodeFrame(bytes, size, wireLimits);
+        validateResponseIdentity(frame.header, m_request);
+        if (frame.header.kind != FrameKind::response)
+            throw ProtocolError(ProtocolErrorCode::unexpectedResponse, "Session admission requires a complete response envelope.");
+        return decodeSessionOutput(frame.payload.data(), frame.payload.size(), limits);
     }
 
 }

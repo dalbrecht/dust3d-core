@@ -5,6 +5,7 @@
 #include "WorkerImportedRender.h"
 #include "WorkerIndexedSources.h"
 #include "WorkerLegacyBaked.h"
+#include "WorkerSessionOutput.h"
 #include "WorkerSourceBaked.h"
 #include "WorkerSourcedMesh.h"
 #include "WorkerUvMesh.h"
@@ -106,7 +107,24 @@ namespace worker {
             const Limits& wireLimits = {}, const MeshPayloadLimits& meshLimits = {},
             const FailurePayloadLimits& failureLimits = {}, const UvMeshPayloadLimits& uvLimits = {}, const SourcedMeshPayloadLimits& sourceLimits = {}, const IndexedReplyLimits& indexedLimits = {}, const ImportedRenderLimits& importedLimits = {}, const LegacyBakedLimits& legacyLimits = {}, const SourceBakedLimits& sourceBakeLimits = {});
 
+        /// Admit an operation9 session response using the same one-shot control gate.
+        /// @param active Current host document/request/revision, never reply-derived.
+        /// @param observed Trusted authenticated-transport lifetime, OS peer and actual EOF.
+        /// @param receipt Scalar callback correlated with those independent observations.
+        /// @param bytes Complete borrowed framed envelope, stable through return.
+        /// @param size Exact readable byte count.
+        /// @param wireLimits Transport frame quotas; not a process/RSS bound.
+        /// @param limits Independent session output and aggregate semantic policy.
+        /// @return Independent final outcome/diagnostics/actual optional statistics, once.
+        /// @throws Original AdmissionError, ProtocolError, codec or allocation errors;
+        /// every rejection retires the gate. Caller authenticates transport separately.
+        /// Example: auto value = pending.completeSession(active, observed, receipt, bytes, size);
+        SessionOutput completeSession(const RequestIdentity& active, const ServiceObservation& observed,
+            const ServiceReceipt& receipt, const uint8_t* bytes, size_t size,
+            const Limits& wireLimits = {}, const SessionOutputLimits& limits = {});
+
     private:
+        void admit(const RequestIdentity& active, const ServiceObservation& observed, const ServiceReceipt& receipt);
         Header m_request;
         uint64_t m_connectionGeneration;
         bool m_isRetired = false;

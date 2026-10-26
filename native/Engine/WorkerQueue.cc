@@ -89,9 +89,7 @@ namespace worker {
         return pending.complete(m_current.value_or(request.identity), outcome, bytes, size,
             m_limits, meshLimits, failureLimits, uvLimits, sourceLimits, indexedLimits, importedLimits, legacyLimits, sourceBakeLimits);
     }
-    AdmittedReply RequestQueue::completeService(const RequestIdentity& collected, const ServiceObservation& observed,
-        const ServiceReceipt& receipt, const uint8_t* bytes, size_t size,
-        const MeshPayloadLimits& meshLimits, const FailurePayloadLimits& failureLimits, const UvMeshPayloadLimits& uvLimits, const SourcedMeshPayloadLimits& sourceLimits, const IndexedReplyLimits& indexedLimits, const ImportedRenderLimits& importedLimits, const LegacyBakedLimits& legacyLimits, const SourceBakedLimits& sourceBakeLimits)
+    std::pair<Header, uint64_t> RequestQueue::collectService(const RequestIdentity& collected)
     {
         if (!m_active || !(m_active->identity == collected))
             throw QueueError(QueueErrorCode::unexpectedCompletion, "Service completion has no matching active request");
@@ -101,11 +99,30 @@ namespace worker {
         const auto generation = m_activeServiceGeneration;
         m_active.reset();
         m_activeServiceGeneration = 0;
+        return { request, generation };
+    }
+    AdmittedReply RequestQueue::completeService(const RequestIdentity& collected, const ServiceObservation& observed,
+        const ServiceReceipt& receipt, const uint8_t* bytes, size_t size,
+        const MeshPayloadLimits& meshLimits, const FailurePayloadLimits& failureLimits, const UvMeshPayloadLimits& uvLimits, const SourcedMeshPayloadLimits& sourceLimits, const IndexedReplyLimits& indexedLimits, const ImportedRenderLimits& importedLimits, const LegacyBakedLimits& legacyLimits, const SourceBakedLimits& sourceBakeLimits)
+    {
+        const auto context = collectService(collected);
+        const auto& request = context.first;
+        const auto generation = context.second;
         PendingServiceReply pending(request, generation, m_limits);
         if (!m_current)
             pending.retire();
         return pending.complete(m_current.value_or(request.identity), observed, receipt, bytes, size,
             m_limits, meshLimits, failureLimits, uvLimits, sourceLimits, indexedLimits, importedLimits, legacyLimits, sourceBakeLimits);
+    }
+
+    SessionOutput RequestQueue::completeSessionService(const RequestIdentity& collected, const ServiceObservation& observed,
+        const ServiceReceipt& receipt, const uint8_t* bytes, size_t size, const SessionOutputLimits& limits)
+    {
+        const auto context = collectService(collected);
+        PendingServiceReply pending(context.first, context.second, m_limits);
+        if (!m_current)
+            pending.retire();
+        return pending.completeSession(m_current.value_or(context.first.identity), observed, receipt, bytes, size, m_limits, limits);
     }
 
 }

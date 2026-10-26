@@ -85,6 +85,24 @@ void ordinaryCapsule(const char* fixtures)
     using Owner = std::unique_ptr<Dust3DWorkerSessionOutput, decltype(&dust3d_worker_session_output_destroy)>;
     Owner owner(dust3d_worker_session_output_decode(reply.payload.data(), reply.payload.size(), { 1048576, 1048576, 0 }, &result), dust3d_worker_session_output_destroy);
     require(owner && result.status == DUST3D_WORKER_DECODE_OK);
+    const auto expected = encodeHeader(request.header, {});
+    Dust3DWorkerReplyResult transport {};
+    std::unique_ptr<Dust3DWorkerReplyCollector, decltype(&dust3d_worker_reply_destroy)> collector(
+        dust3d_worker_service_reply_create(expected.data(), expected.size(), 7, { 1048576, 1048576, 4096 }, &transport), dust3d_worker_reply_destroy);
+    require(collector && transport.status == DUST3D_WORKER_REPLY_READY);
+    const auto frame = encodeFrame(reply, {});
+    require(dust3d_worker_reply_append(collector.get(), frame.data(), frame.size()).status == DUST3D_WORKER_REPLY_READY
+        && dust3d_worker_reply_finish(collector.get()).status == DUST3D_WORKER_REPLY_FRAMED);
+    Dust3DWorkerRequestIdentity active {};
+    active.document[0] = 1;
+    active.request = request.header.identity.request;
+    Dust3DWorkerServiceReceipt receipt {};
+    receipt.operation = DUST3D_WORKER_OPERATION_SESSION_INDEXED_SOURCED_MESH;
+    receipt.request_identity = active.request;
+    receipt.process_identifier = 1234; // Synthetic peer metadata only.
+    Owner admitted(dust3d_worker_session_service_admit(collector.get(), active, { 7, 1234 }, receipt, { 1048576, 1048576, 0 }, &result), dust3d_worker_session_output_destroy);
+    require(admitted && result.status == DUST3D_WORKER_DECODE_OK
+        && dust3d_worker_decoded_index_count(dust3d_worker_session_output_primary(admitted.get())) > 0);
     reply.payload.clear();
     const auto* primary = dust3d_worker_session_output_primary(owner.get());
     const auto summary = dust3d_worker_decoded_summary(primary);
