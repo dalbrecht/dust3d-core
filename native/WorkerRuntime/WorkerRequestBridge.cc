@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: MIT
+#include "WorkerSourceRequest.h"
 #include "WorkerUvRequest.h"
 #include <Dust3DWorkerRuntime.h>
 #include <algorithm>
@@ -110,5 +111,52 @@ extern "C" Dust3DWorkerRequest* dust3d_worker_request_create(Dust3DWorkerOperati
     return nullptr;
 }
 extern "C" const uint8_t* dust3d_worker_request_bytes(const Dust3DWorkerRequest* request, size_t* size) noexcept { return borrow(request, size, false); }
+extern "C" Dust3DWorkerRequest* dust3d_worker_source_request_create(Dust3DWorkerRequestIdentity identity,
+    const uint8_t* archive, size_t size, uint64_t maximum, Dust3DWorkerWireLimits limits, Dust3DWorkerRequestResult* result) noexcept
+{
+    if (!result)
+        return nullptr;
+    *result = {};
+    result->status = DUST3D_WORKER_REQUEST_INTERNAL_FAILED;
+    try {
+        if (!archive || !size)
+            throw SourceRequestError(SourceRequestErrorCode::invalidInput, "Source request archive is null or empty.");
+        if (size > maximumPayloadBytes - sourceRequestPrefixBytes)
+            throw SourceRequestError(SourceRequestErrorCode::limitExceeded, "Source archive exceeds supported request size.");
+        Header request;
+        request.operation = Operation::generateSourcedMesh;
+        request.payloadBytes = sourceRequestPrefixBytes + size;
+        std::copy(std::begin(identity.document), std::end(identity.document), request.identity.document.begin());
+        request.identity.request = identity.request;
+        request.identity.revision = identity.revision;
+        const auto header = encodeHeader(request, { limits.maximum_input_bytes, limits.maximum_output_bytes, limits.maximum_failure_bytes });
+        auto owner = std::make_unique<Dust3DWorkerRequest>();
+        owner->bytes = encodeSourceRequestView({ archive, size, maximum }, { limits.maximum_input_bytes, limits.maximum_input_bytes });
+        owner->bytes.insert(owner->bytes.begin(), header.begin(), header.end());
+        result->status = DUST3D_WORKER_REQUEST_OK;
+        return owner.release();
+    } catch (const ProtocolError& cause) {
+        result->status = DUST3D_WORKER_REQUEST_PROTOCOL_REJECTED;
+        result->detail_source = DUST3D_WORKER_DETAIL_FRAME;
+        result->detail_code = static_cast<int32_t>(cause.code());
+        copyCause(*result, cause.what());
+    } catch (const SourceRequestError& cause) {
+        result->status = DUST3D_WORKER_REQUEST_SOURCE_REJECTED;
+        result->detail_source = DUST3D_WORKER_DETAIL_SOURCE_REQUEST;
+        result->detail_code = static_cast<int32_t>(cause.code());
+        copyCause(*result, cause.what());
+    } catch (const std::bad_alloc& cause) {
+        result->status = DUST3D_WORKER_REQUEST_LIMIT_EXCEEDED;
+        result->detail_source = DUST3D_WORKER_DETAIL_RUNTIME;
+        copyCause(*result, cause.what());
+    } catch (const std::exception& cause) {
+        result->detail_source = DUST3D_WORKER_DETAIL_RUNTIME;
+        copyCause(*result, cause.what());
+    } catch (...) {
+        result->detail_source = DUST3D_WORKER_DETAIL_RUNTIME;
+        copyCause(*result, "Source request exception has no available diagnostic.");
+    }
+    return nullptr;
+}
 extern "C" const uint8_t* dust3d_worker_request_header(const Dust3DWorkerRequest* request, size_t* size) noexcept { return borrow(request, size, true); }
 extern "C" void dust3d_worker_request_destroy(Dust3DWorkerRequest* request) noexcept { delete request; }

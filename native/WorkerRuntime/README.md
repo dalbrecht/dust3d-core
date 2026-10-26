@@ -133,3 +133,22 @@ these logical quotas. Known-positive fixture and bounded copy-policy tests do
 not prove failed-engine containment. No source opcode, C output getter or default
 editor backend is activated. See
 [ADR 0136](../../docs/adr/0136-native-worker-source-generation.md) and #217.
+
+## Source-aware runtime route
+
+Operation 3 now carries a versioned opaque archive/source-budget request and
+returns the complete geometry/source pair. `dust3d_worker_source_request_create`
+owns framing without parsing the archive. Runtime dispatch and child/service/queue
+admission retain source values; decoded C owners provide source counts, record
+copies and borrowed original identity text. Copy text before destroying its owner.
+Existing C layouts and numbers remain unchanged; new enums/functions are additive.
+ABI version 1 is a layout version, not a source-feature negotiation flag. Use
+matching pinned client/helper sources; older workers reject the unknown opcode.
+
+Request source budget zero selects 64MiB, and a request can only tighten the
+worker's configured source copy/native-retention allowance. Parent semantic quotas
+remain independent and must reflect its own policy; a header alone does not prove
+that a producer honored request options. Logical limits exclude workspace/RSS.
+No Swift value decoder, Apple pin or default editor backend changes in this stage.
+Indexed/material/mip parity and host/editor acceptance remain open under Apple #279.
+See [ADR 0137](../../docs/adr/0137-source-aware-worker-runtime.md) and #219.

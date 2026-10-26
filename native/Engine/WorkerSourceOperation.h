@@ -2,6 +2,7 @@
 #ifndef DUST3D_NATIVE_WORKER_SOURCE_OPERATION_H_
 #define DUST3D_NATIVE_WORKER_SOURCE_OPERATION_H_
 #include "WorkerOperation.h"
+#include "WorkerSourceRequest.h"
 #include "WorkerSourcedMesh.h"
 #include <variant>
 
@@ -24,6 +25,13 @@ namespace worker {
     /// This adapter does not activate an opcode or enforce CPU, process-memory or isolation limits.
     /// Example: auto generated = generateSourcedMesh(archive, {});
     SourcedGenerationResult generateSourcedMesh(const std::vector<uint8_t>& archive, const SourcedMeshPayloadLimits& limits);
+    /// Validate one complete source request and generate its identity-correlated pair/failure frame.
+    /// @param request Exact source-opcode request; archive/options are decoded before native execution.
+    /// @param limits Positive supported independent and aggregate copy policy.
+    /// @return Complete response or original typed failure; request source budget can only tighten policy.
+    /// @throws Protocol/SourceRequest/codec or allocation errors; never returns partial output.
+    /// Example: auto reply = generateSourcedMeshReply(request, {});
+    Frame generateSourcedMeshReply(const Frame& request, const SourcedMeshPayloadLimits& limits);
 }
 }
 #endif
