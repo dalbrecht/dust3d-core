@@ -21,7 +21,9 @@ No native pointers escape, no archive write occurs, and no alternate parent path
 is selected automatically.
 
 `prepareImportedRender` is a portable value boundary. It validates complete facts
-and surface, returns absence for no rendered model, then resolves exact byte keys
+and surface, returns absence for no rendered model, compacts the model catalog to triangle-referenced identities, preserves catalog
+order and remaps triangle model indices (unknown ownership remains unknown), then
+resolves exact byte keys
 before moving definitions. It selects catalog-order definitions, discards unused
 facts/bindings from the render result and retains each encoded image. Duplicate
 facts reject through the original material validator. Missing selected definitions
@@ -61,11 +63,11 @@ quota/shape failures, native scalar-policy guards and owned native failure data.
 Native integration uses only existing positive ImportedSurface and Capsule fixtures
 with a fake decoder. These tests do not claim actual PNG/JPEG pixel correctness.
 
-All 164 ordinary CTests pass (40.36 seconds), with ten source/build-spec hashes
-unchanged across the final gate. SwiftPM runtime builds (1.36 seconds), retaining
+All 164 ordinary CTests pass (33.31 seconds), with ten source/build-spec hashes
+unchanged across the final gate. SwiftPM runtime builds (1.03 seconds), retaining
 its existing native-builder deprecation. Selected pure/native producer code passes
-ASan/UBSan with leak detection disabled. Pure producer: 70/70 lines, 41/41 regions,
-6/6 functions and 34/34 branch outcomes. Native wrapper: 32/34 lines, 25/27 regions,
+ASan/UBSan with leak detection disabled. Pure producer: 86/86 lines, 52/52 regions,
+6/6 functions and 46/46 branch outcomes. Native wrapper: 32/34 lines, 25/27 regions,
 2/2 functions and 15/18 outcomes. Actual native load failures and oversized archive
 storage are unprobed; do not add malformed/fault/pressure probes to increase coverage.
 Linked inherited engine code is not fully instrumented, and no leak/full-engine
@@ -81,3 +83,9 @@ Linux CI initially rejected a multiline pure-virtual declaration under clang-for
 both versions; the complete local gate was rerun after that formatting-only fix.
 Formatter 18 was cached as a validation tool in the single shared build root;
 repository dependencies and CI configuration were unchanged.
+
+Automated review identified that native catalogs include disabled, unreferenced
+models. A fake-decoder regression reproduced unwanted decoding; compaction now
+excludes those identities and remaps referenced triangle indices, including a
+mixed known/unknown ownership regression. Unused images cannot consume decoding
+budget or fail visible rendering through this producer.

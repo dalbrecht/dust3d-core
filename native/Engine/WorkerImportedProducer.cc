@@ -32,9 +32,27 @@ namespace worker {
         validateImportedProducerLimits(limits);
         // Complete facts validate before unused definitions are discarded.
         (void)encodeImportedMaterialsPayload(facts, limits.facts);
-        const auto surfaceWire = encodeImportedSurfacePayload(surface, limits.render.surface);
+        (void)encodeImportedSurfacePayload(surface, limits.render.surface);
         if (facts.materials.empty() || std::none_of(surface.triangles.begin(), surface.triangles.end(), [](const ImportedSurfaceTriangle& triangle) { return triangle.modelIndex != noImportedIdentity; }))
             return std::nullopt;
+        // Native catalogs include disabled parts. Keep only referenced identities,
+        // preserving catalog order and remapping source records before image work.
+        std::vector<bool> referenced(surface.models.size(), false);
+        for (const auto& triangle : surface.triangles)
+            if (triangle.modelIndex != noImportedIdentity)
+                referenced[static_cast<size_t>(triangle.modelIndex)] = true;
+        std::vector<uint64_t> remap(surface.models.size(), noImportedIdentity);
+        std::vector<std::string> models;
+        for (size_t index = 0; index < surface.models.size(); ++index)
+            if (referenced[index]) {
+                remap[index] = models.size();
+                models.push_back(std::move(surface.models[index]));
+            }
+        for (auto& triangle : surface.triangles)
+            if (triangle.modelIndex != noImportedIdentity)
+                triangle.modelIndex = remap[static_cast<size_t>(triangle.modelIndex)];
+        surface.models = std::move(models);
+        const auto surfaceWire = encodeImportedSurfacePayload(surface, limits.render.surface);
         std::unordered_map<std::string_view, size_t> definitions;
         for (size_t index = 0; index < facts.materials.size(); ++index)
             definitions.emplace(facts.materials[index].modelId, index);

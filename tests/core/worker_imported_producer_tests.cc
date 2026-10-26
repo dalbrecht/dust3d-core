@@ -134,6 +134,11 @@ void boundaries()
     decoder.mode = 3;
     auto two = surface();
     two.models.push_back("Unused");
+    const auto secondGeometry = two.geometry.vertices;
+    two.geometry.vertices.insert(two.geometry.vertices.end(), secondGeometry.begin(), secondGeometry.end());
+    auto secondTriangle = two.triangles.front();
+    secondTriangle.modelIndex = 1;
+    two.triangles.push_back(secondTriangle);
     auto definitions = facts();
     definitions.materials[0].sampler = ImportedMaterialSampler {};
     definitions.materials[0].image = ImportedEncodedImage { ImportedImageEncoding::png, { 7 } };
@@ -160,10 +165,25 @@ int main()
             "Surface-order join decodes only used models and preserves encoded and decoded ownership");
         const auto wire = encodeImportedRenderPayload(*value, {});
         require(encodeImportedRenderPayload(decodeImportedRenderPayload(wire.data(), wire.size(), {}), {}) == wire, "Prepared output satisfies complete render contract");
+        auto disabled = surface();
+        disabled.models = { "Unused", "Used" };
+        disabled.triangles[0].modelIndex = 1;
+        const auto unknownGeometry = disabled.geometry.vertices;
+        disabled.geometry.vertices.insert(disabled.geometry.vertices.end(), unknownGeometry.begin(), unknownGeometry.end());
+        disabled.triangles.push_back(ImportedSurfaceTriangle {});
+        auto disabledFacts = facts();
+        disabledFacts.materials[0].sampler = ImportedMaterialSampler {};
+        disabledFacts.materials[0].image = ImportedEncodedImage { ImportedImageEncoding::png, { 9 } };
+        const auto previousCalls = decoder.calls;
+        auto compact = prepareImportedRender(disabled, disabledFacts, decoder, {});
+        require(compact && decoder.calls == previousCalls + 1 && compact->surface.models == std::vector<std::string>({ "Used" })
+                && compact->surface.triangles[0].modelIndex == 0 && compact->surface.triangles[1].modelIndex == noImportedIdentity
+                && compact->materials.materials[0].modelId == "Used",
+            "Disabled unreferenced catalog models do not decode and triangle indices remap to compact order");
         auto procedural = surface();
         procedural.models.clear();
         procedural.triangles[0].modelIndex = noImportedIdentity;
-        require(!prepareImportedRender(procedural, facts(), decoder, {}) && decoder.calls == 1,
+        require(!prepareImportedRender(procedural, facts(), decoder, {}) && decoder.calls == previousCalls + 1,
             "No rendered imported model returns absence without decoder work");
     } catch (const std::exception& cause) {
         std::cerr << cause.what() << '\n';
