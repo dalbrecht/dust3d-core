@@ -40,7 +40,7 @@ namespace worker {
         void validateContext(const FailureResourceContext& value)
         {
             if ((value.role != FailureResourceRole::proceduralImage && value.role != FailureResourceRole::importedImage)
-                || value.identity.empty() || value.identity.size() > 38 || !detail::isIdentityUtf8(value.identity))
+                || value.identity.empty() || value.identity.size() > maximumFailureResourceIdentityBytes || !detail::isIdentityUtf8(value.identity))
                 reject(FailurePayloadErrorCode::invalidLayout, "Worker failure resource context is invalid.");
         }
         size_t plan(uint64_t causeBytes, size_t prefix, const FailurePayloadLimits& limits)

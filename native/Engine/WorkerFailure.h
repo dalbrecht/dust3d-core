@@ -41,6 +41,7 @@ namespace worker {
         uint8_t causeTruncated = 0;
     };
     constexpr size_t contextualFailurePrefixBytes = 32;
+    constexpr size_t maximumFailureResourceIdentityBytes = 38;
     enum class FailureResourceRole : uint16_t { proceduralImage = 1,
         importedImage = 2 };
     struct FailureResourceContext {

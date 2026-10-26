@@ -1273,3 +1273,15 @@ and positive Capsule round-trip evidence are in [ADR 0156](adr/0156-worker-sessi
 Authenticated host adoption, correlated transport, C/Swift ownership, platform
 decoding, Apple #279/#280 and M4–M8 acceptance remain incomplete. Production pin,
 backend and feature quarantines are unchanged.
+
+### Correlated worker session producer (#251)
+
+Operation 9 now has an explicit host-owned C++ session producer with source-budget
+requests and exact response identities. Diagnostic reservation and bounded original
+causes prevent host policy from being ignored; ordinary Capsule reuse/ownership
+and pure preflight tests pass. All 200 contracts and the SwiftPM runtime build pass;
+see [ADR 0157](adr/0157-worker-session-operation.md) for scoped sanitizer/coverage
+and conservative reservation limits. Legacy stateless/C/host admission rejects the
+operation pending dedicated ownership support. Authenticated serving, C/Swift/XPC
+integration, Apple #279/#280 range parity and M4–M8 acceptance remain open. Production
+pin/backend and quarantines are unchanged.
