@@ -8,6 +8,7 @@
 namespace dust3d {
 namespace worker {
     using IndexedSourceGenerationResult = std::variant<IndexedSourcesPayload, FailurePayload>;
+    using IndexedGenerationResult = std::variant<IndexedMeshPayload, FailurePayload>;
     /// Copy a stable borrowed indexed owner under checked output policies.
     /// @param owner Live immutable native indexed mesh, retained until return.
     /// @param limits Supported wire/count/logical quotas, not native workspace/RSS limits.
@@ -31,6 +32,28 @@ namespace worker {
     /// Native generation/index lookup workspace, CPU and RSS remain outside these logical quotas.
     /// Example: auto result = generateIndexedSourcedMesh(archive, {});
     IndexedSourceGenerationResult generateIndexedSourcedMesh(const std::vector<uint8_t>& archive, const IndexedSourcesPayloadLimits& limits);
+    /// Generate ordinary indexed geometry independently of optional source hints.
+    /// @param archive Stable complete borrowed archive bytes, retained until return.
+    /// @param limits Supported copy policy, validated before native execution.
+    /// @return Complete owned indexed mesh or original bounded typed failure.
+    /// @throws Invalid configuration before execution; failure-reply allocation may throw.
+    /// Native lookup workspace, CPU and RSS are outside the logical record allowance.
+    /// Example: auto result = generateIndexedMesh(archive, {});
+    IndexedGenerationResult generateIndexedMesh(const std::vector<uint8_t>& archive, const IndexedMeshPayloadLimits& limits);
+    /// Validate a complete indexed-source request and return a correlated pair/failure frame.
+    /// @param request Stable exact source-budget request, operation 4, request kind.
+    /// @param limits Supported aggregate/inner policies; requested budget can only tighten them.
+    /// @return Complete independent version-two pair or original typed failure.
+    /// @throws Protocol/request/policy/codec or allocation errors; no partial reply.
+    /// Example: auto reply = generateIndexedSourcesReply(request, {});
+    Frame generateIndexedSourcesReply(const Frame& request, const IndexedSourcesPayloadLimits& limits);
+    /// Validate a complete ordinary indexed request and return a correlated mesh/failure frame.
+    /// @param request Stable exact raw archive request, operation 5, request kind.
+    /// @param limits Supported geometry policies, validated before generation.
+    /// @return Complete independent indexed mesh or original typed failure.
+    /// @throws Protocol/policy/codec or allocation errors; no partial reply.
+    /// Example: auto reply = generateIndexedMeshReply(request, {});
+    Frame generateIndexedMeshReply(const Frame& request, const IndexedMeshPayloadLimits& limits);
 }
 }
 #endif

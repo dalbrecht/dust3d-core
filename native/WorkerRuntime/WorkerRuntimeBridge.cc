@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 #include "WorkerFailure.h"
+#include "WorkerIndexedSources.h"
 #include "WorkerJobIO.h"
 #include "WorkerSourceRequest.h"
 #include "WorkerSourcedMesh.h"
@@ -78,6 +79,10 @@ extern "C" Dust3DWorkerJobResult dust3d_worker_serve(int32_t input, int32_t outp
         rejectCodec(result, DUST3D_WORKER_DETAIL_SOURCE_HINTS, cause);
     } catch (const SourcedMeshPayloadError& cause) {
         rejectCodec(result, DUST3D_WORKER_DETAIL_SOURCED_MESH, cause);
+    } catch (const IndexedMeshPayloadError& cause) {
+        rejectCodec(result, DUST3D_WORKER_DETAIL_INDEXED_MESH, cause);
+    } catch (const IndexedSourcesPayloadError& cause) {
+        rejectCodec(result, DUST3D_WORKER_DETAIL_INDEXED_SOURCES, cause);
     } catch (const FailurePayloadError& cause) {
         rejectCodec(result, DUST3D_WORKER_DETAIL_FAILURE, cause);
     } catch (const std::bad_alloc& cause) {
@@ -98,5 +103,9 @@ extern "C" Dust3DWorkerJobResult dust3d_worker_serve(int32_t input, int32_t outp
         result.operation = DUST3D_WORKER_OPERATION_UV_MESH;
     else if (context.operation == Operation::generateSourcedMesh)
         result.operation = DUST3D_WORKER_OPERATION_SOURCED_MESH;
+    else if (context.operation == Operation::generateIndexedSourcedMesh)
+        result.operation = DUST3D_WORKER_OPERATION_INDEXED_SOURCED_MESH;
+    else if (context.operation == Operation::generateIndexedMesh)
+        result.operation = DUST3D_WORKER_OPERATION_INDEXED_MESH;
     return result;
 }

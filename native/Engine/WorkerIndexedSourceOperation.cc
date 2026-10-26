@@ -3,6 +3,7 @@
 #include "WorkerIndexedCopyBudget.h"
 #include "WorkerOperation.h"
 #include "WorkerSourceCopy.h"
+#include "WorkerSourceRequest.h"
 #include <algorithm>
 #include <limits>
 #include <memory>
@@ -56,6 +57,16 @@ namespace worker {
             while (size < FailurePayloadLimits {}.maximumCauseBytes && cause[size])
                 ++size;
             return { status, { cause, cause + size } };
+        }
+        void validateRequest(const Frame& request, Operation operation)
+        {
+            (void)encodeHeader(request.header, {});
+            if (request.header.operation != operation)
+                throw ProtocolError(ProtocolErrorCode::unsupportedOperation, "Indexed request requires its exact opcode.");
+            if (request.header.kind != FrameKind::request)
+                throw ProtocolError(ProtocolErrorCode::unexpectedResponse, "Indexed operation requires a request frame.");
+            if (request.header.payloadBytes != request.payload.size())
+                throw ProtocolError(ProtocolErrorCode::invalidInput, "Indexed request length does not match its header.");
         }
     }
     IndexedMeshPayload copyNativeIndexedMesh(const Dust3DIndexedMesh* owner, const IndexedMeshPayloadLimits& limits)
@@ -148,6 +159,77 @@ namespace worker {
         } catch (...) {
             return copyFailure(FailureStatus::generationFailed, "Native indexed/source operation threw without a diagnostic.");
         }
+    }
+    IndexedGenerationResult generateIndexedMesh(const std::vector<uint8_t>& archive, const IndexedMeshPayloadLimits& limits)
+    {
+        validateIndexedMeshPayloadLimits(limits);
+        try {
+            Dust3DError error {};
+            std::unique_ptr<Dust3DMesh, decltype(&dust3d_mesh_destroy)> source(
+                dust3d_mesh_load(archive.data(), archive.size(), &error), dust3d_mesh_destroy);
+            if (error.status != DUST3D_STATUS_OK)
+                return copyNativeFailure(error);
+            if (!source)
+                return copyFailure(FailureStatus::generationFailed, "Native indexed generation returned no source owner.");
+            const auto budget = calculateNativeIndexBudget(source.get(), dust3d_mesh_vertex_count(source.get()), limits);
+            std::unique_ptr<Dust3DIndexedMesh, decltype(&dust3d_indexed_mesh_destroy)> indexed(
+                dust3d_mesh_create_indexed(source.get(), budget, &error), dust3d_indexed_mesh_destroy);
+            if (error.status != DUST3D_STATUS_OK)
+                return copyNativeFailure(error);
+            if (!indexed)
+                return copyFailure(FailureStatus::generationFailed, "Native indexed success returned no owner.");
+            source.reset();
+            auto result = copyNativeIndexedMesh(indexed.get(), limits);
+            indexed.reset();
+            return result;
+        } catch (const IndexedMeshPayloadError& cause) {
+            return copyFailure(cause.code() == IndexedMeshPayloadErrorCode::limitExceeded ? FailureStatus::limitExceeded : FailureStatus::generationFailed, cause.what());
+        } catch (const MeshPayloadError& cause) {
+            return copyFailure(cause.code() == MeshPayloadErrorCode::limitExceeded ? FailureStatus::limitExceeded : FailureStatus::generationFailed, cause.what());
+        } catch (const std::bad_alloc& cause) {
+            return copyFailure(FailureStatus::limitExceeded, cause.what());
+        } catch (const std::exception& cause) {
+            return copyFailure(FailureStatus::generationFailed, cause.what());
+        } catch (...) {
+            return copyFailure(FailureStatus::generationFailed, "Native indexed operation threw without a diagnostic.");
+        }
+    }
+    Frame generateIndexedSourcesReply(const Frame& request, const IndexedSourcesPayloadLimits& limits)
+    {
+        validateRequest(request, Operation::generateIndexedSourcedMesh);
+        validateIndexedSourcesPayloadLimits(limits);
+        const auto decoded = decodeSourceRequest(request.payload.data(), request.payload.size(), {});
+        auto policy = limits;
+        const auto requested = decoded.maximumSourceBytes ? decoded.maximumSourceBytes : DUST3D_DEFAULT_SOURCE_PAYLOAD_BYTES;
+        policy.sources.maximumDecodedBytes = std::min(policy.sources.maximumDecodedBytes, requested);
+        auto generated = generateIndexedSourcedMesh(decoded.archive, policy);
+        auto header = request.header;
+        std::vector<uint8_t> bytes;
+        if (const auto* value = std::get_if<IndexedSourcesPayload>(&generated)) {
+            header.kind = FrameKind::response;
+            bytes = encodeIndexedSourcesPayload(*value, policy);
+        } else {
+            header.kind = FrameKind::failure;
+            bytes = encodeFailurePayload(std::get<FailurePayload>(generated), {});
+        }
+        header.payloadBytes = bytes.size();
+        return { header, std::move(bytes) };
+    }
+    Frame generateIndexedMeshReply(const Frame& request, const IndexedMeshPayloadLimits& limits)
+    {
+        validateRequest(request, Operation::generateIndexedMesh);
+        auto generated = generateIndexedMesh(request.payload, limits);
+        auto header = request.header;
+        std::vector<uint8_t> bytes;
+        if (const auto* value = std::get_if<IndexedMeshPayload>(&generated)) {
+            header.kind = FrameKind::response;
+            bytes = encodeIndexedMeshPayload(*value, limits);
+        } else {
+            header.kind = FrameKind::failure;
+            bytes = encodeFailurePayload(std::get<FailurePayload>(generated), {});
+        }
+        header.payloadBytes = bytes.size();
+        return { header, std::move(bytes) };
     }
 }
 }

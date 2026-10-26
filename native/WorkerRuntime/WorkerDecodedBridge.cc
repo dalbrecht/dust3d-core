@@ -54,6 +54,24 @@ const MeshPayload* geometry(const Dust3DWorkerDecodedReply* reply) noexcept
         return &pair->geometry;
     return nullptr;
 }
+const IndexedMeshPayload* indexedGeometry(const Dust3DWorkerDecodedReply* reply) noexcept
+{
+    if (!reply)
+        return nullptr;
+    if (const auto* mesh = std::get_if<IndexedMeshPayload>(&reply->value))
+        return mesh;
+    if (const auto* pair = std::get_if<IndexedSourcesPayload>(&reply->value))
+        return &pair->geometry;
+    return nullptr;
+}
+const std::vector<MeshVertex>* vertexBuffer(const Dust3DWorkerDecodedReply* reply) noexcept
+{
+    if (const auto* mesh = geometry(reply))
+        return &mesh->vertices;
+    if (const auto* mesh = indexedGeometry(reply))
+        return &mesh->vertices;
+    return nullptr;
+}
 const UvPayload* uv(const Dust3DWorkerDecodedReply* reply) noexcept
 {
     if (!reply)
@@ -65,8 +83,11 @@ const SourceHintPayload* sources(const Dust3DWorkerDecodedReply* reply) noexcept
 {
     if (!reply)
         return nullptr;
-    const auto* pair = std::get_if<SourcedMeshPayload>(&reply->value);
-    return pair ? &pair->sources : nullptr;
+    if (const auto* pair = std::get_if<SourcedMeshPayload>(&reply->value))
+        return &pair->sources;
+    if (const auto* pair = std::get_if<IndexedSourcesPayload>(&reply->value))
+        return &pair->sources;
+    return nullptr;
 }
 }
 namespace {
@@ -107,6 +128,10 @@ Dust3DWorkerDecodedReply* protectDecoded(Dust3DWorkerReplyCollector* owner, uint
         rejectCodec(*result, DUST3D_WORKER_DETAIL_SOURCE_HINTS, cause);
     } catch (const SourcedMeshPayloadError& cause) {
         rejectCodec(*result, DUST3D_WORKER_DETAIL_SOURCED_MESH, cause);
+    } catch (const IndexedMeshPayloadError& cause) {
+        rejectCodec(*result, DUST3D_WORKER_DETAIL_INDEXED_MESH, cause);
+    } catch (const IndexedSourcesPayloadError& cause) {
+        rejectCodec(*result, DUST3D_WORKER_DETAIL_INDEXED_SOURCES, cause);
     } catch (const FailurePayloadError& cause) {
         rejectCodec(*result, DUST3D_WORKER_DETAIL_FAILURE, cause);
     } catch (const std::bad_alloc& cause) {
@@ -135,29 +160,22 @@ extern "C" Dust3DWorkerDecodedReply* dust3d_worker_reply_decode(Dust3DWorkerRepl
         validateResponseIdentity(header, owner->expected);
         const auto* body = owner->bytes.data() + headerBytes;
         const auto size = owner->bytes.size() - headerBytes;
-        if (header.kind == FrameKind::failure) {
-            FailurePayloadLimits policy;
-            policy.maximumWireBytes = std::min(policy.maximumWireBytes, owner->policy.maximumFailureBytes);
-            policy.maximumCauseBytes = std::min({ policy.maximumCauseBytes, maximum, policy.maximumWireBytes });
-            return decodeFailurePayload(body, size, policy);
-        } else if (header.operation == Operation::generateMesh) {
-            MeshPayloadLimits policy;
-            policy.maximumWireBytes = owner->policy.maximumOutputBytes;
-            policy.maximumDecodedBytes = maximum;
-            return decodeMeshPayload(body, size, policy);
-        } else if (header.operation == Operation::generateSourcedMesh) {
-            const auto policy = bridge::semanticPolicies(owner->policy, maximum);
+        const auto policy = bridge::semanticPolicies(owner->policy, maximum);
+        if (header.kind == FrameKind::failure)
+            return decodeFailurePayload(body, size, policy.failure);
+        switch (header.operation) {
+        case Operation::generateMesh:
+            return decodeMeshPayload(body, size, policy.mesh);
+        case Operation::generateUvMesh:
+            return decodeUvMeshPayload(body, size, policy.uv);
+        case Operation::generateSourcedMesh:
             return decodeSourcedMeshPayload(body, size, policy.sources);
-        } else {
-            UvMeshPayloadLimits policy;
-            policy.maximumWireBytes = owner->policy.maximumOutputBytes;
-            policy.maximumDecodedBytes = maximum;
-            policy.geometry.maximumWireBytes = policy.maximumWireBytes;
-            policy.geometry.maximumDecodedBytes = maximum;
-            policy.uv.maximumWireBytes = policy.maximumWireBytes;
-            policy.uv.maximumDecodedBytes = maximum;
-            return decodeUvMeshPayload(body, size, policy);
+        case Operation::generateIndexedSourcedMesh:
+            return decodeIndexedSourcesPayload(body, size, policy.indexed.sourcedMesh);
+        case Operation::generateIndexedMesh:
+            return decodeIndexedMeshPayload(body, size, policy.indexed.mesh);
         }
+        throw ProtocolError(ProtocolErrorCode::unsupportedOperation, "Decoded operation is unsupported.");
     });
 }
 extern "C" Dust3DWorkerDecodedReply* dust3d_worker_service_admit(Dust3DWorkerReplyCollector* owner,
@@ -174,14 +192,20 @@ extern "C" Dust3DWorkerDecodedReply* dust3d_worker_service_admit(Dust3DWorkerRep
         const auto policy = bridge::semanticPolicies(value.policy, maximum);
         PendingServiceReply pending(value.expected, value.serviceConnectionGeneration, value.policy);
         return pending.complete(identity, { observed.connection_generation, observed.process_identifier, value.isFramed },
-            control, value.bytes.data(), value.bytes.size(), value.policy, policy.mesh, policy.failure, policy.uv, policy.sources);
+            control, value.bytes.data(), value.bytes.size(), value.policy, policy.mesh, policy.failure, policy.uv, policy.sources, policy.indexed);
     });
 }
 
 extern "C" Dust3DWorkerDecodedSummary dust3d_worker_decoded_summary(const Dust3DWorkerDecodedReply* reply) noexcept
 {
     Dust3DWorkerDecodedSummary result {};
-    if (const auto* mesh = geometry(reply)) {
+    if (const auto* mesh = indexedGeometry(reply)) {
+        result.kind = sources(reply) ? DUST3D_WORKER_DECODED_INDEXED_SOURCED_MESH : DUST3D_WORKER_DECODED_INDEXED_MESH;
+        result.vertex_count = mesh->vertices.size();
+        result.triangle_count = mesh->indices.size() / 3;
+        result.node_count = mesh->nodeCount;
+        result.part_count = mesh->partCount;
+    } else if (const auto* mesh = geometry(reply)) {
         result.kind = DUST3D_WORKER_DECODED_MESH;
         result.vertex_count = mesh->vertices.size();
         result.node_count = mesh->nodeCount;
@@ -257,13 +281,27 @@ extern "C" const char* dust3d_worker_decoded_source_part(const Dust3DWorkerDecod
 {
     return borrowSourceIdentity(reply, index, size, true);
 }
+extern "C" size_t dust3d_worker_decoded_index_count(const Dust3DWorkerDecodedReply* reply) noexcept
+{
+    const auto* mesh = indexedGeometry(reply);
+    return mesh ? mesh->indices.size() : 0;
+}
+extern "C" int dust3d_worker_decoded_indices(const Dust3DWorkerDecodedReply* reply, size_t first, size_t count, uint32_t* output) noexcept
+{
+    const auto* mesh = indexedGeometry(reply);
+    if (!mesh || first > mesh->indices.size() || count > mesh->indices.size() - first || (count && !output))
+        return 0;
+    if (count)
+        std::copy_n(mesh->indices.data() + first, count, output);
+    return 1;
+}
 extern "C" int dust3d_worker_decoded_vertices(const Dust3DWorkerDecodedReply* reply, size_t first, size_t count, Dust3DWorkerVertex* output) noexcept
 {
-    const auto* mesh = geometry(reply);
-    if (!mesh || first > mesh->vertices.size() || count > mesh->vertices.size() - first || (count && !output))
+    const auto* vertices = vertexBuffer(reply);
+    if (!vertices || first > vertices->size() || count > vertices->size() - first || (count && !output))
         return 0;
     for (size_t i = 0; i < count; ++i) {
-        const auto& source = mesh->vertices[first + i];
+        const auto& source = (*vertices)[first + i];
         std::copy(source.position.begin(), source.position.end(), output[i].position);
         std::copy(source.normal.begin(), source.normal.end(), output[i].normal);
         std::copy(source.color.begin(), source.color.end(), output[i].color);
@@ -327,10 +365,13 @@ extern "C" const char* dust3d_worker_decoded_warning(const Dust3DWorkerDecodedRe
         return nullptr;
     *size = 0;
     const auto* mesh = geometry(reply);
-    if (!mesh)
+    const auto* indexed = indexedGeometry(reply);
+    const auto* warning = mesh ? &mesh->warning : indexed ? &indexed->warning
+                                                          : nullptr;
+    if (!warning)
         return nullptr;
-    *size = mesh->warning.size();
-    return mesh->warning.data();
+    *size = warning->size();
+    return warning->data();
 }
 extern "C" const char* dust3d_worker_decoded_component(const Dust3DWorkerDecodedReply* reply, size_t index, size_t* size) noexcept
 {
