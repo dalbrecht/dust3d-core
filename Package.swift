@@ -34,7 +34,7 @@ let package = Package(
                 "Engine/WorkerSourceOperation.cc", "Engine/WorkerSourceRequest.cc",
                 "Engine/WorkerIndexedCopyBudget.cc", "Engine/WorkerIndexedSourceOperation.cc",
                 "Engine/WorkerIndexedSources.cc", "Engine/WorkerGenerationStatistics.cc",
-                "Engine/WorkerGenerationStatisticsCopy.cc",
+                "Engine/WorkerGenerationStatisticsCopy.cc", "Engine/WorkerNativeSession.cc",
                 "Engine/WorkerSourceBakeOperation.cc", "Engine/WorkerSourceBakeRequest.cc",
                 "Engine/WorkerSourceProducerNative.cc", "Engine/WorkerSourceProducer.cc",
                 "Engine/WorkerLegacyRequest.cc", "Engine/WorkerLegacyOperation.cc",

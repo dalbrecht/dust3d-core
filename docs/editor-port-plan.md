@@ -1241,3 +1241,14 @@ coverage is complete; ordinary sequential Capsule reuse/reset and scoped adapter
 checks pass. See [ADR 0153](adr/0153-worker-generation-statistics.md). This does not
 complete persistent worker lifecycle, same-call output correlation, host/Swift
 transport, Apple #279/#280 or M4–M8 acceptance. The production pin is unchanged.
+
+### Worker native session foundation (#251)
+
+One worker-owned native session now retains actual document cache state across
+indexed/source requests and owns each returned output. Statuses3/4 trigger ordinary
+indexed generation in that same session; original source and fallback causes survive.
+Final-call statistics failures remain separate from geometry. All 195 ordinary
+contracts pass, with scoped positive native sanitizers and complete pure-result
+policy coverage. See [ADR 0154](adr/0154-worker-native-session.md). Connection/host
+lifecycle, request/revision correlation, C/Swift transport, Apple #279/#280 and full
+M4–M8 acceptance remain incomplete. Production pin and quarantines are unchanged.
