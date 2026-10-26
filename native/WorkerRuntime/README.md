@@ -152,3 +152,11 @@ that a producer honored request options. Logical limits exclude workspace/RSS.
 No Swift value decoder, Apple pin or default editor backend changes in this stage.
 Indexed/material/mip parity and host/editor acceptance remain open under Apple #279.
 See [ADR 0137](../../docs/adr/0137-source-aware-worker-runtime.md) and #219.
+
+`WorkerIndexedMesh` now transfers an owned vertex table and exact UInt32 triangle
+index order with source counts and warning text. It shares the expanded codec's
+finite/unit/color/area/UTF8 validation. Complete frame, count, index and geometry
+inspection precedes decoded arrays; no deduplication or normalization occurs in
+the codec. This closes a wire-value prerequisite, not indexed/source runtime or
+editor adoption. See [ADR 0138](../../docs/adr/0138-indexed-worker-geometry.md)
+and #221.

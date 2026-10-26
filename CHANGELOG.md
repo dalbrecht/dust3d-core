@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Preserve indexed vertex tables, triangle-corner index order and source counts in a bounded worker geometry codec sharing existing mesh validation; runtime adoption remains separate (#221).
+
 - Route source-aware worker requests through native generation, child/service/queue admission and independently owned C source output; editor adoption remains separate (#219).
 
 - Copy source-associated native geometry into independently owned worker values with preflight copy quotas; runtime opcode/editor activation remain separate (#217).
