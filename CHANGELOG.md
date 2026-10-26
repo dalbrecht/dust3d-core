@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Prepare independently owned referenced procedural image bytes through bounded metadata admission and the validated native archive reader, without decoding imported GLB payloads (#245).
+
 - Route complete imported rendering through explicit decoder-equipped worker jobs, child/service/queue admission and owned C getters, preserving request budgets and detailed original failures (#243).
 
 - Add explicit C image ownership and bounded callback diagnostics for worker-side platform decoding, with a portable producer adapter; runtime/Apple activation remains separate (#241).
