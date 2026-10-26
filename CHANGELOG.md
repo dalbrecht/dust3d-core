@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Route source-aware worker requests through native generation, child/service/queue admission and independently owned C source output; editor adoption remains separate (#219).
+
 - Copy source-associated native geometry into independently owned worker values with preflight copy quotas; runtime opcode/editor activation remain separate (#217).
 
 - Pair owned worker geometry/source values with shared inspection, matching source counts and aggregate admission before decoded output; operation and C ABI activation remain separate (#215).

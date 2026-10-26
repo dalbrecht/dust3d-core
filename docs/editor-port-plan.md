@@ -1061,3 +1061,14 @@ releases capacity while preserving the latest waiting source. The child-exit
 path stays separate. Scoped queue tests cover every implementation line/branch;
 all 140 ordinary contracts pass. C/Swift runtime and host/editor adoption remain
 pending. See [ADR0131](adr/0131-bounded-service-request-queue.md) and #182.
+
+### Source-aware worker output route (#219)
+
+The native worker now has a bounded source-budget request, generation dispatch,
+paired geometry/source semantic admission for child/service/queue paths and
+independent C output getters. Fresh known-positive Capsule runtime generation and
+bounded pure codec/state/ownership tests pass; all 148 ordinary contracts pass.
+See [ADR0137](adr/0137-source-aware-worker-runtime.md). This closes one source-output
+gap, not Apple #279 or M8: owned Swift conversion, indexed/material/mip parity,
+reviewed dependency adoption and native editor/host acceptance remain open. The
+Apple production pin and all feature/fault quarantines remain unchanged.

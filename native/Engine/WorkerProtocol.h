@@ -17,7 +17,8 @@ namespace worker {
         response = 2,
         failure = 3 };
     enum class Operation : uint16_t { generateMesh = 1,
-        generateUvMesh = 2 };
+        generateUvMesh = 2,
+        generateSourcedMesh = 3 };
     enum class ProtocolErrorCode { invalidInput,
         invalidLimits,
         truncated,

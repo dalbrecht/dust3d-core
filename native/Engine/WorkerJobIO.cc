@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 #include "WorkerJobIO.h"
 #include "WorkerOperation.h"
+#include "WorkerSourceOperation.h"
 #include "WorkerUvOperation.h"
 #include <algorithm>
 #include <array>
@@ -49,6 +50,8 @@ namespace worker {
             return "generateMesh";
         if (operation == Operation::generateUvMesh)
             return "generateUvMesh";
+        if (operation == Operation::generateSourcedMesh)
+            return "generateSourcedMesh";
         return "unknown";
     }
     WorkerIoResult writeWorkerBytes(int descriptor, const uint8_t* bytes, size_t size) noexcept
@@ -89,7 +92,9 @@ namespace worker {
             throw ProtocolError(ProtocolErrorCode::trailingData, "Worker accepts exactly one request followed by EOF.");
         if (end.error)
             throw WorkerJobIOError(WorkerJobStage::input, end.error);
-        auto response = header.operation == Operation::generateUvMesh ? generateUvMeshReply(request, {}) : generateMeshReply(request, {});
+        auto response = header.operation == Operation::generateSourcedMesh ? generateSourcedMeshReply(request, {})
+            : header.operation == Operation::generateUvMesh                ? generateUvMeshReply(request, {})
+                                                                           : generateMeshReply(request, {});
         std::vector<uint8_t>().swap(request.payload);
         const auto reply = encodeFrame(response, {});
         const auto written = writeWorkerBytes(output, reply.data(), reply.size());

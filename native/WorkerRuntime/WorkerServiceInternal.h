@@ -24,12 +24,13 @@ inline Dust3DWorkerRequestIdentity copyRequestIdentity(const RequestIdentity& so
 }
 inline ServiceReceipt copyServiceReceipt(const Dust3DWorkerServiceReceipt& source)
 {
-    if (source.operation != DUST3D_WORKER_OPERATION_MESH && source.operation != DUST3D_WORKER_OPERATION_UV_MESH)
+    if (source.operation != DUST3D_WORKER_OPERATION_MESH && source.operation != DUST3D_WORKER_OPERATION_UV_MESH
+        && source.operation != DUST3D_WORKER_OPERATION_SOURCED_MESH)
         throw ProtocolError(ProtocolErrorCode::invalidInput, "Service receipt operation is unsupported.");
     ServiceReceipt result;
     result.runtimeStatus = source.runtime_status;
     result.admissionStatus = source.admission_status;
-    result.operation = source.operation == DUST3D_WORKER_OPERATION_MESH ? Operation::generateMesh : Operation::generateUvMesh;
+    result.operation = static_cast<Operation>(source.operation);
     result.request = source.request_identity;
     result.process = source.process_identifier;
     result.systemError = source.system_error;
@@ -44,6 +45,7 @@ struct SemanticPolicies {
     MeshPayloadLimits mesh;
     FailurePayloadLimits failure;
     UvMeshPayloadLimits uv;
+    SourcedMeshPayloadLimits sources;
 };
 inline SemanticPolicies semanticPolicies(const Limits& wire, uint64_t maximum)
 {
@@ -59,6 +61,11 @@ inline SemanticPolicies semanticPolicies(const Limits& wire, uint64_t maximum)
     result.uv.geometry = result.mesh;
     result.uv.uv.maximumWireBytes = result.uv.maximumWireBytes;
     result.uv.uv.maximumDecodedBytes = maximum;
+    result.sources.maximumWireBytes = wire.maximumOutputBytes;
+    result.sources.maximumDecodedBytes = maximum;
+    result.sources.geometry = result.mesh;
+    result.sources.sources.maximumWireBytes = wire.maximumOutputBytes;
+    result.sources.sources.maximumDecodedBytes = std::min(result.sources.sources.maximumDecodedBytes, maximum);
     return result;
 }
 }

@@ -146,5 +146,32 @@ namespace worker {
             return copyFailure(FailureStatus::generationFailed, "Native source operation threw without a diagnostic.");
         }
     }
+    Frame generateSourcedMeshReply(const Frame& request, const SourcedMeshPayloadLimits& limits)
+    {
+        (void)encodeHeader(request.header, {});
+        if (request.header.operation != Operation::generateSourcedMesh)
+            throw ProtocolError(ProtocolErrorCode::unsupportedOperation, "Source operation requires its source opcode.");
+        if (request.header.kind != FrameKind::request)
+            throw ProtocolError(ProtocolErrorCode::unexpectedResponse, "Source operation requires a request frame.");
+        if (request.header.payloadBytes != request.payload.size())
+            throw ProtocolError(ProtocolErrorCode::invalidInput, "Source request length does not match its header.");
+        validateSourcedMeshPayloadLimits(limits);
+        const auto decoded = decodeSourceRequest(request.payload.data(), request.payload.size(), {});
+        auto policy = limits;
+        const auto requested = decoded.maximumSourceBytes ? decoded.maximumSourceBytes : DUST3D_DEFAULT_SOURCE_PAYLOAD_BYTES;
+        policy.sources.maximumDecodedBytes = std::min(policy.sources.maximumDecodedBytes, requested);
+        auto generated = generateSourcedMesh(decoded.archive, policy);
+        auto header = request.header;
+        std::vector<uint8_t> bytes;
+        if (const auto* pair = std::get_if<SourcedMeshPayload>(&generated)) {
+            header.kind = FrameKind::response;
+            bytes = encodeSourcedMeshPayload(*pair, policy);
+        } else {
+            header.kind = FrameKind::failure;
+            bytes = encodeFailurePayload(std::get<FailurePayload>(generated), {});
+        }
+        header.payloadBytes = bytes.size();
+        return { header, std::move(bytes) };
+    }
 }
 }

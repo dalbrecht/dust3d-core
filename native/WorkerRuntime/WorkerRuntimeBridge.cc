@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 #include "WorkerFailure.h"
 #include "WorkerJobIO.h"
+#include "WorkerSourceRequest.h"
+#include "WorkerSourcedMesh.h"
 #include "WorkerUvMesh.h"
 #include "WorkerUvRequest.h"
 #include <Dust3DWorkerRuntime.h>
@@ -62,6 +64,8 @@ extern "C" Dust3DWorkerJobResult dust3d_worker_serve(int32_t input, int32_t outp
         result.detail_source = DUST3D_WORKER_DETAIL_FRAME;
         result.detail_code = static_cast<int32_t>(cause.code());
         copyCause(result, cause.what());
+    } catch (const SourceRequestError& cause) {
+        rejectCodec(result, DUST3D_WORKER_DETAIL_SOURCE_REQUEST, cause);
     } catch (const UvRequestError& cause) {
         rejectCodec(result, DUST3D_WORKER_DETAIL_UV_REQUEST, cause);
     } catch (const MeshPayloadError& cause) {
@@ -70,6 +74,10 @@ extern "C" Dust3DWorkerJobResult dust3d_worker_serve(int32_t input, int32_t outp
         rejectCodec(result, DUST3D_WORKER_DETAIL_UV, cause);
     } catch (const UvMeshPayloadError& cause) {
         rejectCodec(result, DUST3D_WORKER_DETAIL_UV_MESH, cause);
+    } catch (const SourceHintPayloadError& cause) {
+        rejectCodec(result, DUST3D_WORKER_DETAIL_SOURCE_HINTS, cause);
+    } catch (const SourcedMeshPayloadError& cause) {
+        rejectCodec(result, DUST3D_WORKER_DETAIL_SOURCED_MESH, cause);
     } catch (const FailurePayloadError& cause) {
         rejectCodec(result, DUST3D_WORKER_DETAIL_FAILURE, cause);
     } catch (const std::bad_alloc& cause) {
@@ -88,5 +96,7 @@ extern "C" Dust3DWorkerJobResult dust3d_worker_serve(int32_t input, int32_t outp
         result.operation = DUST3D_WORKER_OPERATION_MESH;
     else if (context.operation == Operation::generateUvMesh)
         result.operation = DUST3D_WORKER_OPERATION_UV_MESH;
+    else if (context.operation == Operation::generateSourcedMesh)
+        result.operation = DUST3D_WORKER_OPERATION_SOURCED_MESH;
     return result;
 }

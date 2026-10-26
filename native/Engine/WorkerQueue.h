@@ -50,11 +50,11 @@ namespace worker {
         /// The caller must retain/report the original transport cause. Throws QueueError on mismatch.
         void abandon(const RequestIdentity& collected);
         /// Release the matching active slot before admission; reject stale/cancelled/closed/replayed data.
-        /// uvLimits applies to paired UV responses, independently of base mesh limits.
+        /// uvLimits/sourceLimits apply to paired UV/source responses, independently of base mesh limits.
         /// Foreign or wrong-mode completions do not release active work. Typed admission/codec causes propagate.
         AdmittedReply complete(const RequestIdentity& collected, ProcessOutcome outcome,
             const uint8_t* bytes, size_t size, const MeshPayloadLimits& meshLimits = {},
-            const FailurePayloadLimits& failureLimits = {}, const UvMeshPayloadLimits& uvLimits = {});
+            const FailurePayloadLimits& failureLimits = {}, const UvMeshPayloadLimits& uvLimits = {}, const SourcedMeshPayloadLimits& sourceLimits = {});
 
         /// Complete matching persistent-service work after transport collection/cleanup.
         /// @param collected Captured active identity supplied by the transport owner.
@@ -65,6 +65,7 @@ namespace worker {
         /// @param meshLimits Base semantic/output policy.
         /// @param failureLimits Original failure payload policy.
         /// @param uvLimits Atomic paired geometry/UV policy.
+        /// @param sourceLimits Atomic paired geometry/source policy.
         /// @return Owned semantics only for authoritative current work, once.
         /// @throws QueueError for foreign/mode mismatch (active retained), or original admission/codec errors
         /// after releasing matching work. Never fabricates child exit or cancels native execution.
@@ -72,7 +73,7 @@ namespace worker {
         AdmittedReply completeService(const RequestIdentity& collected, const ServiceObservation& observed,
             const ServiceReceipt& receipt, const uint8_t* bytes, size_t size,
             const MeshPayloadLimits& meshLimits = {}, const FailurePayloadLimits& failureLimits = {},
-            const UvMeshPayloadLimits& uvLimits = {});
+            const UvMeshPayloadLimits& uvLimits = {}, const SourcedMeshPayloadLimits& sourceLimits = {});
 
     private:
         std::optional<Frame> beginWork(uint64_t connectionGeneration);
