@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: MIT
 #include "WorkerUvOperation.h"
 #include "WorkerOperation.h"
+#include "WorkerUvCopy.h"
 #include "WorkerUvCopyBudget.h"
+#include "WorkerUvValidation.h"
 #include <algorithm>
 #include <memory>
 #include <new>
@@ -41,12 +43,46 @@ namespace worker {
                 return noUvComponent;
             invalid();
         }
-        struct Shape {
-            size_t triangles, charts, gradients, components;
-            uint64_t wire, logical;
-        };
+        using Shape = detail::NativeUvInspection;
+        UvTriangle readNativeTriangle(const Dust3DUvMesh* owner, size_t index, size_t components)
+        {
+            const auto& source = dust3d_uv_mesh_triangles(owner)[index];
+            UvTriangle target;
+            for (size_t corner = 0; corner < 3; ++corner)
+                std::copy(source.uv[corner], source.uv[corner] + 2, target.uv[corner].begin());
+            target.known = source.known;
+            target.componentIndex = componentIndex(source.component_kind, source.component_index, components);
+            target.association = static_cast<UvAssociation>(source.component_kind);
+            return target;
+        }
+        UvChart readNativeChart(const Dust3DUvMesh* owner, size_t index, size_t components)
+        {
+            const auto& source = dust3d_uv_mesh_charts(owner)[index];
+            UvChart target;
+            target.left = source.left;
+            target.top = source.top;
+            target.width = source.width;
+            target.height = source.height;
+            std::copy(source.color, source.color + 4, target.color.begin());
+            target.flipped = source.flipped;
+            target.componentIndex = componentIndex(source.component_kind, source.component_index, components);
+            target.association = static_cast<UvAssociation>(source.component_kind);
+            target.imageID.assign(source.image_id, textLength(source.image_id, 38));
+            return target;
+        }
+        UvGradient readNativeGradient(const Dust3DUvMesh* owner, size_t index)
+        {
+            const auto& source = dust3d_uv_mesh_gradients(owner)[index];
+            UvGradient target;
+            target.chartIndex = source.chart_index;
+            target.resolution = source.resolution;
+            std::copy(source.large_color, source.large_color + 4, target.largeColor.begin());
+            std::copy(source.small_color, source.small_color + 4, target.smallColor.begin());
+            return target;
+        }
         Shape inspect(const Dust3DUvMesh* owner, const UvPayloadLimits& limits)
         {
+            validateUvPayloadLimits(limits);
             Shape shape { dust3d_uv_mesh_triangle_count(owner), dust3d_uv_mesh_chart_count(owner),
                 dust3d_uv_mesh_gradient_count(owner), dust3d_uv_mesh_component_count(owner), uvPrefixBytes, 0 };
             if (!shape.triangles || shape.triangles > limits.maximumTriangles || shape.charts > limits.maximumCharts
@@ -75,6 +111,18 @@ namespace worker {
                 textBudget.charge(length);
                 add(shape.logical, length, limits.maximumDecodedBytes);
             }
+            detail::validateUvTextureSize(dust3d_uv_mesh_texture_size(owner), shape.charts);
+            std::unordered_set<std::string_view> keys;
+            for (size_t index = 0; index < shape.components; ++index) {
+                const auto* text = dust3d_uv_mesh_component_id(owner, index);
+                detail::validateUvComponentKey({ text, textLength(text, limits.maximumKeyBytes) }, limits, keys);
+            }
+            for (size_t index = 0; index < shape.triangles; ++index)
+                detail::validateUvTriangle(readNativeTriangle(owner, index, shape.components), shape.components, shape.charts);
+            for (size_t index = 0; index < shape.charts; ++index)
+                detail::validateUvChart(readNativeChart(owner, index, shape.components), shape.components);
+            for (size_t index = 0; index < shape.gradients; ++index)
+                detail::validateUvGradient(readNativeGradient(owner, index), shape.charts);
             return shape;
         }
         UvPayload copy(const Dust3DUvMesh* owner, const Shape& shape)
@@ -82,44 +130,17 @@ namespace worker {
             UvPayload result;
             result.packedTextureSize = dust3d_uv_mesh_texture_size(owner);
             result.components.reserve(shape.components);
-            for (size_t i = 0; i < shape.components; ++i)
-                result.components.emplace_back(dust3d_uv_mesh_component_id(owner, i));
             result.triangles.reserve(shape.triangles);
-            for (size_t i = 0; i < shape.triangles; ++i) {
-                const auto& source = dust3d_uv_mesh_triangles(owner)[i];
-                UvTriangle target;
-                for (size_t corner = 0; corner < 3; ++corner)
-                    std::copy(source.uv[corner], source.uv[corner] + 2, target.uv[corner].begin());
-                target.known = source.known;
-                target.componentIndex = componentIndex(source.component_kind, source.component_index, shape.components);
-                target.association = static_cast<UvAssociation>(source.component_kind);
-                result.triangles.push_back(target);
-            }
             result.charts.reserve(shape.charts);
-            for (size_t i = 0; i < shape.charts; ++i) {
-                const auto& source = dust3d_uv_mesh_charts(owner)[i];
-                UvChart target;
-                target.left = source.left;
-                target.top = source.top;
-                target.width = source.width;
-                target.height = source.height;
-                std::copy(source.color, source.color + 4, target.color.begin());
-                target.flipped = source.flipped;
-                target.componentIndex = componentIndex(source.component_kind, source.component_index, shape.components);
-                target.association = static_cast<UvAssociation>(source.component_kind);
-                target.imageID = source.image_id;
-                result.charts.push_back(std::move(target));
-            }
             result.gradients.reserve(shape.gradients);
-            for (size_t i = 0; i < shape.gradients; ++i) {
-                const auto& source = dust3d_uv_mesh_gradients(owner)[i];
-                UvGradient target;
-                target.chartIndex = source.chart_index;
-                std::copy(source.large_color, source.large_color + 4, target.largeColor.begin());
-                std::copy(source.small_color, source.small_color + 4, target.smallColor.begin());
-                target.resolution = source.resolution;
-                result.gradients.push_back(target);
-            }
+            for (size_t index = 0; index < shape.components; ++index)
+                result.components.emplace_back(dust3d_uv_mesh_component_id(owner, index));
+            for (size_t index = 0; index < shape.triangles; ++index)
+                result.triangles.push_back(readNativeTriangle(owner, index, shape.components));
+            for (size_t index = 0; index < shape.charts; ++index)
+                result.charts.push_back(readNativeChart(owner, index, shape.components));
+            for (size_t index = 0; index < shape.gradients; ++index)
+                result.gradients.push_back(readNativeGradient(owner, index));
             return result;
         }
         FailurePayload failure(FailureStatus status, const char* message)
@@ -128,6 +149,20 @@ namespace worker {
             while (size < FailurePayloadLimits {}.maximumCauseBytes && message[size])
                 ++size;
             return { status, { message, message + size } };
+        }
+    }
+    namespace detail {
+        NativeUvInspection inspectNativeUvMetadata(const Dust3DUvMesh* owner, const UvPayloadLimits& limits)
+        {
+            validateUvPayloadLimits(limits);
+            if (!owner)
+                throw UvPayloadError(UvPayloadErrorCode::invalidInput, "Native UV metadata owner is missing.");
+            return inspect(owner, limits);
+        }
+        UvPayload copyNativeUvMetadata(const Dust3DUvMesh* owner, const UvPayloadLimits& limits)
+        {
+            const auto shape = inspectNativeUvMetadata(owner, limits);
+            return copy(owner, shape);
         }
     }
     UvGenerationResult generateUvMesh(const UvRequest& request, const UvMeshPayloadLimits& limits)

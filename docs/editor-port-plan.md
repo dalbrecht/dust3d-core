@@ -1120,3 +1120,16 @@ native-copy guards remain below the adapter coverage target. See
 imported-only and legacy material paths, real statistics/native metrics, supported
 payload range and editor acceptance remain open under Apple #279/#280. No Apple
 pin/backend or quarantine change; this does not prove full M4–M8 completion.
+
+### Legacy baked output checkpoint (#231)
+
+The existing procedural material path now has coherent worker values preserving
+expanded geometry, full UV charts/gradients and associations, exact tangent frames
+and optional base maps. Native copying preflights one baked owner using shared UV,
+geometry and scalar validation. All 157 ordinary contracts pass; named pure codec
+and tangent validation have full measured line/branch coverage. Native boundary
+coverage remains partial and below the adoption target. See
+[ADR 0143](adr/0143-legacy-baked-worker-output.md). This does not substitute a source
+bake, activate a backend, change a production pin/quarantine or prove M4–M8 parity.
+Imported authored material data, real metrics, payload-range preservation, complete
+transport/Swift consumption and editor acceptance remain open under Apple #279/#280.

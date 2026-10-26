@@ -12,11 +12,11 @@ namespace worker {
     /// @return Independent mapped status/cause; unknown numeric statuses retain their code/cause.
     /// @throws ProtocolError if success was supplied as a failure; allocation errors propagate.
     FailurePayload copyNativeFailure(const Dust3DError& error);
-    /// Copy expanded geometry from a stable borrowed native owner after count/text/copy quotas.
+    /// Copy expanded geometry from a stable borrowed native owner after complete geometry/text/copy preflight.
     /// @param owner Borrowed mesh; caller retains the owning mesh or UV owner until return.
     /// @param limits Validated supported consumer policy; does not bound native generation memory.
     /// @return Owned expanded geometry, warning and source counts; no native storage escapes.
-    /// @throws MeshPayloadError or allocation errors; semantic wire validation follows separately.
+    /// @throws MeshPayloadError or allocation errors; complete semantic preflight precedes retained allocation.
     /// Example: auto mesh = copyNativeMesh(dust3d_uv_mesh_geometry(owner), limits);
     MeshPayload copyNativeMesh(const Dust3DMesh* owner, const MeshPayloadLimits& limits);
     /// Generate one owned base-mesh/failure response through the serialized native C ABI.

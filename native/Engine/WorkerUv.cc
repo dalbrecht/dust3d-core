@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 #include "WorkerUv.h"
+#include "WorkerUvValidation.h"
 #include "WorkerWire.h"
 #include <algorithm>
 #include <cmath>
@@ -233,6 +234,15 @@ namespace worker {
             if (!keys.emplace(key).second)
                 reject(UvPayloadErrorCode::invalidMetadata, "Worker UV component keys are duplicated.");
         }
+    }
+    namespace detail {
+        UvTriangle readValidatedUvTriangle(const uint8_t* bytes) { return readTriangle(bytes); }
+        void validateUvTriangle(const UvTriangle& value, uint64_t components, uint64_t charts) { validateTriangle(value, components, charts); }
+        void validateUvChart(const UvChart& value, uint64_t components) { validateChart(value, components); }
+        void validateUvGradient(const UvGradient& value, uint64_t charts) { validateGradient(value, charts); }
+        void validateUvTextureSize(double value, uint64_t charts) { validateTexture(value, charts); }
+        void validateUvComponentKey(std::string_view key, const UvPayloadLimits& limits, std::unordered_set<std::string_view>& keys) { checkKey(key, limits, keys); }
+
     }
     UvPayloadError::UvPayloadError(UvPayloadErrorCode code, const char* message)
         : std::runtime_error(message)
