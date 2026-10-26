@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Admit correlated session envelopes through shared service/queue gates and dedicated C owners, preserving one-shot retirement and newer waiting work (#251).
+
 - Add immutable C ownership and borrowed geometry/diagnostic/statistics views for decoded session output values; authenticated host admission remains separate (#251).
 
 - Add an explicit correlated session-generation producer with diagnostic reservation and host-quota truncation; legacy serving/admission remains unsupported (#251).

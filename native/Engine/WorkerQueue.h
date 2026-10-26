@@ -3,6 +3,7 @@
 #define DUST3D_NATIVE_WORKER_QUEUE_H_
 #include "WorkerAdmission.h"
 #include <optional>
+#include <utility>
 
 namespace dust3d {
 namespace worker {
@@ -76,8 +77,24 @@ namespace worker {
             const MeshPayloadLimits& meshLimits = {}, const FailurePayloadLimits& failureLimits = {},
             const UvMeshPayloadLimits& uvLimits = {}, const SourcedMeshPayloadLimits& sourceLimits = {}, const IndexedReplyLimits& indexedLimits = {}, const ImportedRenderLimits& importedLimits = {}, const LegacyBakedLimits& legacyLimits = {}, const SourceBakedLimits& sourceBakeLimits = {});
 
+        /// Retire matching collected service work, then admit its session envelope.
+        /// @param collected Captured active identity from this queue's transport slot.
+        /// @param observed Independent authenticated transport/peer/EOF observations.
+        /// @param receipt Callback control values, not peer/current identity evidence.
+        /// @param bytes Complete stable borrowed framed session output.
+        /// @param size Actual readable count.
+        /// @param limits Independent session semantic/aggregate policies.
+        /// @return Owned outcome/diagnostics/observations for authoritative current work.
+        /// @throws QueueError for foreign/mode mismatch without releasing active work;
+        /// matching collection releases before original admission/codec errors propagate.
+        /// No native work, process control or authentication occurs here.
+        /// Example: auto value = queue.completeSessionService(id, observed, receipt, bytes, size);
+        SessionOutput completeSessionService(const RequestIdentity& collected, const ServiceObservation& observed,
+            const ServiceReceipt& receipt, const uint8_t* bytes, size_t size, const SessionOutputLimits& limits = {});
+
     private:
         std::optional<Frame> beginWork(uint64_t connectionGeneration);
+        std::pair<Header, uint64_t> collectService(const RequestIdentity& collected);
         Limits m_limits;
         // Reserve zero so service work cannot pass the child-exit completion path.
         uint64_t m_activeServiceGeneration = 0;

@@ -1175,3 +1175,8 @@ Session output values now have an immutable C owner with const borrowed decoded
 views and copied actual statistics. This standalone body decoder is not authenticated
 host admission. See [ADR 0158](docs/adr/0158-worker-session-output-c.md) for lifetimes,
 validation and measured coverage limits.
+
+Dedicated service/queue admission now correlates session envelopes with current
+host identity, captured connection lifetime, peer/EOF observations and callback
+controls before returning owned C results. Actual transport authentication and
+native C serving remain separate; see [ADR 0159](docs/adr/0159-worker-session-admission.md).

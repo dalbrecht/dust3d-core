@@ -1,4 +1,7 @@
 // SPDX-License-Identifier: MIT
+#include "WorkerQueue.h"
+#include "WorkerReplyInternal.h"
+#include "WorkerServiceInternal.h"
 #include "WorkerSessionOutputInternal.h"
 #include <algorithm>
 #include <memory>
@@ -62,17 +65,25 @@ SessionOutputLimits policy(Dust3DWorkerSessionOutputLimits value)
     return result;
 }
 }
-extern "C" Dust3DWorkerSessionOutput* dust3d_worker_session_output_decode(const uint8_t* bytes, size_t size, Dust3DWorkerSessionOutputLimits limits, Dust3DWorkerDecodeResult* result) noexcept
+namespace dust3d::worker::bridge {
+SessionOutputLimits sessionOutputPolicy(Dust3DWorkerSessionOutputLimits value) { return policy(value); }
+void rejectSessionOutputException(const std::exception_ptr& exception, Dust3DWorkerDecodeResult& value) noexcept
 {
-    if (!result)
-        return nullptr;
+    auto* result = &value;
     *result = {};
     result->status = DUST3D_WORKER_DECODE_INTERNAL_FAILED;
     try {
-        auto value = decodeSessionOutput(bytes, size, policy(limits));
-        auto* owner = bridge::adoptSessionOutput(std::move(value));
-        result->status = DUST3D_WORKER_DECODE_OK;
-        return owner;
+        std::rethrow_exception(exception);
+    } catch (const AdmissionError& cause) {
+        result->status = DUST3D_WORKER_DECODE_ADMISSION_REJECTED;
+        result->detail_source = DUST3D_WORKER_DETAIL_ADMISSION;
+        result->detail_code = static_cast<int32_t>(cause.code());
+        copyCause(*result, cause.what());
+    } catch (const QueueError& cause) {
+        result->status = DUST3D_WORKER_DECODE_QUEUE_REJECTED;
+        result->detail_source = DUST3D_WORKER_DETAIL_QUEUE;
+        result->detail_code = static_cast<int32_t>(cause.code());
+        copyCause(*result, cause.what());
     } catch (const ProtocolError& cause) {
         result->status = DUST3D_WORKER_DECODE_PROTOCOL_REJECTED;
         result->detail_source = DUST3D_WORKER_DETAIL_FRAME;
@@ -103,6 +114,22 @@ extern "C" Dust3DWorkerSessionOutput* dust3d_worker_session_output_decode(const 
         result->detail_source = DUST3D_WORKER_DETAIL_RUNTIME;
         result->detail_code = -1;
         copyCause(*result, "Session output exception has no available diagnostic.");
+    }
+}
+}
+extern "C" Dust3DWorkerSessionOutput* dust3d_worker_session_output_decode(const uint8_t* bytes, size_t size, Dust3DWorkerSessionOutputLimits limits, Dust3DWorkerDecodeResult* result) noexcept
+{
+    if (!result)
+        return nullptr;
+    *result = {};
+    result->status = DUST3D_WORKER_DECODE_INTERNAL_FAILED;
+    try {
+        auto value = decodeSessionOutput(bytes, size, policy(limits));
+        auto* owner = bridge::adoptSessionOutput(std::move(value));
+        result->status = DUST3D_WORKER_DECODE_OK;
+        return owner;
+    } catch (...) {
+        bridge::rejectSessionOutputException(std::current_exception(), *result);
     }
     return nullptr;
 }
@@ -146,3 +173,32 @@ extern "C" const uint8_t* dust3d_worker_session_output_cache_cause(const Dust3DW
     return owner->statistics->cacheCause.data();
 }
 extern "C" void dust3d_worker_session_output_destroy(Dust3DWorkerSessionOutput* owner) noexcept { delete owner; }
+
+extern "C" Dust3DWorkerSessionOutput* dust3d_worker_session_service_admit(Dust3DWorkerReplyCollector* owner,
+    Dust3DWorkerRequestIdentity active, Dust3DWorkerServiceObservation observed,
+    Dust3DWorkerServiceReceipt receipt, Dust3DWorkerSessionOutputLimits limits, Dust3DWorkerDecodeResult* result) noexcept
+{
+    if (!result)
+        return nullptr;
+    *result = {};
+    result->status = DUST3D_WORKER_DECODE_INTERNAL_FAILED;
+    try {
+        if (!owner || owner->isRejected || !owner->isFramed || owner->isDecoded || !owner->serviceConnectionGeneration || owner->isQueueBound)
+            throw ProtocolError(ProtocolErrorCode::invalidInput, "Session admission requires one unused EOF-framed non-queue service collector.");
+        owner->isDecoded = true;
+        const auto policy = bridge::sessionOutputPolicy(limits);
+        const auto control = bridge::copyServiceReceipt(receipt);
+        PendingServiceReply pending(owner->expected, owner->serviceConnectionGeneration, owner->policy);
+        auto value = pending.completeSession(bridge::copyRequestIdentity(active),
+            { observed.connection_generation, observed.process_identifier, owner->isFramed }, control,
+            owner->bytes.data(), owner->bytes.size(), owner->policy, policy);
+        auto* output = bridge::adoptSessionOutput(std::move(value));
+        result->status = DUST3D_WORKER_DECODE_OK;
+        return output;
+    } catch (...) {
+        bridge::rejectSessionOutputException(std::current_exception(), *result);
+        if (owner)
+            owner->isRejected = true;
+    }
+    return nullptr;
+}
