@@ -5,6 +5,7 @@
 #include "WorkerIndexedSources.h"
 #include "WorkerJobIO.h"
 #include "WorkerLegacyRequest.h"
+#include "WorkerServiceInternal.h"
 #include "WorkerSessionInternal.h"
 #include "WorkerSessionOutputInternal.h"
 #include "WorkerSourceRequest.h"
@@ -50,6 +51,7 @@ struct SessionInvocation {
     Dust3DWorkerSession* owner;
     uint64_t generation;
     Dust3DWorkerSessionOutputLimits limits;
+    std::optional<RequestIdentity> expected = std::nullopt;
 };
 Dust3DWorkerJobResult serve(int32_t input, int32_t output, const Dust3DWorkerImageDecoder* configuration, const Dust3DWorkerImageDecoder* proceduralConfiguration = nullptr, const SessionInvocation* session = nullptr) noexcept
 {
@@ -67,7 +69,10 @@ Dust3DWorkerJobResult serve(int32_t input, int32_t output, const Dust3DWorkerIma
             if (!session->owner)
                 throw ProtocolError(ProtocolErrorCode::invalidInput, "C worker session owner is null.");
             const auto limits = bridge::sessionOutputPolicy(session->limits);
-            serveWorkerSessionJob(input, output, context, session->owner->value, session->generation, limits);
+            std::optional<WorkerJobExpectation> expected;
+            if (session->expected)
+                expected = WorkerJobExpectation { Operation::generateSessionIndexedSourcedMesh, *session->expected };
+            serveWorkerSessionJob(input, output, context, session->owner->value, session->generation, limits, expected ? &*expected : nullptr);
         } else
             serveWorkerJob(input, output, context, decoder ? &*decoder : nullptr, {}, procedural ? &*procedural : nullptr);
         result.status = DUST3D_WORKER_JOB_COMPLETE;
@@ -216,5 +221,12 @@ extern "C" Dust3DWorkerJobResult dust3d_worker_session_serve(Dust3DWorkerSession
     int32_t input, int32_t output, Dust3DWorkerSessionOutputLimits limits) noexcept
 {
     const SessionInvocation invocation { owner, generation, limits };
+    return serve(input, output, nullptr, nullptr, &invocation);
+}
+
+extern "C" Dust3DWorkerJobResult dust3d_worker_session_serve_correlated(Dust3DWorkerSession* owner, Dust3DWorkerRequestIdentity expected,
+    uint64_t generation, int32_t input, int32_t output, Dust3DWorkerSessionOutputLimits limits) noexcept
+{
+    const SessionInvocation invocation { owner, generation, limits, bridge::copyRequestIdentity(expected) };
     return serve(input, output, nullptr, nullptr, &invocation);
 }

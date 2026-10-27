@@ -17,6 +17,7 @@ struct WorkerSessionBoundaryError: Error, Sendable {
     }
 }
 struct WorkerSessionChannelJob: Sendable {
+    let expected: Dust3DWorkerRequestIdentity
     let input: Int32
     let output: Int32
     let limits: Dust3DWorkerSessionOutputLimits
@@ -38,7 +39,8 @@ struct WorkerNativeServiceSession: WorkerServiceSessionBackend {
     func serve(_ owner: OpaquePointer, scope: WorkerServiceSessionScope, job: WorkerSessionChannelJob)
         -> Dust3DWorkerJobResult
     {
-        dust3d_worker_session_serve(owner, scope.connectionGeneration, job.input, job.output, job.limits)
+        dust3d_worker_session_serve_correlated(
+            owner, job.expected, scope.connectionGeneration, job.input, job.output, job.limits)
     }
     func reset(_ owner: OpaquePointer, scope: WorkerServiceSessionScope) throws {
         var result = Dust3DWorkerDecodeResult()

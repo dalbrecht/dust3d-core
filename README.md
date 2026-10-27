@@ -1219,3 +1219,11 @@ The Swift worker prototype now queues session cleanup after accepted work and be
 service retirement, preserving the original cleanup result. Duplicate/foreign
 retirement cannot queue cleanup. Explicit session RPC routing remains pending; see
 [ADR0164](docs/adr/0164-worker-session-retirement.md).
+
+### Host-admitted session request preflight
+
+`dust3d_worker_session_serve_correlated` compares operation9 and an independent
+host identity before retaining/reading the request body or generating geometry.
+The Swift prototype adapter uses it explicitly. Transport authentication and current
+parent publication admission remain separate; see
+[ADR0165](docs/adr/0165-worker-host-request-preflight.md).

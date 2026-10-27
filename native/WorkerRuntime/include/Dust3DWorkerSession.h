@@ -74,6 +74,22 @@ Dust3DWorkerRequest* dust3d_worker_session_request_create(Dust3DWorkerRequestIde
  */
 Dust3DWorkerJobResult dust3d_worker_session_serve(Dust3DWorkerSession* owner, uint64_t connection_generation,
     int32_t input_descriptor, int32_t output_descriptor, Dust3DWorkerSessionOutputLimits limits) DUST3D_WORKER_SESSION_LIFECYCLE_NOEXCEPT;
+/** Serve a session job with an independent host-admitted identity.
+ * @param owner Live exclusive session, retained through return.
+ * @param expected Host-authoritative document/request/revision, not read from channel.
+ * @param connection_generation Independently established host lifetime.
+ * @param input_descriptor Borrowed request channel, separate from output.
+ * @param output_descriptor Borrowed response channel.
+ * @param limits Supported session policies.
+ * @return Same receipt/ownership/isolation obligations as session_serve. Requires exact
+ * operation9 and expected identity before retaining/reading the body or generating.
+ * Invalid expectation/mismatch rejects without consuming body bytes or writing output.
+ * Header context still identifies the observed valid request. Does not authenticate,
+ * admit current parent publication or close descriptors. All exceptions caught.
+ * Example: receipt = dust3d_worker_session_serve_correlated(owner, admitted, generation, input, output, limits);
+ */
+Dust3DWorkerJobResult dust3d_worker_session_serve_correlated(Dust3DWorkerSession* owner, Dust3DWorkerRequestIdentity expected,
+    uint64_t connection_generation, int32_t input_descriptor, int32_t output_descriptor, Dust3DWorkerSessionOutputLimits limits) DUST3D_WORKER_SESSION_LIFECYCLE_NOEXCEPT;
 /** Release owner/cache, accepting NULL. No concurrent calls or destruction.
  * Example: dust3d_worker_session_destroy(owner);
  */

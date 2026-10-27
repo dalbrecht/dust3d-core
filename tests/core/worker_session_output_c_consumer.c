@@ -41,5 +41,8 @@ int main(void)
     Dust3DWorkerJobResult job = dust3d_worker_session_serve(0, 9, -1, -1, limits);
     if (job.status != DUST3D_WORKER_JOB_PROTOCOL_REJECTED || job.detail_source != DUST3D_WORKER_DETAIL_FRAME)
         return 7;
+    job = dust3d_worker_session_serve_correlated(0, active, 9, -1, -1, limits);
+    if (job.status != DUST3D_WORKER_JOB_PROTOCOL_REJECTED)
+        return 8;
     return 0;
 }

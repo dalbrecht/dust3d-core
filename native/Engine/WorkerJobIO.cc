@@ -88,7 +88,7 @@ namespace worker {
         }
         return { true, 0 };
     }
-    Frame readWorkerRequest(int input, int output, WorkerJobContext& context)
+    Frame readWorkerRequest(int input, int output, WorkerJobContext& context, const WorkerJobExpectation* expected)
     {
         context = {};
         if (input < 0 || output < 0 || input == output)
@@ -100,6 +100,14 @@ namespace worker {
             throw ProtocolError(ProtocolErrorCode::unexpectedResponse, "Worker accepts request frames only.");
         context.requestIdentity = header.identity.request;
         context.operation = header.operation;
+        if (expected) {
+            auto admitted = header;
+            admitted.operation = expected->operation;
+            admitted.identity = expected->identity;
+            (void)encodeHeader(admitted, {});
+            if (header.operation != expected->operation || !(header.identity == expected->identity))
+                throw ProtocolError(ProtocolErrorCode::invalidIdentity, "Worker request does not match host admission.");
+        }
         Frame request { header, std::vector<uint8_t>(static_cast<size_t>(header.payloadBytes)) };
         requireRead(readExactly(input, request.payload.data(), request.payload.size()), "Worker request body is incomplete.");
         uint8_t extra;
@@ -117,9 +125,9 @@ namespace worker {
         if (!written.complete)
             throw WorkerJobIOError(WorkerJobStage::output, written.error);
     }
-    void serveWorkerSessionJob(int input, int output, WorkerJobContext& context, ConnectionGenerationSession& session, uint64_t generation, const SessionOutputLimits& limits)
+    void serveWorkerSessionJob(int input, int output, WorkerJobContext& context, ConnectionGenerationSession& session, uint64_t generation, const SessionOutputLimits& limits, const WorkerJobExpectation* expected)
     {
-        auto request = readWorkerRequest(input, output, context);
+        auto request = readWorkerRequest(input, output, context, expected);
         auto response = generateSessionReply(request, session, generation, limits);
         std::vector<uint8_t>().swap(request.payload);
         writeWorkerReply(output, response);

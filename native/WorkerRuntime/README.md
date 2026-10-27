@@ -414,3 +414,14 @@ The XPC fixture closes its lazy session coordinator before process retirement an
 logs only non-content diagnostic metadata on failure. Its serving route remains
 stateless pending explicit session RPC integration. See
 [ADR0164](../../docs/adr/0164-worker-session-retirement.md).
+
+### Correlated session serving
+
+Use `dust3d_worker_session_serve_correlated(owner, expected, generation, input, output, limits)`
+when the host has independently admitted a document/request/revision. Header mismatch
+or invalid expectation rejects before body retention/read and output, preserving the
+observed valid header context and typed error. The older `session_serve` remains for
+callers without a side-channel declaration; the Swift prototype adapter requires one
+and uses the correlated entry point. Neither route authenticates transport or replaces
+current-parent completion admission. See
+[ADR0165](../../docs/adr/0165-worker-host-request-preflight.md).

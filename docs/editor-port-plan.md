@@ -1361,3 +1361,13 @@ and all208 ordinary tests pass; [ADR0164](adr/0164-worker-session-retirement.md)
 coverage and unforced boundaries. Explicit session RPC routing/authentication,
 initialized-cache XPC cleanup, platform decoding/full-output/range gates and M4–M8
 acceptance remain incomplete. Production pin/backend and quarantines are unchanged.
+
+### Host metadata preflight before session bodies (#251)
+
+Session serving can now validate independent host-admitted operation/document/request/
+revision immediately after the header and before body retention or native generation.
+The additive correlated C API and Swift prototype adapter use this gate; pure framing,
+valid Capsule compatibility, C11, scoped sanitizer and all209 ordinary contracts pass.
+[ADR0165](adr/0165-worker-host-request-preflight.md) records exact evidence/limits.
+Authenticated session RPC routing, initialized-cache XPC cleanup and full-output/range
+acceptance #279/#280 remain incomplete. Production pin/backend/quarantines are unchanged.
