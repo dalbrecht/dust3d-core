@@ -40,7 +40,8 @@ let package = Package(
             sources: [
                 "Engine/WorkerJobIO.cc", "Engine/WorkerOperation.cc", "Engine/WorkerUvOperation.cc",
                 "Engine/WorkerSourceOperation.cc", "Engine/WorkerSourceRequest.cc",
-                "Engine/WorkerIndexedCopyBudget.cc", "Engine/WorkerIndexedSourceOperation.cc",
+                "Engine/WorkerIndexedCopyBudget.cc", "Engine/WorkerPreviewRange.cc",
+                "Engine/WorkerIndexedSourceOperation.cc",
                 "Engine/WorkerIndexedSources.cc", "Engine/WorkerGenerationStatistics.cc",
                 "Engine/WorkerGenerationStatisticsCopy.cc", "Engine/WorkerNativeSession.cc",
                 "Engine/WorkerConnectionSession.cc", "Engine/WorkerSessionOutput.cc",

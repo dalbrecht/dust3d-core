@@ -1403,3 +1403,14 @@ authenticated-peer observations and parent queue admission with copied maps afte
 retirement. All213 ordinary contracts pass; [ADR0169](adr/0169-worker-procedural-image-xpc.md)
 records limits. Imported providers remain disabled; full rendering/range acceptance
 #279/#280, app adoption and distribution remain open. Production pin/quarantines unchanged.
+
+
+### Checked preview range ledger (#270)
+
+A pure scalar planner now separates native indexed/source charges, serialized bytes,
+retained logical records and auxiliary diagnostics/statistics. Tiny real encoder
+comparisons and large count-only examples pass, including explicit indexed budgets
+above the256MiB default. All214 ordinary contracts pass; [ADR0170](adr/0170-worker-preview-range-accounting.md)
+records scoped sanitizer/coverage evidence. This is accounting, not transport activation.
+Bounded transfer, complete semantic admission and Apple #279/#280 acceptance remain open;
+production pin/backend and all quarantines are unchanged.

@@ -453,3 +453,14 @@ ProceduralImage fixture returns complete8-pixel legacy baked output through actu
 EOF/peer/queue admission, with copied pixels valid after retirement. See
 [ADR0169](../../docs/adr/0169-worker-procedural-image-xpc.md). This does not activate
 an app backend, enable imported/GLB decoding or establish full pixel/range parity.
+
+
+### Native preview range accounting
+
+`planPreviewTransfer` measures trusted actual scalar observations against independent
+native indexed/source policies and exact existing wire/retained layouts. It can expose
+range gaps without allocating large data. Explicit positive indexed policies are not
+capped at the native default. It does not authenticate or inspect payload semantics,
+change active caps, transfer chunks or enable app adoption. See
+[ADR0170](../../docs/adr/0170-worker-preview-range-accounting.md) for measured evidence
+and remaining segmented transport/admission work under #270 and Apple #280.
