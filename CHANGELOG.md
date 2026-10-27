@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Drain accepted worker jobs before session cleanup and preserve original cleanup results through service retirement (#251).
+
 - Add lazy Swift worker-session lifetime coordination with immutable scope, serialized reset/close and original typed diagnostic copies (#251).
 
 - Export worker-session APIs explicitly to Swift consumers and verify copied session output/cache observations across Swift6 actor ownership (#251).

@@ -1351,3 +1351,13 @@ contracts pass; all208 ordinary contracts pass. [ADR0163](adr/0163-worker-servic
 records exact coverage gaps. Authenticated XPC RPC/ordered-retirement integration,
 full-output/range acceptance #279/#280 and M4–M8 parity remain incomplete. Production
 pin/backend and quarantines remain unchanged.
+
+### Ordered session cleanup before service retirement (#251)
+
+The Swift scheduler now drains accepted work before exact-once owner cleanup and
+passes the original cleanup Result to process retirement. The XPC fixture queues its
+lazy coordinator close on this path. Fake success/error/foreign/duplicate contracts
+and all208 ordinary tests pass; [ADR0164](adr/0164-worker-session-retirement.md) records
+coverage and unforced boundaries. Explicit session RPC routing/authentication,
+initialized-cache XPC cleanup, platform decoding/full-output/range gates and M4–M8
+acceptance remain incomplete. Production pin/backend and quarantines are unchanged.

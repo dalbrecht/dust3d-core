@@ -26,6 +26,7 @@ final class StaticWorkerObject: NSObject, StaticWorkerJob, Sendable {
     private let sandboxEntitlementVerified: Bool
     private let scheduler: WorkerServiceScheduler
     private let candidate: WorkerServiceConnection
+    private let session = WorkerServiceSession(backend: WorkerNativeServiceSession())
     init(sandboxEntitlementVerified: Bool, scheduler: WorkerServiceScheduler, candidate: WorkerServiceConnection) {
         self.sandboxEntitlementVerified = sandboxEntitlementVerified
         self.scheduler = scheduler
@@ -72,13 +73,29 @@ final class StaticWorkerObject: NSObject, StaticWorkerJob, Sendable {
     }
     func finishWhenIdle() {
         // Seal admission immediately; normal stop is ordered after every accepted submission.
-        scheduler.retire(owner: candidate)
+        scheduler.retire(owner: candidate, beforeRetired: { try self.session.close() })
     }
 }
 
 final class StaticListenerDelegate: NSObject, NSXPCListenerDelegate {
     private let requirement: String
-    private let scheduler = WorkerServiceScheduler(onRetired: { exit(EXIT_SUCCESS) })
+    private let scheduler = WorkerServiceScheduler(onRetired: { result in
+        switch result {
+        case .success: exit(EXIT_SUCCESS)
+        case .failure(let cause):
+            // The callback retains the original typed cause; logs include only
+            // metadata because native diagnostic bytes can contain document text.
+            let description: String
+            if let original = cause as? WorkerSessionBoundaryError {
+                description =
+                    "status=\(original.status) source=\(original.source) code=\(original.code) truncated=\(original.isTruncated)"
+            } else {
+                description = "type=\(String(reflecting: type(of: cause)))"
+            }
+            FileHandle.standardError.write(Data("Static XPC retirement failed: \(description)\n".utf8))
+            exit(EXIT_FAILURE)
+        }
+    })
     private let sandboxEntitlementVerified: Bool
     init(requirement: String, sandboxEntitlementVerified: Bool) {
         self.requirement = requirement

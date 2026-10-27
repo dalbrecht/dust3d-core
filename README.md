@@ -1212,3 +1212,10 @@ It serializes jobs/lifecycle and destroys native owners after close errors while
 preserving original causes. Fake lifecycle and ordinary Capsule contracts cover
 these boundaries; actual connection RPC wiring remains separate. See
 [ADR0163](docs/adr/0163-worker-service-session-lifetime.md).
+
+### Ordered worker-session retirement
+
+The Swift worker prototype now queues session cleanup after accepted work and before
+service retirement, preserving the original cleanup result. Duplicate/foreign
+retirement cannot queue cleanup. Explicit session RPC routing remains pending; see
+[ADR0164](docs/adr/0164-worker-session-retirement.md).
