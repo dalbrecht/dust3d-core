@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Reject session request headers that differ from independent host-admitted operation/document/request/revision before reading or retaining their bodies (#251).
+
 - Drain accepted worker jobs before session cleanup and preserve original cleanup results through service retirement (#251).
 
 - Add lazy Swift worker-session lifetime coordination with immutable scope, serialized reset/close and original typed diagnostic copies (#251).

@@ -111,7 +111,8 @@ private func generate(
     }
     let job = try session.serve(
         scope: scope,
-        job: WorkerSessionChannelJob(input: input.fileDescriptor, output: output.fileDescriptor, limits: limits))
+        job: WorkerSessionChannelJob(
+            expected: identity, input: input.fileDescriptor, output: output.fileDescriptor, limits: limits))
     try require(
         job.status == DUST3D_WORKER_JOB_COMPLETE
             && job.operation == DUST3D_WORKER_OPERATION_SESSION_INDEXED_SOURCED_MESH

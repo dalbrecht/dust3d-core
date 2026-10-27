@@ -31,6 +31,11 @@ namespace worker {
         uint64_t requestIdentity = 0;
         std::optional<Operation> operation;
     };
+    /// Host-side admission declaration, never inferred from untrusted wire bytes.
+    struct WorkerJobExpectation {
+        Operation operation;
+        RequestIdentity identity;
+    };
     /// Content-independent diagnostic label; absent/unsupported observations remain unknown.
     /// @param operation Optional observed operation, never inferred before header validation.
     /// @return Static literal valid for process lifetime; no document text is included.
@@ -46,8 +51,9 @@ namespace worker {
     /// Read one exact request plus EOF on separate borrowed job channels.
     /// Resets context before any I/O; validates bounded framing before allocation.
     /// Throws original protocol/I/O/allocation causes. No native work/descriptor close.
-    /// Example: auto frame = readWorkerRequest(input, output, context);
-    Frame readWorkerRequest(int input, int output, WorkerJobContext& context);
+    /// Optional host expectation is validated and compared before body retention.
+    /// It is not authentication. Example: auto frame = readWorkerRequest(input, output, context, &expected);
+    Frame readWorkerRequest(int input, int output, WorkerJobContext& context, const WorkerJobExpectation* expected = nullptr);
     /// Encode/write an owned reply, preserving original output I/O errors.
     /// Borrowed descriptor; host establishes signal/resource policy. Never closes it.
     /// Example: writeWorkerReply(output, response);
@@ -57,7 +63,7 @@ namespace worker {
     /// Trusted generation is supplied by host, never inferred from wire bytes.
     /// Caller serializes jobs/lifecycle and keeps session alive; no native interruption.
     /// Example: serveWorkerSessionJob(input, output, context, session, generation, {});
-    void serveWorkerSessionJob(int input, int output, WorkerJobContext& context, ConnectionGenerationSession& session, uint64_t generation, const SessionOutputLimits& limits);
+    void serveWorkerSessionJob(int input, int output, WorkerJobContext& context, ConnectionGenerationSession& session, uint64_t generation, const SessionOutputLimits& limits, const WorkerJobExpectation* expected = nullptr);
     /// Serve one bounded frame followed by EOF on borrowed channels, through serialized native C ABI.
     /// @param input Borrowed readable request channel, exclusively owned by the host for this job.
     /// @param output Separate host-owned writable reply channel; no path is opened or closed.
