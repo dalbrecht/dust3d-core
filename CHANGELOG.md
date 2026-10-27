@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add checked scalar preview accounting for independent native, serialized and retained budgets, preserving explicit indexed policies and successful emptiness without changing active transport caps (#270).
+
 - Decode procedural PNGs inside the healthy sandboxed worker fixture and admit copied baked maps after actual EOF and independent peer observation; imported decoding stays disabled (#267).
 
 - Add an Apple-only worker PNG/JPEG callback product with shared Foundation-only envelope metadata, straight source samples and purpose-specific transparency (#267).
