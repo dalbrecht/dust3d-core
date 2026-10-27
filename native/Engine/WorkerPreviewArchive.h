@@ -12,6 +12,11 @@ namespace worker {
     struct PreviewArchiveContext {
         uint64_t archiveBytes, maximumSourceBytes, maximumIndexedBytes;
     };
+    namespace detail {
+        /// Shared scalar preflight for collector and channel sender. Returns the
+        /// frozen value or throws PreviewChunkError, without archive allocation.
+        PreviewArchiveContext checkedPreviewArchiveContext(PreviewArchiveContext context);
+    }
     /// Archive storage is borrowed until collector destruction. No archive parsing,
     /// peer authentication, current-source admission or native dispatch is implied.
     struct PreviewArchiveView {

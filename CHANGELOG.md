@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Transfer segmented preview archives through bounded borrowed channels and immutable C owners, with strict Swift copied-value/actor verification and original typed receipts (#270).
+
 - Own segmented preview archives only after captured metadata, exact framing and real EOF agree, preserving native request policies without widening legacy envelope caps (#270).
 
 - Add incremental bounded preview byte readers/writers with exact span handling, sealed decode/callback failures and original-cause retention; native dispatch and app adoption remain separate (#270).

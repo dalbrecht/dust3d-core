@@ -7,13 +7,6 @@ namespace dust3d {
 namespace worker {
     namespace {
         [[noreturn]] void reject(PreviewChunkErrorCode code, const char* cause) { throw PreviewChunkError(code, cause); }
-        PreviewArchiveContext validateContext(PreviewArchiveContext context)
-        {
-            if (!context.archiveBytes || context.archiveBytes > maximumPayloadBytes || context.archiveBytes > std::numeric_limits<size_t>::max() - sourceRequestPrefixBytes
-                || context.maximumSourceBytes > maximumPayloadBytes || context.maximumIndexedBytes > std::numeric_limits<size_t>::max())
-                reject(PreviewChunkErrorCode::invalidLimits, "Captured preview archive/options exceed native supported bounds.");
-            return context;
-        }
         PreviewChunkIdentity validateTransfer(PreviewChunkIdentity identity, const PreviewArchiveContext& context, const PreviewChunkPolicy& policy)
         {
             if (identity.direction != PreviewChunkDirection::archive)
@@ -22,8 +15,15 @@ namespace worker {
             return identity;
         }
     }
+    PreviewArchiveContext detail::checkedPreviewArchiveContext(PreviewArchiveContext context)
+    {
+        if (!context.archiveBytes || context.archiveBytes > maximumPayloadBytes || context.archiveBytes > std::numeric_limits<size_t>::max() - sourceRequestPrefixBytes
+            || context.maximumSourceBytes > maximumPayloadBytes || context.maximumIndexedBytes > std::numeric_limits<size_t>::max())
+            reject(PreviewChunkErrorCode::invalidLimits, "Captured preview archive/options exceed native supported bounds.");
+        return context;
+    }
     PreviewArchiveCollector::PreviewArchiveCollector(PreviewChunkIdentity identity, PreviewArchiveContext context, PreviewChunkPolicy policy)
-        : m_context(validateContext(context))
+        : m_context(detail::checkedPreviewArchiveContext(context))
         , m_reader(validateTransfer(identity, m_context, policy), policy, [this](const PreviewChunkHeader& header, const uint8_t* bytes, size_t size) { consume(header, bytes, size); })
     {
     }

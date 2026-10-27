@@ -1447,3 +1447,15 @@ legacy whole-envelope caps stay unchanged. All 217 ordinary contracts pass;
 remaining real-channel, output-semantic, native/C/Swift and Apple adoption gates.
 This does not complete Apple #279/#280 or M4–M8. Production pin and quarantines remain
 unchanged.
+
+
+### Archive channels and C/Swift copies (#270)
+
+Bounded Unix descriptor adapters now send and collect segmented archive requests,
+retaining original typed causes and requiring actual EOF before a C owner is returned.
+The licensed small Capsule fixture survives channel closure, C destruction after copying
+and Swift actor transfer; the actual SwiftPM library consumer also passes. All 220
+ordinary contracts pass. [ADR0174](adr/0174-worker-preview-archive-channels.md) records
+coverage below adoption targets and unforced OS/fault boundaries. Complete wide output
+semantics, native dispatch, authenticated/current-source admission and Apple adoption
+remain open. No production pin, active route/cap or quarantine changed; M4–M8 remain open.

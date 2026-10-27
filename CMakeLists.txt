@@ -89,9 +89,9 @@ if(UNIX)
     add_executable(dust3d_export native/ExportCli/main.cc)
     set_target_properties(dust3d_export PROPERTIES OUTPUT_NAME dust3d-export)
     target_link_libraries(dust3d_export PRIVATE dust3d_engine)
-    add_library(dust3d_worker_job_io STATIC native/Engine/WorkerJobIO.cc)
+    add_library(dust3d_worker_job_io STATIC native/Engine/WorkerPreviewArchiveIO.cc native/Engine/WorkerJobIO.cc)
     target_link_libraries(dust3d_worker_job_io PUBLIC dust3d_worker_operation)
-    add_library(dust3d_worker_runtime STATIC native/WorkerRuntime/WorkerSessionBridge.cc native/WorkerRuntime/WorkerSessionOutputBridge.cc native/WorkerRuntime/WorkerBakedDecodedBridge.cc native/WorkerRuntime/WorkerImportedDecodedBridge.cc native/WorkerRuntime/WorkerImageDecoder.cc native/WorkerRuntime/WorkerRuntimeBridge.cc native/WorkerRuntime/WorkerReplyBridge.cc native/WorkerRuntime/WorkerDecodedBridge.cc native/WorkerRuntime/WorkerRequestBridge.cc native/WorkerRuntime/WorkerQueueBridge.cc)
+    add_library(dust3d_worker_runtime STATIC native/WorkerRuntime/WorkerPreviewArchiveBridge.cc native/WorkerRuntime/WorkerSessionBridge.cc native/WorkerRuntime/WorkerSessionOutputBridge.cc native/WorkerRuntime/WorkerBakedDecodedBridge.cc native/WorkerRuntime/WorkerImportedDecodedBridge.cc native/WorkerRuntime/WorkerImageDecoder.cc native/WorkerRuntime/WorkerRuntimeBridge.cc native/WorkerRuntime/WorkerReplyBridge.cc native/WorkerRuntime/WorkerDecodedBridge.cc native/WorkerRuntime/WorkerRequestBridge.cc native/WorkerRuntime/WorkerQueueBridge.cc)
     target_include_directories(dust3d_worker_runtime PUBLIC native/WorkerRuntime/include PRIVATE native/Engine)
     target_link_libraries(dust3d_worker_runtime PUBLIC dust3d_worker_job_io)
     add_executable(dust3d_worker native/Engine/WorkerMain.cc)
@@ -677,6 +677,16 @@ if(BUILD_TESTING)
     target_link_libraries(dust3d_worker_legacy_baked_copy_tests PRIVATE dust3d_worker_operation)
     add_test(NAME worker_legacy_baked_copy_contracts COMMAND dust3d_worker_legacy_baked_copy_tests ${CMAKE_CURRENT_SOURCE_DIR}/tests/core/fixtures)
     set_tests_properties(worker_legacy_baked_copy_contracts PROPERTIES TIMEOUT 60)
+    if(UNIX)
+        add_executable(dust3d_worker_preview_archive_c_tests tests/core/worker_preview_archive_c_tests.c)
+        target_link_libraries(dust3d_worker_preview_archive_c_tests PRIVATE dust3d_worker_runtime)
+        add_test(NAME worker_preview_archive_c_contracts COMMAND dust3d_worker_preview_archive_c_tests)
+        set_tests_properties(worker_preview_archive_c_contracts PROPERTIES TIMEOUT 30)
+        add_executable(dust3d_worker_preview_archive_channel_tests tests/core/worker_preview_archive_channel_tests.cc)
+        target_link_libraries(dust3d_worker_preview_archive_channel_tests PRIVATE dust3d_worker_runtime)
+        add_test(NAME worker_preview_archive_channel_contracts COMMAND dust3d_worker_preview_archive_channel_tests ${CMAKE_CURRENT_SOURCE_DIR}/tests/core/fixtures/Capsule.ds3)
+        set_tests_properties(worker_preview_archive_channel_contracts PROPERTIES TIMEOUT 30)
+    endif()
     add_executable(dust3d_worker_preview_archive_tests tests/core/worker_preview_archive_tests.cc)
     target_link_libraries(dust3d_worker_preview_archive_tests PRIVATE dust3d_worker_protocol)
     add_test(NAME worker_preview_archive_contracts COMMAND dust3d_worker_preview_archive_tests)
@@ -768,6 +778,29 @@ if(BUILD_TESTING)
         add_test(NAME worker_runtime_swift COMMAND "${DUST3D_SWIFT_WORKER_CONSUMER}"
             "${CMAKE_CURRENT_SOURCE_DIR}/tests/core/fixtures/Capsule.ds3" "${CMAKE_CURRENT_BINARY_DIR}")
         set_tests_properties(worker_runtime_swift PROPERTIES TIMEOUT 60)
+        set(DUST3D_SWIFT_PREVIEW_ARCHIVE_CONSUMER "${CMAKE_CURRENT_BINARY_DIR}/worker-preview-archive-swift")
+        add_custom_command(OUTPUT "${DUST3D_SWIFT_PREVIEW_ARCHIVE_CONSUMER}"
+            COMMAND "${DUST3D_XCRUN}" swift-format lint --strict "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerPreviewArchiveSmoke.swift"
+            COMMAND "${DUST3D_XCRUN}" swiftc -swift-version 6 -strict-concurrency=complete
+                -warnings-as-errors -parse-as-library
+                -module-cache-path "${CMAKE_CURRENT_BINARY_DIR}/swift-module-cache"
+                -I "${CMAKE_CURRENT_SOURCE_DIR}/native/WorkerRuntime/include"
+                "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerPreviewArchiveSmoke.swift"
+                "$<TARGET_FILE:dust3d_worker_runtime>" "$<TARGET_FILE:dust3d_worker_job_io>"
+                "$<TARGET_FILE:dust3d_worker_operation>" "$<TARGET_FILE:dust3d_worker_protocol>"
+                "$<TARGET_FILE:dust3d_engine>" "$<TARGET_FILE:dust3d_core>"
+                "$<TARGET_FILE:dust3d_remesher>" "$<TARGET_FILE:dust3d_triangle>"
+                -lc++ -lz -o "${DUST3D_SWIFT_PREVIEW_ARCHIVE_CONSUMER}"
+            DEPENDS tests/swift/WorkerPreviewArchiveSmoke.swift native/WorkerRuntime/include/module.modulemap
+                native/WorkerRuntime/include/Dust3DWorkerPreviewArchive.h
+                native/WorkerRuntime/include/Dust3DWorkerRuntime.h
+                dust3d_worker_runtime dust3d_worker_job_io dust3d_worker_operation dust3d_worker_protocol
+                dust3d_engine dust3d_core dust3d_remesher dust3d_triangle
+            VERBATIM)
+        add_custom_target(dust3d_worker_preview_archive_swift ALL DEPENDS "${DUST3D_SWIFT_PREVIEW_ARCHIVE_CONSUMER}")
+        add_test(NAME worker_preview_archive_swift COMMAND "${DUST3D_SWIFT_PREVIEW_ARCHIVE_CONSUMER}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tests/core/fixtures/Capsule.ds3")
+        set_tests_properties(worker_preview_archive_swift PROPERTIES TIMEOUT 30)
         set(DUST3D_SWIFT_SESSION_CONSUMER "${CMAKE_CURRENT_BINARY_DIR}/worker-session-swift")
         add_custom_command(OUTPUT "${DUST3D_SWIFT_SESSION_CONSUMER}"
             COMMAND "${DUST3D_XCRUN}" swift-format lint --strict "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerSessionSmoke.swift"

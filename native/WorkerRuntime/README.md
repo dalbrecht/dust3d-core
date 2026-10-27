@@ -494,3 +494,16 @@ legacy codec without changing its whole-envelope caps. See
 [ADR0173](../../docs/adr/0173-worker-preview-archive-ownership.md) for memory accounting,
 tiny test evidence and residual coverage. Real channel EOF, native archive validation,
 peer/current-source admission, C/Swift owners and app integration remain separate gates.
+
+
+### Segmented archive channel and C ownership boundary
+
+`Dust3DWorkerPreviewArchive.h` provides blocking borrowed-descriptor send/read operations
+with frozen identity/native controls and an immutable complete archive owner. The sender
+never produces EOF itself; the receiver requires actual EOF before returning an owner.
+Copy bytes before destruction or Swift actor transfer. The host supplies signal policy,
+isolated execution and bounded supervision; this API authenticates no peer and dispatches
+no native work. C++, pure-C and strict Swift tests use the existing small Capsule archive,
+including an actual SwiftPM-library consumer. See
+[ADR0174](../../docs/adr/0174-worker-preview-archive-channels.md) for memory accounting,
+measured residual coverage and remaining native/output/adoption gates.
