@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add incremental bounded preview byte readers/writers with exact span handling, sealed decode/callback failures and original-cause retention; native dispatch and app adoption remain separate (#270).
+
 - Add bounded preview chunk headers, checked physical framing charges and failure-sealed identity/order/EOF state without enabling a new native transport route (#270).
 
 - Add checked scalar preview accounting for independent native, serialized and retained budgets, preserving explicit indexed policies and successful emptiness without changing active transport caps (#270).
