@@ -1425,3 +1425,13 @@ pass; [ADR0171](adr/0171-worker-preview-chunk-framing.md) records schema and cov
 Actual readers/writers, complete body semantics and C/Swift ownership remain next;
 no native dispatch, cap change, app activation or full range acceptance is claimed.
 Production pin/backend and all quarantines remain unchanged.
+
+
+### Bounded preview byte handling (#270)
+
+Incremental collecting-thread endpoints now handle split headers/bodies with one
+policy-sized workspace, exact counts, sealed decode/sink failures and retained first
+causes. Tiny round-trip/semantic separation and all216 ordinary contracts pass;
+[ADR0172](adr/0172-worker-preview-byte-stream.md) records coverage and remaining OS
+channel/body/ownership gates. This does not enable native dispatch or default app
+adoption. Full #279/#280 acceptance, production pin/backend and quarantines unchanged.

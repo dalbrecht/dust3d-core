@@ -62,7 +62,7 @@ let package = Package(
                 "Engine/WorkerIndexedMesh.cc",
                 "Engine/WorkerSourcedMesh.cc",
                 "Engine/WorkerSourceHints.cc",
-                "Engine/WorkerProtocol.cc", "Engine/WorkerPreviewChunk.cc",
+                "Engine/WorkerProtocol.cc", "Engine/WorkerPreviewChunk.cc", "Engine/WorkerPreviewChunkStream.cc",
                 "Engine/WorkerReplyCollector.cc",
                 "Engine/WorkerMesh.cc",
                 "Engine/WorkerFailure.cc", "Engine/WorkerAdmission.cc", "Engine/WorkerQueue.cc",

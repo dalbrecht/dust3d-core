@@ -473,3 +473,13 @@ payload chunks of at most64KiB. Physical accounting includes begin/data/end head
 identity, offsets and real terminal-plus-EOF state are checked without retaining body
 bytes or allocating a full transfer. See [ADR0171](../../docs/adr/0171-worker-preview-chunk-framing.md).
 No actual byte transport, native dispatch or semantic/app admission is enabled here.
+
+
+### Incremental preview byte endpoints
+
+The internal reader/writer now handle arbitrarily fragmented bytes using one frozen
+chunk workspace and fixed header storage. Original callback/decode failures seal the
+owner; borrowed callback spans expire on return. Writer completion is not physical
+EOF, and reader framing is not semantic/peer/current-source admission. See
+[ADR0172](../../docs/adr/0172-worker-preview-byte-stream.md). OS channels, complete
+wide bodies, C/Swift ownership and native/app dispatch remain separate reviewed work.

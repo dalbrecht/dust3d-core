@@ -45,7 +45,8 @@ namespace worker {
         invalidSequence,
         identityMismatch,
         lengthMismatch,
-        payloadMismatch };
+        payloadMismatch,
+        invalidInput };
     class PreviewChunkError : public std::runtime_error {
     public:
         PreviewChunkError(PreviewChunkErrorCode code, const char* cause);
