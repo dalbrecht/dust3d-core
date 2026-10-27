@@ -14,6 +14,21 @@ let staticServiceIdentifier = "org.dust3d.core.xpc-static-service.qa"
                 UInt32, UInt32, UInt64, Int32, UInt32, UInt32, Int32, UInt8, Int32, Bool, Int32, UInt32
             ) ->
             Void)
+    func serveSession(
+        _ input: FileHandle, output: FileHandle, isStream: Bool, document: NSUUID,
+        requestIdentity: UInt64, revision: UInt64, connectionGeneration: UInt64,
+        maximumCachePayloadBytes: UInt64, maximumWireBytes: UInt64, maximumDecodedBytes: UInt64,
+        maximumSourceBytes: UInt64,
+        withReply reply:
+            @escaping @Sendable (
+                UInt32, UInt32, UInt64, Int32, UInt32, UInt32, Int32, UInt8, Int32, Bool, Int32, UInt32, Data
+            ) -> Void)
+    func closeSession(
+        _ requestIdentity: UInt64,
+        withReply reply:
+            @escaping @Sendable (
+                UInt32, UInt32, UInt64, Int32, UInt32, UInt32, Int32, UInt8, Int32, Bool, Int32, UInt32, Data
+            ) -> Void)
     func cancelQueued(_ requestIdentity: UInt64, withReply reply: @escaping @Sendable (UInt32) -> Void)
 }
 

@@ -95,6 +95,22 @@ final class WorkerServiceQueue {
         defer { dust3d_worker_decoded_destroy(decoded) }
         return try body(decoded)
     }
+    /// Dedicated operation9 admission after actual EOF/control and transport cleanup.
+    /// The root is independent; copy values in body before its guaranteed destruction.
+    func withSessionDecodedReply<Value>(
+        observed: Dust3DWorkerServiceObservation, receipt: Dust3DWorkerServiceReceipt,
+        limits: Dust3DWorkerSessionOutputLimits, _ body: (OpaquePointer) throws -> Value
+    ) throws -> Value {
+        var result = Dust3DWorkerDecodeResult()
+        guard let decoded = dust3d_worker_session_service_queue_admit(owner, observed, receipt, limits, &result) else {
+            throw WorkerServiceQueueError(
+                operation: .admit, status: result.status.rawValue, source: result.detail_source.rawValue,
+                code: result.detail_code, truncated: result.message_truncated != 0,
+                cause: withUnsafeBytes(of: result.message) { Data($0.prefix { $0 != 0 }) })
+        }
+        defer { dust3d_worker_session_output_destroy(decoded) }
+        return try body(decoded)
+    }
     private static func failure(_ operation: WorkerServiceQueueError.Operation, _ result: Dust3DWorkerQueueResult)
         -> WorkerServiceQueueError
     {

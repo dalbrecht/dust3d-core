@@ -80,8 +80,10 @@ def main():
     channel_kind = sys.argv[6] if len(sys.argv) == 7 else 'file'
     if channel_kind not in ('file', 'socket'):
         raise RuntimeError('Expected file or socket channel kind')
-    if mode not in ('mesh', 'uv'):
+    if mode not in ('mesh', 'uv', 'session'):
         raise RuntimeError('Expected base or UV fixture mode')
+    if mode == 'session' and channel_kind != 'file':
+        raise RuntimeError('Session cache fixture uses regular-file channels')
     if not all(path.is_file() for path in (host_binary, service_binary, fixture)):
         raise RuntimeError('Fresh fixture inputs are missing')
     directory = Path(tempfile.mkdtemp(prefix='worker-xpc-static-', dir=shared))
@@ -115,8 +117,9 @@ def main():
         print(output, end='')
         if process.returncode:
             raise RuntimeError(f'Fixture host exited {process.returncode}: {errors}')
-        prefix = ('Isolated XPC ordinary UV mesh passed: 240 vertices; 80 UV triangles; '
-                  if mode == 'uv' else 'Isolated XPC ordinary mesh passed: 240 vertices; ')
+        prefix = ('Isolated XPC session cache reuse passed: ' if mode == 'session' else
+                  'Isolated XPC ordinary UV mesh passed: 240 vertices; 80 UV triangles; ' if mode == 'uv' else
+                  'Isolated XPC ordinary mesh passed: 240 vertices; ')
         match = re.search(re.escape(prefix) + r'servicePID=(\d+); hostPID=(\d+)', output)
         if not match or int(match.group(2)) != process.pid or int(match.group(1)) == process.pid:
             raise RuntimeError('Missing independent service process and ordinary mesh evidence')
@@ -130,6 +133,10 @@ def main():
             raise RuntimeError('Missing queue-authoritative current-source admission evidence')
         if 'Persistent service C admission accepted after actual EOF and OS peer observation' not in output:
             raise RuntimeError('Missing persistent service completion admission evidence')
+        if mode == 'session':
+            if ('Actual session cache reuse observed across two requests' not in output
+                    or 'Session cache closed before connection invalidation' not in output):
+                raise RuntimeError('Missing retained-session reuse or explicit close evidence')
         peer = int(match.group(1))
         deadline = time.monotonic() + 10
         while True:

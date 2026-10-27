@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: MIT
+import Dust3DWorkerRuntime
 import Foundation
 
 struct WorkerControlReceipt: Sendable {
@@ -16,10 +17,12 @@ struct WorkerControlReceipt: Sendable {
     let admissionStatus: UInt32
     let connectionGeneration: UInt64
     let observedProcess: Int32
+    let cause: Data
 }
 /// All mutable Foundation connection access stays on this actor.
 actor WorkerXPCPeer {
     private let connection: NSXPCConnection
+    private var isResumed = false
     init(requirement: String) {
         connection = NSXPCConnection(serviceName: staticServiceIdentifier)
         connection.setCodeSigningRequirement(requirement)
@@ -29,22 +32,7 @@ actor WorkerXPCPeer {
         input: FileHandle, output: FileHandle, isStream: Bool, request: UInt64,
         generation: UInt64, outcome: WorkerOutcome<WorkerControlReceipt>
     ) throws {
-        connection.invalidationHandler = {
-            outcome.finish(.failure(StaticFixtureError.invalid("XPC connection invalidated")))
-        }
-        connection.interruptionHandler = {
-            outcome.finish(.failure(StaticFixtureError.invalid("XPC connection interrupted")))
-        }
-        connection.resume()
-        guard
-            let proxy = connection.remoteObjectProxyWithErrorHandler({ error in
-                let original = error as NSError
-                outcome.finish(
-                    .failure(
-                        StaticFixtureError.invalid(
-                            "\(original.domain) \(original.code): \(original.localizedDescription)")))
-            }) as? StaticWorkerJob
-        else { throw StaticFixtureError.invalid("Missing typed XPC proxy") }
+        let proxy = try proxy(outcome: outcome)
         proxy.serve(input, output: output, isStream: isStream, requestIdentity: request) {
             [weak self]
             status, operation, request, systemError, stage, source, code, truncated, process,
@@ -62,12 +50,85 @@ actor WorkerXPCPeer {
             }
         }
     }
+    private func proxy(outcome: WorkerOutcome<WorkerControlReceipt>) throws -> any StaticWorkerJob {
+        connection.invalidationHandler = {
+            outcome.finish(.failure(StaticFixtureError.invalid("XPC connection invalidated")))
+        }
+        connection.interruptionHandler = {
+            outcome.finish(.failure(StaticFixtureError.invalid("XPC connection interrupted")))
+        }
+        if !isResumed {
+            connection.resume()
+            isResumed = true
+        }
+        guard
+            let proxy = connection.remoteObjectProxyWithErrorHandler({ error in
+                let original = error as NSError
+                outcome.finish(
+                    .failure(
+                        StaticFixtureError.invalid(
+                            "\(original.domain) \(original.code): \(original.localizedDescription)")))
+            }) as? StaticWorkerJob
+        else { throw StaticFixtureError.invalid("Missing typed XPC proxy") }
+        return proxy
+    }
+    func submitSession(
+        input: FileHandle, output: FileHandle, identity: Dust3DWorkerRequestIdentity,
+        generation: UInt64, maximumCachePayloadBytes: UInt64, limits: Dust3DWorkerSessionOutputLimits,
+        outcome: WorkerOutcome<WorkerControlReceipt>
+    ) throws {
+        let proxy = try proxy(outcome: outcome)
+        proxy.serveSession(
+            input, output: output, isStream: false, document: UUID(uuid: identity.document) as NSUUID,
+            requestIdentity: identity.request, revision: identity.revision, connectionGeneration: generation,
+            maximumCachePayloadBytes: maximumCachePayloadBytes, maximumWireBytes: limits.maximum_wire_bytes,
+            maximumDecodedBytes: limits.maximum_decoded_bytes, maximumSourceBytes: limits.maximum_source_bytes
+        ) {
+            [weak self]
+            status, operation, request, systemError, stage, source, code, truncated, process,
+            sandbox, finalizationError, admissionStatus, cause in
+            Task {
+                guard let self else {
+                    outcome.finish(.failure(StaticFixtureError.invalid("Session peer observer retired")))
+                    return
+                }
+                await self.finish(
+                    status: status, operation: operation, request: request, systemError: systemError,
+                    stage: stage, source: source, code: code, truncated: truncated, process: process,
+                    sandboxEntitlementVerified: sandbox, finalizationError: finalizationError,
+                    admissionStatus: admissionStatus, generation: generation, outcome: outcome, cause: cause)
+            }
+        }
+    }
+    func closeSession(request: UInt64, generation: UInt64, outcome: WorkerOutcome<WorkerControlReceipt>) throws {
+        let proxy = try proxy(outcome: outcome)
+        proxy.closeSession(request) {
+            [weak self]
+            status, operation, request, systemError, stage, source, code, truncated, process,
+            sandbox, finalizationError, admissionStatus, cause in
+            Task {
+                guard let self else {
+                    outcome.finish(.failure(StaticFixtureError.invalid("Close peer observer retired")))
+                    return
+                }
+                await self.finish(
+                    status: status, operation: operation, request: request, systemError: systemError,
+                    stage: stage, source: source, code: code, truncated: truncated, process: process,
+                    sandboxEntitlementVerified: sandbox, finalizationError: finalizationError,
+                    admissionStatus: admissionStatus, generation: generation, outcome: outcome, cause: cause)
+            }
+        }
+    }
     private func finish(
         status: UInt32, operation: UInt32, request: UInt64, systemError: Int32, stage: UInt32,
         source: UInt32, code: Int32, truncated: UInt8, process: Int32, sandboxEntitlementVerified: Bool,
         finalizationError: Int32, admissionStatus: UInt32, generation: UInt64,
-        outcome: WorkerOutcome<WorkerControlReceipt>
+        outcome: WorkerOutcome<WorkerControlReceipt>, cause: Data = Data()
     ) {
+        guard cause.count <= 511 else {
+            outcome.finish(.failure(StaticFixtureError.invalid("Session diagnostic exceeds control bound")))
+            return
+        }
         outcome.finish(
             .success(
                 WorkerControlReceipt(
@@ -75,7 +136,7 @@ actor WorkerXPCPeer {
                     stage: stage, source: source, code: code, truncated: truncated, process: process,
                     sandboxEntitlementVerified: sandboxEntitlementVerified, finalizationError: finalizationError,
                     admissionStatus: admissionStatus, connectionGeneration: generation,
-                    observedProcess: connection.processIdentifier)))
+                    observedProcess: connection.processIdentifier, cause: cause)))
     }
     func invalidate() -> Int32 {
         let process = connection.processIdentifier

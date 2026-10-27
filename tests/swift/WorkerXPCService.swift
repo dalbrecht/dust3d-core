@@ -68,6 +68,114 @@ final class StaticWorkerObject: NSObject, StaticWorkerJob, Sendable {
             DUST3D_WORKER_JOB_INTERNAL_FAILED.rawValue, DUST3D_WORKER_OPERATION_UNKNOWN.rawValue,
             0, 0, 0, 0, 0, 0, getpid(), sandboxEntitlementVerified, 0, decision.status.rawValue)
     }
+    typealias SessionReply =
+        @Sendable (
+            UInt32, UInt32, UInt64, Int32, UInt32, UInt32, Int32, UInt8, Int32, Bool, Int32, UInt32, Data
+        ) -> Void
+    private func rejectSession(
+        _ error: any Error, request: UInt64, admission: WorkerServiceAdmissionStatus? = nil, reply: SessionReply
+    ) {
+        let failure = WorkerSessionRPCFailure(error)
+        reply(
+            failure.status, DUST3D_WORKER_OPERATION_UNKNOWN.rawValue, request, 0, 0,
+            failure.source, failure.code, failure.truncated, getpid(), sandboxEntitlementVerified, 0,
+            (admission ?? failure.admission).rawValue, failure.cause)
+    }
+    func serveSession(
+        _ input: FileHandle, output: FileHandle, isStream: Bool, document: NSUUID,
+        requestIdentity: UInt64, revision: UInt64, connectionGeneration: UInt64,
+        maximumCachePayloadBytes: UInt64, maximumWireBytes: UInt64, maximumDecodedBytes: UInt64,
+        maximumSourceBytes: UInt64,
+        withReply reply: @escaping SessionReply
+    ) {
+        let scope: WorkerServiceSessionScope
+        do {
+            scope = try WorkerServiceSessionScope(
+                document: document as UUID, connectionGeneration: connectionGeneration,
+                maximumCachePayloadBytes: maximumCachePayloadBytes)
+        } catch {
+            rejectSession(error, request: requestIdentity, reply: reply)
+            return
+        }
+        guard input.fileDescriptor >= 0, output.fileDescriptor >= 0, input.fileDescriptor != output.fileDescriptor
+        else {
+            rejectSession(
+                StaticFixtureError.invalid("Session requires separate valid channels"), request: requestIdentity,
+                admission: .invalidChannels, reply: reply)
+            return
+        }
+        var expected = Dust3DWorkerRequestIdentity()
+        expected.document = scope.document.uuid
+        expected.request = requestIdentity
+        expected.revision = revision
+        let job = WorkerSessionChannelJob(
+            expected: expected, input: input.fileDescriptor, output: output.fileDescriptor,
+            limits: Dust3DWorkerSessionOutputLimits(
+                maximum_wire_bytes: maximumWireBytes, maximum_decoded_bytes: maximumDecodedBytes,
+                maximum_source_bytes: maximumSourceBytes))
+        let decision = scheduler.submit(
+            owner: candidate, requestIdentity: requestIdentity,
+            onCancelled: {
+                self.rejectSession(
+                    StaticFixtureError.invalid("Session job withdrawn before start"), request: requestIdentity,
+                    admission: .cancelledBeforeStart, reply: reply)
+            },
+            { lease in
+                do {
+                    // NSXPC owns the received handles only for this invocation. Keep
+                    // both owners alive until the queued native call and EOF complete.
+                    let result = try withExtendedLifetime((input, output)) {
+                        try self.session.serve(scope: scope, job: job)
+                    }
+                    // Only an admitted native invocation finalizes its distinct output stream.
+                    let finalized = isStream ? shutdown(output.fileDescriptor, SHUT_WR) : 0
+                    let finalizationError: Int32 = finalized == 0 ? 0 : errno
+                    let admission: WorkerServiceAdmissionStatus =
+                        self.scheduler.complete(owner: self.candidate, lease) ? .accepted : .staleCompletion
+                    let cause = withUnsafeBytes(of: result.message) { Data($0.prefix { $0 != 0 }) }
+                    reply(
+                        result.status.rawValue, result.operation.rawValue, result.request_identity, result.system_error,
+                        result.io_stage.rawValue, result.detail_source.rawValue, result.detail_code,
+                        result.message_truncated,
+                        getpid(), self.sandboxEntitlementVerified, finalizationError, admission.rawValue, cause)
+                } catch {
+                    let completed = self.scheduler.complete(owner: self.candidate, lease)
+                    self.rejectSession(
+                        error, request: requestIdentity, admission: completed ? nil : .staleCompletion, reply: reply)
+                }
+            })
+        if case .accepted = decision { return }
+        rejectSession(
+            StaticFixtureError.invalid("Session admission rejected: \(decision.status.rawValue)"),
+            request: requestIdentity, admission: decision.status, reply: reply)
+    }
+    func closeSession(_ requestIdentity: UInt64, withReply reply: @escaping SessionReply) {
+        let decision = scheduler.submit(
+            owner: candidate, requestIdentity: requestIdentity,
+            onCancelled: {
+                self.rejectSession(
+                    StaticFixtureError.invalid("Session close withdrawn before start"), request: requestIdentity,
+                    admission: .cancelledBeforeStart, reply: reply)
+            },
+            { lease in
+                do {
+                    try self.session.close()
+                    let admission: WorkerServiceAdmissionStatus =
+                        self.scheduler.complete(owner: self.candidate, lease) ? .accepted : .staleCompletion
+                    reply(
+                        DUST3D_WORKER_JOB_COMPLETE.rawValue, DUST3D_WORKER_OPERATION_UNKNOWN.rawValue, requestIdentity,
+                        0, 0, 0, 0, 0, getpid(), self.sandboxEntitlementVerified, 0, admission.rawValue, Data())
+                } catch {
+                    let completed = self.scheduler.complete(owner: self.candidate, lease)
+                    self.rejectSession(
+                        error, request: requestIdentity, admission: completed ? nil : .staleCompletion, reply: reply)
+                }
+            })
+        if case .accepted = decision { return }
+        rejectSession(
+            StaticFixtureError.invalid("Session close admission rejected: \(decision.status.rawValue)"),
+            request: requestIdentity, admission: decision.status, reply: reply)
+    }
     func cancelQueued(_ requestIdentity: UInt64, withReply reply: @escaping @Sendable (UInt32) -> Void) {
         reply(scheduler.cancelQueued(owner: candidate, requestIdentity: requestIdentity).rawValue)
     }

@@ -401,8 +401,7 @@ one lock: immutable first scope, lazy creation, matching reset, permanent close 
 final destruction. Jobs/receipts are Sendable and opaque handles stay private.
 `WorkerNativeServiceSession.swift` adapts existing C calls and copies original
 opaque diagnostics. The ordinary Swift consumer uses both; fake-only lifecycle
-contracts cover failures without inducing native faults. The XPC fixture has not
-yet been switched to this coordinator. See
+contracts cover failures without inducing native faults. The XPC fixture now uses this coordinator for explicit session RPCs. See
 [ADR0163](../../docs/adr/0163-worker-service-session-lifetime.md).
 
 ### Retirement ordering
@@ -411,8 +410,7 @@ The internal Swift scheduler accepts `beforeRetired` cleanup and passes its orig
 `Result` to the retirement observer. Cleanup is queued after accepted work, runs
 outside the admission lock and is invoked once only for the owning connection.
 The XPC fixture closes its lazy session coordinator before process retirement and
-logs only non-content diagnostic metadata on failure. Its serving route remains
-stateless pending explicit session RPC integration. See
+logs only non-content diagnostic metadata on failure. Its legacy serving route stays stateless; explicit session RPCs use the retained owner. See
 [ADR0164](../../docs/adr/0164-worker-session-retirement.md).
 
 ### Correlated session serving
@@ -425,3 +423,16 @@ callers without a side-channel declaration; the Swift prototype adapter requires
 and uses the correlated entry point. Neither route authenticates transport or replaces
 current-parent completion admission. See
 [ADR0165](../../docs/adr/0165-worker-host-request-preflight.md).
+
+
+### Healthy retained-session XPC integration
+
+The development fixture exposes session scope and independent admitted identity as
+RPC metadata, retains both received FileHandle owners through queued execution,
+and returns bounded original diagnostic bytes. Parent admission still requires
+actual EOF, current queue identity and independently observed OS peer PID. A healthy
+Capsule fixture sends two requests over one authenticated sandboxed connection,
+observes actual cache reuse, closes before invalidation and retains copied geometry
+after retirement. This is development integration evidence, not Apple app adoption,
+full output/range acceptance or a production signing/distribution guarantee. See
+[ADR0166](../../docs/adr/0166-worker-session-rpc.md).

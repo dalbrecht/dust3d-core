@@ -193,6 +193,18 @@ private enum WorkerSessionSmoke {
         diagnosticValue.message_truncated = 1
         diagnosticValue.message.0 = CChar(bitPattern: 255)
         let diagnostic = WorkerSessionBoundaryError(diagnosticValue)
+        let rpcDiagnostic = WorkerSessionRPCFailure(diagnostic)
+        try require(
+            rpcDiagnostic.status == DUST3D_WORKER_JOB_PROTOCOL_REJECTED.rawValue
+                && rpcDiagnostic.source == diagnostic.source && rpcDiagnostic.code == diagnostic.code
+                && rpcDiagnostic.truncated == 1 && rpcDiagnostic.cause == Data([255])
+                && rpcDiagnostic.admission == .accepted,
+            "Original RPC boundary diagnostic")
+        let scopeDiagnostic = WorkerSessionRPCFailure(WorkerServiceSessionError.changedScope)
+        try require(
+            scopeDiagnostic.admission == .invalidSessionScope && scopeDiagnostic.cause == Data("changedScope".utf8),
+            "Original RPC scope diagnostic")
+
         try require(
             diagnostic.status == DUST3D_WORKER_DECODE_ADMISSION_REJECTED.rawValue
                 && diagnostic.source == DUST3D_WORKER_DETAIL_SESSION_SCOPE.rawValue
