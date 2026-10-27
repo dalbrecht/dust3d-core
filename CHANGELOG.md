@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add bounded preview chunk headers, checked physical framing charges and failure-sealed identity/order/EOF state without enabling a new native transport route (#270).
+
 - Add checked scalar preview accounting for independent native, serialized and retained budgets, preserving explicit indexed policies and successful emptiness without changing active transport caps (#270).
 
 - Decode procedural PNGs inside the healthy sandboxed worker fixture and admit copied baked maps after actual EOF and independent peer observation; imported decoding stays disabled (#267).

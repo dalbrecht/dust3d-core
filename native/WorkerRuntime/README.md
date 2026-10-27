@@ -464,3 +464,12 @@ capped at the native default. It does not authenticate or inspect payload semant
 change active caps, transfer chunks or enable app adoption. See
 [ADR0170](../../docs/adr/0170-worker-preview-range-accounting.md) for measured evidence
 and remaining segmented transport/admission work under #270 and Apple #280.
+
+
+### Bounded preview chunk framing
+
+The internal D3PC header/state API separates whole-transfer bounds from canonical
+payload chunks of at most64KiB. Physical accounting includes begin/data/end headers;
+identity, offsets and real terminal-plus-EOF state are checked without retaining body
+bytes or allocating a full transfer. See [ADR0171](../../docs/adr/0171-worker-preview-chunk-framing.md).
+No actual byte transport, native dispatch or semantic/app admission is enabled here.

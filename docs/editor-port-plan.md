@@ -1414,3 +1414,14 @@ above the256MiB default. All214 ordinary contracts pass; [ADR0170](adr/0170-work
 records scoped sanitizer/coverage evidence. This is accounting, not transport activation.
 Bounded transfer, complete semantic admission and Apple #279/#280 acceptance remain open;
 production pin/backend and all quarantines are unchanged.
+
+
+### Bounded preview framing foundation (#270)
+
+A distinct fixed-header chunk format and pure sequence state now preserve captured
+identity and canonical offsets, include physical header overhead and require actual
+EOF after the terminal marker. Pure tiny/scalar tests and all215 ordinary contracts
+pass; [ADR0171](adr/0171-worker-preview-chunk-framing.md) records schema and coverage.
+Actual readers/writers, complete body semantics and C/Swift ownership remain next;
+no native dispatch, cap change, app activation or full range acceptance is claimed.
+Production pin/backend and all quarantines remain unchanged.
