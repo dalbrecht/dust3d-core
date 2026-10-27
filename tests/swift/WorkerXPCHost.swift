@@ -181,7 +181,7 @@ private struct WorkerXPCHost {
             throw StaticFixtureError.invalid("Expected licensed fixture, owned scratch, base/UV mode and channel kind")
         }
         let mode = CommandLine.arguments[3]
-        guard mode == "mesh" || mode == "uv" || mode == "session" else {
+        guard mode == "mesh" || mode == "uv" || mode == "session" || mode == "procedural" else {
             throw StaticFixtureError.invalid("Unknown fixture mode")
         }
         let channelKind = CommandLine.arguments[4]
@@ -199,6 +199,13 @@ private struct WorkerXPCHost {
             throw StaticFixtureError.invalid("Ordinary licensed archive stays small")
         }
         let archive = try Data(contentsOf: source)
+        if mode == "procedural" {
+            guard !isStream else { throw StaticFixtureError.invalid("Procedural fixture uses owned regular files") }
+            try runProceduralXPCFixture(
+                archive: archive, root: URL(fileURLWithPath: CommandLine.arguments[2]),
+                requirement: developmentRequirement(pins.service), deadline: .now() + 20)
+            return
+        }
         if mode == "session" {
             guard !isStream else { throw StaticFixtureError.invalid("Session fixture uses owned regular files") }
             try runSessionXPCFixture(

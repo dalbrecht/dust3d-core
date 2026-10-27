@@ -80,9 +80,9 @@ def main():
     channel_kind = sys.argv[6] if len(sys.argv) == 7 else 'file'
     if channel_kind not in ('file', 'socket'):
         raise RuntimeError('Expected file or socket channel kind')
-    if mode not in ('mesh', 'uv', 'session'):
+    if mode not in ('mesh', 'uv', 'session', 'procedural'):
         raise RuntimeError('Expected base or UV fixture mode')
-    if mode == 'session' and channel_kind != 'file':
+    if mode in ('session', 'procedural') and channel_kind != 'file':
         raise RuntimeError('Session cache fixture uses regular-file channels')
     if not all(path.is_file() for path in (host_binary, service_binary, fixture)):
         raise RuntimeError('Fresh fixture inputs are missing')
@@ -117,7 +117,8 @@ def main():
         print(output, end='')
         if process.returncode:
             raise RuntimeError(f'Fixture host exited {process.returncode}: {errors}')
-        prefix = ('Isolated XPC session cache reuse passed: ' if mode == 'session' else
+        prefix = ('Isolated XPC procedural PNG bake passed: ' if mode == 'procedural' else
+                  'Isolated XPC session cache reuse passed: ' if mode == 'session' else
                   'Isolated XPC ordinary UV mesh passed: 240 vertices; 80 UV triangles; ' if mode == 'uv' else
                   'Isolated XPC ordinary mesh passed: 240 vertices; ')
         match = re.search(re.escape(prefix) + r'servicePID=(\d+); hostPID=(\d+)', output)

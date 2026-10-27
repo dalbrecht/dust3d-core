@@ -1393,3 +1393,13 @@ all212 contracts; [ADR0168](adr/0168-worker-apple-image-decoder.md) records meas
 coverage and the required later removal of pinned Apple copies. Worker wiring and
 Apple #279/#280 full-output/range acceptance remain open. Production pin/backend and
 all quarantines are unchanged; no GLB path or malformed native codec probe is added.
+
+
+### Healthy worker-side procedural PNG integration (#267)
+
+The development sandboxed service now enables only the procedural platform callback.
+An existing licensed image-bearing archive passes small explicit baking, actual EOF,
+authenticated-peer observations and parent queue admission with copied maps after
+retirement. All213 ordinary contracts pass; [ADR0169](adr/0169-worker-procedural-image-xpc.md)
+records limits. Imported providers remain disabled; full rendering/range acceptance
+#279/#280, app adoption and distribution remain open. Production pin/quarantines unchanged.
