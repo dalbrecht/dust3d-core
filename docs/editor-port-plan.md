@@ -1435,3 +1435,15 @@ causes. Tiny round-trip/semantic separation and all216 ordinary contracts pass;
 [ADR0172](adr/0172-worker-preview-byte-stream.md) records coverage and remaining OS
 channel/body/ownership gates. This does not enable native dispatch or default app
 adoption. Full #279/#280 acceptance, production pin/backend and quarantines unchanged.
+
+
+### Owned preview archive requests (#270)
+
+The D3PC archive collector compares frozen request controls and the shared fixed
+source prefix before retaining one contiguous archive, and exposes borrowed bytes
+only after exact framing and actual EOF. Native maximum ranges are checked as scalars;
+legacy whole-envelope caps stay unchanged. All 217 ordinary contracts pass;
+[ADR0173](adr/0173-worker-preview-archive-ownership.md) records scoped coverage and
+remaining real-channel, output-semantic, native/C/Swift and Apple adoption gates.
+This does not complete Apple #279/#280 or M4–M8. Production pin and quarantines remain
+unchanged.

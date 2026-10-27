@@ -483,3 +483,14 @@ owner; borrowed callback spans expire on return. Writer completion is not physic
 EOF, and reader framing is not semantic/peer/current-source admission. See
 [ADR0172](../../docs/adr/0172-worker-preview-byte-stream.md). OS channels, complete
 wide bodies, C/Swift ownership and native/app dispatch remain separate reviewed work.
+
+
+### Owned segmented preview archives
+
+The internal archive collector freezes independent request controls, validates the
+24-byte source prefix before one archive allocation and exposes immutable borrowed
+bytes only after exact framing and real EOF. Prefix encoding/inspection shares the
+legacy codec without changing its whole-envelope caps. See
+[ADR0173](../../docs/adr/0173-worker-preview-archive-ownership.md) for memory accounting,
+tiny test evidence and residual coverage. Real channel EOF, native archive validation,
+peer/current-source admission, C/Swift owners and app integration remain separate gates.
