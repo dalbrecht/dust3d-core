@@ -792,6 +792,38 @@ if(BUILD_TESTING)
         add_test(NAME worker_session_swift COMMAND "${DUST3D_SWIFT_SESSION_CONSUMER}"
             "${CMAKE_CURRENT_SOURCE_DIR}/tests/core/fixtures/Capsule.ds3" "${CMAKE_CURRENT_BINARY_DIR}")
         set_tests_properties(worker_session_swift PROPERTIES TIMEOUT 60)
+        set(DUST3D_APPLE_IMAGE_SOURCES
+            "${CMAKE_CURRENT_SOURCE_DIR}/native/AppleImages/Metadata/PNGContainerMetadata.swift"
+            "${CMAKE_CURRENT_SOURCE_DIR}/native/AppleImages/Metadata/JPEGContainerMetadata.swift"
+            "${CMAKE_CURRENT_SOURCE_DIR}/native/AppleImages/ImageSampleLayout.swift"
+            "${CMAKE_CURRENT_SOURCE_DIR}/native/AppleImages/WorkerAppleImageDecoder.swift")
+        set(DUST3D_SWIFT_APPLE_IMAGE_CONSUMER "${CMAKE_CURRENT_BINARY_DIR}/worker-apple-images")
+        add_custom_command(OUTPUT "${DUST3D_SWIFT_APPLE_IMAGE_CONSUMER}"
+            COMMAND "${DUST3D_XCRUN}" swift-format lint --strict ${DUST3D_APPLE_IMAGE_SOURCES}
+                "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerAppleImageSmoke.swift"
+            COMMAND "${DUST3D_XCRUN}" swiftc -swift-version 6 -strict-concurrency=complete
+                -warnings-as-errors -parse-as-library
+                -module-cache-path "${CMAKE_CURRENT_BINARY_DIR}/swift-module-cache"
+                -I "${CMAKE_CURRENT_SOURCE_DIR}/native/WorkerRuntime/include"
+                ${DUST3D_APPLE_IMAGE_SOURCES} "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerAppleImageSmoke.swift"
+                "$<TARGET_FILE:dust3d_worker_runtime>" "$<TARGET_FILE:dust3d_worker_job_io>"
+                "$<TARGET_FILE:dust3d_worker_operation>" "$<TARGET_FILE:dust3d_worker_protocol>"
+                "$<TARGET_FILE:dust3d_engine>" "$<TARGET_FILE:dust3d_core>"
+                "$<TARGET_FILE:dust3d_remesher>" "$<TARGET_FILE:dust3d_triangle>"
+                -lc++ -lz -o "${DUST3D_SWIFT_APPLE_IMAGE_CONSUMER}"
+            DEPENDS ${DUST3D_APPLE_IMAGE_SOURCES} tests/swift/WorkerAppleImageSmoke.swift
+                dust3d_worker_runtime dust3d_worker_job_io dust3d_worker_operation dust3d_worker_protocol
+                dust3d_engine dust3d_core dust3d_remesher dust3d_triangle
+            VERBATIM)
+        add_custom_target(dust3d_worker_apple_images ALL DEPENDS "${DUST3D_SWIFT_APPLE_IMAGE_CONSUMER}")
+        add_test(NAME worker_apple_image_samples COMMAND "${DUST3D_SWIFT_APPLE_IMAGE_CONSUMER}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tests/core/fixtures")
+        set_tests_properties(worker_apple_image_samples PROPERTIES TIMEOUT 30)
+        add_test(NAME worker_apple_image_provenance COMMAND "${Python3_EXECUTABLE}" -B
+            "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/verify_apple_image_provenance.py"
+            "${CMAKE_CURRENT_SOURCE_DIR}/native/AppleImages")
+
+
         set(DUST3D_SWIFT_SESSION_LIFETIME "${CMAKE_CURRENT_BINARY_DIR}/worker-session-lifecycle-swift")
         add_custom_command(OUTPUT "${DUST3D_SWIFT_SESSION_LIFETIME}"
             COMMAND "${DUST3D_XCRUN}" swift-format lint --strict

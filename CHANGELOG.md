@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add an Apple-only worker PNG/JPEG callback product with shared Foundation-only envelope metadata, straight source samples and purpose-specific transparency (#267).
+
 - Route explicit authenticated worker-session reset through ordered admission and verify actual cache rebuilding without changing geometry (#251).
 
 - Exercise authenticated sandboxed retained-session RPCs with cache reuse, explicit close, owned descriptor lifetimes and correlated parent admission (#251).

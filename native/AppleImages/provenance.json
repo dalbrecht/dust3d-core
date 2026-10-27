@@ -1,0 +1,22 @@
+{
+  "repository": "dalbrecht/dust3d-swiftui",
+  "revision": "2d24e720f2dade64d70c4b2defa3b0d2cd0a7c40",
+  "license": "MIT",
+  "files": [
+    {
+      "source": "Sources/Dust3DDocument/PNGContainerMetadata.swift",
+      "sha256": "17c1f27db27c96466b016ee261fee3f03cc4425963d49b9e82c87c43ebaa8f6a",
+      "destination": "Metadata/PNGContainerMetadata.swift"
+    },
+    {
+      "source": "Sources/Dust3DDocument/JPEGContainerMetadata.swift",
+      "sha256": "f23cf01e98a61d270b72ea082bba00347e0ea30f0b531074e945c9876fea9c7f",
+      "destination": "Metadata/JPEGContainerMetadata.swift"
+    },
+    {
+      "source": "Sources/Dust3DKit/ImageSampleLayout.swift",
+      "sha256": "0cb1d082911b03bc7db47d057168a595bb381b998f5f1d511edbb5a0245216eb",
+      "destination": "ImageSampleLayout.swift"
+    }
+  ]
+}
