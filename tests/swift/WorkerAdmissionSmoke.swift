@@ -103,7 +103,11 @@ private final class AdmissionEvents: @unchecked Sendable {
 private func recordedScheduling() throws {
     let executor = RecordingExecutor()
     let events = AdmissionEvents()
-    let scheduler = WorkerServiceScheduler(executor: executor, onRetired: { events.append("stop") })
+    let scheduler = WorkerServiceScheduler(
+        executor: executor,
+        onRetired: { result in
+            if case .success = result { events.append("stop") } else { events.append("unexpected failure") }
+        })
     guard let candidate = scheduler.makeConnectionCandidate() else {
         throw AdmissionCheckError.invalid("Missing candidate")
     }
@@ -121,7 +125,7 @@ private func recordedScheduling() throws {
             events.append("unexpected busy action")
         })
     try require(busy == .busy && busy.status == .busy && executor.count == 1, "Busy action is never queued")
-    scheduler.retire(owner: candidate)
+    scheduler.retire(owner: candidate, beforeRetired: { events.append("cleanup") })
     scheduler.retire(owner: candidate)
     let closed = scheduler.submit(
         owner: candidate, requestIdentity: 100, onCancelled: { events.append("unexpected cancellation") },
@@ -137,10 +141,11 @@ private func recordedScheduling() throws {
             && scheduler.snapshot().activeLease == nil, "Retired work drains without reopening")
     try executor.drainOne()
     try require(
-        events.snapshot == ["job", "released", "stop"] && executor.count == 0, "Ordered stop follows native action")
+        events.snapshot == ["job", "released", "cleanup", "stop"] && executor.count == 0,
+        "Ordered stop follows native action")
 
     let reusableExecutor = RecordingExecutor()
-    let reusable = WorkerServiceScheduler(executor: reusableExecutor, onRetired: {})
+    let reusable = WorkerServiceScheduler(executor: reusableExecutor, onRetired: { _ in })
     guard let reusableCandidate = reusable.makeConnectionCandidate() else {
         throw AdmissionCheckError.invalid("Missing reusable candidate")
     }
@@ -160,7 +165,7 @@ private func recordedScheduling() throws {
 private func recordedOwnership() throws {
     let executor = RecordingExecutor()
     let events = AdmissionEvents()
-    let scheduler = WorkerServiceScheduler(executor: executor, onRetired: { events.append("stop") })
+    let scheduler = WorkerServiceScheduler(executor: executor, onRetired: { _ in events.append("stop") })
     guard let owner = scheduler.makeConnectionCandidate(), let other = scheduler.makeConnectionCandidate() else {
         throw AdmissionCheckError.invalid("Missing recorded ownership candidates")
     }
@@ -204,7 +209,7 @@ private func recordedOwnership() throws {
 private func recordedQueuedCancellation() throws {
     let executor = RecordingExecutor()
     let events = AdmissionEvents()
-    let scheduler = WorkerServiceScheduler(executor: executor, onRetired: { events.append("stop") })
+    let scheduler = WorkerServiceScheduler(executor: executor, onRetired: { _ in events.append("stop") })
     guard let owner = scheduler.makeConnectionCandidate(), let other = scheduler.makeConnectionCandidate() else {
         throw AdmissionCheckError.invalid("Missing cancellation candidates")
     }
@@ -234,7 +239,7 @@ private func recordedQueuedCancellation() throws {
     try require(scheduler.cancelQueued(owner: owner, lease) == .stale, "Completed cancellation cannot repeat")
 
     let runningExecutor = RecordingExecutor()
-    let running = WorkerServiceScheduler(executor: runningExecutor, onRetired: {})
+    let running = WorkerServiceScheduler(executor: runningExecutor, onRetired: { _ in })
     guard let runningOwner = running.makeConnectionCandidate() else {
         throw AdmissionCheckError.invalid("Missing running owner")
     }
@@ -256,7 +261,7 @@ private func recordedQueuedCancellation() throws {
 private func recordedRequestCancellation() throws {
     let executor = RecordingExecutor()
     let events = AdmissionEvents()
-    let scheduler = WorkerServiceScheduler(executor: executor, onRetired: {})
+    let scheduler = WorkerServiceScheduler(executor: executor, onRetired: { _ in })
     guard let owner = scheduler.makeConnectionCandidate(), let other = scheduler.makeConnectionCandidate() else {
         throw AdmissionCheckError.invalid("Missing request-routing candidates")
     }
@@ -309,6 +314,59 @@ private func recordedRequestCancellation() throws {
             == .invalidRequestIdentity, "Identity exhaustion never wraps or reuses")
 }
 
+private struct RecordedRetirementError: Error, Equatable {
+    let code: Int
+    let cause: Data
+}
+private func recordedRetirementCleanup() throws {
+    let executor = RecordingExecutor()
+    let events = AdmissionEvents()
+    let expected = RecordedRetirementError(code: 17, cause: Data([255, 0, 3]))
+    let scheduler = WorkerServiceScheduler(
+        executor: executor,
+        onRetired: { result in
+            if case .failure(let cause) = result, let original = cause as? RecordedRetirementError, original == expected
+            {
+                events.append("original failure")
+            } else {
+                events.append("lost failure")
+            }
+        })
+    guard let owner = scheduler.makeConnectionCandidate(), let other = scheduler.makeConnectionCandidate() else {
+        throw AdmissionCheckError.invalid("Missing retirement candidates")
+    }
+    guard
+        case .accepted = scheduler.submit(
+            owner: owner, requestIdentity: 1, onCancelled: {},
+            { lease in
+                events.append("job")
+                _ = scheduler.complete(owner: owner, lease)
+            })
+    else { throw AdmissionCheckError.invalid("Retirement job rejected") }
+    try require(
+        !scheduler.retire(owner: other, beforeRetired: { events.append("foreign cleanup") }),
+        "Foreign cleanup never queued")
+    try require(
+        scheduler.retire(
+            owner: owner,
+            beforeRetired: {
+                events.append("cleanup")
+                // Snapshot would deadlock if cleanup ran inside the scheduler lock.
+                if scheduler.snapshot().activeLease != nil { events.append("still active") }
+                throw expected
+            }), "Owner cleanup queued")
+    try require(
+        !scheduler.retire(owner: owner, beforeRetired: { events.append("duplicate cleanup") }),
+        "Cleanup queued exactly once")
+    try require(events.snapshot.isEmpty && executor.count == 2, "Retirement does not execute inline")
+    try executor.drainOne()
+    try require(events.snapshot == ["job"], "Accepted work finishes before cleanup")
+    try executor.drainOne()
+    try require(
+        events.snapshot == ["job", "cleanup", "original failure"] && executor.count == 0,
+        "Original cleanup cause reaches retirement after drain")
+}
+
 @main
 struct WorkerAdmissionSmoke {
     static func main() {
@@ -316,6 +374,7 @@ struct WorkerAdmissionSmoke {
             try pureTransitions()
             try pureOwnership()
             try recordedScheduling()
+            try recordedRetirementCleanup()
             try recordedOwnership()
             try recordedQueuedCancellation()
             try recordedRequestCancellation()

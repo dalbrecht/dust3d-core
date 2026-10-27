@@ -19,9 +19,10 @@ final class WorkerServiceScheduler: @unchecked Sendable {
     private var cancelledLease: WorkerServiceLease?
     private var ownership = WorkerServiceOwnershipState()
     private let executor: any WorkerServiceExecutor
-    private let onRetired: @Sendable () -> Void
+    private let onRetired: @Sendable (Result<Void, any Error>) -> Void
     init(
-        executor: any WorkerServiceExecutor = DispatchWorkerServiceExecutor(), onRetired: @escaping @Sendable () -> Void
+        executor: any WorkerServiceExecutor = DispatchWorkerServiceExecutor(),
+        onRetired: @escaping @Sendable (Result<Void, any Error>) -> Void
     ) {
         self.executor = executor
         self.onRetired = onRetired
@@ -109,14 +110,17 @@ final class WorkerServiceScheduler: @unchecked Sendable {
         }
     }
     @discardableResult
-    func retire(owner: WorkerServiceConnection) -> Bool {
+    func retire(owner: WorkerServiceConnection, beforeRetired: @escaping @Sendable () throws -> Void = {}) -> Bool {
         lock.withLock {
             let transition = ownership.retiring(owner)
             ownership = transition.state
             guard transition.didRetire else { return false }
             state = state.retired()
             // Enqueue under the same lock as admission, after all accepted submissions.
-            executor.enqueue(onRetired)
+            executor.enqueue {
+                let result = Result { try beforeRetired() }
+                self.onRetired(result)
+            }
             return true
         }
     }

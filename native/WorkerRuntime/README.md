@@ -404,3 +404,13 @@ opaque diagnostics. The ordinary Swift consumer uses both; fake-only lifecycle
 contracts cover failures without inducing native faults. The XPC fixture has not
 yet been switched to this coordinator. See
 [ADR0163](../../docs/adr/0163-worker-service-session-lifetime.md).
+
+### Retirement ordering
+
+The internal Swift scheduler accepts `beforeRetired` cleanup and passes its original
+`Result` to the retirement observer. Cleanup is queued after accepted work, runs
+outside the admission lock and is invoked once only for the owning connection.
+The XPC fixture closes its lazy session coordinator before process retirement and
+logs only non-content diagnostic metadata on failure. Its serving route remains
+stateless pending explicit session RPC integration. See
+[ADR0164](../../docs/adr/0164-worker-session-retirement.md).
