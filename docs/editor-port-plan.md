@@ -1382,3 +1382,14 @@ checks. All210 ordinary contracts pass; see [ADR0166](adr/0166-worker-session-rp
 and [ADR0167](adr/0167-worker-session-rpc-reset.md). This is development-fixture evidence.
 Apple adoption, platform decoder/full-output/range gates #279/#280, production signing
 and M4–M8 acceptance remain incomplete. Production pin/backend/quarantines are unchanged.
+
+
+### Worker Apple image callback foundation (#267)
+
+A separate Apple-only callback product now reuses byte-recorded PNG/JPEG metadata
+and sample layout, with Foundation-only metadata available independently of native
+and platform code. Ordinary positive samples and scalar quota checks pass alongside
+all212 contracts; [ADR0168](adr/0168-worker-apple-image-decoder.md) records measured
+coverage and the required later removal of pinned Apple copies. Worker wiring and
+Apple #279/#280 full-output/range acceptance remain open. Production pin/backend and
+all quarantines are unchanged; no GLB path or malformed native codec probe is added.
