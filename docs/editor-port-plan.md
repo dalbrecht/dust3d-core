@@ -1371,3 +1371,14 @@ valid Capsule compatibility, C11, scoped sanitizer and all209 ordinary contracts
 [ADR0165](adr/0165-worker-host-request-preflight.md) records exact evidence/limits.
 Authenticated session RPC routing, initialized-cache XPC cleanup and full-output/range
 acceptance #279/#280 remain incomplete. Production pin/backend/quarantines are unchanged.
+
+
+### Healthy authenticated session lifecycle evidence (#251)
+
+Core #265 added retained-session XPC generation/close, actual reuse statistics and
+copied output after retirement. Ordered reset now shares authenticated connection
+scope and admission, with ordinary Capsule rebuild/nonreuse and geometry preservation
+checks. All210 ordinary contracts pass; see [ADR0166](adr/0166-worker-session-rpc.md)
+and [ADR0167](adr/0167-worker-session-rpc-reset.md). This is development-fixture evidence.
+Apple adoption, platform decoder/full-output/range gates #279/#280, production signing
+and M4–M8 acceptance remain incomplete. Production pin/backend/quarantines are unchanged.

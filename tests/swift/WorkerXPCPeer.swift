@@ -100,6 +100,31 @@ actor WorkerXPCPeer {
             }
         }
     }
+    func resetSession(
+        document: UUID, request: UInt64, generation: UInt64, maximumCachePayloadBytes: UInt64,
+        outcome: WorkerOutcome<WorkerControlReceipt>
+    ) throws {
+        let proxy = try proxy(outcome: outcome)
+        proxy.resetSession(
+            document as NSUUID, requestIdentity: request, connectionGeneration: generation,
+            maximumCachePayloadBytes: maximumCachePayloadBytes
+        ) {
+            [weak self]
+            status, operation, request, systemError, stage, source, code, truncated, process,
+            sandbox, finalizationError, admissionStatus, cause in
+            Task {
+                guard let self else {
+                    outcome.finish(.failure(StaticFixtureError.invalid("Reset peer observer retired")))
+                    return
+                }
+                await self.finish(
+                    status: status, operation: operation, request: request, systemError: systemError,
+                    stage: stage, source: source, code: code, truncated: truncated, process: process,
+                    sandboxEntitlementVerified: sandbox, finalizationError: finalizationError,
+                    admissionStatus: admissionStatus, generation: generation, outcome: outcome, cause: cause)
+            }
+        }
+    }
     func closeSession(request: UInt64, generation: UInt64, outcome: WorkerOutcome<WorkerControlReceipt>) throws {
         let proxy = try proxy(outcome: outcome)
         proxy.closeSession(request) {
