@@ -14,6 +14,10 @@ namespace worker {
         size_t archiveBytes;
         uint64_t maximumSourceBytes;
     };
+    /// Scalar prefix fields only; inspecting them does not validate archive bytes.
+    struct SourceRequestMetadata {
+        uint64_t archiveBytes, maximumSourceBytes;
+    };
     struct SourceRequestLimits {
         uint64_t maximumWireBytes = 128ULL * 1024 * 1024;
         uint64_t maximumDecodedBytes = 128ULL * 1024 * 1024;
@@ -34,6 +38,21 @@ namespace worker {
     private:
         SourceRequestErrorCode m_code;
     };
+    /// Encode only the fixed24-byte version-one prefix, without allocating an archive.
+    /// @param value Nonzero addressable archive count and original source policy
+    /// (zero/default or at most256MiB). Whole-envelope transport quotas are separate.
+    /// @return Independent fixed bytes; no native archive parsing or dispatch.
+    /// @throws SourceRequestError for invalid metadata, before any body retention.
+    /// Example: auto prefix = encodeSourceRequestPrefix({ archiveBytes, 0 });
+    std::array<uint8_t, sourceRequestPrefixBytes> encodeSourceRequestPrefix(const SourceRequestMetadata& value);
+    /// Inspect exactly the fixed prefix; trailing bytes are not silently ignored.
+    /// @param bytes Readable stable prefix, borrowed only for this call.
+    /// @param size Exact prefix length. No archive body is read or allocated.
+    /// @return Checked scalar fields; caller must still compare captured metadata,
+    /// bound the archive and validate actual framing/EOF before publication.
+    /// @throws SourceRequestError preserving specific prefix/layout/options cause.
+    /// Example: auto metadata = inspectSourceRequestPrefix(prefix.data(), prefix.size());
+    SourceRequestMetadata inspectSourceRequestPrefix(const uint8_t* bytes, size_t size);
     /// Copy opaque nonempty archive bytes into a version-one explicit-endian request.
     /// @param value Stable borrowed archive and source budget (zero selects native 64MiB default).
     /// @param limits Positive wire/retained archive quotas at most 256MiB, excluding workspace/RSS.

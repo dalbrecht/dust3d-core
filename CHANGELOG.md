@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Own segmented preview archives only after captured metadata, exact framing and real EOF agree, preserving native request policies without widening legacy envelope caps (#270).
+
 - Add incremental bounded preview byte readers/writers with exact span handling, sealed decode/callback failures and original-cause retention; native dispatch and app adoption remain separate (#270).
 
 - Add bounded preview chunk headers, checked physical framing charges and failure-sealed identity/order/EOF state without enabling a new native transport route (#270).
