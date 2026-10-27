@@ -12,6 +12,8 @@ enum WorkerServiceAdmissionStatus: UInt32, Sendable {
     case notOwner = 4
     case cancelledBeforeStart = 5
     case invalidRequestIdentity = 6
+    case invalidSessionScope = 7
+    case invalidChannels = 8
 }
 enum WorkerServiceAdmissionDecision: Equatable, Sendable {
     case accepted(WorkerServiceLease)

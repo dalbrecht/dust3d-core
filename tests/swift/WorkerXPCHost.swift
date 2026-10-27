@@ -181,7 +181,9 @@ private struct WorkerXPCHost {
             throw StaticFixtureError.invalid("Expected licensed fixture, owned scratch, base/UV mode and channel kind")
         }
         let mode = CommandLine.arguments[3]
-        guard mode == "mesh" || mode == "uv" else { throw StaticFixtureError.invalid("Unknown fixture mode") }
+        guard mode == "mesh" || mode == "uv" || mode == "session" else {
+            throw StaticFixtureError.invalid("Unknown fixture mode")
+        }
         let channelKind = CommandLine.arguments[4]
         guard channelKind == "file" || channelKind == "socket" else {
             throw StaticFixtureError.invalid("Unknown channel kind")
@@ -197,6 +199,13 @@ private struct WorkerXPCHost {
             throw StaticFixtureError.invalid("Ordinary licensed archive stays small")
         }
         let archive = try Data(contentsOf: source)
+        if mode == "session" {
+            guard !isStream else { throw StaticFixtureError.invalid("Session fixture uses owned regular files") }
+            try runSessionXPCFixture(
+                archive: archive, root: URL(fileURLWithPath: CommandLine.arguments[2]),
+                requirement: developmentRequirement(pins.service), deadline: .now() + 20)
+            return
+        }
         let encoded = try encodeRequest(archive: archive, operation: operation, request: request)
         let generation: UInt64 = 1  // This fixture owns exactly one connection; no reconnect/reuse.
         let fileAttempt = isStream ? nil : try prepareServiceRequest(frame: encoded.frame, generation: generation)

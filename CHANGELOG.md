@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Exercise authenticated sandboxed retained-session RPCs with cache reuse, explicit close, owned descriptor lifetimes and correlated parent admission (#251).
+
 - Reject session request headers that differ from independent host-admitted operation/document/request/revision before reading or retaining their bodies (#251).
 
 - Drain accepted worker jobs before session cleanup and preserve original cleanup results through service retirement (#251).

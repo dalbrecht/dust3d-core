@@ -757,12 +757,16 @@ if(BUILD_TESTING)
             COMMAND "${DUST3D_XCRUN}" swift-format lint --strict "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerSessionSmoke.swift"
                 "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerServiceSession.swift"
                 "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerNativeServiceSession.swift"
+                "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerServiceAdmission.swift"
+                "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerSessionRPCValues.swift"
             COMMAND "${DUST3D_XCRUN}" swiftc -typecheck -swift-version 6 -strict-concurrency=complete
                 -warnings-as-errors -parse-as-library
                 -module-cache-path "${CMAKE_CURRENT_BINARY_DIR}/swift-module-cache"
                 -I "${CMAKE_CURRENT_SOURCE_DIR}/native/WorkerRuntime/include"
                 "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerServiceSession.swift"
                 "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerNativeServiceSession.swift"
+                "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerServiceAdmission.swift"
+                "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerSessionRPCValues.swift"
                 "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerSessionSmoke.swift"
             COMMAND "${DUST3D_XCRUN}" swiftc -swift-version 6 -strict-concurrency=complete
                 -warnings-as-errors -parse-as-library
@@ -770,13 +774,15 @@ if(BUILD_TESTING)
                 -I "${DUST3D_WORKER_SWIFT_MODULE_DIRECTORY}"
                 "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerServiceSession.swift"
                 "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerNativeServiceSession.swift"
+                "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerServiceAdmission.swift"
+                "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerSessionRPCValues.swift"
                 "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerSessionSmoke.swift"
                 "$<TARGET_FILE:dust3d_worker_runtime>" "$<TARGET_FILE:dust3d_worker_job_io>"
                 "$<TARGET_FILE:dust3d_worker_operation>" "$<TARGET_FILE:dust3d_worker_protocol>"
                 "$<TARGET_FILE:dust3d_engine>" "$<TARGET_FILE:dust3d_core>"
                 "$<TARGET_FILE:dust3d_remesher>" "$<TARGET_FILE:dust3d_triangle>"
                 -lc++ -lz -o "${DUST3D_SWIFT_SESSION_CONSUMER}"
-            DEPENDS tests/swift/WorkerServiceSession.swift tests/swift/WorkerNativeServiceSession.swift tests/swift/WorkerSessionSmoke.swift native/WorkerRuntime/include/module.modulemap
+            DEPENDS tests/swift/WorkerServiceAdmission.swift tests/swift/WorkerSessionRPCValues.swift tests/swift/WorkerServiceSession.swift tests/swift/WorkerNativeServiceSession.swift tests/swift/WorkerSessionSmoke.swift native/WorkerRuntime/include/module.modulemap
                 native/WorkerRuntime/include/Dust3DWorkerSession.h
                 native/WorkerRuntime/include/Dust3DWorkerSessionOutput.h native/WorkerRuntime/include/Dust3DWorkerRuntime.h
                 dust3d_worker_runtime dust3d_worker_job_io dust3d_worker_operation dust3d_worker_protocol
@@ -886,8 +892,10 @@ if(BUILD_TESTING)
                 if(DUST3D_XPC_ROLE STREQUAL "Service")
                     list(APPEND DUST3D_XPC_SUPPORT_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerServiceOwnership.swift" "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerServiceScheduler.swift")
                     list(APPEND DUST3D_XPC_SUPPORT_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerServiceSession.swift" "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerNativeServiceSession.swift")
+                    list(APPEND DUST3D_XPC_SUPPORT_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerSessionRPCValues.swift")
                 else()
                     list(APPEND DUST3D_XPC_SUPPORT_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerOutcome.swift" "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerXPCPeer.swift" "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerServiceQueue.swift")
+                    list(APPEND DUST3D_XPC_SUPPORT_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerSessionXPCHost.swift")
                 endif()
                 add_custom_command(OUTPUT "${DUST3D_XPC_BINARY}"
                     COMMAND "${DUST3D_XCRUN}" swift-format lint --strict ${DUST3D_XPC_SUPPORT_SOURCES}
@@ -930,7 +938,12 @@ if(BUILD_TESTING)
                 "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/verify_worker_xpc_static.py"
                 "${CMAKE_CURRENT_BINARY_DIR}/worker-xpc-host" "${CMAKE_CURRENT_BINARY_DIR}/worker-xpc-service"
                 "${CMAKE_CURRENT_SOURCE_DIR}/tests/core/fixtures/Capsule.ds3" "${CMAKE_CURRENT_BINARY_DIR}" uv socket)
-            set_tests_properties(worker_xpc_static_mesh worker_xpc_uv_mesh worker_xpc_socket_mesh worker_xpc_socket_uv_mesh PROPERTIES
+
+            add_test(NAME worker_xpc_session_cache COMMAND "${Python3_EXECUTABLE}" -B
+                "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/verify_worker_xpc_static.py"
+                "${CMAKE_CURRENT_BINARY_DIR}/worker-xpc-host" "${CMAKE_CURRENT_BINARY_DIR}/worker-xpc-service"
+                "${CMAKE_CURRENT_SOURCE_DIR}/tests/core/fixtures/Capsule.ds3" "${CMAKE_CURRENT_BINARY_DIR}" session)
+            set_tests_properties(worker_xpc_static_mesh worker_xpc_uv_mesh worker_xpc_socket_mesh worker_xpc_socket_uv_mesh worker_xpc_session_cache PROPERTIES
                 TIMEOUT 90 RESOURCE_LOCK dust3d_xpc_development_host)
         endif()
         set(DUST3D_SWIFT_MIP_CONSUMER "${CMAKE_CURRENT_BINARY_DIR}/source-baked-mip-swift")
