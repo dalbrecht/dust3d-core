@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Decode procedural PNGs inside the healthy sandboxed worker fixture and admit copied baked maps after actual EOF and independent peer observation; imported decoding stays disabled (#267).
+
 - Add an Apple-only worker PNG/JPEG callback product with shared Foundation-only envelope metadata, straight source samples and purpose-specific transparency (#267).
 
 - Route explicit authenticated worker-session reset through ordered admission and verify actual cache rebuilding without changing geometry (#251).

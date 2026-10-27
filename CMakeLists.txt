@@ -925,9 +925,10 @@ if(BUILD_TESTING)
                     list(APPEND DUST3D_XPC_SUPPORT_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerServiceOwnership.swift" "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerServiceScheduler.swift")
                     list(APPEND DUST3D_XPC_SUPPORT_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerServiceSession.swift" "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerNativeServiceSession.swift")
                     list(APPEND DUST3D_XPC_SUPPORT_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerSessionRPCValues.swift")
+                    list(APPEND DUST3D_XPC_SUPPORT_SOURCES ${DUST3D_APPLE_IMAGE_SOURCES})
                 else()
                     list(APPEND DUST3D_XPC_SUPPORT_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerOutcome.swift" "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerXPCPeer.swift" "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerServiceQueue.swift")
-                    list(APPEND DUST3D_XPC_SUPPORT_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerSessionXPCHost.swift")
+                    list(APPEND DUST3D_XPC_SUPPORT_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerSessionXPCHost.swift" "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerProceduralXPCHost.swift")
                 endif()
                 add_custom_command(OUTPUT "${DUST3D_XPC_BINARY}"
                     COMMAND "${DUST3D_XCRUN}" swift-format lint --strict ${DUST3D_XPC_SUPPORT_SOURCES}
@@ -975,7 +976,11 @@ if(BUILD_TESTING)
                 "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/verify_worker_xpc_static.py"
                 "${CMAKE_CURRENT_BINARY_DIR}/worker-xpc-host" "${CMAKE_CURRENT_BINARY_DIR}/worker-xpc-service"
                 "${CMAKE_CURRENT_SOURCE_DIR}/tests/core/fixtures/Capsule.ds3" "${CMAKE_CURRENT_BINARY_DIR}" session)
-            set_tests_properties(worker_xpc_static_mesh worker_xpc_uv_mesh worker_xpc_socket_mesh worker_xpc_socket_uv_mesh worker_xpc_session_cache PROPERTIES
+            add_test(NAME worker_xpc_procedural_png COMMAND "${Python3_EXECUTABLE}" -B
+                "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/verify_worker_xpc_static.py"
+                "${CMAKE_CURRENT_BINARY_DIR}/worker-xpc-host" "${CMAKE_CURRENT_BINARY_DIR}/worker-xpc-service"
+                "${CMAKE_CURRENT_SOURCE_DIR}/tests/core/fixtures/ProceduralImage.ds3" "${CMAKE_CURRENT_BINARY_DIR}" procedural)
+            set_tests_properties(worker_xpc_static_mesh worker_xpc_uv_mesh worker_xpc_socket_mesh worker_xpc_socket_uv_mesh worker_xpc_session_cache worker_xpc_procedural_png PROPERTIES
                 TIMEOUT 90 RESOURCE_LOCK dust3d_xpc_development_host)
         endif()
         set(DUST3D_SWIFT_MIP_CONSUMER "${CMAKE_CURRENT_BINARY_DIR}/source-baked-mip-swift")

@@ -49,7 +49,11 @@ final class StaticWorkerObject: NSObject, StaticWorkerJob, Sendable {
                     WorkerServiceAdmissionStatus.cancelledBeforeStart.rawValue)
             },
             { lease in
-                let result = dust3d_worker_serve(input.fileDescriptor, output.fileDescriptor)
+                var decoders = WorkerAppleImageDecoder.configuration()
+                // Only procedural PNG is enabled for this healthy fixture stage.
+                // Imported/GLB rendering remains quarantined and gets no provider.
+                decoders.imported = Dust3DWorkerImageDecoder()
+                let result = dust3d_worker_serve_with_decoders(input.fileDescriptor, output.fileDescriptor, &decoders)
                 // Explicit stream EOF is independent of NSXPC's handle-retention lifetime.
                 // This orderly half-close happens only after all runtime writes return.
                 let finalized = isStream ? shutdown(output.fileDescriptor, SHUT_WR) : 0

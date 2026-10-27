@@ -443,3 +443,13 @@ with generation. A healthy same-peer sequence observes reuse, reset, real rebuil
 and unchanged copied geometry before close; see
 [ADR0167](../../docs/adr/0167-worker-session-rpc-reset.md). Reset never initializes an
 absent session and does not authorize native interruption or production app adoption.
+
+
+### Healthy procedural PNG XPC path
+
+The development service now supplies only the procedural Apple decoder slot through
+`dust3d_worker_serve_with_decoders`; imported configuration stays empty. The licensed
+ProceduralImage fixture returns complete8-pixel legacy baked output through actual
+EOF/peer/queue admission, with copied pixels valid after retirement. See
+[ADR0169](../../docs/adr/0169-worker-procedural-image-xpc.md). This does not activate
+an app backend, enable imported/GLB decoding or establish full pixel/range parity.
