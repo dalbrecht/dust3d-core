@@ -41,11 +41,11 @@ caught reentry failures exercise real endpoint behavior. Fixtures remain tiny; n
 native archive/parser/generator, OS signal/broken-pipe/cancellation or allocation-
 failure/resource-pressure probe is added.
 
-Fresh build and216/216 ordinary CTest contracts pass (36.96s); actual SwiftPM runtime
-build1.39s, pinned clang-format18, strict Swift and quarantine guard pass. Six final
+Fresh build and216/216 ordinary CTest contracts pass (46.20s); actual SwiftPM runtime
+build1.00s, pinned clang-format18, strict Swift and quarantine guard pass. Six final
 source hashes match. Fresh scoped ASan/UBSan passes with protocol archive only, no
 engine library, leak detection disabled and existing protocol code uninstrumented.
-New implementation152/152 lines,99/99 regions,16/16 functions; inline helper/getters
+New implementation154/154 lines,100/100 regions,17/17 functions; inline helper/getters
 17/17 lines,15/15 regions,6/6 functions. Combined branch outcomes65/68 (95.59%); some
 getter alternatives remain unexercised. This is scoped evidence, not whole-core or
 high-resource/real-channel acceptance. The temporary /private/tmp build alias vanished;
@@ -72,3 +72,14 @@ reproduced the two empty no-op callback differences. Equivalent explicit void re
 now pass both formatters without changing runtime behavior or CI configuration. The
 full216-contract gate and scoped sanitizer evidence above were refreshed for the
 corrected tests. Core #274 tracks separately reviewing consistent formatter pinning.
+
+
+## Automated review reentry correction
+
+Review identified that one guard surrounded both data-header and body callbacks.
+Caught reentry from the header sealed state but still allowed the body callback before
+the guard rechecked it. A pure four-byte regression reproduced that unwanted callback.
+Separate guards now stop immediately after the header callback's retained failure, so
+no body callback occurs. The full gate, actual SwiftPM build and scoped sanitizer/
+coverage evidence above were refreshed after this correction. Original failure causes
+and all native/semantic/publication restrictions remain unchanged.

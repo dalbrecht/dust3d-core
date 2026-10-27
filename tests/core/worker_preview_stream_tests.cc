@@ -152,6 +152,25 @@ int main()
         PreviewChunkWriter reentrantWriter(identity, 9, policy, [&](const uint8_t*, size_t) { try { activeWriter->append(nullptr, 0); } catch (const PreviewChunkError&) { } });
         activeWriter = &reentrantWriter;
         reject(PreviewChunkErrorCode::invalidSequence, [&] { reentrantWriter.start(); });
+        PreviewChunkWriter* guardedWriter = nullptr;
+        size_t dataHeaders = 0, bodyCallbacks = 0;
+        PreviewChunkWriter betweenCallbacks(identity, 4, policy, [&](const uint8_t*, size_t size) {
+            if (size == 80) {
+                ++dataHeaders;
+                if (dataHeaders == 2) {
+                    try {
+                        guardedWriter->append(nullptr, 0);
+                    } catch (const PreviewChunkError&) {
+                    }
+                }
+            } else {
+                ++bodyCallbacks;
+            }
+        });
+        guardedWriter = &betweenCallbacks;
+        betweenCallbacks.start();
+        reject(PreviewChunkErrorCode::invalidSequence, [&] { betweenCallbacks.append(body.data(), 4); });
+        require(betweenCallbacks.isFailed() && bodyCallbacks == 0, "Caught header reentry must stop before the body sink");
         PreviewChunkReader* activeReader = nullptr;
         PreviewChunkReader reentrantReader(identity, policy, [&](const PreviewChunkHeader&, const uint8_t*, size_t) { try { activeReader->append(nullptr, 0); } catch (const PreviewChunkError&) { } });
         activeReader = &reentrantReader;

@@ -51,7 +51,8 @@ namespace worker {
             return;
         // Used bytes never exceed the policy-sized workspace (at most64KiB).
         const auto header = encodePreviewChunkHeader({ PreviewChunkKind::data, m_identity, m_emittedBytes, m_totalBytes, static_cast<uint32_t>(m_used) }, m_policy);
-        m_status.invoke([&] { m_sink(header.data(), header.size()); m_sink(m_workspace.data(), m_used); });
+        m_status.invoke([&] { m_sink(header.data(), header.size()); });
+        m_status.invoke([&] { m_sink(m_workspace.data(), m_used); });
         m_emittedBytes += m_used;
         m_used = 0;
     }
