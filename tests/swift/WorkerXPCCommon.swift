@@ -23,6 +23,12 @@ let staticServiceIdentifier = "org.dust3d.core.xpc-static-service.qa"
             @escaping @Sendable (
                 UInt32, UInt32, UInt64, Int32, UInt32, UInt32, Int32, UInt8, Int32, Bool, Int32, UInt32, Data
             ) -> Void)
+    func resetSession(
+        _ document: NSUUID, requestIdentity: UInt64, connectionGeneration: UInt64, maximumCachePayloadBytes: UInt64,
+        withReply reply:
+            @escaping @Sendable (
+                UInt32, UInt32, UInt64, Int32, UInt32, UInt32, Int32, UInt8, Int32, Bool, Int32, UInt32, Data
+            ) -> Void)
     func closeSession(
         _ requestIdentity: UInt64,
         withReply reply:

@@ -149,6 +149,47 @@ final class StaticWorkerObject: NSObject, StaticWorkerJob, Sendable {
             StaticFixtureError.invalid("Session admission rejected: \(decision.status.rawValue)"),
             request: requestIdentity, admission: decision.status, reply: reply)
     }
+    func resetSession(
+        _ document: NSUUID, requestIdentity: UInt64, connectionGeneration: UInt64,
+        maximumCachePayloadBytes: UInt64, withReply reply: @escaping SessionReply
+    ) {
+        let scope: WorkerServiceSessionScope
+        do {
+            scope = try WorkerServiceSessionScope(
+                document: document as UUID, connectionGeneration: connectionGeneration,
+                maximumCachePayloadBytes: maximumCachePayloadBytes)
+        } catch {
+            rejectSession(error, request: requestIdentity, reply: reply)
+            return
+        }
+        let decision = scheduler.submit(
+            owner: candidate, requestIdentity: requestIdentity,
+            onCancelled: {
+                self.rejectSession(
+                    StaticFixtureError.invalid("Session reset withdrawn before start"), request: requestIdentity,
+                    admission: .cancelledBeforeStart, reply: reply)
+            },
+            { lease in
+                do {
+                    // The coordinator rejects a foreign scope and never creates a
+                    // session merely to reset it. Accepted generation drains first.
+                    try self.session.reset(scope: scope)
+                    let admission: WorkerServiceAdmissionStatus =
+                        self.scheduler.complete(owner: self.candidate, lease) ? .accepted : .staleCompletion
+                    reply(
+                        DUST3D_WORKER_JOB_COMPLETE.rawValue, DUST3D_WORKER_OPERATION_UNKNOWN.rawValue, requestIdentity,
+                        0, 0, 0, 0, 0, getpid(), self.sandboxEntitlementVerified, 0, admission.rawValue, Data())
+                } catch {
+                    let completed = self.scheduler.complete(owner: self.candidate, lease)
+                    self.rejectSession(
+                        error, request: requestIdentity, admission: completed ? nil : .staleCompletion, reply: reply)
+                }
+            })
+        if case .accepted = decision { return }
+        rejectSession(
+            StaticFixtureError.invalid("Session reset admission rejected: \(decision.status.rawValue)"),
+            request: requestIdentity, admission: decision.status, reply: reply)
+    }
     func closeSession(_ requestIdentity: UInt64, withReply reply: @escaping SessionReply) {
         let decision = scheduler.submit(
             owner: candidate, requestIdentity: requestIdentity,

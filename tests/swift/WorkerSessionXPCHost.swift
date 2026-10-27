@@ -6,6 +6,7 @@ import Foundation
 private struct SessionXPCSnapshot {
     let indices: [UInt32]
     let positions: [Float]
+    let rebuilt: UInt64
     let reused: UInt64
     let retained: UInt64
 }
@@ -39,7 +40,8 @@ private func copySessionXPCOutput(_ owner: OpaquePointer) throws -> SessionXPCSn
         dust3d_worker_session_output_statistics_issue(owner) == nil
     else { throw StaticFixtureError.invalid("Actual session observations") }
     return SessionXPCSnapshot(
-        indices: indices, positions: positions, reused: statistics.reused_components,
+        indices: indices, positions: positions, rebuilt: statistics.rebuilt_components,
+        reused: statistics.reused_components,
         retained: statistics.retained_payload_bytes)
 }
 func runSessionXPCFixture(archive: Data, root: URL, requirement: String, deadline: DispatchTime) throws {
@@ -52,7 +54,25 @@ func runSessionXPCFixture(archive: Data, root: URL, requirement: String, deadlin
     var snapshots: [SessionXPCSnapshot] = []
     var observedProcess: Int32 = 0
     try withWorkerXPCPeer(requirement: requirement, deadline: deadline) { peer in
-        for requestID: UInt64 in [1, 2] {
+        for requestID: UInt64 in [1, 2, 4] {
+            if requestID == 4 {
+                let reset = WorkerOutcome<WorkerControlReceipt>()
+                Task.detached {
+                    do {
+                        try await peer.resetSession(
+                            document: UUID(uuid: (1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)),
+                            request: 3, generation: generation, maximumCachePayloadBytes: 64 * 1024 * 1024,
+                            outcome: reset)
+                    } catch { reset.finish(.failure(error)) }
+                }
+                let receipt = try reset.wait(until: deadline)
+                guard receipt.status == 0, receipt.admissionStatus == 0, receipt.request == 3,
+                    receipt.process == observedProcess, receipt.observedProcess == observedProcess,
+                    receipt.operation == 0, receipt.systemError == 0, receipt.stage == 0,
+                    receipt.source == 0, receipt.code == 0, receipt.truncated == 0,
+                    receipt.finalizationError == 0, receipt.sandboxEntitlementVerified, receipt.cause.isEmpty
+                else { throw StaticFixtureError.invalid("Explicit initialized cache reset") }
+            }
             var identity = Dust3DWorkerRequestIdentity()
             identity.document.0 = 1
             identity.request = requestID
@@ -137,7 +157,9 @@ func runSessionXPCFixture(archive: Data, root: URL, requirement: String, deadlin
                     try copySessionXPCOutput($0)
                 })
         }
-        guard snapshots.count == 2, snapshots[1].reused > 0, snapshots[1].retained > 0,
+        guard snapshots.count == 3, snapshots[1].reused > 0, snapshots[1].retained > 0,
+            snapshots[2].rebuilt > 0, snapshots[2].reused == 0,
+            snapshots[0].positions == snapshots[2].positions, snapshots[0].indices == snapshots[2].indices,
             snapshots[0].positions == snapshots[1].positions, snapshots[0].indices == snapshots[1].indices
         else { throw StaticFixtureError.invalid("Actual retained cache reuse") }
         print("XPC service runtime sandbox entitlement verified")
@@ -145,14 +167,15 @@ func runSessionXPCFixture(archive: Data, root: URL, requirement: String, deadlin
         print("Persistent service C admission accepted after actual EOF and OS peer observation")
         print("Queue-authoritative service completion admitted")
         print("Actual session cache reuse observed across two requests")
+        print("Actual session cache rebuild observed after authenticated reset")
         let closed = WorkerOutcome<WorkerControlReceipt>()
         Task.detached {
-            do { try await peer.closeSession(request: 3, generation: generation, outcome: closed) } catch {
+            do { try await peer.closeSession(request: 5, generation: generation, outcome: closed) } catch {
                 closed.finish(.failure(error))
             }
         }
         let receipt = try closed.wait(until: deadline)
-        guard receipt.status == 0, receipt.admissionStatus == 0, receipt.request == 3,
+        guard receipt.status == 0, receipt.admissionStatus == 0, receipt.request == 5,
             receipt.process == observedProcess, receipt.observedProcess == observedProcess, receipt.operation == 0,
             receipt.systemError == 0, receipt.stage == 0, receipt.source == 0, receipt.code == 0,
             receipt.truncated == 0,
@@ -160,7 +183,7 @@ func runSessionXPCFixture(archive: Data, root: URL, requirement: String, deadlin
         else { throw StaticFixtureError.invalid("Explicit initialized cache close") }
         print("Session cache closed before connection invalidation")
     }
-    guard snapshots.count == 2 && !snapshots[0].positions.isEmpty else {
+    guard snapshots.count == 3 && !snapshots[0].positions.isEmpty else {
         throw StaticFixtureError.invalid("Copies after connection retirement")
     }
     print("Isolated XPC session cache reuse passed: servicePID=\(observedProcess); hostPID=\(getpid())")

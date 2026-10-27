@@ -436,3 +436,10 @@ observes actual cache reuse, closes before invalidation and retains copied geome
 after retirement. This is development integration evidence, not Apple app adoption,
 full output/range acceptance or a production signing/distribution guarantee. See
 [ADR0166](../../docs/adr/0166-worker-session-rpc.md).
+
+
+The explicit `resetSession` fixture RPC shares ordered admission and immutable scope
+with generation. A healthy same-peer sequence observes reuse, reset, real rebuilding
+and unchanged copied geometry before close; see
+[ADR0167](../../docs/adr/0167-worker-session-rpc-reset.md). Reset never initializes an
+absent session and does not authorize native interruption or production app adoption.

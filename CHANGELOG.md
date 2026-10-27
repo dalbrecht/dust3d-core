@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Route explicit authenticated worker-session reset through ordered admission and verify actual cache rebuilding without changing geometry (#251).
+
 - Exercise authenticated sandboxed retained-session RPCs with cache reuse, explicit close, owned descriptor lifetimes and correlated parent admission (#251).
 
 - Reject session request headers that differ from independent host-admitted operation/document/request/revision before reading or retaining their bodies (#251).
