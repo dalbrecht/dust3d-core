@@ -41,7 +41,7 @@ caught reentry failures exercise real endpoint behavior. Fixtures remain tiny; n
 native archive/parser/generator, OS signal/broken-pipe/cancellation or allocation-
 failure/resource-pressure probe is added.
 
-Fresh build and216/216 ordinary CTest contracts pass (81.04s); actual SwiftPM runtime
+Fresh build and216/216 ordinary CTest contracts pass (36.96s); actual SwiftPM runtime
 build1.39s, pinned clang-format18, strict Swift and quarantine guard pass. Six final
 source hashes match. Fresh scoped ASan/UBSan passes with protocol archive only, no
 engine library, leak detection disabled and existing protocol code uninstrumented.
@@ -62,3 +62,13 @@ current source and complete immutable owners still gate app publication. No auto
 fallback to parent native work or silent limit reduction. Active caps, production
 pin48b0ce2d/backend and all quarantines remain unchanged. Apple #279/#280 and M4–M8
 remain open. Completed clean exact-head automated review and ALL CI gate merge.
+
+
+## Formatter compatibility correction
+
+The initial PR head passed pinned18 locally but failed the macOS CI formatting step.
+That workflow invokes an unpinned formatter; the newer installed local formatter
+reproduced the two empty no-op callback differences. Equivalent explicit void returns
+now pass both formatters without changing runtime behavior or CI configuration. The
+full216-contract gate and scoped sanitizer evidence above were refreshed for the
+corrected tests. Core #274 tracks separately reviewing consistent formatter pinning.

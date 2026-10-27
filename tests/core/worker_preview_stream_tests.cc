@@ -78,8 +78,8 @@ int main()
         require(reader.isFailed(), "Reader cannot be reused after completion");
         reject(PreviewChunkErrorCode::invalidSequence, [&] { writer.finish(); });
         require(writer.isFailed(), "Writer cannot emit another terminal marker");
-        auto ignore = [](const PreviewChunkHeader&, const uint8_t*, size_t) {};
-        auto ignoreBytes = [](const uint8_t*, size_t) {};
+        auto ignore = [](const PreviewChunkHeader&, const uint8_t*, size_t) { return; };
+        auto ignoreBytes = [](const uint8_t*, size_t) { return; };
         reject(PreviewChunkErrorCode::invalidInput, [&] { PreviewChunkReader empty(identity, policy, {}); });
         reject(PreviewChunkErrorCode::invalidInput, [&] { PreviewChunkWriter empty(identity, 9, policy, {}); });
         reject(PreviewChunkErrorCode::invalidLimits, [&] { PreviewChunkReader invalid(identity, { 9, 65537 }, ignore); });
