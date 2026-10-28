@@ -13,10 +13,13 @@ final class FakeXPCFacts: @unchecked Sendable {
     private var ready: CheckedContinuation<Void, Never>?
     private var invalidated: (@Sendable () -> Void)?
     private var interrupted: (@Sendable () -> Void)?
-    private var greeting: (Int32, Bool, UInt32) = (42, true, 0)
-    var handshakeFields: (Int32, Bool, UInt32) { lock.withLock { greeting } }
+    private var greeting: (Int32, Bool, UInt32, UInt64, UInt64) = (42, true, 0, 1, 1)
+    var handshakeFields: (Int32, Bool, UInt32, UInt64, UInt64) { lock.withLock { greeting } }
     func configureHandshake(process: Int32 = 42, sandbox: Bool = true, admission: UInt32 = 0) {
-        lock.withLock { greeting = (process, sandbox, admission) }
+        lock.withLock { greeting = (process, sandbox, admission, greeting.3, greeting.4) }
+    }
+    func configureInstance(high: UInt64, low: UInt64) {
+        lock.withLock { greeting = (greeting.0, greeting.1, greeting.2, high, low) }
     }
     private var stream: Bool?
     var recordedStream: Bool? { lock.withLock { stream } }
@@ -100,9 +103,9 @@ final class FakeXPCChannel: WorkerXPCChannel {
 private final class FakeXPCProxy: NSObject, Dust3DWorkerXPCProtocol {
     let facts: FakeXPCFacts
     init(_ facts: FakeXPCFacts) { self.facts = facts }
-    func handshake(withReply reply: @escaping @Sendable (Int32, Bool, UInt32) -> Void) {
+    func handshake(withReply reply: @escaping @Sendable (Int32, Bool, UInt32, UInt64, UInt64) -> Void) {
         let fields = facts.handshakeFields
-        facts.deliver { reply(fields.0, fields.1, fields.2) }
+        facts.deliver { reply(fields.0, fields.1, fields.2, fields.3, fields.4) }
     }
     func serve(
         _ input: FileHandle, output: FileHandle, isStream: Bool, requestIdentity: UInt64,

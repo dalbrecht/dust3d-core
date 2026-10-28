@@ -9,6 +9,7 @@ import Foundation
 public actor WorkerXPCConnection {
     private let channel: any WorkerXPCChannel
     private var state = WorkerXPCRequestState()
+    private var serviceInstance: WorkerXPCServiceInstance?
     private var isResumed = false
     private var pendingFailure: (@Sendable (any Error) -> Void)?
     private var pendingHandles: [FileHandle] = []
@@ -27,7 +28,7 @@ public actor WorkerXPCConnection {
             let outcome = WorkerXPCReply(continuation)
             do {
                 guard let (proxy, token) = try prepare(outcome: outcome, generation: generation) else { return }
-                proxy.handshake { [weak self] process, sandbox, admission in
+                proxy.handshake { [weak self] process, sandbox, admission, high, low in
                     Task {
                         guard let self else {
                             outcome.finish(.failure(WorkerXPCTransportError.retired))
@@ -35,27 +36,36 @@ public actor WorkerXPCConnection {
                         }
                         await self.finishHandshake(
                             token: token, process: process, sandbox: sandbox,
-                            admission: admission, generation: generation, outcome: outcome)
+                            admission: admission, instance: WorkerXPCServiceInstance(high: high, low: low),
+                            generation: generation, outcome: outcome)
                     }
                 }
             } catch { outcome.finish(.failure(error)) }
         }
     }
     private func finishHandshake(
-        token: UInt64, process: Int32, sandbox: Bool, admission: UInt32,
+        token: UInt64, process: Int32, sandbox: Bool, admission: UInt32, instance: WorkerXPCServiceInstance,
         generation: UInt64, outcome: WorkerXPCReply<WorkerXPCHandshakeReceipt>
     ) {
         guard let observed = admitCallback(token: token, cause: Data()) else { return }
         let receipt = WorkerXPCHandshakeReceipt(
-            process: process, sandboxEntitlementVerified: sandbox,
+            instance: instance, process: process, sandboxEntitlementVerified: sandbox,
             admissionStatus: admission, connectionGeneration: generation,
             observedProcess: observed)
-        guard process == observed, sandbox, admission == 0 else {
+        guard process == observed, sandbox, admission == 0, instance.isValid else {
             state.retire()
             channel.invalidate()
             outcome.finish(.failure(WorkerXPCTransportError.handshakeRejected(receipt)))
             return
         }
+        if let captured = serviceInstance, captured != instance {
+            state.retire()
+            channel.invalidate()
+            outcome.finish(
+                .failure(WorkerXPCTransportError.handshakeInstanceChanged(expected: captured, receipt: receipt)))
+            return
+        }
+        serviceInstance = instance
         outcome.finish(.success(receipt))
     }
     private func validateChannels(_ input: FileHandle, _ output: FileHandle) throws {

@@ -9,6 +9,7 @@ public enum WorkerXPCTransportError: Error {
     case diagnosticExceeded(actual: Int)
     case remote(any Error)
     case handshakeRejected(WorkerXPCHandshakeReceipt)
+    case handshakeInstanceChanged(expected: WorkerXPCServiceInstance, receipt: WorkerXPCHandshakeReceipt)
     case missingPeer
     case peerChanged(expected: Int32, observed: Int32)
 }

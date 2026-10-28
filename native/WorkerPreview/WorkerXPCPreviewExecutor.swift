@@ -9,6 +9,7 @@ public actor WorkerXPCPreviewExecutor<Value: Sendable>: WorkerPreviewExecuting {
     public typealias Source = WorkerPreviewSource
     typealias Factory =
         @Sendable (WorkerPreviewIdentity, Source, any WorkerPreviewTransport) throws -> any WorkerPreviewJob<Value>
+    typealias ExitFactory = @Sendable (WorkerXPCHandshakeReceipt) throws -> any WorkerPreviewExitWatching
     private struct Scope: Equatable {
         let document: UUID
         let generation: UInt64
@@ -21,6 +22,10 @@ public actor WorkerXPCPreviewExecutor<Value: Sendable>: WorkerPreviewExecuting {
     }
     private let transport: any WorkerPreviewTransport
     private let makeJob: Factory
+    private let makeExitWatch: ExitFactory
+    private let registrationBudget: WorkerXPCExitObservationBudget
+    private var exitWatch: (any WorkerPreviewExitWatching)?
+    private var isExitBarrierVerified = false
     private var scope: Scope?
     private var lastRequest: UInt64 = 0
     private var invalidationAttempted = false
@@ -33,17 +38,29 @@ public actor WorkerXPCPreviewExecutor<Value: Sendable>: WorkerPreviewExecuting {
     /// Create an unresumed executor with explicit service trust and a synchronous copied-value adapter.
     /// - Parameters:
     ///   - configuration: Trusted service identifier/signing requirement; no development defaults.
+    ///   - registrationTimeoutMilliseconds: Explicit 1...10000ms process-source registration budget.
     ///   - copy: Runs on the dedicated reader worker with a borrowed immutable C session-output owner.
     ///     Copy every required value before returning; never retain/destroy the owner or expose borrowed views.
-    /// No job channels are created until authenticated peer handshake completes.
-    public init(configuration: WorkerXPCConfiguration, copy: @escaping @Sendable (OpaquePointer) throws -> Value) {
+    /// - Throws: invalidBudget before transport creation.
+    /// No job channels are created until source registration and the fresh matching handshake barrier complete.
+    public init(
+        configuration: WorkerXPCConfiguration, registrationTimeoutMilliseconds: UInt64,
+        copy: @escaping @Sendable (OpaquePointer) throws -> Value
+    ) throws {
+        registrationBudget = try WorkerXPCExitObservationBudget(milliseconds: registrationTimeoutMilliseconds)
         transport = WorkerXPCConnection(configuration: configuration)
+        makeExitWatch = { try WorkerXPCExitObserver(peer: $0) }
         makeJob = { identity, source, transport in
             try WorkerPreviewNativeJob(identity: identity, source: source, transport: transport, copy: copy)
         }
     }
-    init(transport: any WorkerPreviewTransport, makeJob: @escaping Factory) {
+    init(
+        transport: any WorkerPreviewTransport, registrationTimeoutMilliseconds: UInt64,
+        makeExitWatch: @escaping ExitFactory, makeJob: @escaping Factory
+    ) throws {
+        registrationBudget = try WorkerXPCExitObservationBudget(milliseconds: registrationTimeoutMilliseconds)
         self.transport = transport
+        self.makeExitWatch = makeExitWatch
         self.makeJob = makeJob
     }
     private func begin(_ identity: WorkerPreviewIdentity, cache: UInt64) throws {
@@ -56,17 +73,28 @@ public actor WorkerXPCPreviewExecutor<Value: Sendable>: WorkerPreviewExecuting {
         lastRequest = identity.request
         activeIdentity = identity
     }
-    private func peer(generation: UInt64) async throws -> WorkerXPCHandshakeReceipt {
-        if let peerIdentity { return peerIdentity }
-        let receipt = try await transport.handshake(generation: generation)
+    private func validatePeer(_ receipt: WorkerXPCHandshakeReceipt, generation: UInt64) throws {
         guard receipt.connectionGeneration == generation, receipt.observedProcess > 0,
             receipt.process == receipt.observedProcess,
             receipt.observedProcess != ProcessInfo.processInfo.processIdentifier,
-            receipt.sandboxEntitlementVerified, receipt.admissionStatus == 0
-        else {
-            throw WorkerPreviewExecutorError.handshake(receipt)
-        }
+            receipt.instance.isValid, receipt.sandboxEntitlementVerified, receipt.admissionStatus == 0
+        else { throw WorkerPreviewExecutorError.handshake(receipt) }
+    }
+    private func peer(generation: UInt64) async throws -> WorkerXPCHandshakeReceipt {
+        if let peerIdentity { return peerIdentity }
+        let receipt = try await transport.handshake(generation: generation)
+        try validatePeer(receipt, generation: generation)
+        // Retain the independently authenticated original even if registration/barrier later fails.
         peerIdentity = receipt
+        let watch = try makeExitWatch(receipt)
+        exitWatch = watch
+        try await watch.register(timeoutMilliseconds: registrationBudget.milliseconds)
+        let barrier = try await transport.handshake(generation: generation)
+        try validatePeer(barrier, generation: generation)
+        guard barrier.instance == receipt.instance, barrier.observedProcess == receipt.observedProcess else {
+            throw WorkerPreviewExecutorError.handshakeBarrier(expected: receipt, received: barrier)
+        }
+        isExitBarrierVerified = true
         return receipt
     }
     private func requestInvalidation() async -> (any Error)? {
@@ -199,4 +227,25 @@ public actor WorkerXPCPreviewExecutor<Value: Sendable>: WorkerPreviewExecuting {
         }
         return WorkerPreviewRetirementObservation(peer: peerIdentity, invalidationRequested: invalidationRequested)
     }
+    /// Request idle normal invalidation and await the pre-registered, handshake-bracketed exit event.
+    /// - Parameter timeoutMilliseconds: Explicit 1...10000ms observation budget; not a native work deadline.
+    /// - Returns: Correlated registered-process event, independently of native/semantic/publication admission.
+    /// - Throws: Original registration/retirement/observation cause. Expiry never establishes cleanup or permits reconnect.
+    public func retireAndObserve(timeoutMilliseconds: UInt64) async throws -> WorkerXPCExitObservation {
+        _ = try WorkerXPCExitObservationBudget(milliseconds: timeoutMilliseconds)
+        guard activeIdentity == nil else { throw WorkerPreviewExecutorError.busy }
+        guard isExitBarrierVerified, let exitWatch, let peerIdentity else {
+            throw WorkerPreviewExecutorError.uninitialized
+        }
+        _ = try await retire()
+        let observation = try await exitWatch.waitForExit(timeoutMilliseconds: timeoutMilliseconds)
+        let received = observation.peer
+        guard received.instance == peerIdentity.instance,
+            received.observedProcess == peerIdentity.observedProcess, received.process == peerIdentity.process,
+            received.connectionGeneration == peerIdentity.connectionGeneration,
+            received.sandboxEntitlementVerified, received.admissionStatus == 0
+        else { throw WorkerPreviewExecutorError.exitObservation(expected: peerIdentity, received: observation) }
+        return observation
+    }
+
 }

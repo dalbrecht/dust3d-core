@@ -9,6 +9,15 @@ import Foundation
 #endif
 
 final class WorkerServiceObject: NSObject, Dust3DWorkerXPCProtocol, Sendable {
+    // Process-scoped correlation only; signing requirements remain the authentication boundary.
+    private static let incarnation: (high: UInt64, low: UInt64) = {
+        let identifier = UUID().uuid
+        let bytes = withUnsafeBytes(of: identifier) { Array($0) }
+        return (
+            bytes.prefix(8).reduce(UInt64(0)) { ($0 << 8) | UInt64($1) },
+            bytes.suffix(8).reduce(UInt64(0)) { ($0 << 8) | UInt64($1) }
+        )
+    }()
     private let sandboxEntitlementVerified: Bool
     private let scheduler: WorkerServiceScheduler
     private let candidate: WorkerServiceConnection
@@ -18,8 +27,10 @@ final class WorkerServiceObject: NSObject, Dust3DWorkerXPCProtocol, Sendable {
         self.scheduler = scheduler
         self.candidate = candidate
     }
-    func handshake(withReply reply: @escaping @Sendable (Int32, Bool, UInt32) -> Void) {
-        reply(getpid(), sandboxEntitlementVerified, scheduler.claimConnection(candidate).rawValue)
+    func handshake(withReply reply: @escaping @Sendable (Int32, Bool, UInt32, UInt64, UInt64) -> Void) {
+        reply(
+            getpid(), sandboxEntitlementVerified, scheduler.claimConnection(candidate).rawValue,
+            Self.incarnation.high, Self.incarnation.low)
     }
     func serve(
         _ input: FileHandle, output: FileHandle, isStream: Bool, requestIdentity: UInt64,

@@ -20,3 +20,8 @@ The `dust3d-xpc-service` product supplies the thin bundle-only bootstrap. See
 `../WorkerServiceExecutable/README.md` for unsigned staging and release limitations.
 `WorkerServiceBundleMetadata` validates copied own-bundle values without Security/native
 calls; `WorkerServiceFailureMetadata` formats typed metadata without archive diagnostics.
+
+Handshake ownership replies also retain one process-scoped128-bit incarnation. This Foundation
+UUID-derived value is correlation metadata, not authentication; the configured code requirement
+remains authoritative. Rebuild the exact-revision client/service together for the expanded scalar
+reply. It creates no native lease, consumes no job request and exposes no document diagnostics.

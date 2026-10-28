@@ -167,4 +167,49 @@ final class WorkerXPCHandshakeTests: XCTestCase {
         } catch WorkerXPCTransportError.retired {}
         _ = try await connection.invalidate()
     }
+    func testShouldRetainStableServiceIncarnationAcrossFreshHandshakeBarrier() async throws {
+        let facts = FakeXPCFacts()
+        facts.configureInstance(high: 7, low: 11)
+        let connection = WorkerXPCConnection(factory: { FakeXPCChannel(facts) })
+        let first = try await connection.handshake(generation: 9)
+        let barrier = try await connection.handshake(generation: 9)
+        XCTAssertEqual(first.instance.high, 7)
+        XCTAssertEqual(first.instance.low, 11)
+        XCTAssertEqual(barrier.instance, first.instance)
+        _ = try await connection.invalidate()
+    }
+    func testShouldRejectChangedIncarnationEvenWhenOperatingSystemPIDMatches() async throws {
+        let facts = FakeXPCFacts()
+        facts.configureInstance(high: 7, low: 11)
+        let connection = WorkerXPCConnection(factory: { FakeXPCChannel(facts) })
+        let captured = try await connection.handshake(generation: 9)
+        facts.configureInstance(high: 7, low: 12)
+        do {
+            _ = try await connection.handshake(generation: 9)
+            XCTFail("PID equality cannot replace process incarnation correlation")
+        } catch WorkerXPCTransportError.handshakeInstanceChanged(let expected, let receipt) {
+            XCTAssertEqual(expected, captured.instance)
+            XCTAssertEqual(receipt.instance.low, 12)
+            XCTAssertEqual(receipt.observedProcess, captured.observedProcess)
+        }
+        do {
+            _ = try await connection.handshake(generation: 9)
+            XCTFail("Rebound lifetime must stay retired")
+        } catch WorkerXPCTransportError.retired {
+        }
+    }
+    func testShouldRejectZeroIncarnationWithOriginalHandshakeReceipt() async throws {
+        let facts = FakeXPCFacts()
+        facts.configureInstance(high: 0, low: 0)
+        let connection = WorkerXPCConnection(factory: { FakeXPCChannel(facts) })
+        do {
+            _ = try await connection.handshake(generation: 9)
+            XCTFail("Missing process incarnation must not authenticate")
+        } catch WorkerXPCTransportError.handshakeRejected(let receipt) {
+            XCTAssertEqual(receipt.instance.high, 0)
+            XCTAssertEqual(receipt.instance.low, 0)
+            XCTAssertEqual(receipt.observedProcess, 42)
+        }
+    }
+
 }

@@ -130,6 +130,7 @@ def main():
                 'Authenticated handshake before channel factory; actual writer, EOF decoder and control joined',
                 'Owned Capsule geometry copied; cache reused then rebuilt after reset; pipeline publication admitted',
                 'Normal invalidation requested after owned phase joins',
+                'Registered service exit observed after fresh matching incarnation barrier',
             )
             if any(marker not in output for marker in required):
                 raise RuntimeError('Missing actual public executor stream/cache/publication/retirement observations')

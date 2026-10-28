@@ -64,9 +64,23 @@ public struct WorkerXPCPreviewOptions: Sendable {
     }
 }
 
+/// Service-process incarnation for correlation after authenticated transport, never an authorization credential.
+/// Zero is retained for original rejection receipts but cannot authenticate a lifetime.
+public struct WorkerXPCServiceInstance: Equatable, Sendable {
+    public let high: UInt64
+    public let low: UInt64
+    /// Preserve the original scalar process incarnation without normalization.
+    public init(high: UInt64, low: UInt64) {
+        self.high = high
+        self.low = low
+    }
+    public var isValid: Bool { high != 0 || low != 0 }
+}
+
 /// Captured authenticated lifetime before job channels. Retain independently after control failure.
 /// This does not establish native/job completion, EOF, process disappearance or release trust policy.
 public struct WorkerXPCHandshakeReceipt: Sendable {
+    public let instance: WorkerXPCServiceInstance
     public let process: Int32
     public let sandboxEntitlementVerified: Bool
     public let admissionStatus: UInt32
