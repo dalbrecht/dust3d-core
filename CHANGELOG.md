@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Copy native indexed/source preview pairs under independent native policies, validating original identities and associations before retention without a duplicate wire buffer (#270).
+
 - Copy ordinary native preview geometry under its original indexed budget without legacy count caps or a duplicate wire buffer; session dispatch and app adoption remain separate (#270).
 
 - Stream complete preview session values under independent native budgets, preserving original source fallback, warning/text, optional real statistics and one-time EOF-gated ownership without changing legacy caps (#270).

@@ -1483,3 +1483,13 @@ SwiftPM consumer and scoped sanitizer evidence are recorded in ADR0176. Source-p
 copy, full-budget native generation/session dispatch, output channels, C/Swift admission
 and Apple adoption remain open. Production pin/routes and quarantines are unchanged;
 M4–M8 and full parity remain incomplete.
+
+### Native-budget indexed/source pair copy (#270)
+
+The source-pair copy now checks independently captured controls, native record/text
+charges and every original identity/influence/corner before output retention, then uses
+the accepted ordinary geometry preflight. Same-generation provenance and owner lifetime
+remain caller contracts. Full221CTest, actual SwiftPM consumer, scoped sanitizer and
+measured boundary coverage are recorded in ADR0177. Native full-budget session dispatch,
+channels, C/Swift admission and Apple adoption remain open; pin/routes/quarantines are
+unchanged and M4–M8/full parity remain incomplete.

@@ -38,6 +38,44 @@ int main(int argc, char** argv)
             dust3d_mesh_create_indexed(dust3d_sourced_mesh_geometry(source.get()), 0, &error), dust3d_indexed_mesh_destroy);
         require(indexed && error.status == DUST3D_STATUS_OK, "Indexed owner derives from exactly the same source geometry");
         auto copied = copyNativeIndexedSourcedMesh(source.get(), indexed.get(), {});
+        auto previewPair = copyNativePreviewIndexedSourcedMesh(source.get(), indexed.get(), { archive.size(), 0, 0 });
+        require(encodeIndexedSourcesPayload(previewPair, {}) == encodeIndexedSourcesPayload(copied, {}), "Native preview pair preserves exact canonical geometry and source records");
+        uint64_t sourceTextBytes = 0;
+        for (const auto& identity : copied.sources.identities)
+            sourceTextBytes += identity.node.size() + identity.part.size();
+        PreviewGeometryShape pairShape { copied.geometry.vertices.size(), copied.geometry.indices.size(), copied.geometry.nodeCount,
+            copied.geometry.partCount, copied.geometry.warning.size(), PreviewSourceShape { copied.sources.identities.size(), copied.sources.corners.size(), copied.sources.influences.size(), sourceTextBytes } };
+        const auto nativePairPlan = planPreviewRecords(pairShape, {});
+        PreviewArchiveContext exactPairContext { archive.size(), nativePairPlan.nativeSourceBytes, nativePairPlan.nativeIndexedBytes };
+        require(encodeIndexedSourcesPayload(copyNativePreviewIndexedSourcedMesh(source.get(), indexed.get(), exactPairContext), {}) == encodeIndexedSourcesPayload(copied, {}), "Independent exact native source and indexed budgets accept");
+        --exactPairContext.maximumSourceBytes;
+        try {
+            (void)copyNativePreviewIndexedSourcedMesh(source.get(), indexed.get(), exactPairContext);
+            throw std::runtime_error("Native preview source budget ignored");
+        } catch (const PreviewRangeError& cause) {
+            require(cause.code() == PreviewRangeErrorCode::nativeBudgetExceeded, "Source text retains its native budget charge");
+        }
+        require(copyNativePreviewIndexedSourcedMesh(source.get(), indexed.get(), { archive.size(), 256ULL * 1024 * 1024, std::numeric_limits<size_t>::max() }).geometry.indices == copied.geometry.indices, "Maximum native policies use only the existing small actual pair");
+        try {
+            (void)copyNativePreviewIndexedSourcedMesh(source.get(), indexed.get(), { 1, 0, 0 });
+            throw std::runtime_error("Preview pair accepted inconsistent captured membership");
+        } catch (const PreviewRangeError& cause) {
+            require(cause.code() == PreviewRangeErrorCode::invalidCounts, "Pair metadata rejects independently of native record budgets");
+        }
+        try {
+            (void)copyNativePreviewIndexedSourcedMesh(source.get(), indexed.get(), { archive.size(), 1, 0 });
+            throw std::runtime_error("Preview pair ignored source record charges");
+        } catch (const PreviewRangeError& cause) {
+            require(cause.code() == PreviewRangeErrorCode::nativeBudgetExceeded, "Source record charges reject before scanning identities");
+        }
+        for (bool missingSource : { false, true }) {
+            try {
+                (void)copyNativePreviewIndexedSourcedMesh(missingSource ? nullptr : source.get(), missingSource ? indexed.get() : nullptr, { archive.size(), 0, 0 });
+                throw std::runtime_error("Missing preview pair owner accepted");
+            } catch (const IndexedSourcesPayloadError& cause) {
+                require(cause.code() == IndexedSourcesPayloadErrorCode::invalidInput, "Missing stable pair owners reject before borrowed reads");
+            }
+        }
         PreviewArchiveContext previewContext { archive.size(), 0, 0 };
         auto preview = copyNativePreviewIndexedMesh(indexed.get(), previewContext);
         require(encodeIndexedMeshPayload(preview, {}) == encodeIndexedMeshPayload(copied.geometry, {}), "Native preview copy preserves canonical geometry without legacy copy limits");
@@ -167,6 +205,7 @@ int main(int argc, char** argv)
         indexed.reset();
         source.reset();
         archive.clear();
+        require(encodeIndexedSourcesPayload(previewPair, {}) == encodeIndexedSourcesPayload(copied, {}), "Preview pair owns every identity and record after native release");
         require(encodeIndexedMeshPayload(preview, {}) == encodeIndexedMeshPayload(copied.geometry, {}), "Preview geometry remains owned after native owners and archive are released");
         require(!encodeIndexedSourcesPayload(copied, {}).empty(), "No borrowed source or indexed owner escapes copied pair");
         IndexedSourcesPayloadLimits invalid;
