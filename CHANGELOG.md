@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Require sealed schema-3 per-job wall budgets and enforce scheduler-owned service watchdogs independently of native work, retaining original deadline causes (#304).
+
 - Require explicit bounded pre-job XPC handshake waits in the transport and preview executor, preserving attempt/deadline causes and preventing job creation after failure (#302).
 
 - Require an explicit own-bundle lifetime resource policy and verified four-limit startup receipt before XPC listener work; preserve original setup failures and reject legacy schema-1 bundles (#300).

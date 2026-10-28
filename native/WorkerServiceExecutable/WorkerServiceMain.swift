@@ -2,6 +2,7 @@
 import Darwin
 import Dust3DWorkerService
 import Foundation
+import OSLog
 
 @main
 struct WorkerServiceMain {
@@ -12,15 +13,23 @@ struct WorkerServiceMain {
             let metadata = try WorkerServiceBundleMetadata(bundleURL: Bundle.main.bundleURL, infoDictionary: info)
             let configuration = try WorkerServiceConfiguration(hostSigningRequirement: metadata.hostSigningRequirement)
             let resources = try WorkerServicePreparedResources.prepareFreshHelper(policy: metadata.resourcePolicy)
-            let delegate = try WorkerServiceListenerDelegate(configuration: configuration, resources: resources) {
-                result in
-                switch result {
-                case .success: exit(EXIT_SUCCESS)
-                case .failure(let cause):
-                    writeFailure(operation: "retire", cause: cause)
-                    exit(EXIT_FAILURE)
-                }
-            }
+            let delegate = try WorkerServiceListenerDelegate(
+                configuration: configuration, resources: resources, jobBudget: metadata.jobBudget,
+                onDeadline: { failure in
+                    let metadata = WorkerServiceFailureMetadata(failure)
+                    Logger(subsystem: "org.dust3d.worker", category: "job-deadline").error(
+                        "Worker job deadline: \(metadata.description, privacy: .public)")
+                    // This fresh dedicated helper must not wait on blocked native work or process finalizers.
+                    _exit(EXIT_FAILURE)
+                },
+                onRetired: { result in
+                    switch result {
+                    case .success: exit(EXIT_SUCCESS)
+                    case .failure(let cause):
+                        writeFailure(operation: "retire", cause: cause)
+                        exit(EXIT_FAILURE)
+                    }
+                })
             let listener = NSXPCListener.service()
             listener.delegate = delegate
             withExtendedLifetime(delegate) { listener.resume() }

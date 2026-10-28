@@ -30,8 +30,12 @@ def resource_policy(fields):
     return dict(fields)
 
 
-def service_info(identifier, host_requirement, resources):
+def service_info(identifier, host_requirement, resources, job_wall_milliseconds):
     """Return explicit supported Info.plist values; raise ValueError before writes on invalid metadata."""
+    if (type(job_wall_milliseconds) is not str or not 1 <= len(job_wall_milliseconds) <= 7
+            or not job_wall_milliseconds.isascii() or not job_wall_milliseconds.isdecimal()
+            or job_wall_milliseconds[0] == '0' or not 1 <= int(job_wall_milliseconds) <= 3600000):
+        raise ValueError('Expected explicit canonical job wall milliseconds in 1...3600000')
     policy = resource_policy(resources)
     segments = identifier.split('.')
     if (len(identifier.encode('utf-8')) > 255 or len(segments) < 2 or not all(segments)
@@ -42,8 +46,8 @@ def service_info(identifier, host_requirement, resources):
     return {'CFBundleIdentifier': identifier, 'CFBundleExecutable': 'dust3d-xpc-service',
             'CFBundlePackageType': 'XPC!', 'CFBundleVersion': '1', 'CFBundleInfoDictionaryVersion': '6.0',
             'XPCService': {'ServiceType': 'Application', 'RunLoopType': 'dispatch_main'},
-            'Dust3DWorkerConfigurationVersion': '2', 'Dust3DWorkerHostRequirement': host_requirement,
-            'Dust3DWorkerResourcePolicy': policy}
+            'Dust3DWorkerConfigurationVersion': '3', 'Dust3DWorkerHostRequirement': host_requirement,
+            'Dust3DWorkerResourcePolicy': policy, 'Dust3DWorkerJobWallMilliseconds': job_wall_milliseconds}
 
 
 def service_entitlements():
@@ -51,13 +55,13 @@ def service_entitlements():
     return {'com.apple.security.app-sandbox': True}
 
 
-def stage(binary, output, identifier, host_requirement, resources):
+def stage(binary, output, identifier, host_requirement, resources, job_wall_milliseconds):
     """Copy fresh binary and metadata to new output; return sibling entitlement path.
 
     Raises ValueError for metadata/source mismatch and FileExistsError rather than replacing artifacts.
     Staging does not validate code provenance, compile Security requirements or establish release trust.
     """
-    info = service_info(identifier, host_requirement, resources)
+    info = service_info(identifier, host_requirement, resources, job_wall_milliseconds)
     binary, output = Path(binary), Path(output)
     if output.name != identifier + '.xpc':
         raise ValueError('Output basename must match the explicit service identifier plus .xpc')
@@ -83,6 +87,7 @@ def main():
     parser.add_argument('--service-identifier', required=True)
     parser.add_argument('--host-requirement-file', type=Path, required=True, help='Explicit UTF-8 host designated requirement')
     parser.add_argument('--resource-policy-file', type=Path, required=True, help='Explicit canonical JSON resource requests')
+    parser.add_argument('--job-wall-milliseconds', required=True, help='Explicit canonical per-job wall budget in 1...3600000ms')
     parser.add_argument('--output', type=Path, required=True, help='New <service-identifier>.xpc path; parent must exist')
     arguments = parser.parse_args()
     with arguments.host_requirement_file.open('rb') as stream:
@@ -102,7 +107,7 @@ def main():
             fields[key] = value
         return fields
     resources = json.loads(encoded_policy.decode('utf-8'), object_pairs_hook=unique_fields)
-    entitlements = stage(arguments.binary, arguments.output, arguments.service_identifier, requirement, resources)
+    entitlements = stage(arguments.binary, arguments.output, arguments.service_identifier, requirement, resources, arguments.job_wall_milliseconds)
     print(f'Unsigned XPC bundle: {arguments.output}\nSandbox entitlement file: {entitlements}')
     print('Signing, host embedding and release trust verification are still required.')
 

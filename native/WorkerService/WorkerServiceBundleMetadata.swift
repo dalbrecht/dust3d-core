@@ -9,6 +9,8 @@ public struct WorkerServiceBundleMetadata: Sendable {
     public let hostSigningRequirement: String
     /// Explicit lifetime caps copied from sealed own-bundle metadata; decoding has no OS effects.
     public let resourcePolicy: WorkerServiceResourcePolicy
+    /// Explicit per-admitted-job wall policy, independent of cumulative process CPU limits.
+    public let jobBudget: WorkerServiceJobBudget
     /// Validate the supported bundle layout and configuration schema before service setup.
     /// - Parameters:
     ///   - bundleURL: Current executable bundle URL, never a caller-selected trust override.
@@ -32,7 +34,7 @@ public struct WorkerServiceBundleMetadata: Sendable {
         }
         for (key, expected) in [
             ("CFBundleExecutable", "dust3d-xpc-service"), ("CFBundlePackageType", "XPC!"),
-            ("CFBundleInfoDictionaryVersion", "6.0"), ("Dust3DWorkerConfigurationVersion", "2"),
+            ("CFBundleInfoDictionaryVersion", "6.0"), ("Dust3DWorkerConfigurationVersion", "3"),
         ] {
             guard try field(key) == expected else { throw WorkerServiceBundleError.field(key) }
         }
@@ -51,6 +53,11 @@ public struct WorkerServiceBundleMetadata: Sendable {
         guard let resourceFields = infoDictionary["Dust3DWorkerResourcePolicy"] as? [String: String] else {
             throw WorkerServiceBundleError.field("Dust3DWorkerResourcePolicy")
         }
+        let wall = try field("Dust3DWorkerJobWallMilliseconds")
+        guard !wall.isEmpty, wall.utf8.count <= 7, wall.utf8.allSatisfy({ (48...57).contains($0) }),
+            wall.utf8.first != 48, let milliseconds = UInt64(wall)
+        else { throw WorkerServiceBundleError.field("Dust3DWorkerJobWallMilliseconds") }
+        jobBudget = try WorkerServiceJobBudget(milliseconds: milliseconds)
         resourcePolicy = try WorkerServiceResourcePolicy(fields: resourceFields)
         serviceIdentifier = identifier
         hostSigningRequirement = requirement

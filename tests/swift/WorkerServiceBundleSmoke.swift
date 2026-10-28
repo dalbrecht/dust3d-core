@@ -15,7 +15,7 @@ struct WorkerServiceBundleSmoke {
         guard metadata.serviceIdentifier == "org.dust3d.worker.bundle-qa",
             metadata.hostSigningRequirement == "cdhash H\"0000000000000000000000000000000000000000\"",
             metadata.resourcePolicy.cpuSeconds == WorkerServiceResourceBudget(soft: 300, hard: 600),
-            metadata.resourcePolicy.minimumDescriptorCeiling == 256
+            metadata.resourcePolicy.minimumDescriptorCeiling == 256, metadata.jobBudget.milliseconds == 300000
         else { throw WorkerServiceBundleError.field("test fixture identity") }
         print("Actual service module accepted staged explicit metadata; no listener or native work started")
     }

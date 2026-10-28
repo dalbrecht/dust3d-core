@@ -16,10 +16,19 @@ SPEC.loader.exec_module(STAGE)
 POLICY = {'cpuSoftSeconds': '300', 'cpuHardSeconds': '600', 'fileSoftBytes': '67108864',
           'fileHardBytes': '134217728', 'descriptorSoftCeiling': '1024', 'descriptorHardCeiling': '2048',
           'minimumDescriptorCeiling': '256'}
+JOB_WALL = '300000'
 REQUIREMENT = 'cdhash H"0000000000000000000000000000000000000000"'
 
 
 class WorkerServiceBundleTests(unittest.TestCase):
+    def test_should_require_explicit_canonical_job_wall_policy_before_writes(self):
+        for invalid in (None, 300, True, '', '0', '0300', '-1', '1.5', ' 300', '300 ', '٣٠٠', '3600001'):
+            with self.subTest(value=invalid), self.assertRaises(ValueError):
+                STAGE.service_info('org.dust3d.worker', REQUIREMENT, POLICY, invalid)
+        for valid in ('1', JOB_WALL, '3600000'):
+            info = STAGE.service_info('org.dust3d.worker', REQUIREMENT, POLICY, valid)
+            self.assertEqual(info['Dust3DWorkerJobWallMilliseconds'], valid)
+
     def test_should_require_exact_canonical_resource_fields_before_writes(self):
         invalid = [None, {}, dict(POLICY, cpuSoftSeconds=300), dict(POLICY, cpuSoftSeconds=True),
                    dict(POLICY, cpuSoftSeconds='0300'), dict(POLICY, cpuSoftSeconds='0'),
@@ -28,7 +37,7 @@ class WorkerServiceBundleTests(unittest.TestCase):
                    dict(POLICY, fileHardBytes='18446744073709551616')]
         for policy in invalid:
             with self.subTest(policy=policy), self.assertRaises(ValueError):
-                STAGE.service_info('org.dust3d.worker', REQUIREMENT, policy)
+                STAGE.service_info('org.dust3d.worker', REQUIREMENT, policy, JOB_WALL)
 
     def test_should_require_explicit_bounded_unique_policy_file_in_cli(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -41,7 +50,8 @@ class WorkerServiceBundleTests(unittest.TestCase):
             output = root / 'org.dust3d.worker.xpc'
             command = [sys.executable, '-B', str(ROOT / 'tools/stage_worker_service.py'),
                        '--binary', str(binary), '--service-identifier', 'org.dust3d.worker',
-                       '--host-requirement-file', str(requirement), '--output', str(output)]
+                       '--host-requirement-file', str(requirement), '--output', str(output),
+                       '--job-wall-milliseconds', JOB_WALL]
             absent = subprocess.run(command, capture_output=True, text=True, check=False)
             self.assertNotEqual(absent.returncode, 0)
             self.assertIn('--resource-policy-file', absent.stderr)
@@ -55,6 +65,11 @@ class WorkerServiceBundleTests(unittest.TestCase):
                 self.assertIn(cause, result.stderr)
                 self.assertFalse(output.exists())
             policy_file.write_text(json.dumps(POLICY), encoding='utf-8')
+            missing_job = subprocess.run(command[:-2] + ['--resource-policy-file', str(policy_file)],
+                                         capture_output=True, text=True, check=False)
+            self.assertNotEqual(missing_job.returncode, 0)
+            self.assertIn('--job-wall-milliseconds', missing_job.stderr)
+            self.assertFalse(output.exists())
             subprocess.run(command + ['--resource-policy-file', str(policy_file)],
                            capture_output=True, text=True, check=True)
             info = plistlib.loads((output / 'Contents/Info.plist').read_bytes())
@@ -62,10 +77,11 @@ class WorkerServiceBundleTests(unittest.TestCase):
             self.assertEqual((output / 'Contents/MacOS/dust3d-xpc-service').read_bytes(), binary.read_bytes())
 
     def test_should_preserve_explicit_requirement_and_sandbox_only_policy(self):
-        info = STAGE.service_info('org.dust3d.worker', REQUIREMENT, POLICY)
+        info = STAGE.service_info('org.dust3d.worker', REQUIREMENT, POLICY, JOB_WALL)
         self.assertEqual(info['Dust3DWorkerHostRequirement'], REQUIREMENT)
-        self.assertEqual(info['Dust3DWorkerConfigurationVersion'], '2')
+        self.assertEqual(info['Dust3DWorkerConfigurationVersion'], '3')
         self.assertEqual(info['Dust3DWorkerResourcePolicy'], POLICY)
+        self.assertEqual(info['Dust3DWorkerJobWallMilliseconds'], JOB_WALL)
         self.assertEqual(info['CFBundleExecutable'], 'dust3d-xpc-service')
         self.assertEqual(info['XPCService'], {'ServiceType': 'Application', 'RunLoopType': 'dispatch_main'})
         self.assertEqual(STAGE.service_entitlements(), {'com.apple.security.app-sandbox': True})
@@ -73,10 +89,10 @@ class WorkerServiceBundleTests(unittest.TestCase):
     def test_should_reject_invalid_metadata_without_security_calls(self):
         for identifier in ('../worker', '.org.worker', 'org..worker', 'worker', 'org.worker/' , 'a' * 256):
             with self.assertRaises(ValueError):
-                STAGE.service_info(identifier, REQUIREMENT, POLICY)
+                STAGE.service_info(identifier, REQUIREMENT, POLICY, JOB_WALL)
         for requirement in ('', ' \n', 'bad\0value', 'a' * 4097):
             with self.assertRaises(ValueError):
-                STAGE.service_info('org.dust3d.worker', requirement, POLICY)
+                STAGE.service_info('org.dust3d.worker', requirement, POLICY, JOB_WALL)
 
     def test_should_stage_exact_owned_bytes_without_overwriting(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -84,12 +100,12 @@ class WorkerServiceBundleTests(unittest.TestCase):
             binary = root / 'fresh-worker'
             binary.write_bytes(b'fake executable bytes never launched')
             bundle = root / 'org.dust3d.worker.xpc'
-            entitlements = STAGE.stage(binary, bundle, 'org.dust3d.worker', REQUIREMENT, POLICY)
+            entitlements = STAGE.stage(binary, bundle, 'org.dust3d.worker', REQUIREMENT, POLICY, JOB_WALL)
             self.assertEqual((bundle / 'Contents/MacOS/dust3d-xpc-service').read_bytes(), binary.read_bytes())
-            self.assertEqual(plistlib.loads((bundle / 'Contents/Info.plist').read_bytes()), STAGE.service_info('org.dust3d.worker', REQUIREMENT, POLICY))
+            self.assertEqual(plistlib.loads((bundle / 'Contents/Info.plist').read_bytes()), STAGE.service_info('org.dust3d.worker', REQUIREMENT, POLICY, JOB_WALL))
             self.assertEqual(plistlib.loads(entitlements.read_bytes()), STAGE.service_entitlements())
             with self.assertRaises(FileExistsError):
-                STAGE.stage(binary, bundle, 'org.dust3d.worker', REQUIREMENT, POLICY)
+                STAGE.stage(binary, bundle, 'org.dust3d.worker', REQUIREMENT, POLICY, JOB_WALL)
             self.assertEqual(binary.read_bytes(), b'fake executable bytes never launched')
 
     def test_should_reject_wrong_bundle_name_or_symlink_source_before_writes(self):
@@ -99,12 +115,12 @@ class WorkerServiceBundleTests(unittest.TestCase):
             binary.write_bytes(b'fake')
             wrong = root / 'wrong.xpc'
             with self.assertRaises(ValueError):
-                STAGE.stage(binary, wrong, 'org.dust3d.worker', REQUIREMENT, POLICY)
+                STAGE.stage(binary, wrong, 'org.dust3d.worker', REQUIREMENT, POLICY, JOB_WALL)
             self.assertFalse(wrong.exists())
             link = root / 'link'
             link.symlink_to(binary)
             with self.assertRaises(ValueError):
-                STAGE.stage(link, root / 'org.dust3d.worker.xpc', 'org.dust3d.worker', REQUIREMENT, POLICY)
+                STAGE.stage(link, root / 'org.dust3d.worker.xpc', 'org.dust3d.worker', REQUIREMENT, POLICY, JOB_WALL)
 
 
 if __name__ == '__main__':

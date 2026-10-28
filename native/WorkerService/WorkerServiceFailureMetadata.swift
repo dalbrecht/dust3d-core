@@ -9,7 +9,22 @@ public struct WorkerServiceFailureMetadata: Sendable {
     /// - Parameter cause: Original preflight or retirement error.
     /// - Example: `WorkerServiceFailureMetadata(error).description`.
     public init(_ cause: any Error) {
-        if let original = cause as? WorkerSessionBoundaryError {
+        if let original = cause as? WorkerServiceJobFailure {
+            description =
+                "jobOwner=\(original.ownerGeneration) request=\(original.requestIdentity)"
+                + " lease=\(original.leaseGeneration) budgetMilliseconds=\(original.budgetMilliseconds) "
+                + WorkerServiceFailureMetadata(original.cause).description
+        } else if let original = cause as? WorkerServiceJobDeadlineError {
+            switch original {
+            case .invalidBudget(let milliseconds): description = "jobPolicyMilliseconds=\(milliseconds)"
+            case .clockOverflow(let start, let milliseconds):
+                description = "jobClockOverflowStart=\(start) milliseconds=\(milliseconds)"
+            case .clockReversed(let previous, let observed):
+                description = "jobClockReversedPrevious=\(previous) observed=\(observed)"
+            case .expired(let start, let deadline, let observed):
+                description = "jobExpiredStart=\(start) deadline=\(deadline) observed=\(observed)"
+            }
+        } else if let original = cause as? WorkerSessionBoundaryError {
             description =
                 "status=\(original.status) source=\(original.source) code=\(original.code) truncated=\(original.isTruncated)"
         } else if let original = cause as? WorkerServiceResourceBootstrapError {

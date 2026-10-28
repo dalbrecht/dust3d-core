@@ -34,7 +34,7 @@ def main():
         bundle = root / 'org.dust3d.worker.bundle-qa.xpc'
         subprocess.run([sys.executable, '-B', str(repository / 'tools/stage_worker_service.py'),
                         '--binary', str(products / 'dust3d-xpc-service'), '--service-identifier', 'org.dust3d.worker.bundle-qa',
-                        '--host-requirement-file', str(requirement), '--resource-policy-file', str(resource_policy), '--output', str(bundle)], check=True)
+                        '--host-requirement-file', str(requirement), '--job-wall-milliseconds', '300000', '--resource-policy-file', str(resource_policy), '--output', str(bundle)], check=True)
         if (bundle / 'Contents/MacOS/dust3d-xpc-service').read_bytes() != (products / 'dust3d-xpc-service').read_bytes():
             raise ValueError('Staged executable differs from fresh actual product')
         entitlements = plistlib.loads(bundle.with_suffix('.entitlements.plist').read_bytes())
