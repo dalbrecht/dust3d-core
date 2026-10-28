@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Generate borrowed native-budget previews in serialized document sessions, preserving typed source/fallback failures, replay admission and actual optional cache statistics without activating a transport route (#270).
+
 - Copy native indexed/source preview pairs under independent native policies, validating original identities and associations before retention without a duplicate wire buffer (#270).
 
 - Copy ordinary native preview geometry under its original indexed budget without legacy count caps or a duplicate wire buffer; session dispatch and app adoption remain separate (#270).

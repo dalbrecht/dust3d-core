@@ -1493,3 +1493,15 @@ remain caller contracts. Full221CTest, actual SwiftPM consumer, scoped sanitizer
 measured boundary coverage are recorded in ADR0177. Native full-budget session dispatch,
 channels, C/Swift admission and Apple adoption remain open; pin/routes/quarantines are
 unchanged and M4–M8/full parity remain incomplete.
+
+### Borrowed native-budget preview sessions (#270)
+
+Opt-in native/connection session methods now generate from borrowed complete archive
+ownership under original native indexed/source policies, without a legacy input envelope
+or consumer copy cap. Same-worker fallback, actual optional cache observations, typed
+copy/native receipts and replay/lifetime admission are preserved. Existing small positive
+session/ordinary fixtures, pure fake error outcomes,222CTest and actual SwiftPM consumers
+are recorded with scoped sanitizer/coverage limits in ADR0178. Output channels, C/Swift
+ownership, authenticated/current-source publication and Apple adoption remain open; baked
+and imported profiles need separate integration. Pin/routes/quarantines and M4–M8/full
+parity status remain unchanged.

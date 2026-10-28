@@ -22,6 +22,12 @@ namespace worker {
         /// Throws original scope/argument/native-copy errors. Host still admits revision
         /// publication separately. Example: auto value = session.generateSourcedIndexed(bytes, id, generation, {});
         NativeSessionGeneration generateSourcedIndexed(const std::vector<uint8_t>& archive, const RequestIdentity& identity, uint64_t connectionGeneration, const NativeSessionOptions& options);
+        /// Admit lifetime/replay before opt-in native-budget borrowed archive generation.
+        /// Accepted IDs are consumed even on argument/copy errors. Caller retains bytes;
+        /// host separately authenticates peer and admits current-source publication.
+        /// Throws original scope/argument/receipt-copy errors; no new transport route.
+        /// Example: auto value = session.generatePreview(owner.view(), id, generation);
+        NativeSessionGeneration generatePreview(PreviewArchiveView archive, const RequestIdentity& identity, uint64_t connectionGeneration, const GenerationStatisticsLimits& statisticsLimits = {});
         /// Copy current actual observations for this live lifetime; no invented metrics.
         /// Throws original scope/query errors. Example: auto stats = session.statistics(generation);
         GenerationStatistics statistics(uint64_t connectionGeneration);

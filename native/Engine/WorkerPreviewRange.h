@@ -50,7 +50,11 @@ namespace worker {
         addressSpaceExceeded };
     class PreviewRangeError : public std::runtime_error {
     public:
-        PreviewRangeError(PreviewRangeErrorCode code, const char* cause);
+        PreviewRangeError(PreviewRangeErrorCode code, const char* cause)
+            : std::runtime_error(cause)
+            , m_code(code)
+        {
+        }
         PreviewRangeErrorCode code() const noexcept { return m_code; }
 
     private:

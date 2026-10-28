@@ -33,7 +33,11 @@ namespace worker {
         legacyProducer = 12,
         mesh = 13,
         sourceBaked = 14,
-        generationStatistics = 15 };
+        generationStatistics = 15,
+        indexedMesh = 16,
+        sourceHints = 17,
+        indexedSources = 18,
+        previewRange = 19 };
     struct FailureDetail {
         FailureDomain domain;
         int32_t code = 0;
