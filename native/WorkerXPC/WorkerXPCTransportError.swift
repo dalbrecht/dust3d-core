@@ -8,6 +8,7 @@ public enum WorkerXPCTransportError: Error {
     case missingProxy, connectionInvalidated, connectionInterrupted, invalidChannels, invalidRequest
     case diagnosticExceeded(actual: Int)
     case remote(any Error)
+    case handshakeRejected(WorkerXPCHandshakeReceipt)
     case missingPeer
     case peerChanged(expected: Int32, observed: Int32)
 }

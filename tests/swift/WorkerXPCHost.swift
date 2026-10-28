@@ -280,7 +280,9 @@ private struct WorkerXPCHost {
             submittedRequest = fileAttempt.request
         }
         let capturedRequest = submittedRequest.identity.request
-        try withWorkerXPCPeer(requirement: try developmentRequirement(pins.service), deadline: deadline) { peer in
+        try withWorkerXPCPeer(
+            requirement: try developmentRequirement(pins.service), generation: generation, deadline: deadline
+        ) { peer in
             Task.detached {
                 do {
                     try await peer.submit(

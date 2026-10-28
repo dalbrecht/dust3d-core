@@ -167,7 +167,7 @@ func runSessionXPCFixture(archive: Data, root: URL, requirement: String, deadlin
     let previewQueue = WorkerPreviewSourceCoordinator<PreviewSourceSnapshot>()
     var snapshots: [SessionXPCSnapshot] = []
     var observedProcess: Int32 = 0
-    try withWorkerXPCPeer(requirement: requirement, deadline: deadline) { peer in
+    try withWorkerXPCPeer(requirement: requirement, generation: generation, deadline: deadline) { peer in
         for requestID: UInt64 in [1, 2, 4] {
             if requestID == 4 {
                 let reset = WorkerOutcome<WorkerControlReceipt>()

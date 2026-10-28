@@ -15,6 +15,49 @@ public actor WorkerXPCConnection {
     /// Create an unresumed connection with explicit host-selected service and trust policy.
     public init(configuration: WorkerXPCConfiguration) { channel = FoundationWorkerXPCChannel(configuration) }
     init(factory: @Sendable () -> any WorkerXPCChannel) { channel = factory() }
+    /// Bind an authenticated connection lifetime before creating job channels or native work.
+    /// - Parameter generation: Positive host-selected generation, fixed for this connection.
+    /// - Returns: Original service fields plus independently observed OS peer and captured generation.
+    ///   Retain this value separately if later control communication fails.
+    /// - Throws: Original transport error or handshakeRejected retaining the original receipt.
+    /// A repeated handshake is ownership-only: no native admission lease/request ID is consumed.
+    /// It never proves job/channel cleanup, process exit or native-idle state.
+    public func handshake(generation: UInt64) async throws -> WorkerXPCHandshakeReceipt {
+        try await withCheckedThrowingContinuation { continuation in
+            let outcome = WorkerXPCReply(continuation)
+            do {
+                guard let (proxy, token) = try prepare(outcome: outcome, generation: generation) else { return }
+                proxy.handshake { [weak self] process, sandbox, admission in
+                    Task {
+                        guard let self else {
+                            outcome.finish(.failure(WorkerXPCTransportError.retired))
+                            return
+                        }
+                        await self.finishHandshake(
+                            token: token, process: process, sandbox: sandbox,
+                            admission: admission, generation: generation, outcome: outcome)
+                    }
+                }
+            } catch { outcome.finish(.failure(error)) }
+        }
+    }
+    private func finishHandshake(
+        token: UInt64, process: Int32, sandbox: Bool, admission: UInt32,
+        generation: UInt64, outcome: WorkerXPCReply<WorkerXPCHandshakeReceipt>
+    ) {
+        guard let observed = admitCallback(token: token, cause: Data()) else { return }
+        let receipt = WorkerXPCHandshakeReceipt(
+            process: process, sandboxEntitlementVerified: sandbox,
+            admissionStatus: admission, connectionGeneration: generation,
+            observedProcess: observed)
+        guard process == observed, sandbox, admission == 0 else {
+            state.retire()
+            channel.invalidate()
+            outcome.finish(.failure(WorkerXPCTransportError.handshakeRejected(receipt)))
+            return
+        }
+        outcome.finish(.success(receipt))
+    }
     private func validateChannels(_ input: FileHandle, _ output: FileHandle) throws {
         guard input.fileDescriptor >= 0, output.fileDescriptor >= 0,
             input.fileDescriptor != output.fileDescriptor

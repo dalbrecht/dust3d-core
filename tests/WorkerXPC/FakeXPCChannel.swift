@@ -13,6 +13,11 @@ final class FakeXPCFacts: @unchecked Sendable {
     private var ready: CheckedContinuation<Void, Never>?
     private var invalidated: (@Sendable () -> Void)?
     private var interrupted: (@Sendable () -> Void)?
+    private var greeting: (Int32, Bool, UInt32) = (42, true, 0)
+    var handshakeFields: (Int32, Bool, UInt32) { lock.withLock { greeting } }
+    func configureHandshake(process: Int32 = 42, sandbox: Bool = true, admission: UInt32 = 0) {
+        lock.withLock { greeting = (process, sandbox, admission) }
+    }
     private var rawBudget: UInt64?
     var mode: Mode {
         get { lock.withLock { selectedMode } }
@@ -92,6 +97,10 @@ final class FakeXPCChannel: WorkerXPCChannel {
 private final class FakeXPCProxy: NSObject, Dust3DWorkerXPCProtocol {
     let facts: FakeXPCFacts
     init(_ facts: FakeXPCFacts) { self.facts = facts }
+    func handshake(withReply reply: @escaping @Sendable (Int32, Bool, UInt32) -> Void) {
+        let fields = facts.handshakeFields
+        facts.deliver { reply(fields.0, fields.1, fields.2) }
+    }
     func serve(
         _ input: FileHandle, output: FileHandle, isStream: Bool, requestIdentity: UInt64,
         withReply reply:

@@ -47,7 +47,7 @@ func runProceduralXPCFixture(archive: Data, root: URL, requirement: String, dead
     }
     var copiedPixels = Data()
     var process: Int32 = 0
-    try withWorkerXPCPeer(requirement: requirement, deadline: deadline) { peer in
+    try withWorkerXPCPeer(requirement: requirement, generation: generation, deadline: deadline) { peer in
         let outcome = WorkerOutcome<WorkerControlReceipt>()
         Task.detached {
             do {

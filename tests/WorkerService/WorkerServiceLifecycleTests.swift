@@ -66,4 +66,29 @@ final class WorkerServiceLifecycleTests: XCTestCase {
         XCTAssertEqual(facts.events, [])
         XCTAssertFalse(scheduler.snapshot().isRetired)
     }
+
+    func testShouldClaimHandshakeWithoutJobLeaseOrRequestConsumption() throws {
+        let executor = RecordedExecutor()
+        let facts = RetirementFacts()
+        let scheduler = WorkerServiceScheduler(executor: executor) { _ in facts.record("retired") }
+        let owner = try XCTUnwrap(scheduler.makeConnectionCandidate())
+        let other = try XCTUnwrap(scheduler.makeConnectionCandidate())
+        XCTAssertEqual(scheduler.claimConnection(owner), .accepted)
+        XCTAssertEqual(scheduler.claimConnection(owner), .accepted)
+        XCTAssertEqual(scheduler.claimConnection(other), .notOwner)
+        XCTAssertNil(scheduler.snapshot().activeLease)
+        XCTAssertEqual(scheduler.snapshot().lastIssuedGeneration, 0)
+        let decision = scheduler.submit(
+            owner: owner, requestIdentity: 1, onCancelled: {},
+            { lease in
+                facts.record("job")
+                XCTAssertTrue(scheduler.complete(owner: owner, lease))
+            })
+        guard case .accepted = decision else { return XCTFail("Handshake consumed first job") }
+        XCTAssertTrue(scheduler.retire(owner: owner))
+        XCTAssertEqual(scheduler.claimConnection(owner), .closed)
+        XCTAssertEqual(facts.events, [])
+        executor.drain()
+        XCTAssertEqual(facts.events, ["job", "retired"])
+    }
 }

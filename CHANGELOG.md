@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Bind authenticated worker identity before job channels with a scalar handshake that preserves original ownership status without consuming native leases or request IDs (#294).
+
 - Add an async preview coordinator with newest-waiting replacement, drain-preserving cancellation, original completion admission and bounded retirement (#292).
 
 - Add the thin XPC service executable and non-overwriting unsigned bundle stager with explicit bundle trust metadata, sandbox-only entitlements and document-safe typed diagnostics (#290).

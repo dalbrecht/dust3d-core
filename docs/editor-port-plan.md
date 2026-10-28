@@ -1622,3 +1622,12 @@ retirement awaits cleanup with a bounded waiter. Eleven fake-only tests,233 CTes
 XCTest and measured98.60% line/96.72% region coverage for new application orchestration are
 recorded in ADR0189. Real descriptor executor/independent EOF+peer evidence, signed embedding,
 Apple adoption, all quarantines and M4–M8 remain open. Pin48b0ce2d is unchanged.
+
+### Pre-job authenticated peer handshake (#294)
+
+The scalar client/service handshake now captures fixed lifetime and independent OS peer
+before a future executor creates channels. It claims routing ownership without native session
+creation/job ID consumption. ADR0190 records ten fake client cases, pure scheduler ownership,
+233 CTest/51 public XCTest and healthy pre-job handshakes. Actual writer/reader/control/cleanup
+joining, explicit stream-mode plumbing, supervision, signed embedding/trust, Apple adoption and
+M4–M8 remain open. Pin48b0ce2d and all quarantines are unchanged.

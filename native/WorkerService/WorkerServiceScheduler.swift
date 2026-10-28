@@ -34,6 +34,16 @@ final class WorkerServiceScheduler: @unchecked Sendable {
             return transition.candidate
         }
     }
+    /// Called only from a requirement-checked invocation; claims routing ownership without a native lease.
+    /// Acceptance is not native-idle/admission or completion evidence.
+    func claimConnection(_ owner: WorkerServiceConnection) -> WorkerServiceAdmissionStatus {
+        lock.withLock {
+            guard !ownership.isRetired else { return .closed }
+            let transition = ownership.claiming(owner)
+            ownership = transition.state
+            return transition.didClaim ? .accepted : .notOwner
+        }
+    }
     func submit(
         owner: WorkerServiceConnection, requestIdentity: UInt64, onCancelled: @escaping @Sendable () -> Void,
         _ operation: @escaping @Sendable (WorkerServiceLease) -> Void

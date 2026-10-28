@@ -5,7 +5,7 @@ import XCTest
 // SPDX-License-Identifier: MIT
 @testable import Dust3DWorkerXPC
 
-private final class MissingChannel: WorkerXPCChannel {
+final class MissingChannel: WorkerXPCChannel {
     var processIdentifier: Int32 { 42 }
     func installHandlers(invalidated: @escaping @Sendable () -> Void, interrupted: @escaping @Sendable () -> Void) {}
     func resume() {}

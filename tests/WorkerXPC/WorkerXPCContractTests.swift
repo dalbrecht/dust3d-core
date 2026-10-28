@@ -12,6 +12,7 @@ final class WorkerXPCContractTests: XCTestCase {
     }
     func testPublicProtocolRetainsPreviewAndLifecycleSelectors() {
         for selector in [
+            #selector(Dust3DWorkerXPCProtocol.handshake(withReply:)),
             NSSelectorFromString(
                 "servePreview:output:isStream:document:requestIdentity:revision:connectionGeneration:maximumCachePayloadBytes:archiveBytes:maximumIndexedBytes:maximumSourceBytes:maximumInputTransferBytes:inputChunkBytes:maximumOutputTransferBytes:outputChunkBytes:withReply:"
             ),
