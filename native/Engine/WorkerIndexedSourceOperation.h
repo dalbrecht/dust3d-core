@@ -27,6 +27,16 @@ namespace worker {
     /// No whole-wire validation buffer, generation, authentication or RSS guarantee.
     /// Example: auto mesh = copyNativePreviewIndexedMesh(owner.get(), captured);
     IndexedMeshPayload copyNativePreviewIndexedMesh(const Dust3DIndexedMesh* owner, PreviewArchiveContext context);
+    /// Copy a same-generation stable source/indexed pair under captured native policies.
+    /// @param source Immutable source owner retained through return.
+    /// @param indexed Immutable indexed owner derived from this source's geometry.
+    /// @param context Independent archive count and original source/indexed budgets.
+    /// @return Fully validated independent records, original identities/kinds/weights.
+    /// @throws Original chunk/range/source/geometry or allocation errors. Preflight
+    /// source counts, text and associations before retaining output arrays. No whole
+    /// wire buffer, generation or provenance authentication; caller guarantees derivation.
+    /// Example: auto pair = copyNativePreviewIndexedSourcedMesh(source, indexed, captured);
+    IndexedSourcesPayload copyNativePreviewIndexedSourcedMesh(const Dust3DSourcedMesh* source, const Dust3DIndexedMesh* indexed, PreviewArchiveContext context);
     /// Pair copies from an indexed owner derived from this exact stable source geometry.
     /// @param source Live immutable source owner retained until return.
     /// @param indexed Live indexed owner derived from source's borrowed geometry, retained until return.

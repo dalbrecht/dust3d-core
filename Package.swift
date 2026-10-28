@@ -42,6 +42,7 @@ let package = Package(
                 "Engine/WorkerUvOperation.cc",
                 "Engine/WorkerSourceOperation.cc", "Engine/WorkerSourceRequest.cc",
                 "Engine/WorkerIndexedCopyBudget.cc", "Engine/WorkerPreviewRange.cc", "Engine/WorkerPreviewSession.cc",
+                "Engine/WorkerPreviewSourceCopy.cc",
                 "Engine/WorkerIndexedSourceOperation.cc",
                 "Engine/WorkerIndexedSources.cc", "Engine/WorkerGenerationStatistics.cc",
                 "Engine/WorkerGenerationStatisticsCopy.cc", "Engine/WorkerNativeSession.cc",
