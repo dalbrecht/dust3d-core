@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 #include "WorkerIndexedSourceOperation.h"
 #include "WorkerIndexedCopyBudget.h"
+#include "WorkerMeshValidation.h"
 #include "WorkerOperation.h"
 #include "WorkerSourceCopy.h"
 #include "WorkerSourceRequest.h"
@@ -103,6 +104,44 @@ namespace worker {
         }
         result.indices.assign(indices, indices + indexCount);
         (void)encodeIndexedMeshPayload(result, limits);
+        return result;
+    }
+    IndexedMeshPayload copyNativePreviewIndexedMesh(const Dust3DIndexedMesh* owner, PreviewArchiveContext context)
+    {
+        context = detail::checkedPreviewArchiveContext(context);
+        if (!owner)
+            throw IndexedMeshPayloadError(IndexedMeshPayloadErrorCode::invalidInput, "Native preview indexed owner is missing.");
+        const auto vertexCount = dust3d_indexed_mesh_vertex_count(owner), indexCount = dust3d_indexed_mesh_index_count(owner);
+        const auto nodes = dust3d_indexed_mesh_node_count(owner), parts = dust3d_indexed_mesh_part_count(owner);
+        const auto* vertices = dust3d_indexed_mesh_vertices(owner);
+        const auto* indices = dust3d_indexed_mesh_indices(owner);
+        if (!vertexCount || !indexCount || !vertices || !indices)
+            throw IndexedMeshPayloadError(IndexedMeshPayloadErrorCode::invalidGeometry, "Native preview requires complete stable triangles.");
+        if (nodes > context.archiveBytes || parts > context.archiveBytes)
+            throw PreviewRangeError(PreviewRangeErrorCode::invalidCounts, "Preview membership exceeds captured archive bytes.");
+        const auto* text = dust3d_indexed_mesh_warning(owner);
+        const auto warning = measureWarning(text, std::numeric_limits<uint32_t>::max());
+        (void)planPreviewRecords({ vertexCount, indexCount, nodes, parts, warning, std::nullopt }, { context.maximumIndexedBytes, context.maximumSourceBytes });
+        detail::validateMeshWarning(reinterpret_cast<const uint8_t*>(text), warning);
+        auto vertexAt = [&](size_t index) -> MeshVertex {
+            const auto& value = vertices[index];
+            return { { value.position[0], value.position[1], value.position[2] },
+                { value.normal[0], value.normal[1], value.normal[2] }, { value.color[0], value.color[1], value.color[2], value.color[3] } };
+        };
+        for (size_t index = 0; index < vertexCount; ++index)
+            detail::validateMeshVertex(vertexAt(index));
+        for (size_t index = 0; index < indexCount; ++index)
+            detail::validateIndexedMeshIndex(indices[index], vertexCount);
+        for (size_t index = 0; index < indexCount; index += 3)
+            detail::validateMeshTriangle({ vertexAt(indices[index]), vertexAt(indices[index + 1]), vertexAt(indices[index + 2]) });
+        IndexedMeshPayload result;
+        result.nodeCount = nodes;
+        result.partCount = parts;
+        result.warning.assign(text, warning);
+        result.vertices.reserve(vertexCount);
+        for (size_t index = 0; index < vertexCount; ++index)
+            result.vertices.push_back(vertexAt(index));
+        result.indices.assign(indices, indices + indexCount);
         return result;
     }
     IndexedSourcesPayload copyNativeIndexedSourcedMesh(const Dust3DSourcedMesh* source, const Dust3DIndexedMesh* indexed, const IndexedSourcesPayloadLimits& limits)

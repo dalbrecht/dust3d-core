@@ -3,6 +3,8 @@
 #define DUST3D_NATIVE_WORKER_INDEXED_SOURCE_OPERATION_H_
 #include "WorkerFailure.h"
 #include "WorkerIndexedSources.h"
+#include "WorkerPreviewArchive.h"
+#include "WorkerPreviewRange.h"
 #include <Dust3DBridge.h>
 #include <variant>
 namespace dust3d {
@@ -16,6 +18,15 @@ namespace worker {
     /// @throws IndexedMeshPayloadError, original MeshPayloadError or allocation errors.
     /// Example: auto mesh = copyNativeIndexedMesh(owner.get(), {});
     IndexedMeshPayload copyNativeIndexedMesh(const Dust3DIndexedMesh* owner, const IndexedMeshPayloadLimits& limits);
+    /// Copy stable native indexed records under independently captured native budgets.
+    /// @param owner Live immutable owner retained until return; no borrowed data escapes.
+    /// @param context Original archive count and native policies, not legacy wire quotas.
+    /// @return Independent geometry preserving all vertex/index/warning values.
+    /// @throws Original chunk/range/geometry/text or allocation errors. Counts, budget,
+    /// membership and borrowed values are checked before allocating output arrays.
+    /// No whole-wire validation buffer, generation, authentication or RSS guarantee.
+    /// Example: auto mesh = copyNativePreviewIndexedMesh(owner.get(), captured);
+    IndexedMeshPayload copyNativePreviewIndexedMesh(const Dust3DIndexedMesh* owner, PreviewArchiveContext context);
     /// Pair copies from an indexed owner derived from this exact stable source geometry.
     /// @param source Live immutable source owner retained until return.
     /// @param indexed Live indexed owner derived from source's borrowed geometry, retained until return.

@@ -1,5 +1,9 @@
 # Dust3D Core — maintained downstream
 
+The opt-in `copyNativePreviewIndexedMesh` boundary copies stable native geometry under
+captured native policies without a duplicate wire buffer. It does not activate a new
+session route or app backend; see [ADR0176](docs/adr/0176-native-preview-indexed-copy.md).
+
 Public C++17 modeling engine and validated C API for the native Apple apps.
 Preserves full history from [huxingyi/dust3d](https://github.com/huxingyi/dust3d)
 and regularly integrates upstream through reviewed synchronization PRs.
