@@ -1593,3 +1593,13 @@ Eighteen package tests,231CTest, actual SwiftPM consumers and separate fake/heal
 coverage limits are recorded in ADR0186. Production service/bundle/trust, mutable SwiftUI
 backend, resource acceptance and baked/imported profiles remain open. Pin/active app
 routes/quarantines and M4–M8/full parity remain unchanged.
+
+### Service library extraction (#270)
+
+The reusable `Dust3DWorkerService` product now owns canonical admission/scheduling,
+native session lifetime and XPC handlers. Explicit host requirements, service-side
+sandbox checking and original retirement callbacks replace test-only ownership;
+QA pins/logging/process exit stay in the launcher. ADR0187 records 22 public package
+tests,231 CTest contracts and the actual-product healthy session/normal retirement.
+Production executable/bundle/trust distribution, async Apple backend, native-range
+resource acceptance and M4–M8 remain open. Pin48b0ce2d/quarantines are unchanged.
