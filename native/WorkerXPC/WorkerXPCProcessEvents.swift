@@ -4,7 +4,7 @@ import Foundation
 
 /// Dispatch sources are thread-safe. This wrapper has no mutable Swift state; every source is resumed
 /// before its owner escapes, so cancelling/releasing cannot leave a suspended source behind.
-private final class WorkerXPCDispatchObservation: WorkerXPCObservationCancellation, @unchecked Sendable {
+final class WorkerXPCDispatchObservation: WorkerXPCObservationCancellation, @unchecked Sendable {
     private let source: any DispatchSourceProtocol
     init(_ source: any DispatchSourceProtocol) { self.source = source }
     func cancel() { source.cancel() }

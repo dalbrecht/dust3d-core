@@ -9,12 +9,17 @@ struct WorkerXPCRequestState {
     private(set) var activeToken: UInt64?
     private(set) var isRetired = false
     init(lastToken: UInt64 = 0) { self.lastToken = lastToken }
-    mutating func begin(generation: UInt64) throws -> UInt64 {
+    /// Reject overlap/lifetime errors before a handshake reads its clock or prepares a timer.
+    /// This check consumes no token and cannot disturb an existing RPC owner.
+    func validateBegin(generation: UInt64) throws {
         guard !isRetired else { throw WorkerXPCTransportError.retired }
         guard activeToken == nil else { throw WorkerXPCTransportError.busy }
         guard generation > 0 else { throw WorkerXPCTransportError.invalidGeneration }
         if let boundGeneration, boundGeneration != generation { throw WorkerXPCTransportError.generationMismatch }
         guard lastToken < UInt64.max else { throw WorkerXPCTransportError.sequenceExhausted }
+    }
+    mutating func begin(generation: UInt64) throws -> UInt64 {
+        try validateBegin(generation: generation)
         lastToken += 1
         boundGeneration = generation
         activeToken = lastToken

@@ -4,7 +4,7 @@ import Dust3DWorkerXPC
 import Foundation
 
 protocol WorkerPreviewTransport: Sendable {
-    func handshake(generation: UInt64) async throws -> WorkerXPCHandshakeReceipt
+    func handshake(generation: UInt64, timeoutMilliseconds: UInt64) async throws -> WorkerXPCHandshakeReceipt
     func submitPreview(
         input: FileHandle, output: FileHandle, isStream: Bool, identity: WorkerPreviewIdentity,
         options: WorkerXPCPreviewOptions

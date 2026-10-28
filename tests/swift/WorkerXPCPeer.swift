@@ -14,7 +14,7 @@ actor WorkerXPCPeer {
                 serviceIdentifier: staticServiceIdentifier, signingRequirement: requirement))
     }
     func handshake(generation: UInt64) async throws -> WorkerXPCHandshakeReceipt {
-        try await connection.handshake(generation: generation)
+        try await connection.handshake(generation: generation, timeoutMilliseconds: 5000)
     }
     func submit(
         input: FileHandle, output: FileHandle, isStream: Bool, request: UInt64,

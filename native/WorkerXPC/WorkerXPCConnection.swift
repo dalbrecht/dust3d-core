@@ -8,41 +8,136 @@ import Foundation
 /// Task cancellation never interrupts native work, and no automatic reconnect is performed.
 public actor WorkerXPCConnection {
     private let channel: any WorkerXPCChannel
+    private nonisolated let handshakeTiming: WorkerXPCHandshakeTiming
+    private nonisolated let handshakeSlot = WorkerXPCHandshakeSlot()
+    private struct TimedHandshake: Sendable {
+        let token: UInt64
+        let generation: UInt64
+        let capture: WorkerXPCHandshakeCapture
+        let outcome: WorkerXPCReply<WorkerXPCHandshakeReceipt>
+    }
+    private var timedHandshake: TimedHandshake?
+    private var handshakeAlarm: (any WorkerXPCObservationCancellation)?
+    private var handshakeFailure: WorkerXPCHandshakeFailure?
+
     private var state = WorkerXPCRequestState()
     private var serviceInstance: WorkerXPCServiceInstance?
     private var isResumed = false
     private var pendingFailure: (@Sendable (any Error) -> Void)?
     private var pendingHandles: [FileHandle] = []
     /// Create an unresumed connection with explicit host-selected service and trust policy.
-    public init(configuration: WorkerXPCConfiguration) { channel = FoundationWorkerXPCChannel(configuration) }
-    init(factory: @Sendable () -> any WorkerXPCChannel) { channel = factory() }
-    /// Bind an authenticated connection lifetime before creating job channels or native work.
-    /// - Parameter generation: Positive host-selected generation, fixed for this connection.
-    /// - Returns: Original service fields plus independently observed OS peer and captured generation.
-    ///   Retain this value separately if later control communication fails.
-    /// - Throws: Original transport error or handshakeRejected retaining the original receipt.
-    /// A repeated handshake is ownership-only: no native admission lease/request ID is consumed.
-    /// It never proves job/channel cleanup, process exit or native-idle state.
-    public func handshake(generation: UInt64) async throws -> WorkerXPCHandshakeReceipt {
-        try await withCheckedThrowingContinuation { continuation in
-            let outcome = WorkerXPCReply(continuation)
-            do {
-                guard let (proxy, token) = try prepare(outcome: outcome, generation: generation) else { return }
-                proxy.handshake { [weak self] process, sandbox, admission, high, low in
-                    Task {
-                        guard let self else {
-                            outcome.finish(.failure(WorkerXPCTransportError.retired))
-                            return
-                        }
-                        await self.finishHandshake(
-                            token: token, process: process, sandbox: sandbox,
-                            admission: admission, instance: WorkerXPCServiceInstance(high: high, low: low),
-                            generation: generation, outcome: outcome)
-                    }
-                }
-            } catch { outcome.finish(.failure(error)) }
+    public init(configuration: WorkerXPCConfiguration) {
+        channel = FoundationWorkerXPCChannel(configuration)
+        handshakeTiming = .system()
+    }
+    init(factory: @Sendable () -> any WorkerXPCChannel, handshakeTiming: WorkerXPCHandshakeTiming = .system()) {
+        channel = factory()
+        self.handshakeTiming = handshakeTiming
+    }
+    deinit {
+        handshakeAlarm?.cancel()
+        if let timedHandshake {
+            var cause: any Error = WorkerXPCTransportError.retired
+            if case .completed(.failure(let original), _) = timedHandshake.capture.take() { cause = original }
+            timedHandshake.capture.close()
+            timedHandshake.outcome.finish(.failure(cause))
         }
     }
+    /// Bound a scalar ownership handshake before job channels/native work.
+    /// - Parameters:
+    ///   - generation: Positive host generation fixed for this connection.
+    ///   - timeoutMilliseconds: Explicit 1...10000ms wait; no unbounded fallback.
+    /// - Returns: Original validated receipt and independent peer observation.
+    /// - Throws: Original transport/receipt cause, or correlated deadline metadata.
+    /// Expiry retires this RPC/connection; it never proves native drain or process exit.
+    public func handshake(generation: UInt64, timeoutMilliseconds: UInt64) async throws -> WorkerXPCHandshakeReceipt {
+        if let handshakeFailure { throw handshakeFailure }
+        let budget = try WorkerXPCHandshakeBudget(milliseconds: timeoutMilliseconds)
+        try state.validateBegin(generation: generation)
+        let deadline: WorkerXPCHandshakeDeadline
+        do { deadline = try WorkerXPCHandshakeDeadline(budget: budget, start: handshakeTiming.clock()) } catch {
+            let failure = WorkerXPCHandshakeFailure(
+                token: nil, generation: generation, budgetMilliseconds: budget.milliseconds,
+                cause: error, originalTransportCause: nil)
+            handshakeFailure = failure
+            state.retire()
+            if isResumed { channel.invalidate() }
+            throw failure
+        }
+        let token = try state.begin(generation: generation)
+        return try await withCheckedThrowingContinuation { continuation in
+            let outcome = WorkerXPCReply(continuation)
+            let capture = WorkerXPCHandshakeCapture(
+                token: token, generation: generation, deadline: deadline, clock: handshakeTiming.clock)
+            timedHandshake = TimedHandshake(token: token, generation: generation, capture: capture, outcome: outcome)
+            guard let proxy = prepareChannel(outcome: outcome, token: token, handles: [], handshakeCapture: capture)
+            else { return }
+            drainHandshake(capture)
+            guard state.activeToken == token else { return }
+            proxy.handshake { [weak self, weak capture] process, sandbox, admission, high, low in
+                guard let capture else { return }
+                let fields = WorkerXPCHandshakeReplyFields(
+                    process: process, sandbox: sandbox, admission: admission,
+                    instance: WorkerXPCServiceInstance(high: high, low: low))
+                self?.postHandshake(capture, delivery: capture.reply(fields))
+            }
+        }
+    }
+    private nonisolated func postHandshake(
+        _ capture: WorkerXPCHandshakeCapture, delivery: WorkerXPCHandshakeCaptureDelivery
+    ) {
+        guard delivery == .wake else { return }
+        handshakeTiming.delivery(
+            WorkerXPCHandshakeWakeup(perform: { [weak self] in await self?.drainHandshake(capture) }))
+    }
+    private nonisolated func postConnectionLoss(_ cause: any Error) {
+        guard let event = handshakeSlot.connectionLost(cause) else { return }
+        handshakeTiming.delivery(
+            WorkerXPCHandshakeWakeup(perform: { [weak self] in await self?.connectionLost(event) }))
+    }
+    private func connectionLost(_ event: WorkerXPCHandshakeConnectionLoss) {
+        if let capture = event.capture { drainHandshake(capture) }
+        disconnected(event.cause)
+    }
+    private func clearTimedHandshake() {
+        handshakeAlarm?.cancel()
+        handshakeAlarm = nil
+        if let timedHandshake {
+            timedHandshake.capture.close()
+            handshakeSlot.clear(timedHandshake.capture)
+        }
+        timedHandshake = nil
+    }
+    private func drainHandshake(_ capture: WorkerXPCHandshakeCapture) {
+        guard let pending = timedHandshake, pending.capture === capture, state.activeToken == pending.token,
+            let update = capture.take()
+        else { return }
+        switch update {
+        case .waiting(let milliseconds):
+            handshakeAlarm?.cancel()
+            handshakeAlarm = handshakeTiming.timer(
+                milliseconds,
+                WorkerXPCHandshakeTimeout(fire: { [weak self, weak capture] in
+                    guard let capture else { return }
+                    self?.postHandshake(capture, delivery: capture.timer())
+                }))
+        case .completed(let result, let connectionFailure):
+            clearTimedHandshake()
+            switch result {
+            case .success(let fields):
+                finishHandshake(
+                    token: pending.token, process: fields.process, sandbox: fields.sandbox,
+                    admission: fields.admission, instance: fields.instance,
+                    generation: pending.generation, outcome: pending.outcome)
+            case .failure(let cause):
+                if let original = cause as? WorkerXPCHandshakeFailure { handshakeFailure = original }
+                fail(pending.token, error: cause)
+                if cause is WorkerXPCHandshakeFailure { channel.invalidate() }
+            }
+            if let connectionFailure { disconnected(connectionFailure) }
+        }
+    }
+
     private func finishHandshake(
         token: UInt64, process: Int32, sandbox: Bool, admission: UInt32, instance: WorkerXPCServiceInstance,
         generation: UInt64, outcome: WorkerXPCReply<WorkerXPCHandshakeReceipt>
@@ -78,30 +173,50 @@ public actor WorkerXPCConnection {
         handles: [FileHandle] = []
     ) throws -> ((any Dust3DWorkerXPCProtocol), UInt64)? {
         let token = try state.begin(generation: generation)
+        guard let proxy = prepareChannel(outcome: outcome, token: token, handles: handles) else { return nil }
+        return (proxy, token)
+    }
+    private func prepareChannel<Value: Sendable>(
+        outcome: WorkerXPCReply<Value>, token: UInt64, handles: [FileHandle],
+        handshakeCapture: WorkerXPCHandshakeCapture? = nil
+    ) -> (any Dust3DWorkerXPCProtocol)? {
         pendingFailure = { outcome.finish(.failure($0)) }
         pendingHandles = handles
+        if let handshakeCapture, let original = handshakeSlot.install(handshakeCapture) {
+            fail(token, error: original)
+            return nil
+        }
         if !isResumed {
             channel.installHandlers(
-                invalidated: { [weak self] in
-                    Task { await self?.disconnected(WorkerXPCTransportError.connectionInvalidated) }
-                },
-                interrupted: { [weak self] in
-                    Task { await self?.disconnected(WorkerXPCTransportError.connectionInterrupted) }
-                })
+                invalidated: { [weak self] in self?.postConnectionLoss(WorkerXPCTransportError.connectionInvalidated) },
+                interrupted: { [weak self] in self?.postConnectionLoss(WorkerXPCTransportError.connectionInterrupted) })
             channel.resume()
             isResumed = true
         }
         guard
             let proxy = channel.proxy(errorHandler: { [weak self] error in
-                Task { await self?.fail(token, error: WorkerXPCTransportError.remote(error)) }
+                let original = WorkerXPCTransportError.remote(error)
+                if let handshakeCapture {
+                    self?.postHandshake(
+                        handshakeCapture, delivery: handshakeCapture.failure(original, connection: false))
+                } else {
+                    Task { await self?.fail(token, error: original) }
+                }
             })
         else {
-            fail(token, error: WorkerXPCTransportError.missingProxy)
+            if let handshakeCapture {
+                postHandshake(
+                    handshakeCapture,
+                    delivery: handshakeCapture.failure(WorkerXPCTransportError.missingProxy, connection: false))
+            } else {
+                fail(token, error: WorkerXPCTransportError.missingProxy)
+            }
             return nil
         }
-        return (proxy, token)
+        return proxy
     }
     private func disconnected(_ error: any Error) {
+        clearTimedHandshake()
         state.retire()
         let failure = pendingFailure
         pendingFailure = nil

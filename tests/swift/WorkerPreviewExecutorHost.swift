@@ -67,7 +67,8 @@ struct WorkerPreviewExecutorHost {
         let configuration = try WorkerXPCConfiguration(
             serviceIdentifier: staticServiceIdentifier, signingRequirement: developmentRequirement(pins.service))
         let executor = try WorkerXPCPreviewExecutor<SessionXPCSnapshot>(
-            configuration: configuration, registrationTimeoutMilliseconds: 5000, copy: copySessionXPCOutput)
+            configuration: configuration, registrationTimeoutMilliseconds: 5000, handshakeTimeoutMilliseconds: 5000,
+            copy: copySessionXPCOutput)
         let pipeline = WorkerPreviewPipeline(executor: executor)
         let options = WorkerXPCPreviewOptions(
             maximumCachePayloadBytes: 64 * 1024 * 1024, archiveBytes: UInt64(archive.count),
