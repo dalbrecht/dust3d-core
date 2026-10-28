@@ -23,6 +23,10 @@ archive channels, native session generation and segmented replies. Host supervis
 process/peer/current-source admission and production adoption remain separate; see
 [ADR0180](docs/adr/0180-segmented-native-preview-serving.md).
 
+An opt-in Swift service backend now shares one native session across legacy and segmented
+preview profiles with distinct original receipts. Active XPC routing is unchanged; see
+[ADR0181](docs/adr/0181-shared-swift-preview-session-profile.md).
+
 Public C++17 modeling engine and validated C API for the native Apple apps.
 Preserves full history from [huxingyi/dust3d](https://github.com/huxingyi/dust3d)
 and regularly integrates upstream through reviewed synchronization PRs.

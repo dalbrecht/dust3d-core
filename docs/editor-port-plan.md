@@ -1527,3 +1527,13 @@ receipts are preserved. Healthy licensed Capsule C/C++/strict Swift copied-value
 worker endpoint/SDK, independent process/peer/current-source admission, reviewed backend
 adoption and baked/imported profiles remain open. Pin/routes/quarantines and M4–M8/full
 parity status are unchanged.
+
+### Shared Swift preview profile (#270)
+
+The opt-in Swift backend now dispatches legacy and segmented preview jobs through one
+connection-owned C session and replay history, preserving distinct original receipts.
+The healthy cross-profile regression verifies real cache reuse, geometry, reset/rebuild
+and copied Sendable lifetime.227CTest and actual SwiftPM consumer evidence/limits are
+recorded in ADR0181. Explicit XPC selector/typed RPC receipts, independent peer/process/
+current-source admission, production SDK/backend and baked/imported adoption remain open.
+Apple pin/routes/quarantines and M4–M8/full parity status remain unchanged.
