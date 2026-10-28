@@ -795,6 +795,29 @@ if(BUILD_TESTING)
             "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/verify_worker_client_package.py"
             "${CMAKE_CURRENT_SOURCE_DIR}" "${CMAKE_CURRENT_BINARY_DIR}")
         set_tests_properties(worker_client_swiftpm PROPERTIES TIMEOUT 300 RESOURCE_LOCK dust3d_swiftpm_cache)
+        set(DUST3D_XPC_CONTRACT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/worker-xpc-contract-module")
+        file(MAKE_DIRECTORY "${DUST3D_XPC_CONTRACT_DIRECTORY}")
+        set(DUST3D_XPC_CONTRACT_LIBRARY "${DUST3D_XPC_CONTRACT_DIRECTORY}/libDust3DWorkerXPC.a")
+        set(DUST3D_XPC_CONTRACT_MODULE "${DUST3D_XPC_CONTRACT_DIRECTORY}/Dust3DWorkerXPC.swiftmodule")
+        set(DUST3D_XPC_CONTRACT_SOURCES
+            "${CMAKE_CURRENT_SOURCE_DIR}/native/WorkerXPC/WorkerXPCContract.swift"
+            "${CMAKE_CURRENT_SOURCE_DIR}/native/WorkerXPC/WorkerXPCRequestState.swift"
+            "${CMAKE_CURRENT_SOURCE_DIR}/native/WorkerXPC/WorkerXPCTransportError.swift"
+            "${CMAKE_CURRENT_SOURCE_DIR}/native/WorkerXPC/WorkerXPCConfiguration.swift"
+            "${CMAKE_CURRENT_SOURCE_DIR}/native/WorkerXPC/WorkerXPCValues.swift"
+            "${CMAKE_CURRENT_SOURCE_DIR}/native/WorkerXPC/WorkerXPCReply.swift"
+            "${CMAKE_CURRENT_SOURCE_DIR}/native/WorkerXPC/WorkerXPCChannel.swift"
+            "${CMAKE_CURRENT_SOURCE_DIR}/native/WorkerXPC/WorkerXPCConnection.swift")
+        add_custom_command(OUTPUT "${DUST3D_XPC_CONTRACT_LIBRARY}" "${DUST3D_XPC_CONTRACT_MODULE}"
+            COMMAND "${DUST3D_XCRUN}" swift-format lint --strict ${DUST3D_XPC_CONTRACT_SOURCES}
+            COMMAND "${DUST3D_XCRUN}" swiftc -swift-version 6 -strict-concurrency=complete
+                -warnings-as-errors -parse-as-library -emit-library -static -emit-module
+                -module-name Dust3DWorkerXPC -emit-module-path "${DUST3D_XPC_CONTRACT_MODULE}"
+                -module-cache-path "${CMAKE_CURRENT_BINARY_DIR}/swift-module-cache"
+                -I "${DUST3D_CLIENT_MODULE_DIRECTORY}" ${DUST3D_XPC_CONTRACT_SOURCES}
+                -o "${DUST3D_XPC_CONTRACT_LIBRARY}"
+            DEPENDS ${DUST3D_XPC_CONTRACT_SOURCES} "${DUST3D_CLIENT_LIBRARY}" VERBATIM)
+        add_custom_target(dust3d_worker_xpc_contract ALL DEPENDS "${DUST3D_XPC_CONTRACT_LIBRARY}" "${DUST3D_XPC_CONTRACT_MODULE}")
         set(DUST3D_SWIFT_WORKER_CONSUMER "${CMAKE_CURRENT_BINARY_DIR}/worker-runtime-swift")
         add_custom_command(OUTPUT "${DUST3D_SWIFT_WORKER_CONSUMER}"
             COMMAND "${DUST3D_XCRUN}" swift-format lint --strict "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerRuntimeSmoke.swift"
@@ -1103,14 +1126,14 @@ if(BUILD_TESTING)
                 string(TOLOWER "${DUST3D_XPC_ROLE}" DUST3D_XPC_ROLE_LOWER)
                 set(DUST3D_XPC_BINARY "${CMAKE_CURRENT_BINARY_DIR}/worker-xpc-${DUST3D_XPC_ROLE_LOWER}")
                 set(DUST3D_XPC_SUPPORT_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerServiceAdmission.swift")
-                set(DUST3D_XPC_CLIENT_LINK)
+                set(DUST3D_XPC_CLIENT_LINK "${DUST3D_XPC_CONTRACT_LIBRARY}" "${DUST3D_CLIENT_LIBRARY}")
                 if(DUST3D_XPC_ROLE STREQUAL "Service")
                     list(APPEND DUST3D_XPC_SUPPORT_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerServiceOwnership.swift" "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerServiceScheduler.swift")
                     list(APPEND DUST3D_XPC_SUPPORT_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerServiceSession.swift" "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerNativeServiceSession.swift")
                     list(APPEND DUST3D_XPC_SUPPORT_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerSessionRPCValues.swift")
                     list(APPEND DUST3D_XPC_SUPPORT_SOURCES ${DUST3D_APPLE_IMAGE_SOURCES})
                 else()
-                    set(DUST3D_XPC_CLIENT_LINK "${DUST3D_CLIENT_LIBRARY}")
+                    set(DUST3D_XPC_CLIENT_LINK "${DUST3D_CLIENT_LIBRARY}" "${DUST3D_XPC_CONTRACT_LIBRARY}")
                     list(APPEND DUST3D_XPC_SUPPORT_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerOutcome.swift" "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerXPCPeer.swift" "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerServiceQueue.swift")
                     list(APPEND DUST3D_XPC_SUPPORT_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerSessionXPCHost.swift" "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerProceduralXPCHost.swift")
                 endif()
@@ -1122,7 +1145,7 @@ if(BUILD_TESTING)
                     COMMAND "${DUST3D_XCRUN}" swiftc -swift-version 6 -strict-concurrency=complete
                         -warnings-as-errors -parse-as-library
                         -module-cache-path "${CMAKE_CURRENT_BINARY_DIR}/swift-module-cache"
-                        -I "${DUST3D_WORKER_SWIFT_MODULE_DIRECTORY}" -I "${DUST3D_CLIENT_MODULE_DIRECTORY}" ${DUST3D_XPC_SUPPORT_SOURCES}
+                        -I "${DUST3D_WORKER_SWIFT_MODULE_DIRECTORY}" -I "${DUST3D_CLIENT_MODULE_DIRECTORY}" -I "${DUST3D_XPC_CONTRACT_DIRECTORY}" ${DUST3D_XPC_SUPPORT_SOURCES}
                         "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerXPCCommon.swift"
                         "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerXPCChannels.swift"
                         "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerXPC${DUST3D_XPC_ROLE}.swift"

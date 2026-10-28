@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Expose the shared XPC contract and async connection adapter with explicit trust configuration, fixed lifetime/peer correlation, original receipt domains and fake-tested once-only completion (#270).
+
 - Expose the tested scheduling/source-ownership foundation as the dependency-free Dust3DWorkerClient SwiftPM library, with public XCTest and XPC module-import validation (#270).
 
 - Retain immutable preview archive/policy snapshots for active and newest waiting work, releasing displaced or drained owners without invalidating isolated consumers (#270).
