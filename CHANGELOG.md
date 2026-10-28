@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Queue segmented preview publication by immutable identity, retaining newest waiting work across stale or failed transport completion without interrupting native work (#270).
+
 - Add an explicit segmented-preview development XPC endpoint with shared session cache, original typed RPC receipts and EOF/peer/current-identity publication checks (#270).
 
 - Add an opt-in Swift session backend sharing one cache and replay history across legacy and segmented preview profiles, with distinct original receipts (#270).

@@ -45,86 +45,100 @@ private func copySessionXPCOutput(_ owner: OpaquePointer) throws -> SessionXPCSn
         retained: statistics.retained_payload_bytes)
 }
 private func segmentedSessionXPC(
-    peer: WorkerXPCPeer, archive: Data, root: URL, process: Int32, deadline: DispatchTime
+    peer: WorkerXPCPeer, queue: WorkerPreviewPublicationQueue, archive: Data, root: URL, process: Int32,
+    deadline: DispatchTime
 ) throws -> SessionXPCSnapshot {
     let captured = try WorkerPreviewIdentity(
         document: UUID(uuid: (1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)),
         request: 2, revision: 7, generation: 9)
-    let gate = WorkerPreviewPublicationGate(identity: captured)
-    var scope = Dust3DWorkerPreviewSessionScope()
-    scope.identity.document = captured.document.uuid
-    scope.identity.request = captured.request
-    scope.identity.revision = captured.revision
-    scope.connection_generation = captured.generation
-    let context = Dust3DWorkerPreviewArchiveContext(
-        archive_bytes: UInt64(archive.count), maximum_source_bytes: 0, maximum_indexed_bytes: 0)
-    let inputPolicy = Dust3DWorkerPreviewChunkPolicy(
-        maximum_transfer_bytes: UInt64(archive.count + 24), chunk_payload_bytes: 64)
-    let outputPolicy = Dust3DWorkerPreviewChunkPolicy(
-        maximum_transfer_bytes: 64 * 1024 * 1024, chunk_payload_bytes: 256)
-    let inputURL = root.appendingPathComponent("preview-request-2")
-    let outputURL = root.appendingPathComponent("preview-reply-2")
-    try Data().write(to: inputURL)
-    try Data().write(to: outputURL)
-    let writer = try FileHandle(forWritingTo: inputURL)
-    defer { try? writer.close() }
-    let encoded = archive.withUnsafeBytes {
-        dust3d_worker_preview_archive_write(
-            writer.fileDescriptor, scope, context,
-            $0.bindMemory(to: UInt8.self).baseAddress, $0.count, inputPolicy)
+    try queue.submit(captured)
+    guard queue.begin() == captured else { throw StaticFixtureError.invalid("Preview queue must freeze this identity") }
+    do {
+        var scope = Dust3DWorkerPreviewSessionScope()
+        scope.identity.document = captured.document.uuid
+        scope.identity.request = captured.request
+        scope.identity.revision = captured.revision
+        scope.connection_generation = captured.generation
+        let context = Dust3DWorkerPreviewArchiveContext(
+            archive_bytes: UInt64(archive.count), maximum_source_bytes: 0, maximum_indexed_bytes: 0)
+        let inputPolicy = Dust3DWorkerPreviewChunkPolicy(
+            maximum_transfer_bytes: UInt64(archive.count + 24), chunk_payload_bytes: 64)
+        let outputPolicy = Dust3DWorkerPreviewChunkPolicy(
+            maximum_transfer_bytes: 64 * 1024 * 1024, chunk_payload_bytes: 256)
+        let inputURL = root.appendingPathComponent("preview-request-2")
+        let outputURL = root.appendingPathComponent("preview-reply-2")
+        try Data().write(to: inputURL)
+        try Data().write(to: outputURL)
+        let writer = try FileHandle(forWritingTo: inputURL)
+        defer { try? writer.close() }
+        let encoded = archive.withUnsafeBytes {
+            dust3d_worker_preview_archive_write(
+                writer.fileDescriptor, scope, context,
+                $0.bindMemory(to: UInt8.self).baseAddress, $0.count, inputPolicy)
+        }
+        guard encoded.status == DUST3D_WORKER_PREVIEW_ARCHIVE_OK else {
+            throw WorkerPreviewTransferFailure(
+                operation: .archive, status: encoded.status.rawValue,
+                source: 0, code: encoded.detail_code, systemError: encoded.system_error,
+                stage: encoded.io_stage.rawValue,
+                truncated: encoded.message_truncated,
+                cause: withUnsafeBytes(of: encoded.message) { Data($0.prefix { $0 != 0 }) })
+        }
+        try writer.close()
+        let input = try FileHandle(forReadingFrom: inputURL)
+        let output = try FileHandle(forWritingTo: outputURL)
+        defer {
+            try? input.close()
+            try? output.close()
+        }
+        let outcome = WorkerOutcome<WorkerPreviewControlReceipt>()
+        Task.detached {
+            do {
+                try await peer.submitPreview(
+                    input: input, output: output, identity: captured,
+                    maximumCachePayloadBytes: 64 * 1024 * 1024, context: context,
+                    inputPolicy: inputPolicy, outputPolicy: outputPolicy, outcome: outcome)
+            } catch { outcome.finish(.failure(error)) }
+        }
+        let receipt = try outcome.wait(until: deadline)
+        guard receipt.status == 0, receipt.boundaryStatus == 0, receipt.admissionStatus == 0 else {
+            throw WorkerPreviewAdmissionError.receipt(receipt)
+        }
+        guard receipt.observedProcess == process, process > 0, process != getpid() else {
+            throw StaticFixtureError.invalid("Preview must retain the independently observed legacy peer")
+        }
+        let reader = try FileHandle(forReadingFrom: outputURL)
+        defer { try? reader.close() }
+        var decoded = Dust3DWorkerPreviewSessionResult()
+        guard
+            let owner = dust3d_worker_preview_session_read(
+                reader.fileDescriptor, scope, context, outputPolicy, &decoded)
+        else {
+            throw WorkerPreviewTransferFailure(
+                operation: .reply, status: decoded.status.rawValue,
+                source: decoded.detail_source.rawValue, code: decoded.detail_code, systemError: decoded.system_error,
+                stage: decoded.io_stage.rawValue, truncated: decoded.message_truncated,
+                cause: withUnsafeBytes(of: decoded.message) { Data($0.prefix { $0 != 0 }) })
+        }
+        defer { dust3d_worker_session_output_destroy(owner) }
+        guard decoded.status == DUST3D_WORKER_PREVIEW_SESSION_OK else {
+            throw StaticFixtureError.invalid("Segmented reply must finish exact framing and actual EOF")
+        }
+        // The immutable fixture source remains current. A production coordinator must supply
+        // its latest source here; callback correlation cannot establish current document state.
+        try reader.close()
+        try input.close()
+        try output.close()
+        try queue.complete(captured, receipt: receipt, reachedEOF: true)
+        print("Segmented XPC preview admitted after actual EOF and independent OS peer observation")
+        return try copySessionXPCOutput(owner)
+    } catch {
+        let primary: Result<SessionXPCSnapshot, any Error> = .failure(error)
+        let cleanup = Result<Void, any Error> {
+            if queue.activeIdentity == captured { try queue.abandon(captured) }
+        }
+        return try resolveWorkerChannelResults(operation: primary, closing: cleanup)
     }
-    guard encoded.status == DUST3D_WORKER_PREVIEW_ARCHIVE_OK else {
-        throw WorkerPreviewTransferFailure(
-            operation: .archive, status: encoded.status.rawValue,
-            source: 0, code: encoded.detail_code, systemError: encoded.system_error, stage: encoded.io_stage.rawValue,
-            truncated: encoded.message_truncated,
-            cause: withUnsafeBytes(of: encoded.message) { Data($0.prefix { $0 != 0 }) })
-    }
-    try writer.close()
-    let input = try FileHandle(forReadingFrom: inputURL)
-    let output = try FileHandle(forWritingTo: outputURL)
-    defer {
-        try? input.close()
-        try? output.close()
-    }
-    let outcome = WorkerOutcome<WorkerPreviewControlReceipt>()
-    Task.detached {
-        do {
-            try await peer.submitPreview(
-                input: input, output: output, identity: captured,
-                maximumCachePayloadBytes: 64 * 1024 * 1024, context: context,
-                inputPolicy: inputPolicy, outputPolicy: outputPolicy, outcome: outcome)
-        } catch { outcome.finish(.failure(error)) }
-    }
-    let receipt = try outcome.wait(until: deadline)
-    guard receipt.status == 0, receipt.boundaryStatus == 0, receipt.admissionStatus == 0 else {
-        throw WorkerPreviewAdmissionError.receipt(receipt)
-    }
-    guard receipt.observedProcess == process, process > 0, process != getpid() else {
-        throw StaticFixtureError.invalid("Preview must retain the independently observed legacy peer")
-    }
-    let reader = try FileHandle(forReadingFrom: outputURL)
-    defer { try? reader.close() }
-    var decoded = Dust3DWorkerPreviewSessionResult()
-    guard
-        let owner = dust3d_worker_preview_session_read(
-            reader.fileDescriptor, scope, context, outputPolicy, &decoded)
-    else {
-        throw WorkerPreviewTransferFailure(
-            operation: .reply, status: decoded.status.rawValue,
-            source: decoded.detail_source.rawValue, code: decoded.detail_code, systemError: decoded.system_error,
-            stage: decoded.io_stage.rawValue, truncated: decoded.message_truncated,
-            cause: withUnsafeBytes(of: decoded.message) { Data($0.prefix { $0 != 0 }) })
-    }
-    defer { dust3d_worker_session_output_destroy(owner) }
-    guard decoded.status == DUST3D_WORKER_PREVIEW_SESSION_OK else {
-        throw StaticFixtureError.invalid("Segmented reply must finish exact framing and actual EOF")
-    }
-    // The immutable fixture source remains current. A production coordinator must supply
-    // its latest source here; callback correlation cannot establish current document state.
-    try gate.admit(current: captured, receipt: receipt, reachedEOF: true)
-    print("Segmented XPC preview admitted after actual EOF and independent OS peer observation")
-    return try copySessionXPCOutput(owner)
 }
 func runSessionXPCFixture(archive: Data, root: URL, requirement: String, deadline: DispatchTime) throws {
     let generation: UInt64 = 9
@@ -133,6 +147,7 @@ func runSessionXPCFixture(archive: Data, root: URL, requirement: String, deadlin
     let policy = Dust3DWorkerSessionOutputLimits(
         maximum_wire_bytes: 1_048_576, maximum_decoded_bytes: 1_048_576, maximum_source_bytes: 0)
     let queue = try WorkerServiceQueue(limits: wire)
+    let previewQueue = WorkerPreviewPublicationQueue()
     var snapshots: [SessionXPCSnapshot] = []
     var observedProcess: Int32 = 0
     try withWorkerXPCPeer(requirement: requirement, deadline: deadline) { peer in
@@ -158,7 +173,7 @@ func runSessionXPCFixture(archive: Data, root: URL, requirement: String, deadlin
             if requestID == 2 {
                 snapshots.append(
                     try segmentedSessionXPC(
-                        peer: peer, archive: archive, root: root,
+                        peer: peer, queue: previewQueue, archive: archive, root: root,
                         process: observedProcess, deadline: deadline))
                 continue
             }
