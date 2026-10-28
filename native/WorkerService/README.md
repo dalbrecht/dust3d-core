@@ -52,7 +52,9 @@ Exact-end/late dispatch or completion cannot succeed. Duplicate/stale callbacks 
 nor read a clock or change a newer timer. Overflow/reversal/expiry retain original scalar metadata.
 Terminal sealing prevents new ownership/work and suppresses queued normal-retirement callbacks.
 
-The required `onDeadline` receives `WorkerServiceJobFailure` outside the scheduler lock/native queue.
+The required `onDeadline` receives `WorkerServiceJobFailure` outside the scheduler lock on the observing thread.
+Timer observations use an independent queue; admission/dispatch/completion observations report
+on their own thread, without waiting for the timer queue.
 The library does not exit its embedding process. A dedicated executable must terminate independently;
 the actual product uses unified metadata logging then `_exit`, abandoning native owners/finalizers.
 The callback is not graceful cleanup, native cancellation success, result admission, process-exit

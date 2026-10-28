@@ -33,7 +33,8 @@ public final class WorkerServiceListenerDelegate: NSObject, NSXPCListenerDelegat
     ///   - configuration: Explicit, syntax-validated host signing requirement.
     ///   - resources: Receipt prepared in this fresh helper before any listener/native work.
     ///   - jobBudget: Explicit trusted per-admitted-job wall budget; not cumulative process CPU time.
-    ///   - onDeadline: Called once after terminal admission sealing, outside the scheduler lock and native queue.
+    ///   - onDeadline: Called once after terminal sealing, outside the scheduler lock on the observing thread.
+    ///     Timer observations use an independent queue; dispatch/completion observations can use the native queue.
     ///     The dedicated helper must terminate independently; this is not a native cleanup callback.
     ///   - onRetired: Called after admitted work and native-owner cleanup drain.
     ///     The embedding executable owns logging and normal process termination.

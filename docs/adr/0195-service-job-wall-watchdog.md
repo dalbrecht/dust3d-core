@@ -41,7 +41,7 @@ Only existing healthy licensed native integrations receive explicit generous job
 No real watchdog expiry/exit, native cancellation, signal/crash, malformed-native-input, allocation
 failure, pressure/exhaustion, broken-peer or denied-peer probe is introduced. The actual `_exit`/OS
 logging boundary is deliberately unexercised. Code integration and synthetic policy evidence must
-not be presented as measured hard process-termination acceptance. The full fresh ordinary gate passed 236/236 CTest checks in 47.54 seconds, including healthy XPC
+not be presented as measured hard process-termination acceptance. The full fresh ordinary gate passed 236/236 CTest checks in 47.84 seconds, including healthy XPC
 jobs and actual-product unsigned bundle import. The affected service suite passed 38 XCTest cases;
 seven Python staging cases passed. All 31 frozen source hashes remained unchanged. Swift 6 strict
 concurrency/warnings-as-errors product compilation, both source quarantine/format checks and diff
@@ -54,3 +54,6 @@ JobTiming 25/25 and 6/6; Scheduler 344/346 and 110/115, 37/39 functions; Ownersh
 Mapped closure line counts can overlap physical lines. Unforced adapter/lifetime paths remain
 unclaimed; no probe was added solely to force coverage. This profile is not actual native/OS-exit
 coverage or inherited engine completeness.
+
+The full gate was refreshed after clarifying callback thread context; the implementation stayed
+unchanged and all 31 current source hashes remained stable.
