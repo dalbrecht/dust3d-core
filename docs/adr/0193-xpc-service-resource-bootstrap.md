@@ -55,3 +55,11 @@ measures WorkerResourcesBridge93/94 lines,54/56 regions,9/9 functions and24/28 b
 application over-count guard remains unforced. The separate real-OS factory has ordinary helper/service
 success evidence, not fake coverage of constructor/platform failures. These are scoped measurements,
 not combined profiles or claims about inherited geometry coverage. No unsafe probes were added.
+
+
+A slower hosted macOS run (job123101453293) passed234/236 checks but hit both300-second
+SwiftPM build-inclusive deadlines while still compiling C++ source, before assertions ran. The
+recording bridge and dedicated resource readback helper passed. The same commit's other macOS job
+passed. Keep these two cold SDK compilation/import checks finite at900 seconds; runtime-only
+contract budgets and production resource/deadline policy do not change. All tests still run, and
+cold-run CI must pass before merge. Local cached passes alone do not prove the cold-build margin.
