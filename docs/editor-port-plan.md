@@ -1559,3 +1559,14 @@ original receipt errors and scope/replay boundaries.229CTest, actual SwiftPM-lin
 host and scoped coverage are recorded in ADR0183. Production asynchronous SDK/source
 ownership and mutable-document adoption, trust/packaging and baked/imported profiles
 remain open. Pin/active app routes/quarantines and M4–M8/full parity are unchanged.
+
+### Immutable preview source ownership (#270)
+
+The source coordinator now follows queue-authoritative active/waiting identities, retaining
+immutable archive/policy snapshots through drain and releasing displaced/retired owners.
+Pure ARC and actor tests prove source lifetime/isolation and failed-submission preservation;
+the healthy XPC path consumes one captured archive/control snapshot.230CTest, actual
+SwiftPM-linked XPC host and scoped coverage are recorded in ADR0184. Public asynchronous
+SDK/worker packaging/trust, mutable-document backend adoption, high-resource acceptance
+and baked/imported profiles remain open. Pin/active app routes/quarantines and M4–M8/full
+parity remain unchanged.

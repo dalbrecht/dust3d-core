@@ -38,6 +38,11 @@ retains newest waiting work and retires obsolete results after transport cleanup
 Archive ownership and production document scheduling remain caller responsibilities; see
 [ADR0183](docs/adr/0183-preview-publication-queue.md).
 
+An internal source coordinator now owns immutable archive/policy snapshots for active
+and newest waiting previews, releasing retired owners only after transport cleanup.
+Actor-transfer and healthy XPC evidence are in
+[ADR0184](docs/adr/0184-preview-source-ownership.md); public SDK and app adoption remain open.
+
 Public C++17 modeling engine and validated C API for the native Apple apps.
 Preserves full history from [huxingyi/dust3d](https://github.com/huxingyi/dust3d)
 and regularly integrates upstream through reviewed synchronization PRs.
