@@ -4,7 +4,11 @@ Service-side Swift library owning the serialized native runtime behind the share
 The client transport never depends on this target. Build with `swift build --product Dust3DWorkerService`.
 
 Create `WorkerServiceConfiguration(hostSigningRequirement:)` from explicit host trust configuration,
-then `try WorkerServiceListenerDelegate(configuration:onRetired:)`. Assign the delegate to an
+then, **only in a fresh dedicated service process**, call
+`WorkerServicePreparedResources.prepareFreshHelper(policy:)` with explicit trusted policy. This changes
+that process's limits and verifies exact readback before returning a receipt. Never invoke it from an
+app or test runner. Pass that receipt to `WorkerServiceListenerDelegate(configuration:resources:onRetired:)`.
+Assign the delegate to an
 `NSXPCListener.service()` and retain it through listener operation. Initialization checks this
 process's App Sandbox entitlement before any native work. The embedding executable owns its signed
 bundle, listener lifetime, logs and normal process termination after the retirement callback.
@@ -18,6 +22,15 @@ only the existing procedural image callback is enabled. No native cancellation o
 
 The `dust3d-xpc-service` product supplies the thin bundle-only bootstrap. See
 `../WorkerServiceExecutable/README.md` for unsigned staging and release limitations.
+Configuration schema 2 requires a `Dust3DWorkerResourcePolicy` dictionary of seven canonical decimal
+strings: `cpuSoftSeconds`, `cpuHardSeconds`, `fileSoftBytes`, `fileHardBytes`,
+`descriptorSoftCeiling`, `descriptorHardCeiling`, and `minimumDescriptorCeiling`.
+CPU is cumulative process time, files are regular-file bytes, descriptors are a descriptor-number
+ceiling (not an open-file count); the explicit floor must remain usable under inherited stricter caps.
+Core dumps are always disabled. There is no address/RSS cap, wall deadline, rollback or full containment
+claim. Any setup/readback failure preserves original operation/resource/errno and partial progress;
+the executable reports metadata and exits normally before starting the listener. Do not retry partial setup.
+
 `WorkerServiceBundleMetadata` validates copied own-bundle values without Security/native
 calls; `WorkerServiceFailureMetadata` formats typed metadata without archive diagnostics.
 

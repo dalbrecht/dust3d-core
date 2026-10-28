@@ -22,6 +22,54 @@ final class WorkerServiceFailureMetadataTests: XCTestCase {
         XCTAssertFalse(metadata.contains("private document"))
         XCTAssertEqual(original.cause, Data("private document text".utf8))
     }
+    func testShouldLogResourceFailureProgressWithoutDiagnosticBytes() {
+        var result = Dust3DWorkerResourceResult()
+        result.abi_version = 1
+        result.status = DUST3D_WORKER_RESOURCE_SYSTEM_FAILED
+        result.operation = DUST3D_WORKER_RESOURCE_OPERATION_APPLY
+        result.runtime = 1
+        result.has_detail_resource = 1
+        result.detail_resource = 3
+        result.system_error = 13
+        result.application_started = 1
+        result.applied_count = 3
+        withUnsafeMutableBytes(of: &result.message) { bytes in
+            bytes.copyBytes(from: Data("original private setup text\0".utf8))
+        }
+        let observation = WorkerServiceResourceObservation(result)
+        let cause = WorkerServiceResourceBootstrapError.setup(observation)
+        let text = WorkerServiceFailureMetadata(cause).description
+        XCTAssertEqual(
+            text,
+            "resourceStatus=2 operation=2 runtime=1 resource=3 code=0 errno=13 started=true applied=3 verified=0 truncated=false"
+        )
+        XCTAssertEqual(observation.message, "original private setup text")
+        XCTAssertFalse(text.contains("private"))
+    }
+    func testShouldDescribePurePolicyAndInconsistentReceiptCauses() {
+        let request = WorkerServiceResourceBudget(soft: 9, hard: 7)
+        XCTAssertEqual(
+            WorkerServiceFailureMetadata(WorkerServiceResourcePolicyError.field("cpuSoftSeconds")).description,
+            "resourcePolicyField=cpuSoftSeconds")
+        XCTAssertEqual(
+            WorkerServiceFailureMetadata(
+                WorkerServiceResourcePolicyError.budget(resource: .cpuSeconds, requested: request)
+            ).description,
+            "resourcePolicyBudget=cpuSeconds soft=9 hard=7")
+        XCTAssertEqual(
+            WorkerServiceFailureMetadata(
+                WorkerServiceResourcePolicyError.descriptorFloor(minimum: 10, requested: request)
+            ).description,
+            "resourcePolicyDescriptorFloor=10 soft=9 hard=7")
+        let observation = WorkerServiceResourceObservation(Dust3DWorkerResourceResult())
+        let description = WorkerServiceFailureMetadata(
+            WorkerServiceResourceBootstrapError.receipt(field: "progress", observation: observation)
+        ).description
+        XCTAssertEqual(
+            description,
+            "resourceReceiptField=progress resourceStatus=0 operation=0 runtime=0 resource=none code=0 errno=0 started=false applied=0 verified=0 truncated=false"
+        )
+    }
     func testShouldDescribeTypedPreflightMetadataAndPreserveUnknownErrorType() {
         XCTAssertEqual(
             WorkerServiceFailureMetadata(WorkerServiceBundleError.field("Info.plist")).description,

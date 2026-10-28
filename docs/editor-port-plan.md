@@ -1653,3 +1653,18 @@ cover negative/time/overlap/race cases. This is normal retirement observation, n
 to signal/reap launchd services or evidence of bounded active native termination. Full #123/M8
 containment, release trust/embedding, Apple adoption and feature acceptance remain open.
 Production pin48b0ce2d and every quarantine remain unchanged.
+
+
+### Explicit XPC service resource bootstrap (#300)
+
+The bundle-only executable now requires configuration schema 2 with seven explicit canonical decimal
+resource requests. The canonical C++ planner preserves stricter inherited caps, disables core dumps,
+checks the trusted descriptor floor, applies all four limits and requires exact readback. A copied
+Swift receipt is required before constructing the listener. Failures retain original resource,
+operation, errno and partial progress; no retry or rollback is promised. CPU is cumulative process
+seconds, file size is regular-file bytes, and the descriptor cap is a descriptor-number ceiling.
+This is no hard macOS RSS guarantee or per-job deadline. Pure recording systems cover failures;
+only a fresh dedicated helper exercises successful OS application/readback. The unsigned actual
+product is built and metadata-imported separately, not launched with invented release trust.
+Actual bundle-only SDK launch/release signing, deadline containment, Apple adoption, high-resource
+acceptance and M4–M8 remain open. Pin48b0ce2d and all feature quarantines remain unchanged.

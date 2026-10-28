@@ -1,5 +1,6 @@
 module Dust3DWorkerRuntime {
     header "Dust3DWorkerRuntime.h"
+    header "Dust3DWorkerResources.h"
     header "Dust3DWorkerImageDecoder.h"
     header "Dust3DWorkerSessionOutput.h"
     header "Dust3DWorkerSession.h"

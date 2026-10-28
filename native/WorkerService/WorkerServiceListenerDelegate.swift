@@ -25,18 +25,21 @@ private func checkedSandboxEntitlement() throws -> Bool {
 
 public final class WorkerServiceListenerDelegate: NSObject, NSXPCListenerDelegate {
     private let requirement: String
+    private let resources: WorkerServicePreparedResources
     private let scheduler: WorkerServiceScheduler
     private let sandboxEntitlementVerified: Bool
-    /// Verify this process's App Sandbox entitlement before accepting any connection.
+    /// Require verified resource setup and check this process's sandbox before accepting any connection.
     /// - Parameters:
     ///   - configuration: Explicit, syntax-validated host signing requirement.
+    ///   - resources: Receipt prepared in this fresh helper before any listener/native work.
     ///   - onRetired: Called after admitted work and native-owner cleanup drain.
     ///     The embedding executable owns logging and normal process termination.
     /// - Throws: `WorkerServiceBootstrapError` if sandbox verification fails.
     public init(
-        configuration: WorkerServiceConfiguration,
+        configuration: WorkerServiceConfiguration, resources: WorkerServicePreparedResources,
         onRetired: @escaping @Sendable (Result<Void, any Error>) -> Void
     ) throws {
+        self.resources = resources
         sandboxEntitlementVerified = try checkedSandboxEntitlement()
         requirement = configuration.hostSigningRequirement
         scheduler = WorkerServiceScheduler(onRetired: onRetired)

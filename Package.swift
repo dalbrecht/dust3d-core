@@ -59,8 +59,7 @@ let package = Package(
             dependencies: ["Dust3DWorkerRuntime"],
             path: "native/Engine",
             sources: [
-                "WorkerMain.cc", "WorkerResources.cc", "WorkerResourceLaunch.cc", "WorkerResourceSetup.cc",
-                "WorkerUnixResources.cc",
+                "WorkerMain.cc"
             ],
             cxxSettings: [.define("DUST3D_WORKER_HAS_RESOURCE_SETUP", to: "1")]
         ),
@@ -73,6 +72,9 @@ let package = Package(
                 "WorkerService", "WorkerServiceExecutable", "WorkerPreview",
             ],
             sources: [
+                "Engine/WorkerResources.cc", "Engine/WorkerResourceLaunch.cc", "Engine/WorkerResourceSetup.cc",
+                "Engine/WorkerUnixResources.cc", "WorkerRuntime/WorkerResourcesBridge.cc",
+                "WorkerRuntime/WorkerResourcesUnixBridge.cc",
                 "Engine/WorkerJobIO.cc", "Engine/WorkerPreviewArchiveIO.cc", "Engine/WorkerPreviewSessionIO.cc",
                 "Engine/WorkerOperation.cc",
                 "Engine/WorkerUvOperation.cc",
