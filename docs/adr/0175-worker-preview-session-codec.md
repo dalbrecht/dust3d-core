@@ -97,8 +97,8 @@ escapes before EOF or more than once. Typed semantic and fake sink causes surviv
 These tests never parse a synthetic archive or call the native generator, and introduce
 no crash/fault/allocation-failure/signal/broken-pipe/cancellation/large-resource probes.
 
-Fresh complete build and 221/221 ordinary CTest contracts pass (56.15 seconds). Actual
-SwiftPM runtime build passes (1.77 seconds, with the existing native-build-system
+Fresh complete build and 221/221 ordinary CTest contracts pass (43.57 seconds). Actual
+SwiftPM runtime build passes (1.12 seconds, with the existing native-build-system
 deprecation warning); the complete C++ codec test also passes against that actual static
 product. Both clang-format 18 and the newer local formatter, strict package formatting,
 quarantine guard and fifteen unchanged source/build/test hashes pass.
@@ -106,12 +106,12 @@ quarantine guard and fifteen unchanged source/build/test hashes pass.
 Fresh scoped ASan/UBSan passes for the new codec and existing ordinary pure record/source
 contracts. Only protocol code is linked: no native engine library, generation or OS fault
 path is present. Leak detection is disabled and other existing protocol code remains
-uninstrumented. New codec: 480/488 lines (98.36%), 317/323 regions (98.14%), 37/37 functions,
-237/260 branch outcomes (91.15%). Record ledger: 82/83 lines, 67/68 regions, 8/8 functions,
+uninstrumented. New codec: 482/490 lines (98.37%), 322/328 regions (98.17%), 37/37 functions,
+240/264 branch outcomes (90.91%). Record ledger: 82/83 lines, 67/68 regions, 8/8 functions,
 51/56 branches. Shared source validation: 32/32 lines, 36/36 regions, 6/6 functions and
 30/30 branches. Shared outcome validation: 14/15 lines, 20/21 regions, 3/3 functions,
-16/18 branches. Combined scoped figures: 608/618 lines, 440/448 regions, 54/54 functions,
-334/364 branches. Residual paths include warning-field overflow requiring a prohibited
+16/18 branches. Combined scoped figures: 610/620 lines, 445/453 regions, 54/54 functions,
+337/368 branches. Residual paths include warning-field overflow requiring a prohibited
 large string probe, defensive phase/workspace/final consistency checks, valueless-variant
 state and 32-bit/address-space alternatives. No artificial fault branch is added for
 coverage, and these are not whole-core or large-runtime acceptance figures.
@@ -125,3 +125,15 @@ comparison remains necessary. Apple adoption is a separate reviewed dependency/b
 decision. Production pin 48b0ce2d, active routes/caps and core/Apple quarantines remain
 unchanged. #270, Apple #279/#280 and full M4–M8 parity remain open. Completed clean
 exact-head automated review and all hosted CI checks gate this PR's merge.
+
+
+## Automated review correction
+
+Review found that a mesh-tagged outcome with empty arrays could pass empty-shape
+accounting, then emit a mesh prefix before failing the writer's promised remainder.
+A tiny ordinary/sourced tagged-empty regression first failed on emitted callbacks.
+The value preflight now rejects either missing vertex or index array with the original
+indexed invalid-geometry cause before starting the stream. Both variants produce zero
+callbacks; successful emptiness still uses explicit monostate. The full gate, actual
+SwiftPM consumer, source hashes and scoped sanitizer/coverage figures above were
+refreshed for this correction. No native input, fault or resource probe was added.

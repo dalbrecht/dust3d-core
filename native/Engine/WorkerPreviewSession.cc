@@ -60,6 +60,8 @@ namespace worker {
                 result.geometry = std::get_if<IndexedMeshPayload>(&value.outcome);
             if (result.geometry) {
                 const auto& mesh = *result.geometry;
+                if (mesh.vertices.empty() || mesh.indices.empty())
+                    throw IndexedMeshPayloadError(IndexedMeshPayloadErrorCode::invalidGeometry, "Preview mesh outcomes require nonempty geometry; use the explicit empty outcome.");
                 if (mesh.warning.size() > std::numeric_limits<uint32_t>::max())
                     throw IndexedMeshPayloadError(IndexedMeshPayloadErrorCode::limitExceeded, "Preview warning cannot fit its existing wire field.");
                 result.shape = { mesh.vertices.size(), mesh.indices.size(), mesh.nodeCount, mesh.partCount, mesh.warning.size(), std::nullopt };

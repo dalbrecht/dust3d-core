@@ -172,6 +172,23 @@ int main()
         tiny.maximumIndexedBytes = 1;
         reject<PreviewRangeError>(PreviewRangeErrorCode::nativeBudgetExceeded, [&] { writePreviewSession(identity(), tiny, value, policy, [&](const uint8_t* bytes, size_t count) { untouched.insert(untouched.end(), bytes, bytes + count); }); });
         require(untouched.empty(), "Invalid native budget rejects before the first callback");
+        for (const bool isSourced : { false, true }) {
+            SessionOutput emptyTagged;
+            if (isSourced)
+                emptyTagged.outcome = IndexedSourcesPayload {};
+            else
+                emptyTagged.outcome = IndexedMeshPayload {};
+            size_t callbacks = 0;
+            bool isTypedRejection = false;
+            try {
+                writePreviewSession(identity(), context, emptyTagged, policy, [&](const uint8_t*, size_t) { ++callbacks; });
+            } catch (const IndexedMeshPayloadError& cause) {
+                isTypedRejection = cause.code() == IndexedMeshPayloadErrorCode::invalidGeometry;
+            } catch (const std::exception&) {
+            }
+            require(callbacks == 0, "Empty mesh variants must reject before any sink callback");
+            require(isTypedRejection, "Empty mesh variants retain the legacy invalid-geometry cause");
+        }
         value.outcome = FailurePayload { FailureStatus::noGeometry, {} };
         reject<SessionOutputError>(SessionOutputErrorCode::invalidOutcome, [&] { writePreviewSession(identity(), context, value, policy, [](const uint8_t*, size_t) { return; }); });
         value.outcome = sourced();
