@@ -33,6 +33,11 @@ cache reuse across legacy/preview requests, actual EOF and an independently obse
 peer. Production scheduling, SDK/backend adoption and trust distribution remain open;
 see [ADR0182](docs/adr/0182-segmented-preview-xpc-endpoint.md).
 
+Segmented preview publication now has an externally serialized metadata queue that
+retains newest waiting work and retires obsolete results after transport cleanup.
+Archive ownership and production document scheduling remain caller responsibilities; see
+[ADR0183](docs/adr/0183-preview-publication-queue.md).
+
 Public C++17 modeling engine and validated C API for the native Apple apps.
 Preserves full history from [huxingyi/dust3d](https://github.com/huxingyi/dust3d)
 and regularly integrates upstream through reviewed synchronization PRs.

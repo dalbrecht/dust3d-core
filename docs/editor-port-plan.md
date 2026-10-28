@@ -1548,3 +1548,14 @@ legacy rebuild after reset;228CTest and scoped pure Swift coverage are recorded 
 Production active/waiting scheduling and mutation acceptance, public SDK/worker trust, app
 backend adoption and baked/imported profiles remain open. Pin/active app routes/quarantines
 and M4–M8/full parity status remain unchanged.
+
+### Segmented preview publication queue (#270)
+
+The metadata queue now retains one active transport identity and newest waiting work,
+rejects foreign/replayed submissions atomically, and retires obsolete/closed publication
+without native interruption. Healthy XPC integration closes channels before matching
+completion; pure tests prove waiting replacement/retention, cancellation/no resurrection,
+original receipt errors and scope/replay boundaries.229CTest, actual SwiftPM-linked XPC
+host and scoped coverage are recorded in ADR0183. Production asynchronous SDK/source
+ownership and mutable-document adoption, trust/packaging and baked/imported profiles
+remain open. Pin/active app routes/quarantines and M4–M8/full parity are unchanged.
