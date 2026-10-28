@@ -38,3 +38,41 @@ struct WorkerSessionRPCFailure: Sendable {
         }
     }
 }
+
+/// Preview status and original C decode classification are separate numeric domains.
+/// Zero boundaryStatus means no C decode receipt; native preview receipts use their own fields.
+struct WorkerPreviewRPCFailure: Sendable {
+    let status: UInt32
+    let boundaryStatus: UInt32
+    let source: UInt32
+    let code: Int32
+    let truncated: UInt8
+    let cause: Data
+    let admission: WorkerServiceAdmissionStatus
+    init(_ error: any Error) {
+        let original = WorkerSessionRPCFailure(error)
+        source = original.source
+        code = original.code
+        truncated = original.truncated
+        cause = original.cause
+        admission = original.admission
+        if let boundary = error as? WorkerSessionBoundaryError {
+            boundaryStatus = boundary.status
+            switch boundary.status {
+            case DUST3D_WORKER_DECODE_ADMISSION_REJECTED.rawValue:
+                status = DUST3D_WORKER_PREVIEW_SESSION_ADMISSION_REJECTED.rawValue
+            case DUST3D_WORKER_DECODE_PROTOCOL_REJECTED.rawValue:
+                status = DUST3D_WORKER_PREVIEW_SESSION_PROTOCOL_REJECTED.rawValue
+            case DUST3D_WORKER_DECODE_LIMIT_EXCEEDED.rawValue:
+                status = DUST3D_WORKER_PREVIEW_SESSION_RANGE_REJECTED.rawValue
+            default: status = DUST3D_WORKER_PREVIEW_SESSION_INTERNAL_FAILED.rawValue
+            }
+        } else {
+            boundaryStatus = 0
+            status =
+                error is WorkerServiceSessionError
+                ? DUST3D_WORKER_PREVIEW_SESSION_ADMISSION_REJECTED.rawValue
+                : DUST3D_WORKER_PREVIEW_SESSION_INTERNAL_FAILED.rawValue
+        }
+    }
+}
