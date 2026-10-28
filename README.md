@@ -61,6 +61,13 @@ explicit host requirement; the embedding executable owns normal process terminat
 See [ADR0187](docs/adr/0187-service-library-extraction.md). Production executable/bundle,
 release trust distribution and Apple adoption remain open.
 
+`dust3d-xpc-service` is the thin SwiftPM XPC executable. Its own bundle supplies explicit
+host trust metadata, with no runtime trust overrides or development sidecar. The unsigned
+stager never signs/installs/launches/overwrites a bundle. See
+[executable instructions](native/WorkerServiceExecutable/README.md) and
+[ADR0188](docs/adr/0188-xpc-service-executable-bundle.md); signed launch, embedding and
+release trust remain unverified.
+
 Public C++17 modeling engine and validated C API for the native Apple apps.
 Preserves full history from [huxingyi/dust3d](https://github.com/huxingyi/dust3d)
 and regularly integrates upstream through reviewed synchronization PRs.

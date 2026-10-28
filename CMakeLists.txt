@@ -795,6 +795,13 @@ if(BUILD_TESTING)
             "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/verify_worker_client_package.py"
             "${CMAKE_CURRENT_SOURCE_DIR}" "${CMAKE_CURRENT_BINARY_DIR}")
         set_tests_properties(worker_client_swiftpm PROPERTIES TIMEOUT 300 RESOURCE_LOCK dust3d_swiftpm_cache)
+        add_test(NAME worker_service_bundle_staging COMMAND "${Python3_EXECUTABLE}" -B
+            "${CMAKE_CURRENT_SOURCE_DIR}/tests/packaging/test_worker_service_bundle.py")
+        set_tests_properties(worker_service_bundle_staging PROPERTIES TIMEOUT 30)
+        add_test(NAME worker_service_bundle_product COMMAND "${Python3_EXECUTABLE}" -B
+            "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/verify_worker_service_bundle.py"
+            "${CMAKE_CURRENT_SOURCE_DIR}" "${CMAKE_CURRENT_BINARY_DIR}")
+        set_tests_properties(worker_service_bundle_product PROPERTIES TIMEOUT 300 RESOURCE_LOCK dust3d_swiftpm_cache)
         set(DUST3D_XPC_CONTRACT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/worker-xpc-contract-module")
         file(MAKE_DIRECTORY "${DUST3D_XPC_CONTRACT_DIRECTORY}")
         set(DUST3D_XPC_CONTRACT_LIBRARY "${DUST3D_XPC_CONTRACT_DIRECTORY}/libDust3DWorkerXPC.a")

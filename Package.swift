@@ -6,6 +6,7 @@ let package = Package(
     platforms: [.macOS(.v14)],
     products: [
         .executable(name: "dust3d-export", targets: ["Dust3DExport"]),
+        .executable(name: "dust3d-xpc-service", targets: ["Dust3DWorkerServiceExecutable"]),
         .executable(name: "dust3d-worker", targets: ["Dust3DWorker"]),
         .library(name: "Dust3DEngine", type: .static, targets: ["Dust3DEngine"]),
         .library(name: "Dust3DWorkerService", type: .static, targets: ["Dust3DWorkerService"]),
@@ -16,6 +17,9 @@ let package = Package(
         .library(name: "Dust3DImageMetadata", type: .static, targets: ["Dust3DImageMetadata"]),
     ],
     targets: [
+        .executableTarget(
+            name: "Dust3DWorkerServiceExecutable", dependencies: ["Dust3DWorkerService"],
+            path: "native/WorkerServiceExecutable", exclude: ["README.md"]),
         .target(
             name: "Dust3DWorkerService",
             dependencies: ["Dust3DWorkerRuntime", "Dust3DWorkerAppleImages", "Dust3DWorkerXPC"],

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add the thin XPC service executable and non-overwriting unsigned bundle stager with explicit bundle trust metadata, sandbox-only entitlements and document-safe typed diagnostics (#290).
+
 - Expose the service-side SwiftPM library with explicit host trust, checked sandbox preflight and injected retirement, keeping QA signing pins and process exit outside the reusable module (#270).
 
 - Expose the shared XPC contract and async connection adapter with explicit trust configuration, fixed lifetime/peer correlation, original receipt domains and fake-tested once-only completion (#270).

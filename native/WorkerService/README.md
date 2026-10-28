@@ -15,3 +15,8 @@ The QA launcher alone reads private development CDHash pins. CMake smoke tests c
 service sources; SwiftPM exposes the actual reusable module. No duplicate adapter is maintained.
 Legacy and segmented profiles share one native owner. Imported/GLB rendering remains quarantined;
 only the existing procedural image callback is enabled. No native cancellation or automatic restart.
+
+The `dust3d-xpc-service` product supplies the thin bundle-only bootstrap. See
+`../WorkerServiceExecutable/README.md` for unsigned staging and release limitations.
+`WorkerServiceBundleMetadata` validates copied own-bundle values without Security/native
+calls; `WorkerServiceFailureMetadata` formats typed metadata without archive diagnostics.
