@@ -43,6 +43,12 @@ and newest waiting previews, releasing retired owners only after transport clean
 Actor-transfer and healthy XPC evidence are in
 [ADR0184](docs/adr/0184-preview-source-ownership.md); public SDK and app adoption remain open.
 
+The static SwiftPM product `Dust3DWorkerClient` now exposes the pure scheduling and
+source-ownership foundation from one canonical implementation under `native/WorkerClient`.
+It has no engine/Qt/transport dependency and is verified through public XCTest imports
+and the healthy XPC host. See [ADR0185](docs/adr/0185-swift-worker-client-package.md);
+production transport, worker trust/packaging and Apple adoption remain open.
+
 Public C++17 modeling engine and validated C API for the native Apple apps.
 Preserves full history from [huxingyi/dust3d](https://github.com/huxingyi/dust3d)
 and regularly integrates upstream through reviewed synchronization PRs.

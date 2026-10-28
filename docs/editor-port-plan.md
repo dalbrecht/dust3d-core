@@ -1570,3 +1570,14 @@ SwiftPM-linked XPC host and scoped coverage are recorded in ADR0184. Public asyn
 SDK/worker packaging/trust, mutable-document backend adoption, high-resource acceptance
 and baked/imported profiles remain open. Pin/active app routes/quarantines and M4–M8/full
 parity remain unchanged.
+
+### Importable Swift client foundation (#270)
+
+The accepted scheduling/source code now lives once in native/WorkerClient and is exposed
+as Dust3DWorkerClient, a SwiftPM product without native-engine/Qt/transport dependencies.
+Public API XCTest cases import the real module, and the healthy XPC host imports a
+separate client library instead of compiling prototype copies.231CTest, actual SwiftPM
+client/runtime consumer, symbol inspection and scoped coverage are recorded in ADR0185.
+Production XPC adapter/worker packaging/trust, asynchronous mutable-document adoption,
+resource acceptance and baked/imported profiles remain open. Pin/active app routes and
+quarantines remain unchanged; M4–M8/full parity remain incomplete.

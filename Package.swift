@@ -8,11 +8,14 @@ let package = Package(
         .executable(name: "dust3d-export", targets: ["Dust3DExport"]),
         .executable(name: "dust3d-worker", targets: ["Dust3DWorker"]),
         .library(name: "Dust3DEngine", type: .static, targets: ["Dust3DEngine"]),
+        .library(name: "Dust3DWorkerClient", type: .static, targets: ["Dust3DWorkerClient"]),
         .library(name: "Dust3DWorkerRuntime", type: .static, targets: ["Dust3DWorkerRuntime"]),
         .library(name: "Dust3DWorkerAppleImages", type: .static, targets: ["Dust3DWorkerAppleImages"]),
         .library(name: "Dust3DImageMetadata", type: .static, targets: ["Dust3DImageMetadata"]),
     ],
     targets: [
+        .target(name: "Dust3DWorkerClient", path: "native/WorkerClient", exclude: ["README.md"]),
+        .testTarget(name: "WorkerClientPackageTests", dependencies: ["Dust3DWorkerClient"], path: "tests/WorkerClient"),
         .target(name: "Dust3DImageMetadata", path: "native/AppleImages/Metadata", exclude: ["README.md"]),
         .target(
             name: "Dust3DWorkerAppleImages", dependencies: ["Dust3DWorkerRuntime", "Dust3DImageMetadata"],
@@ -36,7 +39,7 @@ let package = Package(
             name: "Dust3DWorkerRuntime",
             dependencies: ["Dust3DEngine"],
             path: "native",
-            exclude: ["WorkerRuntime/README.md", "ExportCli/README.md", "AppleImages"],
+            exclude: ["WorkerRuntime/README.md", "ExportCli/README.md", "AppleImages", "WorkerClient"],
             sources: [
                 "Engine/WorkerJobIO.cc", "Engine/WorkerPreviewArchiveIO.cc", "Engine/WorkerPreviewSessionIO.cc",
                 "Engine/WorkerOperation.cc",
