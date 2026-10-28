@@ -6,6 +6,7 @@
 #include "WorkerReplyInternal.h"
 #include "WorkerServiceInternal.h"
 #include "WorkerSessionOutputInternal.h"
+#include "WorkerSourceRequest.h"
 #include <algorithm>
 #include <memory>
 using namespace dust3d::worker;
@@ -107,6 +108,8 @@ void rejectSessionOutputException(const std::exception_ptr& exception, Dust3DWor
         rejectCodec(*result, DUST3D_WORKER_DETAIL_PREVIEW_CHUNK, cause);
     } catch (const PreviewRangeError& cause) {
         rejectCodec(*result, DUST3D_WORKER_DETAIL_PREVIEW_RANGE, cause);
+    } catch (const SourceRequestError& cause) {
+        rejectCodec(*result, DUST3D_WORKER_DETAIL_SOURCE_REQUEST, cause);
     } catch (const SessionOutputError& cause) {
         rejectCodec(*result, DUST3D_WORKER_DETAIL_SESSION_OUTPUT, cause);
     } catch (const GenerationStatisticsError& cause) {
