@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add an explicit segmented-preview development XPC endpoint with shared session cache, original typed RPC receipts and EOF/peer/current-identity publication checks (#270).
+
 - Add an opt-in Swift session backend sharing one cache and replay history across legacy and segmented preview profiles, with distinct original receipts (#270).
 
 - Serve segmented archive previews through existing document sessions, preserving EOF-before-admission, replay consumption, cache observations and original typed receipts without switching active routes (#270).

@@ -238,6 +238,36 @@ private enum WorkerSessionSmoke {
         diagnosticValue.message_truncated = 1
         diagnosticValue.message.0 = CChar(bitPattern: 255)
         let diagnostic = WorkerSessionBoundaryError(diagnosticValue)
+        let previewDiagnostic = WorkerPreviewRPCFailure(diagnostic)
+        try require(
+            previewDiagnostic.status == DUST3D_WORKER_PREVIEW_SESSION_ADMISSION_REJECTED.rawValue
+                && previewDiagnostic.boundaryStatus == diagnostic.status
+                && previewDiagnostic.source == diagnostic.source && previewDiagnostic.code == diagnostic.code
+                && previewDiagnostic.truncated == 1 && previewDiagnostic.cause == Data([255]),
+            "Preview RPC retains original boundary domain and diagnostic")
+        for (original, expected) in [
+            (DUST3D_WORKER_DECODE_PROTOCOL_REJECTED, DUST3D_WORKER_PREVIEW_SESSION_PROTOCOL_REJECTED),
+            (DUST3D_WORKER_DECODE_LIMIT_EXCEEDED, DUST3D_WORKER_PREVIEW_SESSION_RANGE_REJECTED),
+            (DUST3D_WORKER_DECODE_INTERNAL_FAILED, DUST3D_WORKER_PREVIEW_SESSION_INTERNAL_FAILED),
+        ] {
+            var value = diagnosticValue
+            value.status = original
+            let mapped = WorkerPreviewRPCFailure(WorkerSessionBoundaryError(value))
+            try require(
+                mapped.status == expected.rawValue && mapped.boundaryStatus == original.rawValue
+                    && mapped.code == -3 && mapped.source == diagnostic.source && mapped.cause == Data([255]),
+                "Preview boundary classification must remain independent")
+        }
+        let scopePreview = WorkerPreviewRPCFailure(WorkerServiceSessionError.closed)
+        try require(
+            scopePreview.status == DUST3D_WORKER_PREVIEW_SESSION_ADMISSION_REJECTED.rawValue
+                && scopePreview.boundaryStatus == 0 && scopePreview.admission == .invalidSessionScope,
+            "Preview Swift lifecycle rejection")
+        let unexpectedPreview = WorkerPreviewRPCFailure(SessionSmokeError.invalid(String(repeating: "x", count: 600)))
+        try require(
+            unexpectedPreview.status == DUST3D_WORKER_PREVIEW_SESSION_INTERNAL_FAILED.rawValue
+                && unexpectedPreview.boundaryStatus == 0 && unexpectedPreview.truncated == 1
+                && unexpectedPreview.cause.count == 511, "Bounded original Swift diagnostic")
         let rpcDiagnostic = WorkerSessionRPCFailure(diagnostic)
         try require(
             rpcDiagnostic.status == DUST3D_WORKER_JOB_PROTOCOL_REJECTED.rawValue

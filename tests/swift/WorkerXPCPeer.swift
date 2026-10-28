@@ -50,7 +50,7 @@ actor WorkerXPCPeer {
             }
         }
     }
-    private func proxy(outcome: WorkerOutcome<WorkerControlReceipt>) throws -> any StaticWorkerJob {
+    private func proxy<Receipt: Sendable>(outcome: WorkerOutcome<Receipt>) throws -> any StaticWorkerJob {
         connection.invalidationHandler = {
             outcome.finish(.failure(StaticFixtureError.invalid("XPC connection invalidated")))
         }
@@ -99,6 +99,58 @@ actor WorkerXPCPeer {
                     admissionStatus: admissionStatus, generation: generation, outcome: outcome, cause: cause)
             }
         }
+    }
+    func submitPreview(
+        input: FileHandle, output: FileHandle, identity: WorkerPreviewIdentity,
+        maximumCachePayloadBytes: UInt64, context: Dust3DWorkerPreviewArchiveContext,
+        inputPolicy: Dust3DWorkerPreviewChunkPolicy, outputPolicy: Dust3DWorkerPreviewChunkPolicy,
+        outcome: WorkerOutcome<WorkerPreviewControlReceipt>
+    ) throws {
+        let proxy = try proxy(outcome: outcome)
+        proxy.servePreview(
+            input, output: output, isStream: false, document: identity.document as NSUUID,
+            requestIdentity: identity.request, revision: identity.revision, connectionGeneration: identity.generation,
+            maximumCachePayloadBytes: maximumCachePayloadBytes, archiveBytes: context.archive_bytes,
+            maximumIndexedBytes: context.maximum_indexed_bytes, maximumSourceBytes: context.maximum_source_bytes,
+            maximumInputTransferBytes: inputPolicy.maximum_transfer_bytes,
+            inputChunkBytes: inputPolicy.chunk_payload_bytes,
+            maximumOutputTransferBytes: outputPolicy.maximum_transfer_bytes,
+            outputChunkBytes: outputPolicy.chunk_payload_bytes
+        ) {
+            [weak self]
+            status, request, systemError, stage, source, code, truncated, process,
+            sandbox, finalizationError, admissionStatus, boundaryStatus, cause in
+            Task {
+                guard let self else {
+                    outcome.finish(.failure(StaticFixtureError.invalid("Preview peer observer retired")))
+                    return
+                }
+                await self.finishPreview(
+                    status: status, request: request, systemError: systemError, stage: stage,
+                    source: source, code: code, truncated: truncated, process: process,
+                    sandbox: sandbox, finalizationError: finalizationError, admissionStatus: admissionStatus,
+                    boundaryStatus: boundaryStatus, generation: identity.generation, cause: cause, outcome: outcome)
+            }
+        }
+    }
+    private func finishPreview(
+        status: UInt32, request: UInt64, systemError: Int32, stage: UInt32, source: UInt32,
+        code: Int32, truncated: UInt8, process: Int32, sandbox: Bool, finalizationError: Int32,
+        admissionStatus: UInt32, boundaryStatus: UInt32, generation: UInt64, cause: Data,
+        outcome: WorkerOutcome<WorkerPreviewControlReceipt>
+    ) {
+        guard cause.count <= 511 else {
+            outcome.finish(.failure(StaticFixtureError.invalid("Preview diagnostic exceeds control bound")))
+            return
+        }
+        outcome.finish(
+            .success(
+                WorkerPreviewControlReceipt(
+                    status: status, request: request,
+                    systemError: systemError, stage: stage, source: source, code: code, truncated: truncated,
+                    process: process, sandboxEntitlementVerified: sandbox, finalizationError: finalizationError,
+                    admissionStatus: admissionStatus, boundaryStatus: boundaryStatus, connectionGeneration: generation,
+                    observedProcess: connection.processIdentifier, cause: cause)))
     }
     func resetSession(
         document: UUID, request: UInt64, generation: UInt64, maximumCachePayloadBytes: UInt64,

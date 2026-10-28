@@ -24,8 +24,14 @@ process/peer/current-source admission and production adoption remain separate; s
 [ADR0180](docs/adr/0180-segmented-native-preview-serving.md).
 
 An opt-in Swift service backend now shares one native session across legacy and segmented
-preview profiles with distinct original receipts. Active XPC routing is unchanged; see
+preview profiles with distinct original receipts; see
 [ADR0181](docs/adr/0181-shared-swift-preview-session-profile.md).
+
+The development XPC prototype now has an explicit segmented preview selector and
+metadata-only one-shot publication gate. Its healthy Capsule fixture verifies shared
+cache reuse across legacy/preview requests, actual EOF and an independently observed
+peer. Production scheduling, SDK/backend adoption and trust distribution remain open;
+see [ADR0182](docs/adr/0182-segmented-preview-xpc-endpoint.md).
 
 Public C++17 modeling engine and validated C API for the native Apple apps.
 Preserves full history from [huxingyi/dust3d](https://github.com/huxingyi/dust3d)

@@ -135,7 +135,8 @@ def main():
         if 'Persistent service C admission accepted after actual EOF and OS peer observation' not in output:
             raise RuntimeError('Missing persistent service completion admission evidence')
         if mode == 'session':
-            if ('Actual session cache reuse observed across two requests' not in output
+            if ('Segmented XPC preview admitted after actual EOF and independent OS peer observation' not in output
+                    or 'Actual session cache reuse observed across two requests' not in output
                     or 'Actual session cache rebuild observed after authenticated reset' not in output
                     or 'Session cache closed before connection invalidation' not in output):
                 raise RuntimeError('Missing retained-session reuse, reset/rebuild or explicit close evidence')

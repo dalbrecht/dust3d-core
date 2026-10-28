@@ -1537,3 +1537,14 @@ and copied Sendable lifetime.227CTest and actual SwiftPM consumer evidence/limit
 recorded in ADR0181. Explicit XPC selector/typed RPC receipts, independent peer/process/
 current-source admission, production SDK/backend and baked/imported adoption remain open.
 Apple pin/routes/quarantines and M4–M8/full parity status remain unchanged.
+
+### Segmented preview XPC endpoint (#270)
+
+The development service/peer now transfer segmented previews on the same native session
+as legacy requests, preserving original preview/boundary diagnostic domains. A metadata-only
+one-shot gate checks actual EOF, independent OS-peer/lifetime and current identity before
+copied publication. The healthy existing Capsule fixture verifies cross-profile reuse and
+legacy rebuild after reset;228CTest and scoped pure Swift coverage are recorded in ADR0182.
+Production active/waiting scheduling and mutation acceptance, public SDK/worker trust, app
+backend adoption and baked/imported profiles remain open. Pin/active app routes/quarantines
+and M4–M8/full parity status remain unchanged.
