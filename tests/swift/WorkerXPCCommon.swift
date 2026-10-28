@@ -53,16 +53,3 @@ func readDevelopmentPins() throws -> DevelopmentPins {
     _ = try developmentRequirement(pins.service)
     return pins
 }
-
-/// Original channel boundary receipt; diagnostic bytes are opaque data.
-struct WorkerPreviewTransferFailure: Error, Sendable {
-    enum Operation: Sendable { case archive, reply }
-    let operation: Operation
-    let status: UInt32
-    let source: UInt32
-    let code: Int32
-    let systemError: Int32
-    let stage: UInt32
-    let truncated: UInt8
-    let cause: Data
-}

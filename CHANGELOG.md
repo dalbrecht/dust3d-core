@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add the owned preview executor with authenticated channel creation, joined streaming phases, copied output lifetime, monotonic reset and original failure retention (#296).
+
 - Bind authenticated worker identity before job channels with a scalar handshake that preserves original ownership status without consuming native leases or request IDs (#294).
 
 - Add an async preview coordinator with newest-waiting replacement, drain-preserving cancellation, original completion admission and bounded retirement (#292).

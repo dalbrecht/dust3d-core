@@ -1631,3 +1631,14 @@ creation/job ID consumption. ADR0190 records ten fake client cases, pure schedul
 233 CTest/51 public XCTest and healthy pre-job handshakes. Actual writer/reader/control/cleanup
 joining, explicit stream-mode plumbing, supervision, signed embedding/trust, Apple adoption and
 M4–M8 remain open. Pin48b0ce2d and all quarantines are unchanged.
+
+### Owned public preview execution (#296)
+
+ADR0191 adds the real Runtime/Client/XPC parent executor: immutable source policies,
+pre-channel peer authentication, dedicated writer/EOF-reader workers, joined original control
+receipts, copied C output lifetime, scoped monotonic reset and normal retirement requests.
+The actual public-product healthy Capsule test proves geometry/cache reuse/reset/rebuild and
+independent normal peer disappearance. Negative/lifecycle cases use fake phases exclusively.
+Control failure still does not establish native drain; deadline/process supervision, release
+trust/embedding, Apple adoption and M4–M8 acceptance remain open. Apple pin48b0ce2d and all
+quarantines remain unchanged. This stage does not claim full containment or feature parity.

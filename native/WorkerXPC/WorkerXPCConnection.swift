@@ -161,7 +161,7 @@ public actor WorkerXPCConnection {
     /// - Returns: Original legacy session control receipt; caller separately validates frame/EOF/current source.
     /// - Throws: Original transport/lifecycle error; a failed callback does not prove native drain.
     public func submitSession(
-        input: FileHandle, output: FileHandle, identity: WorkerPreviewIdentity,
+        input: FileHandle, output: FileHandle, isStream: Bool = false, identity: WorkerPreviewIdentity,
         options: WorkerXPCSessionOptions
     ) async throws -> WorkerXPCLegacyReceipt {
         try validateChannels(input, output)
@@ -174,7 +174,7 @@ public actor WorkerXPCConnection {
                         outcome: outcome, generation: generation, handles: [input, output])
                 else { return }
                 proxy.serveSession(
-                    input, output: output, isStream: false, document: identity.document as NSUUID,
+                    input, output: output, isStream: isStream, document: identity.document as NSUUID,
                     requestIdentity: identity.request, revision: identity.revision, connectionGeneration: generation,
                     maximumCachePayloadBytes: options.maximumCachePayloadBytes,
                     maximumWireBytes: options.maximumWireBytes,
@@ -204,7 +204,7 @@ public actor WorkerXPCConnection {
     /// - Returns: Original dedicated preview receipt, including separate boundary classification.
     /// - Throws: Original transport/lifecycle error; caller still owns channel cleanup and source retirement.
     public func submitPreview(
-        input: FileHandle, output: FileHandle, identity: WorkerPreviewIdentity,
+        input: FileHandle, output: FileHandle, isStream: Bool = false, identity: WorkerPreviewIdentity,
         options: WorkerXPCPreviewOptions
     ) async throws -> WorkerPreviewControlReceipt {
         try validateChannels(input, output)
@@ -216,7 +216,7 @@ public actor WorkerXPCConnection {
                         outcome: outcome, generation: identity.generation, handles: [input, output])
                 else { return }
                 proxy.servePreview(
-                    input, output: output, isStream: false, document: identity.document as NSUUID,
+                    input, output: output, isStream: isStream, document: identity.document as NSUUID,
                     requestIdentity: identity.request, revision: identity.revision,
                     connectionGeneration: identity.generation,
                     maximumCachePayloadBytes: options.maximumCachePayloadBytes, archiveBytes: options.archiveBytes,
