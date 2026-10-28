@@ -70,6 +70,15 @@ namespace worker {
     /// NULL rejects; typed failures/copy quotas match generateIndexedMesh.
     /// Example: auto result = generateSessionIndexedMesh(session, archive, limits);
     IndexedGenerationResult generateSessionIndexedMesh(Dust3DGenerationSession* session, const std::vector<uint8_t>& archive, const IndexedMeshPayloadLimits& limits);
+    /// Ordinary native-budget fallback adapter for an existing borrowed session.
+    /// @param session Live native owner; caller serializes generation/lifetime.
+    /// @param archive Stable readable borrowed archive and captured native policies.
+    /// @return Independent geometry or original classified native/copy failure.
+    /// @throws Original argument/receipt-allocation errors; no scope admission here.
+    /// Uses no legacy envelope quota, copy count cap or whole wire buffer. Kept
+    /// independently callable so healthy fallback behavior needs no native fault probe.
+    /// Example: auto result = generateSessionPreviewIndexedMesh(owner.get(), archive);
+    IndexedGenerationResult generateSessionPreviewIndexedMesh(Dust3DGenerationSession* session, PreviewArchiveView archive);
     /// Validate a complete indexed-source request and return a correlated pair/failure frame.
     /// @param request Stable exact source-budget request, operation 4, request kind.
     /// @param limits Supported aggregate/inner policies; requested budget can only tighten them.

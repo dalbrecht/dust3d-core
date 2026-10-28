@@ -34,11 +34,6 @@ namespace worker {
                 reject(PreviewRangeErrorCode::addressSpaceExceeded, "Preview layout cannot fit the host address space.");
         }
     }
-    PreviewRangeError::PreviewRangeError(PreviewRangeErrorCode code, const char* cause)
-        : std::runtime_error(cause)
-        , m_code(code)
-    {
-    }
     PreviewRecordPlan planPreviewRecords(const PreviewGeometryShape& shape, const PreviewNativeBudgets& budgets)
     {
         validateBudgets(budgets);

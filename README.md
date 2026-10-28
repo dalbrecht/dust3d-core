@@ -8,6 +8,11 @@ session route or app backend; see [ADR0176](docs/adr/0176-native-preview-indexed
 source/indexed pair, preserving source identities and associations under the independent
 native source budget; see [ADR0177](docs/adr/0177-native-preview-source-copy.md).
 
+`NativeGenerationSession::generatePreview` and its connection wrapper now use these
+copies with borrowed archive ownership, original native budgets, same-worker fallback
+and actual cache observations. Transport and Apple adoption remain separate; see
+[ADR0178](docs/adr/0178-native-budget-preview-sessions.md).
+
 Public C++17 modeling engine and validated C API for the native Apple apps.
 Preserves full history from [huxingyi/dust3d](https://github.com/huxingyi/dust3d)
 and regularly integrates upstream through reviewed synchronization PRs.

@@ -19,6 +19,12 @@ namespace worker {
         m_scope.requireConnection(connectionGeneration);
         return m_owner->statistics();
     }
+    NativeSessionGeneration ConnectionGenerationSession::generatePreview(PreviewArchiveView archive, const RequestIdentity& identity, uint64_t connectionGeneration, const GenerationStatisticsLimits& statisticsLimits)
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_scope.admit(identity, connectionGeneration);
+        return m_owner->generatePreview(archive, identity, statisticsLimits);
+    }
     void ConnectionGenerationSession::reset(uint64_t connectionGeneration)
     {
         std::lock_guard<std::mutex> lock(m_mutex);

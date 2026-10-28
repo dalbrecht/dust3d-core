@@ -40,6 +40,15 @@ namespace worker {
         /// No parent fallback, transport authentication, cancellation or RSS guarantee.
         /// Example: auto result = session.generateSourcedIndexed(archive, identity, {});
         NativeSessionGeneration generateSourcedIndexed(const std::vector<uint8_t>& archive, const RequestIdentity& identity, const NativeSessionOptions& options);
+        /// Generate/copy an opt-in native-budget preview from a stable borrowed archive.
+        /// Validate host identity, non-null span and original native policies before
+        /// work; archive1..256MiB has no legacy envelope/input quota or duplicate copy.
+        /// Source status3/4 uses same-session ordinary fallback, preserving typed causes;
+        /// statistics are actual optional observations, independently error-isolated.
+        /// Caller retains archive through return. No authentication, transport activation,
+        /// cancellation or RSS guarantee. Throws original argument/receipt-copy errors.
+        /// Example: auto value = session.generatePreview(archiveOwner.view(), identity);
+        NativeSessionGeneration generatePreview(PreviewArchiveView archive, const RequestIdentity& identity, const GenerationStatisticsLimits& statisticsLimits = {});
         /// Copy actual current native statistics; throws original typed/query errors.
         /// Example: auto value = session.statistics();
         GenerationStatistics statistics();

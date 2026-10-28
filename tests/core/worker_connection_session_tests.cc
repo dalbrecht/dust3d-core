@@ -23,18 +23,32 @@ int main(int argc, char** argv)
         ConnectionGenerationSession session(request.document, 7, 64ULL * 1024 * 1024);
         auto first = session.generateSourcedIndexed(archive, request, 7, {});
         request.request = 2;
-        auto second = session.generateSourcedIndexed(archive, request, 7, {});
+        const PreviewArchiveView borrowed { { archive.data(), archive.size(), 0 }, 0 };
+        auto second = session.generatePreview(borrowed, request, 7);
         require(first.mesh && second.mesh && second.statistics && second.statistics->reusedComponents > 0);
         session.reset(7);
         require(session.statistics(7).retainedPayloadBytes == 0);
         bool rejected = false;
         try {
-            (void)session.generateSourcedIndexed(archive, request, 7, {});
+            (void)session.generatePreview(borrowed, request, 7);
         } catch (const SessionScopeError& cause) {
             rejected = cause.code() == SessionScopeErrorCode::reusedRequest;
         }
         require(rejected);
         request.request = 3;
+        try {
+            (void)session.generatePreview({ { nullptr, archive.size(), 0 }, 0 }, request, 7);
+            throw std::runtime_error("Invalid borrowed archive accepted");
+        } catch (const ProtocolError& cause) {
+            require(cause.code() == ProtocolErrorCode::invalidInput);
+        }
+        try {
+            (void)session.generatePreview(borrowed, request, 7);
+            throw std::runtime_error("Failed admitted preview did not consume request identity");
+        } catch (const SessionScopeError& cause) {
+            require(cause.code() == SessionScopeErrorCode::reusedRequest);
+        }
+        request.request = 4;
         auto afterReset = session.generateSourcedIndexed(archive, request, 7, {});
         require(afterReset.mesh && afterReset.statistics && afterReset.statistics->reusedComponents == 0);
         const auto wire = encodeSessionOutput(copySessionOutput(std::move(afterReset), {}), {});
