@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Retain immutable preview archive/policy snapshots for active and newest waiting work, releasing displaced or drained owners without invalidating isolated consumers (#270).
+
 - Queue segmented preview publication by immutable identity, retaining newest waiting work across stale or failed transport completion without interrupting native work (#270).
 
 - Add an explicit segmented-preview development XPC endpoint with shared session cache, original typed RPC receipts and EOF/peer/current-identity publication checks (#270).

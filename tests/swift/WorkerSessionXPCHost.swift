@@ -44,14 +44,32 @@ private func copySessionXPCOutput(_ owner: OpaquePointer) throws -> SessionXPCSn
         reused: statistics.reused_components,
         retained: statistics.retained_payload_bytes)
 }
+private struct PreviewSourceSnapshot: Sendable {
+    let archive: Data
+    let context: Dust3DWorkerPreviewArchiveContext
+    let inputPolicy: Dust3DWorkerPreviewChunkPolicy
+    let outputPolicy: Dust3DWorkerPreviewChunkPolicy
+    let maximumCachePayloadBytes: UInt64
+}
 private func segmentedSessionXPC(
-    peer: WorkerXPCPeer, queue: WorkerPreviewPublicationQueue, archive: Data, root: URL, process: Int32,
+    peer: WorkerXPCPeer, queue: WorkerPreviewSourceCoordinator<PreviewSourceSnapshot>, archive: Data, root: URL,
+    process: Int32,
     deadline: DispatchTime
 ) throws -> SessionXPCSnapshot {
     let captured = try WorkerPreviewIdentity(
         document: UUID(uuid: (1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)),
         request: 2, revision: 7, generation: 9)
-    try queue.submit(captured)
+    let source = PreviewSourceSnapshot(
+        archive: archive,
+        context: Dust3DWorkerPreviewArchiveContext(
+            archive_bytes: UInt64(archive.count),
+            maximum_source_bytes: 0, maximum_indexed_bytes: 0),
+        inputPolicy: Dust3DWorkerPreviewChunkPolicy(
+            maximum_transfer_bytes: UInt64(archive.count + 24), chunk_payload_bytes: 64),
+        outputPolicy: Dust3DWorkerPreviewChunkPolicy(
+            maximum_transfer_bytes: 64 * 1024 * 1024, chunk_payload_bytes: 256),
+        maximumCachePayloadBytes: 64 * 1024 * 1024)
+    try queue.submit(captured, source: source)
     guard queue.begin() == captured else { throw StaticFixtureError.invalid("Preview queue must freeze this identity") }
     do {
         var scope = Dust3DWorkerPreviewSessionScope()
@@ -59,19 +77,17 @@ private func segmentedSessionXPC(
         scope.identity.request = captured.request
         scope.identity.revision = captured.revision
         scope.connection_generation = captured.generation
-        let context = Dust3DWorkerPreviewArchiveContext(
-            archive_bytes: UInt64(archive.count), maximum_source_bytes: 0, maximum_indexed_bytes: 0)
-        let inputPolicy = Dust3DWorkerPreviewChunkPolicy(
-            maximum_transfer_bytes: UInt64(archive.count + 24), chunk_payload_bytes: 64)
-        let outputPolicy = Dust3DWorkerPreviewChunkPolicy(
-            maximum_transfer_bytes: 64 * 1024 * 1024, chunk_payload_bytes: 256)
+        let snapshot = try queue.source(for: captured)
+        let context = snapshot.context
+        let inputPolicy = snapshot.inputPolicy
+        let outputPolicy = snapshot.outputPolicy
         let inputURL = root.appendingPathComponent("preview-request-2")
         let outputURL = root.appendingPathComponent("preview-reply-2")
         try Data().write(to: inputURL)
         try Data().write(to: outputURL)
         let writer = try FileHandle(forWritingTo: inputURL)
         defer { try? writer.close() }
-        let encoded = archive.withUnsafeBytes {
+        let encoded = snapshot.archive.withUnsafeBytes {
             dust3d_worker_preview_archive_write(
                 writer.fileDescriptor, scope, context,
                 $0.bindMemory(to: UInt8.self).baseAddress, $0.count, inputPolicy)
@@ -96,7 +112,7 @@ private func segmentedSessionXPC(
             do {
                 try await peer.submitPreview(
                     input: input, output: output, identity: captured,
-                    maximumCachePayloadBytes: 64 * 1024 * 1024, context: context,
+                    maximumCachePayloadBytes: snapshot.maximumCachePayloadBytes, context: context,
                     inputPolicy: inputPolicy, outputPolicy: outputPolicy, outcome: outcome)
             } catch { outcome.finish(.failure(error)) }
         }
@@ -147,7 +163,7 @@ func runSessionXPCFixture(archive: Data, root: URL, requirement: String, deadlin
     let policy = Dust3DWorkerSessionOutputLimits(
         maximum_wire_bytes: 1_048_576, maximum_decoded_bytes: 1_048_576, maximum_source_bytes: 0)
     let queue = try WorkerServiceQueue(limits: wire)
-    let previewQueue = WorkerPreviewPublicationQueue()
+    let previewQueue = WorkerPreviewSourceCoordinator<PreviewSourceSnapshot>()
     var snapshots: [SessionXPCSnapshot] = []
     var observedProcess: Int32 = 0
     try withWorkerXPCPeer(requirement: requirement, deadline: deadline) { peer in
