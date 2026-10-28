@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: MIT
 #include "WorkerConnectionSession.h"
+#include "WorkerPreviewChunk.h"
+#include "WorkerPreviewRange.h"
 #include "WorkerQueue.h"
 #include "WorkerReplyInternal.h"
 #include "WorkerServiceInternal.h"
@@ -101,6 +103,10 @@ void rejectSessionOutputException(const std::exception_ptr& exception, Dust3DWor
         result->detail_source = DUST3D_WORKER_DETAIL_FRAME;
         result->detail_code = static_cast<int32_t>(cause.code());
         copyCause(*result, cause.what());
+    } catch (const PreviewChunkError& cause) {
+        rejectCodec(*result, DUST3D_WORKER_DETAIL_PREVIEW_CHUNK, cause);
+    } catch (const PreviewRangeError& cause) {
+        rejectCodec(*result, DUST3D_WORKER_DETAIL_PREVIEW_RANGE, cause);
     } catch (const SessionOutputError& cause) {
         rejectCodec(*result, DUST3D_WORKER_DETAIL_SESSION_OUTPUT, cause);
     } catch (const GenerationStatisticsError& cause) {

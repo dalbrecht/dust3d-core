@@ -13,6 +13,11 @@ copies with borrowed archive ownership, original native budgets, same-worker fal
 and actual cache observations. Transport and Apple adoption remain separate; see
 [ADR0178](docs/adr/0178-native-budget-preview-sessions.md).
 
+Bounded session-output channels now return the existing immutable C owner after full
+semantic validation and actual EOF. Strict Swift copied-value/actor verification is
+available; host authentication/current-source admission and app adoption remain separate.
+See [ADR0179](docs/adr/0179-preview-session-output-channels.md).
+
 Public C++17 modeling engine and validated C API for the native Apple apps.
 Preserves full history from [huxingyi/dust3d](https://github.com/huxingyi/dust3d)
 and regularly integrates upstream through reviewed synchronization PRs.
