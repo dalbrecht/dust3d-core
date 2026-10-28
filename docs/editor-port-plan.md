@@ -1678,3 +1678,15 @@ See ADR0194 for ordering/ownership and verification scope. This does not complet
 job deadlines, hard process containment, signed release host integration, Apple dependency adoption,
 or the remaining M4–M8 acceptance cases. Those remain separate delivery stages; the production
 Apple pin and all feature quarantines stay unchanged.
+
+### Service-owned job wall deadline (#304)
+
+An explicit schema-3 per-job wall budget now reaches the actual service scheduler and executable.
+Admission starts checked monotonic bounds; queued dispatch/completion and an independent timer
+share terminal ownership decisions. Expiry seals admission and calls the dedicated helper's
+terminal callback without queueing behind native work. The executable logs original scalar
+metadata and exits without finalizers; this abandons owners rather than claiming graceful drain.
+Fake expiry/order tests and existing healthy integrations are separate evidence; actual induced
+watchdog exit is not authorized or verified. See ADR0195. Idle retirement cleanup, parent-side
+join bounds, release signing, Apple adoption, high-resource and full M4–M8 acceptance remain open.
+Apple pin48b0ce2d and all feature quarantines remain unchanged.

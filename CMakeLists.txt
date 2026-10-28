@@ -1077,6 +1077,8 @@ if(BUILD_TESTING)
                     "${CMAKE_CURRENT_SOURCE_DIR}/native/WorkerService/WorkerServiceAdmission.swift"
                     "${CMAKE_CURRENT_SOURCE_DIR}/native/WorkerService/WorkerServiceOwnership.swift"
                     "${CMAKE_CURRENT_SOURCE_DIR}/native/WorkerService/WorkerServiceScheduler.swift"
+                    "${CMAKE_CURRENT_SOURCE_DIR}/native/WorkerService/WorkerServiceJobDeadline.swift"
+                    "${CMAKE_CURRENT_SOURCE_DIR}/native/WorkerService/WorkerServiceJobTiming.swift"
                     "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerAdmissionSmoke.swift"
                 COMMAND "${DUST3D_XCRUN}" swiftc -swift-version 6 -strict-concurrency=complete
                     -warnings-as-errors -parse-as-library
@@ -1084,9 +1086,11 @@ if(BUILD_TESTING)
                     "${CMAKE_CURRENT_SOURCE_DIR}/native/WorkerService/WorkerServiceAdmission.swift"
                     "${CMAKE_CURRENT_SOURCE_DIR}/native/WorkerService/WorkerServiceOwnership.swift"
                     "${CMAKE_CURRENT_SOURCE_DIR}/native/WorkerService/WorkerServiceScheduler.swift"
+                    "${CMAKE_CURRENT_SOURCE_DIR}/native/WorkerService/WorkerServiceJobDeadline.swift"
+                    "${CMAKE_CURRENT_SOURCE_DIR}/native/WorkerService/WorkerServiceJobTiming.swift"
                     "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerAdmissionSmoke.swift"
                     -o "${DUST3D_ADMISSION_BINARY}"
-                DEPENDS native/WorkerService/WorkerServiceAdmission.swift native/WorkerService/WorkerServiceOwnership.swift native/WorkerService/WorkerServiceScheduler.swift tests/swift/WorkerAdmissionSmoke.swift
+                DEPENDS native/WorkerService/WorkerServiceAdmission.swift native/WorkerService/WorkerServiceOwnership.swift native/WorkerService/WorkerServiceScheduler.swift native/WorkerService/WorkerServiceJobDeadline.swift native/WorkerService/WorkerServiceJobTiming.swift tests/swift/WorkerAdmissionSmoke.swift
                 VERBATIM)
             add_custom_target(dust3d_worker_admission_values ALL DEPENDS "${DUST3D_ADMISSION_BINARY}")
             add_test(NAME worker_admission_values COMMAND "${DUST3D_ADMISSION_BINARY}")
@@ -1165,7 +1169,9 @@ if(BUILD_TESTING)
                     "${CMAKE_CURRENT_SOURCE_DIR}/native/WorkerPreview/WorkerPreviewTransferFailure.swift")
                 set(DUST3D_XPC_CLIENT_LINK "${DUST3D_XPC_CONTRACT_LIBRARY}" "${DUST3D_CLIENT_LIBRARY}")
                 if(DUST3D_XPC_ROLE STREQUAL "Service")
-                    list(APPEND DUST3D_XPC_SUPPORT_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/native/WorkerService/WorkerServiceOwnership.swift" "${CMAKE_CURRENT_SOURCE_DIR}/native/WorkerService/WorkerServiceScheduler.swift")
+                    list(APPEND DUST3D_XPC_SUPPORT_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/native/WorkerService/WorkerServiceOwnership.swift" "${CMAKE_CURRENT_SOURCE_DIR}/native/WorkerService/WorkerServiceScheduler.swift"
+                        "${CMAKE_CURRENT_SOURCE_DIR}/native/WorkerService/WorkerServiceJobDeadline.swift"
+                        "${CMAKE_CURRENT_SOURCE_DIR}/native/WorkerService/WorkerServiceJobTiming.swift")
                     list(APPEND DUST3D_XPC_SUPPORT_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/native/WorkerService/WorkerServiceSession.swift" "${CMAKE_CURRENT_SOURCE_DIR}/native/WorkerService/WorkerNativeServiceSession.swift")
                     list(APPEND DUST3D_XPC_SUPPORT_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/native/WorkerService/WorkerSessionRPCValues.swift")
                     list(APPEND DUST3D_XPC_SUPPORT_SOURCES ${DUST3D_APPLE_IMAGE_SOURCES})

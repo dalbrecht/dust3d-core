@@ -27,13 +27,15 @@ final class WorkerServiceLifecycleTests: XCTestCase {
     func testShouldDrainAcceptedWorkBeforeReturningOriginalCleanupCause() throws {
         let executor = RecordedExecutor()
         let facts = RetirementFacts()
-        let scheduler = WorkerServiceScheduler(executor: executor) { result in
-            switch result {
-            case .success: facts.record("unexpected success")
-            case .failure(CleanupCause.original): facts.record("original cause")
-            case .failure: facts.record("replaced cause")
-            }
-        }
+        let scheduler = WorkerServiceScheduler(
+            executor: executor, jobBudget: try WorkerServiceJobBudget(milliseconds: 300000), onDeadline: { _ in },
+            onRetired: { result in
+                switch result {
+                case .success: facts.record("unexpected success")
+                case .failure(CleanupCause.original): facts.record("original cause")
+                case .failure: facts.record("replaced cause")
+                }
+            })
         let candidate = try XCTUnwrap(scheduler.makeConnectionCandidate())
         let decision = scheduler.submit(
             owner: candidate, requestIdentity: 1, onCancelled: {},
@@ -59,7 +61,9 @@ final class WorkerServiceLifecycleTests: XCTestCase {
     func testShouldLeaveUnclaimedCandidateWithoutRetirementCallback() throws {
         let executor = RecordedExecutor()
         let facts = RetirementFacts()
-        let scheduler = WorkerServiceScheduler(executor: executor) { _ in facts.record("retired") }
+        let scheduler = WorkerServiceScheduler(
+            executor: executor, jobBudget: try WorkerServiceJobBudget(milliseconds: 300000), onDeadline: { _ in },
+            onRetired: { _ in facts.record("retired") })
         let candidate = try XCTUnwrap(scheduler.makeConnectionCandidate())
         XCTAssertFalse(scheduler.retire(owner: candidate))
         executor.drain()
@@ -70,7 +74,9 @@ final class WorkerServiceLifecycleTests: XCTestCase {
     func testShouldClaimHandshakeWithoutJobLeaseOrRequestConsumption() throws {
         let executor = RecordedExecutor()
         let facts = RetirementFacts()
-        let scheduler = WorkerServiceScheduler(executor: executor) { _ in facts.record("retired") }
+        let scheduler = WorkerServiceScheduler(
+            executor: executor, jobBudget: try WorkerServiceJobBudget(milliseconds: 300000), onDeadline: { _ in },
+            onRetired: { _ in facts.record("retired") })
         let owner = try XCTUnwrap(scheduler.makeConnectionCandidate())
         let other = try XCTUnwrap(scheduler.makeConnectionCandidate())
         XCTAssertEqual(scheduler.claimConnection(owner), .accepted)

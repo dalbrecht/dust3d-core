@@ -10,7 +10,8 @@ final class WorkerServiceBundleTests: XCTestCase {
             "CFBundleIdentifier": "org.dust3d.worker", "CFBundleExecutable": "dust3d-xpc-service",
             "CFBundlePackageType": "XPC!", "CFBundleVersion": "1", "CFBundleInfoDictionaryVersion": "6.0",
             "XPCService": ["ServiceType": "Application", "RunLoopType": "dispatch_main"],
-            "Dust3DWorkerConfigurationVersion": "2",
+            "Dust3DWorkerConfigurationVersion": "3",
+            "Dust3DWorkerJobWallMilliseconds": "300000",
             "Dust3DWorkerResourcePolicy": [
                 "cpuSoftSeconds": "300", "cpuHardSeconds": "600", "fileSoftBytes": "67108864",
                 "fileHardBytes": "134217728", "descriptorSoftCeiling": "256", "descriptorHardCeiling": "512",
@@ -21,10 +22,21 @@ final class WorkerServiceBundleTests: XCTestCase {
     }
     func testShouldPreserveExplicitBundleIdentityAndHostRequirement() throws {
         let value = try WorkerServiceBundleMetadata(bundleURL: bundleURL, infoDictionary: valid)
+        XCTAssertEqual(value.jobBudget.milliseconds, 300000)
         XCTAssertEqual(value.serviceIdentifier, "org.dust3d.worker")
         XCTAssertEqual(value.resourcePolicy.cpuSeconds, .init(soft: 300, hard: 600))
         XCTAssertEqual(value.resourcePolicy.minimumDescriptorCeiling, 128)
         XCTAssertEqual(value.hostSigningRequirement, valid["Dust3DWorkerHostRequirement"] as? String)
+    }
+    func testShouldRejectAbsentLegacyOrNoncanonicalJobWallPolicyBeforeSystemCalls() {
+        for invalid: Any in ["0", "0300", "3600001", "-1", "1.5", " 300", "300 ", "٣٠٠", 300, true] {
+            var values = valid
+            values["Dust3DWorkerJobWallMilliseconds"] = invalid
+            XCTAssertThrowsError(try WorkerServiceBundleMetadata(bundleURL: bundleURL, infoDictionary: values))
+        }
+        var legacy = valid
+        legacy["Dust3DWorkerConfigurationVersion"] = "2"
+        XCTAssertThrowsError(try WorkerServiceBundleMetadata(bundleURL: bundleURL, infoDictionary: legacy))
     }
     func testShouldAcceptDottedVersionAndAsciiIdentifierVariants() throws {
         var values = valid

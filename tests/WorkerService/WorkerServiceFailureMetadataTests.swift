@@ -6,6 +6,22 @@ import XCTest
 @testable import Dust3DWorkerService
 
 final class WorkerServiceFailureMetadataTests: XCTestCase {
+    func testShouldLogOriginalJobAttemptAndEveryScalarDeadlineCause() {
+        let cases: [(WorkerServiceJobDeadlineError, String)] = [
+            (.invalidBudget(milliseconds: 0), "jobPolicyMilliseconds=0"),
+            (.clockOverflow(start: 100, milliseconds: 2), "jobClockOverflowStart=100 milliseconds=2"),
+            (.clockReversed(previous: 300, observed: 200), "jobClockReversedPrevious=300 observed=200"),
+            (.expired(start: 100, deadline: 200, observed: 300), "jobExpiredStart=100 deadline=200 observed=300"),
+        ]
+        for (cause, text) in cases {
+            XCTAssertEqual(WorkerServiceFailureMetadata(cause).description, text)
+            let failure = WorkerServiceJobFailure(
+                ownerGeneration: 2, requestIdentity: 3, leaseGeneration: 4, budgetMilliseconds: 5, cause: cause)
+            XCTAssertEqual(
+                WorkerServiceFailureMetadata(failure).description,
+                "jobOwner=2 request=3 lease=4 budgetMilliseconds=5 " + text)
+        }
+    }
     private enum OriginalCause: Error { case original }
     func testShouldPreserveNativeClassificationWithoutDocumentDiagnosticBytes() {
         var receipt = Dust3DWorkerDecodeResult()

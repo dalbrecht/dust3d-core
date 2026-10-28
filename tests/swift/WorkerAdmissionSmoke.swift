@@ -104,7 +104,7 @@ private func recordedScheduling() throws {
     let executor = RecordingExecutor()
     let events = AdmissionEvents()
     let scheduler = WorkerServiceScheduler(
-        executor: executor,
+        executor: executor, jobBudget: try WorkerServiceJobBudget(milliseconds: 300000), onDeadline: { _ in },
         onRetired: { result in
             if case .success = result { events.append("stop") } else { events.append("unexpected failure") }
         })
@@ -145,7 +145,9 @@ private func recordedScheduling() throws {
         "Ordered stop follows native action")
 
     let reusableExecutor = RecordingExecutor()
-    let reusable = WorkerServiceScheduler(executor: reusableExecutor, onRetired: { _ in })
+    let reusable = WorkerServiceScheduler(
+        executor: reusableExecutor, jobBudget: try WorkerServiceJobBudget(milliseconds: 300000), onDeadline: { _ in },
+        onRetired: { _ in })
     guard let reusableCandidate = reusable.makeConnectionCandidate() else {
         throw AdmissionCheckError.invalid("Missing reusable candidate")
     }
@@ -165,7 +167,9 @@ private func recordedScheduling() throws {
 private func recordedOwnership() throws {
     let executor = RecordingExecutor()
     let events = AdmissionEvents()
-    let scheduler = WorkerServiceScheduler(executor: executor, onRetired: { _ in events.append("stop") })
+    let scheduler = WorkerServiceScheduler(
+        executor: executor, jobBudget: try WorkerServiceJobBudget(milliseconds: 300000), onDeadline: { _ in },
+        onRetired: { _ in events.append("stop") })
     guard let owner = scheduler.makeConnectionCandidate(), let other = scheduler.makeConnectionCandidate() else {
         throw AdmissionCheckError.invalid("Missing recorded ownership candidates")
     }
@@ -209,7 +213,9 @@ private func recordedOwnership() throws {
 private func recordedQueuedCancellation() throws {
     let executor = RecordingExecutor()
     let events = AdmissionEvents()
-    let scheduler = WorkerServiceScheduler(executor: executor, onRetired: { _ in events.append("stop") })
+    let scheduler = WorkerServiceScheduler(
+        executor: executor, jobBudget: try WorkerServiceJobBudget(milliseconds: 300000), onDeadline: { _ in },
+        onRetired: { _ in events.append("stop") })
     guard let owner = scheduler.makeConnectionCandidate(), let other = scheduler.makeConnectionCandidate() else {
         throw AdmissionCheckError.invalid("Missing cancellation candidates")
     }
@@ -239,7 +245,9 @@ private func recordedQueuedCancellation() throws {
     try require(scheduler.cancelQueued(owner: owner, lease) == .stale, "Completed cancellation cannot repeat")
 
     let runningExecutor = RecordingExecutor()
-    let running = WorkerServiceScheduler(executor: runningExecutor, onRetired: { _ in })
+    let running = WorkerServiceScheduler(
+        executor: runningExecutor, jobBudget: try WorkerServiceJobBudget(milliseconds: 300000), onDeadline: { _ in },
+        onRetired: { _ in })
     guard let runningOwner = running.makeConnectionCandidate() else {
         throw AdmissionCheckError.invalid("Missing running owner")
     }
@@ -261,7 +269,9 @@ private func recordedQueuedCancellation() throws {
 private func recordedRequestCancellation() throws {
     let executor = RecordingExecutor()
     let events = AdmissionEvents()
-    let scheduler = WorkerServiceScheduler(executor: executor, onRetired: { _ in })
+    let scheduler = WorkerServiceScheduler(
+        executor: executor, jobBudget: try WorkerServiceJobBudget(milliseconds: 300000), onDeadline: { _ in },
+        onRetired: { _ in })
     guard let owner = scheduler.makeConnectionCandidate(), let other = scheduler.makeConnectionCandidate() else {
         throw AdmissionCheckError.invalid("Missing request-routing candidates")
     }
@@ -323,7 +333,7 @@ private func recordedRetirementCleanup() throws {
     let events = AdmissionEvents()
     let expected = RecordedRetirementError(code: 17, cause: Data([255, 0, 3]))
     let scheduler = WorkerServiceScheduler(
-        executor: executor,
+        executor: executor, jobBudget: try WorkerServiceJobBudget(milliseconds: 300000), onDeadline: { _ in },
         onRetired: { result in
             if case .failure(let cause) = result, let original = cause as? RecordedRetirementError, original == expected
             {

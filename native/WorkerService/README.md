@@ -7,7 +7,8 @@ Create `WorkerServiceConfiguration(hostSigningRequirement:)` from explicit host 
 then, **only in a fresh dedicated service process**, call
 `WorkerServicePreparedResources.prepareFreshHelper(policy:)` with explicit trusted policy. This changes
 that process's limits and verifies exact readback before returning a receipt. Never invoke it from an
-app or test runner. Pass that receipt to `WorkerServiceListenerDelegate(configuration:resources:onRetired:)`.
+app or test runner. Pass that receipt, an explicit `WorkerServiceJobBudget`, and required terminal callback to
+`WorkerServiceListenerDelegate(configuration:resources:jobBudget:onDeadline:onRetired:)`.
 Assign the delegate to an
 `NSXPCListener.service()` and retain it through listener operation. Initialization checks this
 process's App Sandbox entitlement before any native work. The embedding executable owns its signed
@@ -22,13 +23,12 @@ only the existing procedural image callback is enabled. No native cancellation o
 
 The `dust3d-xpc-service` product supplies the thin bundle-only bootstrap. See
 `../WorkerServiceExecutable/README.md` for unsigned staging and release limitations.
-Configuration schema 2 requires a `Dust3DWorkerResourcePolicy` dictionary of seven canonical decimal
+Configuration schema 3 requires a `Dust3DWorkerResourcePolicy` dictionary of seven canonical decimal
 strings: `cpuSoftSeconds`, `cpuHardSeconds`, `fileSoftBytes`, `fileHardBytes`,
 `descriptorSoftCeiling`, `descriptorHardCeiling`, and `minimumDescriptorCeiling`.
 CPU is cumulative process time, files are regular-file bytes, descriptors are a descriptor-number
 ceiling (not an open-file count); the explicit floor must remain usable under inherited stricter caps.
-Core dumps are always disabled. There is no address/RSS cap, wall deadline, rollback or full containment
-claim. Any setup/readback failure preserves original operation/resource/errno and partial progress;
+Core dumps are always disabled. There is no address/RSS cap, rollback or full containment claim. Any setup/readback failure preserves original operation/resource/errno and partial progress;
 the executable reports metadata and exits normally before starting the listener. Do not retry partial setup.
 
 `WorkerServiceBundleMetadata` validates copied own-bundle values without Security/native
@@ -38,3 +38,27 @@ Handshake ownership replies also retain one process-scoped128-bit incarnation. T
 UUID-derived value is correlation metadata, not authentication; the configured code requirement
 remains authoritative. Rebuild the exact-revision client/service together for the expanded scalar
 reply. It creates no native lease, consumes no job request and exposes no document diagnostics.
+
+## Service-owned job wall deadline (#304)
+
+`WorkerServiceJobBudget(milliseconds:)` requires an explicit 1...3600000ms duration. The listener
+never supplies a default. Schema 3 requires canonical `Dust3DWorkerJobWallMilliseconds` separately
+from the seven lifetime resource fields. Invalid policy rejects before listener/native work.
+
+The scheduler owns one deadline/timer for its admitted owner/request/lease. Checked monotonic
+bounds start before enqueueing. An independent timer queue cannot wait behind the serial native
+queue; early wakes use only remaining original time. Completion and timer expiry are lock-ordered.
+Exact-end/late dispatch or completion cannot succeed. Duplicate/stale callbacks neither grow state
+nor read a clock or change a newer timer. Overflow/reversal/expiry retain original scalar metadata.
+Terminal sealing prevents new ownership/work and suppresses queued normal-retirement callbacks.
+
+The required `onDeadline` receives `WorkerServiceJobFailure` outside the scheduler lock/native queue.
+The library does not exit its embedding process. A dedicated executable must terminate independently;
+the actual product uses unified metadata logging then `_exit`, abandoning native owners/finalizers.
+The callback is not graceful cleanup, native cancellation success, result admission, process-exit
+observation or automatic reconnect authorization. Normal retirement keeps its separate drain callback.
+The per-job timer does not bound idle retirement cleanup, parent channel joins or OS scheduling.
+
+Negative timing/order tests use fake clocks/timers/operations/terminal callbacks exclusively.
+Real integrations use existing licensed healthy jobs with a generous explicit budget. The actual
+OS-expiry exit path remains deliberately unexercised; no hard-termination acceptance is claimed.
