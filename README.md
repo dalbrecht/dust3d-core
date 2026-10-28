@@ -68,6 +68,12 @@ stager never signs/installs/launches/overwrites a bundle. See
 [ADR0188](docs/adr/0188-xpc-service-executable-bundle.md); signed launch, embedding and
 release trust remain unverified.
 
+The client product also exposes `WorkerPreviewPipeline`, an async one-active/newest-waiting
+coordinator that retires publication on cancellation while retaining active execution until
+backend cleanup. It reuses existing admission and preserves original errors; real descriptor
+execution/authentication and Apple adoption remain open. See
+[ADR0189](docs/adr/0189-async-preview-pipeline.md).
+
 Public C++17 modeling engine and validated C API for the native Apple apps.
 Preserves full history from [huxingyi/dust3d](https://github.com/huxingyi/dust3d)
 and regularly integrates upstream through reviewed synchronization PRs.

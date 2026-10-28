@@ -781,7 +781,8 @@ if(BUILD_TESTING)
         set(DUST3D_CLIENT_SOURCES
             "${CMAKE_CURRENT_SOURCE_DIR}/native/WorkerClient/WorkerPreviewAdmission.swift"
             "${CMAKE_CURRENT_SOURCE_DIR}/native/WorkerClient/WorkerPreviewQueue.swift"
-            "${CMAKE_CURRENT_SOURCE_DIR}/native/WorkerClient/WorkerPreviewSourceCoordinator.swift")
+            "${CMAKE_CURRENT_SOURCE_DIR}/native/WorkerClient/WorkerPreviewSourceCoordinator.swift"
+            "${CMAKE_CURRENT_SOURCE_DIR}/native/WorkerClient/WorkerPreviewPipeline.swift")
         add_custom_command(OUTPUT "${DUST3D_CLIENT_LIBRARY}" "${DUST3D_CLIENT_MODULE}"
             COMMAND "${DUST3D_XCRUN}" swift-format lint --strict ${DUST3D_CLIENT_SOURCES}
             COMMAND "${DUST3D_XCRUN}" swiftc -swift-version 6 -strict-concurrency=complete

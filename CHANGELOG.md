@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add an async preview coordinator with newest-waiting replacement, drain-preserving cancellation, original completion admission and bounded retirement (#292).
+
 - Add the thin XPC service executable and non-overwriting unsigned bundle stager with explicit bundle trust metadata, sandbox-only entitlements and document-safe typed diagnostics (#290).
 
 - Expose the service-side SwiftPM library with explicit host trust, checked sandbox preflight and injected retirement, keeping QA signing pins and process exit outside the reusable module (#270).
