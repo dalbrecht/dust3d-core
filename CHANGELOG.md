@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Serve segmented archive previews through existing document sessions, preserving EOF-before-admission, replay consumption, cache observations and original typed receipts without switching active routes (#270).
+
 - Receive segmented preview sessions through actual EOF into the existing immutable C output owner, preserving native-range values and typed receipts with strict Swift copied-value lifetime verification (#270).
 
 - Generate borrowed native-budget previews in serialized document sessions, preserving typed source/fallback failures, replay admission and actual optional cache statistics without activating a transport route (#270).

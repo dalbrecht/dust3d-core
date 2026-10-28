@@ -1,29 +1,32 @@
 // SPDX-License-Identifier: MIT
 #include "WorkerJobIO.h"
 #include "WorkerPreviewSessionIO.h"
+#include "WorkerSessionInternal.h"
 #include "WorkerSessionOutputInternal.h"
 #include <Dust3DWorkerPreviewSession.h>
 #include <algorithm>
 #include <memory>
 using namespace dust3d::worker;
-extern "C" Dust3DWorkerSessionOutput* dust3d_worker_preview_session_read(int32_t input, Dust3DWorkerPreviewSessionScope scope, Dust3DWorkerPreviewArchiveContext context, Dust3DWorkerPreviewChunkPolicy policy, Dust3DWorkerPreviewSessionResult* result) noexcept
+namespace {
+PreviewChunkIdentity identity(Dust3DWorkerPreviewSessionScope scope, PreviewChunkDirection direction)
 {
-    if (!result)
-        return nullptr;
+    PreviewChunkIdentity value;
+    value.direction = direction;
+    std::copy(std::begin(scope.identity.document), std::end(scope.identity.document), value.request.document.begin());
+    value.request.request = scope.identity.request;
+    value.request.revision = scope.identity.revision;
+    value.connectionGeneration = scope.connection_generation;
+    return value;
+}
+PreviewArchiveContext controls(Dust3DWorkerPreviewArchiveContext value) { return { value.archive_bytes, value.maximum_source_bytes, value.maximum_indexed_bytes }; }
+PreviewChunkPolicy policy(Dust3DWorkerPreviewChunkPolicy value) { return { value.maximum_transfer_bytes, value.chunk_payload_bytes }; }
+void reject(const std::exception_ptr& exception, Dust3DWorkerPreviewSessionResult& receipt) noexcept
+{
+    auto* result = &receipt;
     *result = {};
     result->status = DUST3D_WORKER_PREVIEW_SESSION_INTERNAL_FAILED;
     try {
-        static_assert(sizeof(int) == sizeof(int32_t), "Preview descriptors require 32-bit int.");
-        PreviewChunkIdentity identity;
-        identity.direction = PreviewChunkDirection::session;
-        std::copy(std::begin(scope.identity.document), std::end(scope.identity.document), identity.request.document.begin());
-        identity.request.request = scope.identity.request;
-        identity.request.revision = scope.identity.revision;
-        identity.connectionGeneration = scope.connection_generation;
-        auto value = readPreviewSessionChannel(input, identity, { context.archive_bytes, context.maximum_source_bytes, context.maximum_indexed_bytes }, { policy.maximum_transfer_bytes, policy.chunk_payload_bytes });
-        auto* owner = bridge::adoptSessionOutput(std::move(value));
-        result->status = DUST3D_WORKER_PREVIEW_SESSION_OK;
-        return owner;
+        std::rethrow_exception(exception);
     } catch (const WorkerJobIOError& cause) {
         result->status = DUST3D_WORKER_PREVIEW_SESSION_IO_FAILED;
         result->detail_source = DUST3D_WORKER_DETAIL_SYSTEM;
@@ -51,6 +54,41 @@ extern "C" Dust3DWorkerSessionOutput* dust3d_worker_preview_session_read(int32_t
             result->status = DUST3D_WORKER_PREVIEW_SESSION_CODEC_REJECTED;
         else if (cause.status == DUST3D_WORKER_DECODE_LIMIT_EXCEEDED)
             result->status = DUST3D_WORKER_PREVIEW_SESSION_ALLOCATION_FAILED;
+        else if (cause.status == DUST3D_WORKER_DECODE_PROTOCOL_REJECTED)
+            result->status = DUST3D_WORKER_PREVIEW_SESSION_PROTOCOL_REJECTED;
+        else if (cause.status == DUST3D_WORKER_DECODE_ADMISSION_REJECTED)
+            result->status = DUST3D_WORKER_PREVIEW_SESSION_ADMISSION_REJECTED;
+    }
+}
+}
+extern "C" Dust3DWorkerSessionOutput* dust3d_worker_preview_session_read(int32_t input, Dust3DWorkerPreviewSessionScope scope, Dust3DWorkerPreviewArchiveContext context, Dust3DWorkerPreviewChunkPolicy chunking, Dust3DWorkerPreviewSessionResult* result) noexcept
+{
+    if (!result)
+        return nullptr;
+    *result = {};
+    result->status = DUST3D_WORKER_PREVIEW_SESSION_INTERNAL_FAILED;
+    try {
+        static_assert(sizeof(int) == sizeof(int32_t), "Preview descriptors require 32-bit int.");
+        auto value = readPreviewSessionChannel(input, identity(scope, PreviewChunkDirection::session), controls(context), policy(chunking));
+        auto* owner = bridge::adoptSessionOutput(std::move(value));
+        result->status = DUST3D_WORKER_PREVIEW_SESSION_OK;
+        return owner;
+    } catch (...) {
+        reject(std::current_exception(), *result);
     }
     return nullptr;
+}
+extern "C" Dust3DWorkerPreviewSessionResult dust3d_worker_preview_session_serve(Dust3DWorkerSession* owner, int32_t input, int32_t output, Dust3DWorkerPreviewSessionScope scope, Dust3DWorkerPreviewArchiveContext context, Dust3DWorkerPreviewChunkPolicy inputPolicy, Dust3DWorkerPreviewChunkPolicy outputPolicy) noexcept
+{
+    Dust3DWorkerPreviewSessionResult result {};
+    result.status = DUST3D_WORKER_PREVIEW_SESSION_INTERNAL_FAILED;
+    try {
+        if (!owner)
+            throw ProtocolError(ProtocolErrorCode::invalidInput, "Preview serving requires a live worker-local session.");
+        servePreviewSessionJob(input, output, owner->value, identity(scope, PreviewChunkDirection::archive), controls(context), policy(inputPolicy), policy(outputPolicy));
+        result.status = DUST3D_WORKER_PREVIEW_SESSION_OK;
+    } catch (...) {
+        reject(std::current_exception(), result);
+    }
+    return result;
 }

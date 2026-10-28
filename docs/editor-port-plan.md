@@ -1516,3 +1516,14 @@ lifetime verification are recorded with scoped sanitizer/boundary limits in ADR0
 Runtime serving, independent process/peer/current-source admission, production SDK/backend
 and baked/imported integration remain open. Pin/routes/quarantines and M4–M8/full parity
 remain unchanged.
+
+### Segmented native preview serving (#270)
+
+The explicit library serving entry now connects captured archive framing/actual EOF,
+connection admission, native-budget generation/copy, archive release and segmented output.
+Replay consumption, same-worker cache/fallback, actual optional observations and typed
+receipts are preserved. Healthy licensed Capsule C/C++/strict Swift copied-value cases,
+227CTest and scoped sanitizer/coverage limitations are recorded in ADR0180. Production
+worker endpoint/SDK, independent process/peer/current-source admission, reviewed backend
+adoption and baked/imported profiles remain open. Pin/routes/quarantines and M4–M8/full
+parity status are unchanged.

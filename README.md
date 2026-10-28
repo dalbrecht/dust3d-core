@@ -18,6 +18,11 @@ semantic validation and actual EOF. Strict Swift copied-value/actor verification
 available; host authentication/current-source admission and app adoption remain separate.
 See [ADR0179](docs/adr/0179-preview-session-output-channels.md).
 
+The explicit `dust3d_worker_preview_session_serve` library entry now connects captured
+archive channels, native session generation and segmented replies. Host supervision,
+process/peer/current-source admission and production adoption remain separate; see
+[ADR0180](docs/adr/0180-segmented-native-preview-serving.md).
+
 Public C++17 modeling engine and validated C API for the native Apple apps.
 Preserves full history from [huxingyi/dust3d](https://github.com/huxingyi/dust3d)
 and regularly integrates upstream through reviewed synchronization PRs.

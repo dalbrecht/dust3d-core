@@ -678,6 +678,11 @@ if(BUILD_TESTING)
     add_test(NAME worker_legacy_baked_copy_contracts COMMAND dust3d_worker_legacy_baked_copy_tests ${CMAKE_CURRENT_SOURCE_DIR}/tests/core/fixtures)
     set_tests_properties(worker_legacy_baked_copy_contracts PROPERTIES TIMEOUT 60)
     if(UNIX)
+        add_executable(dust3d_worker_preview_serve_tests tests/core/worker_preview_serve_tests.cc)
+        target_link_libraries(dust3d_worker_preview_serve_tests PRIVATE dust3d_worker_runtime)
+        add_test(NAME worker_preview_serve_contracts COMMAND dust3d_worker_preview_serve_tests ${CMAKE_CURRENT_SOURCE_DIR}/tests/core/fixtures/Capsule.ds3)
+        set_tests_properties(worker_preview_serve_contracts PROPERTIES TIMEOUT 30)
+
         add_executable(dust3d_worker_preview_session_channel_tests tests/core/worker_preview_session_channel_tests.cc)
         target_link_libraries(dust3d_worker_preview_session_channel_tests PRIVATE dust3d_worker_runtime)
         add_test(NAME worker_preview_session_channel_contracts COMMAND dust3d_worker_preview_session_channel_tests)
@@ -790,6 +795,27 @@ if(BUILD_TESTING)
         add_test(NAME worker_runtime_swift COMMAND "${DUST3D_SWIFT_WORKER_CONSUMER}"
             "${CMAKE_CURRENT_SOURCE_DIR}/tests/core/fixtures/Capsule.ds3" "${CMAKE_CURRENT_BINARY_DIR}")
         set_tests_properties(worker_runtime_swift PROPERTIES TIMEOUT 60)
+        set(DUST3D_SWIFT_PREVIEW_SERVE_CONSUMER "${CMAKE_CURRENT_BINARY_DIR}/worker-preview-serve-swift")
+        add_custom_command(OUTPUT "${DUST3D_SWIFT_PREVIEW_SERVE_CONSUMER}"
+            COMMAND "${DUST3D_XCRUN}" swift-format lint --strict "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerPreviewServeSmoke.swift"
+            COMMAND "${DUST3D_XCRUN}" swiftc -swift-version 6 -strict-concurrency=complete
+                -warnings-as-errors -parse-as-library
+                -module-cache-path "${CMAKE_CURRENT_BINARY_DIR}/swift-module-cache"
+                -I "${CMAKE_CURRENT_SOURCE_DIR}/native/WorkerRuntime/include"
+                "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerPreviewServeSmoke.swift"
+                "$<TARGET_FILE:dust3d_worker_runtime>" "$<TARGET_FILE:dust3d_worker_job_io>"
+                "$<TARGET_FILE:dust3d_worker_operation>" "$<TARGET_FILE:dust3d_worker_protocol>"
+                "$<TARGET_FILE:dust3d_engine>" "$<TARGET_FILE:dust3d_core>"
+                "$<TARGET_FILE:dust3d_remesher>" "$<TARGET_FILE:dust3d_triangle>"
+                -lc++ -lz -o "${DUST3D_SWIFT_PREVIEW_SERVE_CONSUMER}"
+            DEPENDS tests/swift/WorkerPreviewServeSmoke.swift native/WorkerRuntime/include/module.modulemap
+                native/WorkerRuntime/include/Dust3DWorkerPreviewSession.h
+                dust3d_worker_runtime dust3d_worker_job_io dust3d_worker_operation dust3d_worker_protocol
+                dust3d_engine dust3d_core dust3d_remesher dust3d_triangle
+            VERBATIM)
+        add_custom_target(dust3d_worker_preview_serve_swift ALL DEPENDS "${DUST3D_SWIFT_PREVIEW_SERVE_CONSUMER}")
+        add_test(NAME worker_preview_serve_swift COMMAND "${DUST3D_SWIFT_PREVIEW_SERVE_CONSUMER}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/core/fixtures/Capsule.ds3")
+        set_tests_properties(worker_preview_serve_swift PROPERTIES TIMEOUT 30)
         set(DUST3D_SWIFT_PREVIEW_SESSION_CONSUMER "${CMAKE_CURRENT_BINARY_DIR}/worker-preview-session-swift")
         set(DUST3D_SWIFT_PREVIEW_SESSION_FIXTURE "${CMAKE_CURRENT_BINARY_DIR}/worker-preview-session.d3pc")
         add_custom_command(OUTPUT "${DUST3D_SWIFT_PREVIEW_SESSION_CONSUMER}" "${DUST3D_SWIFT_PREVIEW_SESSION_FIXTURE}"

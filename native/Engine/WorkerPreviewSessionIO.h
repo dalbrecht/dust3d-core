@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 #ifndef DUST3D_NATIVE_WORKER_PREVIEW_SESSION_IO_H_
 #define DUST3D_NATIVE_WORKER_PREVIEW_SESSION_IO_H_
+#include "WorkerConnectionSession.h"
 #include "WorkerPreviewSession.h"
 namespace dust3d {
 namespace worker {
@@ -28,6 +29,22 @@ namespace worker {
     /// admission and descriptor lifetime. No deadline, cancellation or native calls.
     /// Example: auto value = readPreviewSessionChannel(fd, identity, controls, policy);
     SessionOutput readPreviewSessionChannel(int input, PreviewChunkIdentity identity, PreviewArchiveContext context, PreviewChunkPolicy policy);
+    /// Serve one captured archive through EOF, same-session native work and output.
+    /// @param input Exclusive borrowed archive channel, separate from output.
+    /// @param output Borrowed reply channel; host finalizes EOF after return.
+    /// @param session Live worker-local owner; caller serializes jobs/lifetime.
+    /// @param identity Independent archive-direction request/lifetime correlation.
+    /// @param context Frozen original archive/native controls, not stream authority.
+    /// @param inputPolicy Explicit captured request transfer/chunk bounds.
+    /// @param outputPolicy Explicit reply bounds, sufficient for mandatory prefixes.
+    /// @throws Original argument/framing/source/scope/native-copy/I/O/allocation cause.
+    /// Complete correlated input precedes connection admission, as in legacy serving.
+    /// After admission, IDs are consumed even on native/copy/write failure. Native
+    /// failures are owned outcomes; successful return means written values, not mesh
+    /// success, actual reply EOF, healthy process exit or host publication admission.
+    /// Blocking non-UI operation; host establishes signal policy and supervision.
+    /// Example: servePreviewSessionJob(inFD, outFD, session, id, controls, inPolicy, outPolicy);
+    void servePreviewSessionJob(int input, int output, ConnectionGenerationSession& session, PreviewChunkIdentity identity, PreviewArchiveContext context, PreviewChunkPolicy inputPolicy, PreviewChunkPolicy outputPolicy);
 }
 }
 #endif

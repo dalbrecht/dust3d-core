@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 #include "WorkerPreviewSessionIO.h"
 #include "WorkerJobIO.h"
+#include "WorkerPreviewArchiveIO.h"
+#include "WorkerSessionOutputCopy.h"
 #include <cerrno>
 #include <unistd.h>
 namespace dust3d {
@@ -34,6 +36,24 @@ namespace worker {
             }
             owner.append(workspace.data(), static_cast<size_t>(count));
         }
+    }
+    void servePreviewSessionJob(int input, int output, ConnectionGenerationSession& session, PreviewChunkIdentity identity, PreviewArchiveContext context, PreviewChunkPolicy inputPolicy, PreviewChunkPolicy outputPolicy)
+    {
+        if (input < 0 || output < 0 || input == output)
+            throw ProtocolError(ProtocolErrorCode::invalidInput, "Preview serving requires separate valid archive/reply channels.");
+        context = detail::checkedPreviewArchiveContext(context);
+        if (identity.direction != PreviewChunkDirection::archive)
+            throw PreviewChunkError(PreviewChunkErrorCode::invalidIdentity, "Preview serving requires captured archive-direction scope.");
+        (void)encodePreviewChunkHeader({ PreviewChunkKind::begin, identity, 0, sourceRequestPrefixBytes + context.archiveBytes, 0 }, inputPolicy);
+        // Every session contains these prefixes even with no statistics available;
+        // this checks necessary policy validity, not invented observed geometry/stats.
+        (void)measurePreviewChunking(sessionOutputPrefixBytes + generationStatisticsPrefixBytes, outputPolicy);
+        auto archive = readPreviewArchive(input, identity, context, inputPolicy);
+        auto generated = session.generatePreview(archive->view(), identity.request, identity.connectionGeneration);
+        archive.reset();
+        auto value = copySessionOutput(std::move(generated), {});
+        identity.direction = PreviewChunkDirection::session;
+        writePreviewSessionChannel(output, identity, context, value, outputPolicy);
     }
 }
 }

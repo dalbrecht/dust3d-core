@@ -20,6 +20,8 @@ int main(void)
     assert(!dust3d_worker_preview_session_read(fileno(input), scope, context, policy, &result));
     assert(result.status == DUST3D_WORKER_PREVIEW_SESSION_CHUNK_REJECTED && result.message[0]);
     assert(fclose(input) == 0);
+    result = dust3d_worker_preview_session_serve(NULL, -1, -1, scope, context, policy, policy);
+    assert(result.status == DUST3D_WORKER_PREVIEW_SESSION_PROTOCOL_REJECTED && result.detail_source == DUST3D_WORKER_DETAIL_FRAME);
     dust3d_worker_session_output_destroy(NULL);
     return 0;
 }
