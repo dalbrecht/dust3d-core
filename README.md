@@ -55,6 +55,12 @@ Service/signing configuration is explicit; callbacks remain separate from EOF/cu
 source publication. See [ADR0186](docs/adr/0186-public-xpc-connection-adapter.md) for
 validation limits and remaining service packaging/trust and Apple backend work.
 
+`Dust3DWorkerService` now exposes the service-side native session/XPC implementation
+from one canonical module. Its listener verifies sandbox entitlement and requires an
+explicit host requirement; the embedding executable owns normal process termination.
+See [ADR0187](docs/adr/0187-service-library-extraction.md). Production executable/bundle,
+release trust distribution and Apple adoption remain open.
+
 Public C++17 modeling engine and validated C API for the native Apple apps.
 Preserves full history from [huxingyi/dust3d](https://github.com/huxingyi/dust3d)
 and regularly integrates upstream through reviewed synchronization PRs.

@@ -18,7 +18,7 @@ def main():
         'xcrun', 'swift', 'test', '--build-system', 'native', '--package-path', str(repository), '--disable-sandbox',
         '--scratch-path', str(build / 'sdk-core'), '--cache-path', str(build / 'swiftpm'),
         '--config-path', str(build / 'config'), '--security-path', str(build / 'security'),
-        '--filter', 'Worker(ClientPackage|XPC.*)Tests', '-j', '2',
+        '--filter', 'Worker(ClientPackage|XPC.*|Service.*)Tests', '-j', '2',
     ], env=environment, check=True)
 
 
