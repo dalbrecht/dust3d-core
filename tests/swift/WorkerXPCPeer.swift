@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: MIT
+import Dust3DWorkerClient
 import Dust3DWorkerRuntime
 import Foundation
 

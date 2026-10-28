@@ -774,6 +774,27 @@ if(BUILD_TESTING)
         set(DUST3D_WORKER_SWIFT_MODULE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/worker-swift-module")
         file(GENERATE OUTPUT "${DUST3D_WORKER_SWIFT_MODULE_DIRECTORY}/module.modulemap"
             CONTENT "module Dust3DWorkerRuntime { header \"${CMAKE_CURRENT_SOURCE_DIR}/native/WorkerRuntime/include/Dust3DWorkerRuntime.h\" header \"${CMAKE_CURRENT_SOURCE_DIR}/native/WorkerRuntime/include/Dust3DWorkerSession.h\" header \"${CMAKE_CURRENT_SOURCE_DIR}/native/WorkerRuntime/include/Dust3DWorkerPreviewSession.h\" export * }\n")
+        set(DUST3D_CLIENT_MODULE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/worker-client-module")
+        file(MAKE_DIRECTORY "${DUST3D_CLIENT_MODULE_DIRECTORY}")
+        set(DUST3D_CLIENT_LIBRARY "${DUST3D_CLIENT_MODULE_DIRECTORY}/libDust3DWorkerClient.a")
+        set(DUST3D_CLIENT_MODULE "${DUST3D_CLIENT_MODULE_DIRECTORY}/Dust3DWorkerClient.swiftmodule")
+        set(DUST3D_CLIENT_SOURCES
+            "${CMAKE_CURRENT_SOURCE_DIR}/native/WorkerClient/WorkerPreviewAdmission.swift"
+            "${CMAKE_CURRENT_SOURCE_DIR}/native/WorkerClient/WorkerPreviewQueue.swift"
+            "${CMAKE_CURRENT_SOURCE_DIR}/native/WorkerClient/WorkerPreviewSourceCoordinator.swift")
+        add_custom_command(OUTPUT "${DUST3D_CLIENT_LIBRARY}" "${DUST3D_CLIENT_MODULE}"
+            COMMAND "${DUST3D_XCRUN}" swift-format lint --strict ${DUST3D_CLIENT_SOURCES}
+            COMMAND "${DUST3D_XCRUN}" swiftc -swift-version 6 -strict-concurrency=complete
+                -warnings-as-errors -parse-as-library -emit-library -static -emit-module
+                -module-name Dust3DWorkerClient -emit-module-path "${DUST3D_CLIENT_MODULE}"
+                -module-cache-path "${CMAKE_CURRENT_BINARY_DIR}/swift-module-cache"
+                ${DUST3D_CLIENT_SOURCES} -o "${DUST3D_CLIENT_LIBRARY}"
+            DEPENDS ${DUST3D_CLIENT_SOURCES} VERBATIM)
+        add_custom_target(dust3d_worker_client ALL DEPENDS "${DUST3D_CLIENT_LIBRARY}" "${DUST3D_CLIENT_MODULE}")
+        add_test(NAME worker_client_swiftpm COMMAND "${Python3_EXECUTABLE}" -B
+            "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/verify_worker_client_package.py"
+            "${CMAKE_CURRENT_SOURCE_DIR}" "${CMAKE_CURRENT_BINARY_DIR}")
+        set_tests_properties(worker_client_swiftpm PROPERTIES TIMEOUT 300 RESOURCE_LOCK dust3d_swiftpm_cache)
         set(DUST3D_SWIFT_WORKER_CONSUMER "${CMAKE_CURRENT_BINARY_DIR}/worker-runtime-swift")
         add_custom_command(OUTPUT "${DUST3D_SWIFT_WORKER_CONSUMER}"
             COMMAND "${DUST3D_XCRUN}" swift-format lint --strict "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerRuntimeSmoke.swift"
@@ -1029,51 +1050,51 @@ if(BUILD_TESTING)
             set(DUST3D_PREVIEW_ADMISSION_BINARY "${CMAKE_CURRENT_BINARY_DIR}/worker-preview-admission")
             add_custom_command(OUTPUT "${DUST3D_PREVIEW_ADMISSION_BINARY}"
                 COMMAND "${DUST3D_XCRUN}" swift-format lint --strict
-                    "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerPreviewAdmission.swift"
+                    "${CMAKE_CURRENT_SOURCE_DIR}/native/WorkerClient/WorkerPreviewAdmission.swift"
                     "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerPreviewAdmissionSmoke.swift"
                 COMMAND "${DUST3D_XCRUN}" swiftc -swift-version 6 -strict-concurrency=complete
                     -warnings-as-errors -parse-as-library
                     -module-cache-path "${CMAKE_CURRENT_BINARY_DIR}/swift-module-cache"
-                    "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerPreviewAdmission.swift"
+                    "${CMAKE_CURRENT_SOURCE_DIR}/native/WorkerClient/WorkerPreviewAdmission.swift"
                     "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerPreviewAdmissionSmoke.swift"
                     -o "${DUST3D_PREVIEW_ADMISSION_BINARY}"
-                DEPENDS tests/swift/WorkerPreviewAdmission.swift tests/swift/WorkerPreviewAdmissionSmoke.swift VERBATIM)
+                DEPENDS native/WorkerClient/WorkerPreviewAdmission.swift tests/swift/WorkerPreviewAdmissionSmoke.swift VERBATIM)
             add_custom_target(dust3d_worker_preview_admission ALL DEPENDS "${DUST3D_PREVIEW_ADMISSION_BINARY}")
             add_test(NAME worker_preview_admission COMMAND "${DUST3D_PREVIEW_ADMISSION_BINARY}")
             set_tests_properties(worker_preview_admission PROPERTIES TIMEOUT 30)
             set(DUST3D_PREVIEW_QUEUE_BINARY "${CMAKE_CURRENT_BINARY_DIR}/worker-preview-queue")
             add_custom_command(OUTPUT "${DUST3D_PREVIEW_QUEUE_BINARY}"
                 COMMAND "${DUST3D_XCRUN}" swift-format lint --strict
-                    "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerPreviewAdmission.swift"
-                    "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerPreviewQueue.swift"
+                    "${CMAKE_CURRENT_SOURCE_DIR}/native/WorkerClient/WorkerPreviewAdmission.swift"
+                    "${CMAKE_CURRENT_SOURCE_DIR}/native/WorkerClient/WorkerPreviewQueue.swift"
                     "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerPreviewQueueSmoke.swift"
                 COMMAND "${DUST3D_XCRUN}" swiftc -swift-version 6 -strict-concurrency=complete
                     -warnings-as-errors -parse-as-library
                     -module-cache-path "${CMAKE_CURRENT_BINARY_DIR}/swift-module-cache"
-                    "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerPreviewAdmission.swift"
-                    "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerPreviewQueue.swift"
+                    "${CMAKE_CURRENT_SOURCE_DIR}/native/WorkerClient/WorkerPreviewAdmission.swift"
+                    "${CMAKE_CURRENT_SOURCE_DIR}/native/WorkerClient/WorkerPreviewQueue.swift"
                     "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerPreviewQueueSmoke.swift"
                     -o "${DUST3D_PREVIEW_QUEUE_BINARY}"
-                DEPENDS tests/swift/WorkerPreviewAdmission.swift tests/swift/WorkerPreviewQueue.swift tests/swift/WorkerPreviewQueueSmoke.swift VERBATIM)
+                DEPENDS native/WorkerClient/WorkerPreviewAdmission.swift native/WorkerClient/WorkerPreviewQueue.swift tests/swift/WorkerPreviewQueueSmoke.swift VERBATIM)
             add_custom_target(dust3d_worker_preview_queue ALL DEPENDS "${DUST3D_PREVIEW_QUEUE_BINARY}")
             add_test(NAME worker_preview_queue COMMAND "${DUST3D_PREVIEW_QUEUE_BINARY}")
             set_tests_properties(worker_preview_queue PROPERTIES TIMEOUT 30)
             set(DUST3D_PREVIEW_SOURCE_BINARY "${CMAKE_CURRENT_BINARY_DIR}/worker-preview-source")
             add_custom_command(OUTPUT "${DUST3D_PREVIEW_SOURCE_BINARY}"
                 COMMAND "${DUST3D_XCRUN}" swift-format lint --strict
-                    "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerPreviewAdmission.swift"
-                    "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerPreviewQueue.swift"
-                    "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerPreviewSourceCoordinator.swift"
+                    "${CMAKE_CURRENT_SOURCE_DIR}/native/WorkerClient/WorkerPreviewAdmission.swift"
+                    "${CMAKE_CURRENT_SOURCE_DIR}/native/WorkerClient/WorkerPreviewQueue.swift"
+                    "${CMAKE_CURRENT_SOURCE_DIR}/native/WorkerClient/WorkerPreviewSourceCoordinator.swift"
                     "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerPreviewSourceSmoke.swift"
                 COMMAND "${DUST3D_XCRUN}" swiftc -swift-version 6 -strict-concurrency=complete
                     -warnings-as-errors -parse-as-library
                     -module-cache-path "${CMAKE_CURRENT_BINARY_DIR}/swift-module-cache"
-                    "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerPreviewAdmission.swift"
-                    "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerPreviewQueue.swift"
-                    "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerPreviewSourceCoordinator.swift"
+                    "${CMAKE_CURRENT_SOURCE_DIR}/native/WorkerClient/WorkerPreviewAdmission.swift"
+                    "${CMAKE_CURRENT_SOURCE_DIR}/native/WorkerClient/WorkerPreviewQueue.swift"
+                    "${CMAKE_CURRENT_SOURCE_DIR}/native/WorkerClient/WorkerPreviewSourceCoordinator.swift"
                     "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerPreviewSourceSmoke.swift"
                     -o "${DUST3D_PREVIEW_SOURCE_BINARY}"
-                DEPENDS tests/swift/WorkerPreviewAdmission.swift tests/swift/WorkerPreviewQueue.swift tests/swift/WorkerPreviewSourceCoordinator.swift tests/swift/WorkerPreviewSourceSmoke.swift VERBATIM)
+                DEPENDS native/WorkerClient/WorkerPreviewAdmission.swift native/WorkerClient/WorkerPreviewQueue.swift native/WorkerClient/WorkerPreviewSourceCoordinator.swift tests/swift/WorkerPreviewSourceSmoke.swift VERBATIM)
             add_custom_target(dust3d_worker_preview_source ALL DEPENDS "${DUST3D_PREVIEW_SOURCE_BINARY}")
             add_test(NAME worker_preview_source COMMAND "${DUST3D_PREVIEW_SOURCE_BINARY}")
             set_tests_properties(worker_preview_source PROPERTIES TIMEOUT 30)
@@ -1082,13 +1103,15 @@ if(BUILD_TESTING)
                 string(TOLOWER "${DUST3D_XPC_ROLE}" DUST3D_XPC_ROLE_LOWER)
                 set(DUST3D_XPC_BINARY "${CMAKE_CURRENT_BINARY_DIR}/worker-xpc-${DUST3D_XPC_ROLE_LOWER}")
                 set(DUST3D_XPC_SUPPORT_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerServiceAdmission.swift")
+                set(DUST3D_XPC_CLIENT_LINK)
                 if(DUST3D_XPC_ROLE STREQUAL "Service")
                     list(APPEND DUST3D_XPC_SUPPORT_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerServiceOwnership.swift" "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerServiceScheduler.swift")
                     list(APPEND DUST3D_XPC_SUPPORT_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerServiceSession.swift" "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerNativeServiceSession.swift")
                     list(APPEND DUST3D_XPC_SUPPORT_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerSessionRPCValues.swift")
                     list(APPEND DUST3D_XPC_SUPPORT_SOURCES ${DUST3D_APPLE_IMAGE_SOURCES})
                 else()
-                    list(APPEND DUST3D_XPC_SUPPORT_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerPreviewSourceCoordinator.swift" "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerPreviewQueue.swift" "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerPreviewAdmission.swift" "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerOutcome.swift" "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerXPCPeer.swift" "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerServiceQueue.swift")
+                    set(DUST3D_XPC_CLIENT_LINK "${DUST3D_CLIENT_LIBRARY}")
+                    list(APPEND DUST3D_XPC_SUPPORT_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerOutcome.swift" "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerXPCPeer.swift" "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerServiceQueue.swift")
                     list(APPEND DUST3D_XPC_SUPPORT_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerSessionXPCHost.swift" "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerProceduralXPCHost.swift")
                 endif()
                 add_custom_command(OUTPUT "${DUST3D_XPC_BINARY}"
@@ -1099,7 +1122,7 @@ if(BUILD_TESTING)
                     COMMAND "${DUST3D_XCRUN}" swiftc -swift-version 6 -strict-concurrency=complete
                         -warnings-as-errors -parse-as-library
                         -module-cache-path "${CMAKE_CURRENT_BINARY_DIR}/swift-module-cache"
-                        -I "${DUST3D_WORKER_SWIFT_MODULE_DIRECTORY}" ${DUST3D_XPC_SUPPORT_SOURCES}
+                        -I "${DUST3D_WORKER_SWIFT_MODULE_DIRECTORY}" -I "${DUST3D_CLIENT_MODULE_DIRECTORY}" ${DUST3D_XPC_SUPPORT_SOURCES}
                         "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerXPCCommon.swift"
                         "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerXPCChannels.swift"
                         "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerXPC${DUST3D_XPC_ROLE}.swift"
@@ -1107,8 +1130,8 @@ if(BUILD_TESTING)
                         "$<TARGET_FILE:dust3d_worker_operation>" "$<TARGET_FILE:dust3d_worker_protocol>"
                         "$<TARGET_FILE:dust3d_engine>" "$<TARGET_FILE:dust3d_core>"
                         "$<TARGET_FILE:dust3d_remesher>" "$<TARGET_FILE:dust3d_triangle>"
-                        -lc++ -lz -o "${DUST3D_XPC_BINARY}"
-                    DEPENDS ${DUST3D_XPC_SUPPORT_SOURCES} tests/swift/WorkerXPCCommon.swift tests/swift/WorkerXPCChannels.swift "tests/swift/WorkerXPC${DUST3D_XPC_ROLE}.swift"
+                        ${DUST3D_XPC_CLIENT_LINK} -lc++ -lz -o "${DUST3D_XPC_BINARY}"
+                    DEPENDS ${DUST3D_XPC_CLIENT_LINK} ${DUST3D_XPC_SUPPORT_SOURCES} tests/swift/WorkerXPCCommon.swift tests/swift/WorkerXPCChannels.swift "tests/swift/WorkerXPC${DUST3D_XPC_ROLE}.swift"
                         native/WorkerRuntime/include/Dust3DWorkerRuntime.h dust3d_worker_runtime
                         dust3d_worker_job_io dust3d_worker_operation dust3d_worker_protocol
                         dust3d_engine dust3d_core dust3d_remesher dust3d_triangle

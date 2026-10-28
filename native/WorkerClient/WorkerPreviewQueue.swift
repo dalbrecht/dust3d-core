@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MIT
 import Foundation
 
-enum WorkerPreviewQueueError: Error { case closed, foreignScope, replayed, unexpectedCompletion }
+/// Queue submission/lifetime failure; foreign completions do not release valid active work.
+public enum WorkerPreviewQueueError: Error { case closed, foreignScope, replayed, unexpectedCompletion }
 /// Collecting-thread metadata owner: one active transport and the newest waiting identity.
 /// Caller retains immutable archive/context/policies for these identities, drains transport
 /// before complete/abandon and authenticates peer observations. No frames or archive copies,
