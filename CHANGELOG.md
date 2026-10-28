@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Stream complete preview session values under independent native budgets, preserving original source fallback, warning/text, optional real statistics and one-time EOF-gated ownership without changing legacy caps (#270).
+
 - Transfer segmented preview archives through bounded borrowed channels and immutable C owners, with strict Swift copied-value/actor verification and original typed receipts (#270).
 
 - Own segmented preview archives only after captured metadata, exact framing and real EOF agree, preserving native request policies without widening legacy envelope caps (#270).

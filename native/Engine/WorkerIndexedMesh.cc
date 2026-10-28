@@ -42,11 +42,6 @@ namespace worker {
             charge(logical, indices, sizeof(uint32_t), limits.maximumDecodedBytes);
             return { static_cast<size_t>(wire), static_cast<size_t>(verticesOffset), static_cast<size_t>(indicesOffset), logical };
         }
-        void validateIndex(uint64_t index, uint64_t vertices)
-        {
-            if (index >= vertices)
-                reject(IndexedMeshPayloadErrorCode::invalidIndex, "Indexed worker corner references a missing vertex.");
-        }
         struct Description {
             Layout layout;
             uint64_t vertices, indices, nodes, parts, warning;
@@ -80,13 +75,18 @@ namespace worker {
                 std::array<MeshVertex, 3> triangle;
                 for (size_t corner = 0; corner < 3; ++corner) {
                     const auto vertex = detail::readUnsigned(bytes + layout.indices + (index + corner) * 4, 4);
-                    validateIndex(vertex, vertices);
+                    detail::validateIndexedMeshIndex(vertex, vertices);
                     triangle[corner] = detail::readMeshVertex(bytes + layout.vertices + vertex * meshVertexBytes);
                 }
                 detail::validateMeshTriangle(triangle);
             }
             return { layout, vertices, indices, nodes, parts, warning };
         }
+    }
+    void detail::validateIndexedMeshIndex(uint64_t index, uint64_t vertices)
+    {
+        if (index >= vertices)
+            reject(IndexedMeshPayloadErrorCode::invalidIndex, "Indexed worker corner references a missing vertex.");
     }
     IndexedMeshPayloadError::IndexedMeshPayloadError(IndexedMeshPayloadErrorCode code, const char* cause)
         : std::runtime_error(cause)
@@ -111,7 +111,7 @@ namespace worker {
         for (const auto& vertex : value.vertices)
             detail::validateMeshVertex(vertex);
         for (const auto index : value.indices)
-            validateIndex(index, value.vertices.size());
+            detail::validateIndexedMeshIndex(index, value.vertices.size());
         for (size_t index = 0; index < value.indices.size(); index += 3) {
             const std::array<MeshVertex, 3> triangle { value.vertices[value.indices[index]], value.vertices[value.indices[index + 1]], value.vertices[value.indices[index + 2]] };
             detail::validateMeshTriangle(triangle);

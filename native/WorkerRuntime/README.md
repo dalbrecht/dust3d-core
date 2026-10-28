@@ -507,3 +507,15 @@ no native work. C++, pure-C and strict Swift tests use the existing small Capsul
 including an actual SwiftPM-library consumer. See
 [ADR0174](../../docs/adr/0174-worker-preview-archive-channels.md) for memory accounting,
 measured residual coverage and remaining native/output/adoption gates.
+
+
+### Native-budget session semantic stream
+
+The internal `writePreviewSession`/`PreviewSessionCollector` API streams the existing
+canonical session body under captured native indexed/source policies. It shares legacy
+semantic rules, retains private typed records as actual bytes arrive, and moves one owned
+value only after exact semantics/framing and real EOF. Original warnings, source fallback,
+opaque diagnostic details and optional real statistics survive unchanged. Legacy caps and
+active routes stay intact. See [ADR0175](../../docs/adr/0175-worker-preview-session-codec.md)
+for native range/metadata derivation, memory accounting, scoped evidence and remaining
+native serving, output C/Swift, peer/current-source and Apple adoption gates.

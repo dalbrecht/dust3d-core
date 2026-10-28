@@ -43,6 +43,11 @@ namespace worker {
     private:
         IndexedMeshPayloadErrorCode m_code;
     };
+    namespace detail {
+        /// Shared triangle-corner reference check; no allocation or normalization.
+        /// Throws IndexedMeshPayloadError(invalidIndex) for a missing vertex.
+        void validateIndexedMeshIndex(uint64_t index, uint64_t vertices);
+    }
     /// Validate supported positive count/wire/logical quotas without generation or output allocation.
     /// Throws IndexedMeshPayloadError(invalidLimits). Example: validateIndexedMeshPayloadLimits({});
     void validateIndexedMeshPayloadLimits(const IndexedMeshPayloadLimits& limits);

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 #include "WorkerSourceHints.h"
-#include "WorkerUtf8.h"
+#include "WorkerSourceHintValidation.h"
 #include "WorkerWire.h"
 #include <cmath>
 #include <cstring>
@@ -46,58 +46,6 @@ namespace worker {
                 reject(SourceHintPayloadErrorCode::limitExceeded, "Worker source values cannot fit the address space.");
             return { static_cast<size_t>(bytes), static_cast<size_t>(cornersOffset), static_cast<size_t>(influencesOffset), decoded };
         }
-        void validateIdentity(const uint8_t* bytes, size_t size, const SourceHintPayloadLimits& limits)
-        {
-            if (!size || size > limits.maximumIdentityBytes)
-                reject(SourceHintPayloadErrorCode::invalidIdentity, "Worker source identity length is invalid.");
-            if (!detail::isIdentityUtf8({ reinterpret_cast<const char*>(bytes), size }))
-                reject(SourceHintPayloadErrorCode::invalidIdentity, "Worker source identity is not non-NUL UTF-8.");
-        }
-        void validateInfluence(const SourceHintInfluence& value, uint64_t identities)
-        {
-            if (!std::isfinite(value.weight) || value.weight < 0)
-                reject(SourceHintPayloadErrorCode::invalidWeight, "Worker source weight is not finite and nonnegative.");
-            if (value.kind == SourceHintKind::weightedHint)
-                reject(SourceHintPayloadErrorCode::invalidReference, "A weighted source kind belongs to corners, not influences.");
-            if ((value.kind == SourceHintKind::nodeHint && value.identityIndex >= identities)
-                || ((value.kind == SourceHintKind::unknown || value.kind == SourceHintKind::ambiguous) && value.identityIndex != noSourceIdentity)
-                || (value.identityIndex != noSourceIdentity && value.identityIndex >= identities))
-                reject(SourceHintPayloadErrorCode::invalidReference, "Worker source influence identity is invalid.");
-        }
-        template <typename KindAt>
-        void validateCorner(const SourceHintCorner& value, uint64_t influences, KindAt kindAt)
-        {
-            if (value.firstInfluence > influences || value.influenceCount > influences - value.firstInfluence)
-                reject(SourceHintPayloadErrorCode::invalidReference, "Worker source corner range is invalid.");
-            switch (value.kind) {
-            case SourceHintKind::nodeHint:
-            case SourceHintKind::ambiguous:
-                if (value.influenceCount != 1 || kindAt(value.firstInfluence) != value.kind)
-                    reject(SourceHintPayloadErrorCode::invalidCorner, "Worker source single-hint corner is inconsistent.");
-                break;
-            case SourceHintKind::unknown:
-                if (value.influenceCount && (value.influenceCount != 1 || kindAt(value.firstInfluence) != SourceHintKind::unknown))
-                    reject(SourceHintPayloadErrorCode::invalidCorner, "Worker source unknown corner is inconsistent.");
-                break;
-            case SourceHintKind::weightedHint:
-                if (!value.influenceCount)
-                    reject(SourceHintPayloadErrorCode::invalidCorner, "Worker weighted source corner has no influences.");
-                break;
-            default:
-                break;
-            }
-        }
-        SourceHintInfluence readInfluence(const uint8_t* bytes)
-        {
-            const auto bits = static_cast<uint32_t>(detail::readUnsigned(bytes + 16, 4));
-            float weight = 0;
-            std::memcpy(&weight, &bits, sizeof(weight));
-            return { static_cast<SourceHintKind>(detail::readUnsigned(bytes, 4)), detail::readUnsigned(bytes + 8, 8), weight };
-        }
-        SourceHintCorner readCorner(const uint8_t* bytes)
-        {
-            return { static_cast<SourceHintKind>(detail::readUnsigned(bytes, 4)), detail::readUnsigned(bytes + 8, 8), detail::readUnsigned(bytes + 16, 8) };
-        }
         Plan validateOwned(const SourceHintPayload& value, const SourceHintPayloadLimits& limits)
         {
             validateSourceHintPayloadLimits(limits);
@@ -105,16 +53,16 @@ namespace worker {
                 reject(SourceHintPayloadErrorCode::limitExceeded, "Worker source counts exceed configured limits.");
             uint64_t text = 0;
             for (const auto& item : value.identities) {
-                validateIdentity(reinterpret_cast<const uint8_t*>(item.node.data()), item.node.size(), limits);
-                validateIdentity(reinterpret_cast<const uint8_t*>(item.part.data()), item.part.size(), limits);
+                detail::validateSourceHintIdentity(reinterpret_cast<const uint8_t*>(item.node.data()), item.node.size(), limits.maximumIdentityBytes);
+                detail::validateSourceHintIdentity(reinterpret_cast<const uint8_t*>(item.part.data()), item.part.size(), limits.maximumIdentityBytes);
                 charge(text, item.node.size(), 1, limits.maximumTextBytes);
                 charge(text, item.part.size(), 1, limits.maximumTextBytes);
             }
             const auto layout = plan(value.identities.size(), value.corners.size(), value.influences.size(), text, limits);
             for (const auto& item : value.influences)
-                validateInfluence(item, value.identities.size());
+                detail::validateSourceHintInfluence(item, value.identities.size());
             for (const auto& item : value.corners)
-                validateCorner(item, value.influences.size(), [&](uint64_t index) { return value.influences.at(static_cast<size_t>(index)).kind; });
+                detail::validateSourceHintCorner(item, value.influences.size(), [&](uint64_t index) { return value.influences.at(static_cast<size_t>(index)).kind; });
             return layout;
         }
         struct SourceWireView {
@@ -145,9 +93,9 @@ namespace worker {
                 cursor += 8;
                 if (node > layout.cornersOffset - cursor || part > layout.cornersOffset - cursor - node)
                     reject(SourceHintPayloadErrorCode::invalidLayout, "Worker source identity text exceeds its span.");
-                validateIdentity(bytes + cursor, static_cast<size_t>(node), limits);
+                detail::validateSourceHintIdentity(bytes + cursor, static_cast<size_t>(node), limits.maximumIdentityBytes);
                 cursor += static_cast<size_t>(node);
-                validateIdentity(bytes + cursor, static_cast<size_t>(part), limits);
+                detail::validateSourceHintIdentity(bytes + cursor, static_cast<size_t>(part), limits.maximumIdentityBytes);
                 cursor += static_cast<size_t>(part);
             }
             if (cursor != layout.cornersOffset)
@@ -156,13 +104,13 @@ namespace worker {
                 const auto* item = bytes + layout.influencesOffset + static_cast<size_t>(index) * sourceHintInfluenceBytes;
                 if (detail::readUnsigned(item + 4, 4) || detail::readUnsigned(item + 20, 4))
                     reject(SourceHintPayloadErrorCode::invalidLayout, "Worker source influence reserved fields are nonzero.");
-                validateInfluence(readInfluence(item), identities);
+                detail::validateSourceHintInfluence(detail::readSourceHintInfluence(item), identities);
             }
             for (uint64_t index = 0; index < corners; ++index) {
                 const auto* item = bytes + layout.cornersOffset + static_cast<size_t>(index) * sourceHintCornerBytes;
                 if (detail::readUnsigned(item + 4, 4))
                     reject(SourceHintPayloadErrorCode::invalidLayout, "Worker source corner reserved field is nonzero.");
-                validateCorner(readCorner(item), influences, [&](uint64_t influenceIndex) {
+                detail::validateSourceHintCorner(detail::readSourceHintCorner(item), influences, [&](uint64_t influenceIndex) {
                     return static_cast<SourceHintKind>(detail::readUnsigned(bytes + layout.influencesOffset + static_cast<size_t>(influenceIndex) * sourceHintInfluenceBytes, 4));
                 });
             }
@@ -256,9 +204,9 @@ namespace worker {
             cursor += node + part;
         }
         for (uint64_t index = 0; index < corners; ++index)
-            result.corners.push_back(readCorner(bytes + layout.cornersOffset + static_cast<size_t>(index) * sourceHintCornerBytes));
+            result.corners.push_back(detail::readSourceHintCorner(bytes + layout.cornersOffset + static_cast<size_t>(index) * sourceHintCornerBytes));
         for (uint64_t index = 0; index < influences; ++index)
-            result.influences.push_back(readInfluence(bytes + layout.influencesOffset + static_cast<size_t>(index) * sourceHintInfluenceBytes));
+            result.influences.push_back(detail::readSourceHintInfluence(bytes + layout.influencesOffset + static_cast<size_t>(index) * sourceHintInfluenceBytes));
         return result;
     }
 }
