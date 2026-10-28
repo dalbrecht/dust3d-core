@@ -63,7 +63,9 @@ class WorkerServiceBundleTests(unittest.TestCase):
 
     def test_should_preserve_explicit_requirement_and_sandbox_only_policy(self):
         info = STAGE.service_info('org.dust3d.worker', REQUIREMENT, POLICY)
-        self.assertEqual(info['Dust3DWorkerHostRequirement'], REQUIREMENT, POLICY)
+        self.assertEqual(info['Dust3DWorkerHostRequirement'], REQUIREMENT)
+        self.assertEqual(info['Dust3DWorkerConfigurationVersion'], '2')
+        self.assertEqual(info['Dust3DWorkerResourcePolicy'], POLICY)
         self.assertEqual(info['CFBundleExecutable'], 'dust3d-xpc-service')
         self.assertEqual(info['XPCService'], {'ServiceType': 'Application', 'RunLoopType': 'dispatch_main'})
         self.assertEqual(STAGE.service_entitlements(), {'com.apple.security.app-sandbox': True})
