@@ -1472,3 +1472,14 @@ pass; [ADR0175](adr/0175-worker-preview-session-codec.md) records scoped coverag
 membership regression. Actual native full-budget generation/copy, output channels, C/Swift
 owners, authenticated/current-source admission and Apple adoption remain open. No production
 pin, active route/cap or quarantine changed; M4–M8/full parity remain incomplete.
+
+### Native-budget ordinary indexed copy (#270)
+
+The opt-in copy boundary validates borrowed native geometry against independently
+captured native policies, membership and shared value checks before retaining arrays.
+It preserves exact attributes/warnings without legacy count caps or a whole encoded
+validation buffer. Existing small Capsule ownership/copy checks, full221CTest, actual
+SwiftPM consumer and scoped sanitizer evidence are recorded in ADR0176. Source-pair
+copy, full-budget native generation/session dispatch, output channels, C/Swift admission
+and Apple adoption remain open. Production pin/routes and quarantines are unchanged;
+M4–M8 and full parity remain incomplete.

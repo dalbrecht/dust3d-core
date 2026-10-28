@@ -3,6 +3,7 @@
 #include <fstream>
 #include <iostream>
 #include <iterator>
+#include <limits>
 #include <memory>
 #include <native/Engine/WorkerIndexedSourceOperation.h>
 #include <native/Engine/WorkerSourceCopy.h>
@@ -37,6 +38,39 @@ int main(int argc, char** argv)
             dust3d_mesh_create_indexed(dust3d_sourced_mesh_geometry(source.get()), 0, &error), dust3d_indexed_mesh_destroy);
         require(indexed && error.status == DUST3D_STATUS_OK, "Indexed owner derives from exactly the same source geometry");
         auto copied = copyNativeIndexedSourcedMesh(source.get(), indexed.get(), {});
+        PreviewArchiveContext previewContext { archive.size(), 0, 0 };
+        auto preview = copyNativePreviewIndexedMesh(indexed.get(), previewContext);
+        require(encodeIndexedMeshPayload(preview, {}) == encodeIndexedMeshPayload(copied.geometry, {}), "Native preview copy preserves canonical geometry without legacy copy limits");
+        previewContext.maximumIndexedBytes = std::numeric_limits<size_t>::max();
+        require(copyNativePreviewIndexedMesh(indexed.get(), previewContext).indices == preview.indices, "Explicit addressable native policy is preserved without a default ceiling");
+        previewContext.maximumIndexedBytes = preview.vertices.size() * sizeof(Dust3DVertex) + preview.indices.size() * sizeof(uint32_t);
+        require(copyNativePreviewIndexedMesh(indexed.get(), previewContext).warning == preview.warning, "Exact native record budget accepts independent warning storage");
+        --previewContext.maximumIndexedBytes;
+        try {
+            (void)copyNativePreviewIndexedMesh(indexed.get(), previewContext);
+            throw std::runtime_error("Native preview record budget ignored");
+        } catch (const PreviewRangeError& cause) {
+            require(cause.code() == PreviewRangeErrorCode::nativeBudgetExceeded, "Copy-only native budget rejection preserves its range cause");
+        }
+        previewContext = { archive.size(), 0, 0 };
+        try {
+            (void)copyNativePreviewIndexedMesh(nullptr, previewContext);
+            throw std::runtime_error("Null native preview owner accepted");
+        } catch (const IndexedMeshPayloadError& cause) {
+            require(cause.code() == IndexedMeshPayloadErrorCode::invalidInput, "Null preview owner rejects before borrowed access");
+        }
+        try {
+            (void)copyNativePreviewIndexedMesh(indexed.get(), { 1, 0, 0 });
+            throw std::runtime_error("Inconsistent captured preview membership accepted");
+        } catch (const PreviewRangeError& cause) {
+            require(cause.code() == PreviewRangeErrorCode::invalidCounts, "Captured metadata cannot understate known Capsule membership");
+        }
+        try {
+            (void)copyNativePreviewIndexedMesh(nullptr, { 0, 0, 0 });
+            throw std::runtime_error("Invalid captured context accepted");
+        } catch (const PreviewChunkError& cause) {
+            require(cause.code() == PreviewChunkErrorCode::invalidLimits, "Captured policy rejects before any native owner access");
+        }
         const auto meshWire = encodeIndexedMeshPayload(copied.geometry, {});
         const auto mesh = inspectIndexedMeshPayload(meshWire.data(), meshWire.size(), {});
         const auto hints = measureSourceHintPayload(copied.sources, {});
@@ -133,6 +167,7 @@ int main(int argc, char** argv)
         indexed.reset();
         source.reset();
         archive.clear();
+        require(encodeIndexedMeshPayload(preview, {}) == encodeIndexedMeshPayload(copied.geometry, {}), "Preview geometry remains owned after native owners and archive are released");
         require(!encodeIndexedSourcesPayload(copied, {}).empty(), "No borrowed source or indexed owner escapes copied pair");
         IndexedSourcesPayloadLimits invalid;
         invalid.maximumDecodedBytes = 0;
