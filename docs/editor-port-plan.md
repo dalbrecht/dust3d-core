@@ -1613,3 +1613,12 @@ Runtime arguments/environment/QA-sidecar trust overrides are absent. ADR0188 rec
 233 CTest/29 public XCTest/four Python staging cases and scoped70-line helper coverage.
 Signed launch, host embedding/verification, release identity/trust/notarization, Apple
 backend adoption and M4–M8 acceptance remain open. Pin48b0ce2d/quarantines unchanged.
+
+### Async preview pipeline (#292)
+
+The client actor now coordinates one active/newest waiting immutable request using existing
+publication admission. Cancellation retires publication without cancelling backend execution;
+retirement awaits cleanup with a bounded waiter. Eleven fake-only tests,233 CTest/40 public
+XCTest and measured98.60% line/96.72% region coverage for new application orchestration are
+recorded in ADR0189. Real descriptor executor/independent EOF+peer evidence, signed embedding,
+Apple adoption, all quarantines and M4–M8 remain open. Pin48b0ce2d is unchanged.

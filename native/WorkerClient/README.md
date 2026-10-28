@@ -34,3 +34,15 @@ admission state. Native XPC fixtures use only existing healthy licensed inputs.
 
 No external dependency was added. Public API stability, a production transport/worker
 bundle and full editor parity are not claimed; see docs/editor-port-plan.md in the root.
+
+## Async preview coordination
+
+`WorkerPreviewPipeline<Executor>` wraps the same authoritative metadata admission in an actor.
+Implement `WorkerPreviewExecuting` with immutable owned Source/Value types. Its async execute
+must return/throw only AFTER its owned cleanup drains, providing real write/EOF/authenticated
+receipt observations. The coordinator cannot authenticate booleans supplied by an executor.
+`generate(identity:source:)` admits the current result, retaining one active/newest waiting
+snapshot. `cancelPublication(for:)` and caller cancellation never cancel the backend task.
+`retire()` seals publication and waits for active cleanup, with one bounded waiter; it does
+not close a service connection or prove process exit. Recheck identity on the UI actor before
+applying a returned value. Actual descriptor executor and Apple adoption remain open.
