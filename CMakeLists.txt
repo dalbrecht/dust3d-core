@@ -773,7 +773,7 @@ if(BUILD_TESTING)
             CONTENT "module Dust3DEngine { header \"${CMAKE_CURRENT_SOURCE_DIR}/native/Engine/include/Dust3DBridge.h\" export * }\n")
         set(DUST3D_WORKER_SWIFT_MODULE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/worker-swift-module")
         file(GENERATE OUTPUT "${DUST3D_WORKER_SWIFT_MODULE_DIRECTORY}/module.modulemap"
-            CONTENT "module Dust3DWorkerRuntime { header \"${CMAKE_CURRENT_SOURCE_DIR}/native/WorkerRuntime/include/Dust3DWorkerRuntime.h\" header \"${CMAKE_CURRENT_SOURCE_DIR}/native/WorkerRuntime/include/Dust3DWorkerSession.h\" export * }\n")
+            CONTENT "module Dust3DWorkerRuntime { header \"${CMAKE_CURRENT_SOURCE_DIR}/native/WorkerRuntime/include/Dust3DWorkerRuntime.h\" header \"${CMAKE_CURRENT_SOURCE_DIR}/native/WorkerRuntime/include/Dust3DWorkerSession.h\" header \"${CMAKE_CURRENT_SOURCE_DIR}/native/WorkerRuntime/include/Dust3DWorkerPreviewSession.h\" export * }\n")
         set(DUST3D_SWIFT_WORKER_CONSUMER "${CMAKE_CURRENT_BINARY_DIR}/worker-runtime-swift")
         add_custom_command(OUTPUT "${DUST3D_SWIFT_WORKER_CONSUMER}"
             COMMAND "${DUST3D_XCRUN}" swift-format lint --strict "${CMAKE_CURRENT_SOURCE_DIR}/tests/swift/WorkerRuntimeSmoke.swift"

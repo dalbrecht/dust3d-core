@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add an opt-in Swift session backend sharing one cache and replay history across legacy and segmented preview profiles, with distinct original receipts (#270).
+
 - Serve segmented archive previews through existing document sessions, preserving EOF-before-admission, replay consumption, cache observations and original typed receipts without switching active routes (#270).
 
 - Receive segmented preview sessions through actual EOF into the existing immutable C output owner, preserving native-range values and typed receipts with strict Swift copied-value lifetime verification (#270).

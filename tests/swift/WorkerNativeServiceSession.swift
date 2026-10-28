@@ -54,3 +54,49 @@ struct WorkerNativeServiceSession: WorkerServiceSessionBackend {
     }
     func destroy(_ owner: OpaquePointer) { dust3d_worker_session_destroy(owner) }
 }
+
+/// Captured controls for the segmented profile; never derived from channel bytes.
+struct WorkerPreviewChannelJob: Sendable {
+    let expected: Dust3DWorkerRequestIdentity
+    let input: Int32
+    let output: Int32
+    let context: Dust3DWorkerPreviewArchiveContext
+    let inputPolicy: Dust3DWorkerPreviewChunkPolicy
+    let outputPolicy: Dust3DWorkerPreviewChunkPolicy
+}
+enum WorkerProfileChannelJob: Sendable {
+    case legacy(WorkerSessionChannelJob)
+    case preview(WorkerPreviewChannelJob)
+}
+enum WorkerProfileReceipt: Sendable {
+    case legacy(Dust3DWorkerJobResult)
+    case preview(Dust3DWorkerPreviewSessionResult)
+}
+/// Both profiles share the coordinator's single native owner, cache and replay state.
+/// Keep receipts distinct because preview statuses do not use legacy job numbering.
+struct WorkerProfileServiceSession: WorkerServiceSessionBackend {
+    private let lifecycle = WorkerNativeServiceSession()
+    func create(_ scope: WorkerServiceSessionScope) throws -> OpaquePointer {
+        try lifecycle.create(scope)
+    }
+    func serve(_ owner: OpaquePointer, scope: WorkerServiceSessionScope, job: WorkerProfileChannelJob)
+        -> WorkerProfileReceipt
+    {
+        switch job {
+        case .legacy(let job):
+            return .legacy(lifecycle.serve(owner, scope: scope, job: job))
+        case .preview(let job):
+            var correlation = Dust3DWorkerPreviewSessionScope()
+            correlation.identity = job.expected
+            correlation.connection_generation = scope.connectionGeneration
+            return .preview(
+                dust3d_worker_preview_session_serve(
+                    owner, job.input, job.output, correlation, job.context, job.inputPolicy, job.outputPolicy))
+        }
+    }
+    func reset(_ owner: OpaquePointer, scope: WorkerServiceSessionScope) throws {
+        try lifecycle.reset(owner, scope: scope)
+    }
+    func close(_ owner: OpaquePointer) throws { try lifecycle.close(owner) }
+    func destroy(_ owner: OpaquePointer) { lifecycle.destroy(owner) }
+}

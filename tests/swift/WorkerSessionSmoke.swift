@@ -73,7 +73,7 @@ private func copyOutput(_ owner: OpaquePointer) throws -> Snapshot {
         rebuilt: statistics.rebuilt_components, cacheCause: cacheCause)
 }
 private func generate(
-    _ session: WorkerServiceSession<WorkerNativeServiceSession>, _ scope: WorkerServiceSessionScope,
+    _ session: WorkerServiceSession<WorkerProfileServiceSession>, _ scope: WorkerServiceSessionScope,
     _ identity: Dust3DWorkerRequestIdentity, _ archive: Data, _ directory: URL
 ) throws -> Snapshot {
     let wire = Dust3DWorkerWireLimits(
@@ -109,10 +109,12 @@ private func generate(
         try? input.close()
         try? output.close()
     }
-    let job = try session.serve(
+    let profileReceipt = try session.serve(
         scope: scope,
-        job: WorkerSessionChannelJob(
-            expected: identity, input: input.fileDescriptor, output: output.fileDescriptor, limits: limits))
+        job: .legacy(
+            WorkerSessionChannelJob(
+                expected: identity, input: input.fileDescriptor, output: output.fileDescriptor, limits: limits)))
+    guard case .legacy(let job) = profileReceipt else { throw SessionSmokeError.invalid("Legacy receipt profile") }
     try require(
         job.status == DUST3D_WORKER_JOB_COMPLETE
             && job.operation == DUST3D_WORKER_OPERATION_SESSION_INDEXED_SOURCED_MESH
@@ -155,19 +157,62 @@ private func generate(
     defer { dust3d_worker_session_output_destroy(owner) }
     return try copyOutput(owner)
 }
+private func generatePreview(
+    _ session: WorkerServiceSession<WorkerProfileServiceSession>, _ scope: WorkerServiceSessionScope,
+    _ identity: Dust3DWorkerRequestIdentity, _ archive: Data
+) throws -> Snapshot {
+    guard let input = tmpfile() else { throw SessionSmokeError.invalid("Fixture input") }
+    defer { fclose(input) }
+    guard let output = tmpfile() else { throw SessionSmokeError.invalid("Fixture output") }
+    defer { fclose(output) }
+    var correlation = Dust3DWorkerPreviewSessionScope()
+    correlation.identity = identity
+    correlation.connection_generation = scope.connectionGeneration
+    let context = Dust3DWorkerPreviewArchiveContext(
+        archive_bytes: UInt64(archive.count), maximum_source_bytes: 0, maximum_indexed_bytes: 0)
+    let inputPolicy = Dust3DWorkerPreviewChunkPolicy(
+        maximum_transfer_bytes: UInt64(archive.count + 24), chunk_payload_bytes: 64)
+    let outputPolicy = Dust3DWorkerPreviewChunkPolicy(
+        maximum_transfer_bytes: 64 * 1024 * 1024, chunk_payload_bytes: 256)
+    let written = archive.withUnsafeBytes {
+        dust3d_worker_preview_archive_write(
+            fileno(input), correlation, context, $0.bindMemory(to: UInt8.self).baseAddress, $0.count, inputPolicy)
+    }
+    try require(written.status == DUST3D_WORKER_PREVIEW_ARCHIVE_OK, "Preview archive write")
+    rewind(input)
+    let profileReceipt = try session.serve(
+        scope: scope,
+        job: .preview(
+            WorkerPreviewChannelJob(
+                expected: identity, input: fileno(input), output: fileno(output), context: context,
+                inputPolicy: inputPolicy, outputPolicy: outputPolicy)))
+    guard case .preview(let result) = profileReceipt else { throw SessionSmokeError.invalid("Preview receipt profile") }
+    try require(result.status == DUST3D_WORKER_PREVIEW_SESSION_OK, "Preview serving receipt")
+    rewind(output)
+    var decoded = Dust3DWorkerPreviewSessionResult()
+    guard
+        let owner = dust3d_worker_preview_session_read(
+            fileno(output), correlation, context, outputPolicy, &decoded)
+    else { throw SessionSmokeError.invalid("Preview output owner") }
+    defer { dust3d_worker_session_output_destroy(owner) }
+    try require(decoded.status == DUST3D_WORKER_PREVIEW_SESSION_OK, "Preview output receipt")
+    return try copyOutput(owner)
+}
 private func runSession(_ archive: Data, _ directory: URL) throws -> [Snapshot] {
     let document = UUID(uuid: (1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
     let scope = try WorkerServiceSessionScope(
         document: document, connectionGeneration: 9, maximumCachePayloadBytes: 64 * 1024 * 1024)
-    let owner = WorkerServiceSession(backend: WorkerNativeServiceSession())
+    let owner = WorkerServiceSession(backend: WorkerProfileServiceSession())
     var identity = Dust3DWorkerRequestIdentity()
     identity.document.0 = 1
     identity.request = 1
     identity.revision = 42
     let first = try generate(owner, scope, identity, archive, directory)
     identity.request += 1
-    let reused = try generate(owner, scope, identity, archive, directory)
-    try require(reused.reused > 0, "Actual reuse")
+    let reused = try generatePreview(owner, scope, identity, archive)
+    try require(
+        reused.reused > 0 && reused.positions == first.positions && reused.indices == first.indices
+            && reused.node == first.node, "Cross-profile actual cache reuse and geometry")
     try owner.reset(scope: scope)
     identity.request += 1
     let rebuilt = try generate(owner, scope, identity, archive, directory)
