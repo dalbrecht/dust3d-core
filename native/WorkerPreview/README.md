@@ -2,7 +2,7 @@
 
 Parent-side SwiftPM preview execution over Runtime, Client and XPC. Import this product in a
 trusted host, construct `WorkerXPCConfiguration` with its embedded service identifier and
-signing requirement, then create `try WorkerXPCPreviewExecutor<Value>(configuration:registrationTimeoutMilliseconds:copy:)`.
+signing requirement, then create `try WorkerXPCPreviewExecutor<Value>(configuration:registrationTimeoutMilliseconds:handshakeTimeoutMilliseconds:copy:)`.
 Pass it to `WorkerPreviewPipeline` and submit host-captured identities and immutable
 `WorkerPreviewSource` snapshots. No development trust defaults are installed by the product.
 
@@ -13,7 +13,9 @@ addressable indexed/transfer budgets are preserved. This is not legacy protocol 
 
 The executor authenticates a peer, registers a public process-exit source and completes a
 fresh matching PID/incarnation handshake before creating directional socket channels.
-The explicit registration budget is 1...10000ms; invalid policy rejects before transport creation. Dedicated
+The explicit registration and per-handshake budgets are each 1...10000ms; invalid policy rejects
+before transport creation. Both initial and fresh barrier handshakes receive the same explicit
+handshake budget. A deadline failure retains its original attempt/cause and prevents the job factory. Dedicated
 writer/reader queues perform C archive writing and semantic reply decoding through actual EOF.
 The synchronous `copy` callback receives a borrowed immutable C session-output owner on the
 reader queue: copy all required values before returning; never retain, destroy or expose it.

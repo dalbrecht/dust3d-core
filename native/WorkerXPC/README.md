@@ -39,7 +39,7 @@ outside this library. No Apple dependency pin or quarantine is changed here.
 
 ## Pre-job identity
 
-Call `try await connection.handshake(generation:)` before creating a real executor's job
+Call `try await connection.handshake(generation: 1, timeoutMilliseconds: 5000)` before creating a real executor's job
 channels. Retain its immutable receipt separately: it preserves reported PID/sandbox/ownership
 status, independent OS-observed PID and fixed host generation after later control failure.
 The method rejects unmatched/missing PID, unverified sandbox or rejected ownership and retires
@@ -47,6 +47,24 @@ that lifetime. It does not consume job IDs or create a native session. Repetitio
 only, not native-idle/admission proof. Existing direct job methods remain compatible and do not
 implicitly handshake. Connection invalidation and known PID do not establish native drain or
 process disappearance; the descriptor executor/supervisor must observe those independently.
+
+## Bounded pre-job handshake (#302)
+
+Every handshake requires an explicit 1...10000ms budget. Invalid budgets reject before token
+consumption or dispatch. A checked monotonic deadline begins before connection preparation;
+reply, transport error and timer callbacks capture their scalar metadata before actor scheduling.
+A reply captured before the original end remains eligible during delayed actor delivery. Exact-end
+and late replies fail. Early timer wakes reschedule only the original remaining interval.
+Capture storage is bounded and duplicate callbacks coalesce. Global connection loss still retires
+the lifetime even when a timely reply was already selected.
+
+`WorkerXPCHandshakeFailure` retains the RPC token (nil before ownership), generation, explicit
+budget and original overflow/reversal/expiry cause, plus any coincident original transport error.
+Expiry completes the owned continuation once, invalidates the connection and retains the first
+failure for later handshake attempts. Stale callbacks cannot revive it. This is a pre-job RPC wait,
+not a native job deadline, remote cancellation, process-exit proof or real-time scheduling guarantee.
+Both executor identity handshakes use this contract; failure prevents job factory/channel creation.
+Negative timing/order coverage uses fake clocks, timers and channels only. See ADR0194.
 
 ## Registered process exit (#298)
 

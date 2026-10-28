@@ -1668,3 +1668,13 @@ only a fresh dedicated helper exercises successful OS application/readback. The 
 product is built and metadata-imported separately, not launched with invented release trust.
 Actual bundle-only SDK launch/release signing, deadline containment, Apple adoption, high-resource
 acceptance and M4–M8 remain open. Pin48b0ce2d and all feature quarantines remain unchanged.
+
+### Pre-job handshake deadline stage (#302)
+
+The XPC connection and owned preview executor now require explicit bounded handshake budgets.
+Checked monotonic capture precedes actor delivery; deadline failures retire the RPC lifetime and
+prevent job construction. Both initial identity and fresh exit-registration barrier use this policy.
+See ADR0194 for ordering/ownership and verification scope. This does not complete active native
+job deadlines, hard process containment, signed release host integration, Apple dependency adoption,
+or the remaining M4–M8 acceptance cases. Those remain separate delivery stages; the production
+Apple pin and all feature quarantines stay unchanged.

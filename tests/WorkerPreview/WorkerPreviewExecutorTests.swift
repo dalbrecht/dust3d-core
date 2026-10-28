@@ -24,26 +24,34 @@ private actor ExecutorTransport: WorkerPreviewTransport {
         if invalidated { return }
         await withCheckedContinuation { invalidationWaiter = $0 }
     }
+    private let handshakeFailure: WorkerXPCHandshakeFailure?
+    private let failedAttempt: Int
     private let failsHandshake: Bool
     private let failsRetirement: Bool
     private let handshakeProcess: Int32
     private let resetStatus: UInt32
     private let changesBarrierInstance: Bool
     private var handshakes = 0
+    private(set) var handshakeBudgets: [UInt64] = []
     init(
         _ events: ExecutorEvents, failsHandshake: Bool = false, failsRetirement: Bool = false,
-        handshakeProcess: Int32 = 42, resetStatus: UInt32 = 0, changesBarrierInstance: Bool = false
+        handshakeProcess: Int32 = 42, resetStatus: UInt32 = 0, changesBarrierInstance: Bool = false,
+        handshakeFailure: WorkerXPCHandshakeFailure? = nil, failedAttempt: Int = 1
     ) {
         self.events = events
+        self.handshakeFailure = handshakeFailure
+        self.failedAttempt = failedAttempt
         self.failsHandshake = failsHandshake
         self.failsRetirement = failsRetirement
         self.handshakeProcess = handshakeProcess
         self.resetStatus = resetStatus
         self.changesBarrierInstance = changesBarrierInstance
     }
-    func handshake(generation: UInt64) async throws -> WorkerXPCHandshakeReceipt {
+    func handshake(generation: UInt64, timeoutMilliseconds: UInt64) async throws -> WorkerXPCHandshakeReceipt {
         events.append("handshake")
         handshakes += 1
+        handshakeBudgets.append(timeoutMilliseconds)
+        if handshakes == failedAttempt, let handshakeFailure { throw handshakeFailure }
         if failsHandshake { throw ExecutorTestError.unexpected }
         return WorkerXPCHandshakeReceipt(
             instance: WorkerXPCServiceInstance(high: 1, low: changesBarrierInstance && handshakes > 1 ? 2 : 1),
@@ -183,15 +191,16 @@ private func makePreviewExecutor(
     makeJob: @escaping WorkerXPCPreviewExecutor<String>.Factory
 ) throws -> WorkerXPCPreviewExecutor<String> {
     try WorkerXPCPreviewExecutor(
-        transport: transport, registrationTimeoutMilliseconds: 50,
+        transport: transport, registrationTimeoutMilliseconds: 50, handshakeTimeoutMilliseconds: 40,
         makeExitWatch: makeExitWatch ?? { ExecutorExitWatch(peer: $0, events: events) }, makeJob: makeJob)
 }
 @MainActor
 final class WorkerPreviewExecutorTests: XCTestCase {
     func testShouldHandshakeBeforeFactoryAndJoinAllOwnedPhases() async throws {
         let events = ExecutorEvents()
+        let transport = ExecutorTransport(events)
         let executor = try makePreviewExecutor(
-            events: events, transport: ExecutorTransport(events),
+            events: events, transport: transport,
             makeJob: { identity, _, _ in
                 events.append("factory")
                 return ImmediatePreviewJob(identity: identity, events: events)
@@ -203,6 +212,8 @@ final class WorkerPreviewExecutorTests: XCTestCase {
             maximumOutputTransferBytes: 1024, outputChunkBytes: 64)
         let source = try WorkerPreviewSource(archive: Data([1, 2, 3]), options: options)
         let completion = try await executor.execute(identity: identity, source: source)
+        let budgets = await transport.handshakeBudgets
+        XCTAssertEqual(budgets, [40, 40])
         XCTAssertEqual(completion.value, "owned value")
         XCTAssertTrue(completion.requestWritten)
         XCTAssertTrue(completion.reachedEOF)
@@ -478,7 +489,7 @@ final class WorkerPreviewExecutorTests: XCTestCase {
         let watch = HeldExitRegistration(peer: captured, events: events)
         let executor = try WorkerXPCPreviewExecutor<String>(
             transport: ExecutorTransport(events),
-            registrationTimeoutMilliseconds: 50, makeExitWatch: { _ in watch },
+            registrationTimeoutMilliseconds: 50, handshakeTimeoutMilliseconds: 40, makeExitWatch: { _ in watch },
             makeJob: { identity, _, _ in
                 events.append("factory")
                 return ImmediatePreviewJob(identity: identity, events: events)
@@ -571,6 +582,52 @@ final class WorkerPreviewExecutorTests: XCTestCase {
         _ = try await executor.retireAndObserve(timeoutMilliseconds: 75)
     }
 
+    func testShouldRetainDeadlineFailureFromEitherHandshakeBeforeFactory() async throws {
+        for failedAttempt in [1, 2] {
+            let events = ExecutorEvents()
+            let original = WorkerXPCHandshakeFailure(
+                token: UInt64(failedAttempt), generation: 9, budgetMilliseconds: 40,
+                cause: .expired(start: 10, deadline: 40_000_010, observed: 40_000_010),
+                originalTransportCause: nil)
+            let transport = ExecutorTransport(events, handshakeFailure: original, failedAttempt: failedAttempt)
+            let executor = try makePreviewExecutor(events: events, transport: transport) { identity, _, _ in
+                events.append("factory")
+                return ImmediatePreviewJob(identity: identity, events: events)
+            }
+            let identity = try WorkerPreviewIdentity(document: UUID(), request: 1, revision: 7, generation: 9)
+            do {
+                _ = try await executor.execute(identity: identity, source: source())
+                XCTFail("A handshake deadline must prevent native job creation")
+            } catch WorkerPreviewExecutorError.phases(let failures) {
+                XCTAssertEqual(failures.map(\.phase), [.preparation])
+                let retained = failures.first?.cause as? WorkerXPCHandshakeFailure
+                XCTAssertEqual(retained?.token, original.token)
+                XCTAssertEqual(retained?.generation, original.generation)
+                XCTAssertEqual(retained?.budgetMilliseconds, original.budgetMilliseconds)
+                XCTAssertEqual(retained?.cause, original.cause)
+            }
+            let budgets = await transport.handshakeBudgets
+            XCTAssertEqual(budgets, Array(repeating: 40, count: failedAttempt))
+            XCTAssertFalse(events.snapshot.contains("factory"))
+            let retired = await executor.isRetired
+            XCTAssertTrue(retired)
+            XCTAssertEqual(events.snapshot.filter { $0 == "invalidate" }.count, 1)
+        }
+    }
+    func testShouldRejectInvalidHandshakeBudgetBeforeConstructingPublicTransport() throws {
+        let configuration = try WorkerXPCConfiguration(
+            serviceIdentifier: "org.dust3d.core.xpc-static-service.qa",
+            signingRequirement: "identifier \"org.dust3d.core.xpc-static-service.qa\"")
+        for invalid: UInt64 in [0, 10001] {
+            XCTAssertThrowsError(
+                try WorkerXPCPreviewExecutor<String>(
+                    configuration: configuration, registrationTimeoutMilliseconds: 50,
+                    handshakeTimeoutMilliseconds: invalid, copy: { _ in "unused" })
+            ) { cause in
+                XCTAssertEqual(cause as? WorkerXPCHandshakeDeadlineError, .invalidBudget(milliseconds: invalid))
+            }
+        }
+    }
     func testShouldConstructPublicExecutorWithoutAuthenticatingOrLaunchingWork() async throws {
         // Local requirement compilation and an unresumed Foundation object only; no service contact.
         let configuration = try WorkerXPCConfiguration(
@@ -580,14 +637,14 @@ final class WorkerPreviewExecutorTests: XCTestCase {
             do {
                 _ = try WorkerXPCPreviewExecutor<String>(
                     configuration: configuration,
-                    registrationTimeoutMilliseconds: invalid, copy: { _ in "unused" })
+                    registrationTimeoutMilliseconds: invalid, handshakeTimeoutMilliseconds: 40, copy: { _ in "unused" })
                 XCTFail("Registration policy must validate before transport construction")
             } catch WorkerXPCExitObservationError.invalidBudget {
             }
         }
         let executor = try WorkerXPCPreviewExecutor<String>(
             configuration: configuration,
-            registrationTimeoutMilliseconds: 50, copy: { _ in "unused" })
+            registrationTimeoutMilliseconds: 50, handshakeTimeoutMilliseconds: 40, copy: { _ in "unused" })
         let active = await executor.activeIdentity
         let peer = await executor.peerIdentity
         let retired = await executor.isRetired

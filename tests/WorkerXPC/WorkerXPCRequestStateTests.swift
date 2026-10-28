@@ -4,6 +4,45 @@ import XCTest
 @testable import Dust3DWorkerXPC
 
 final class WorkerXPCRequestStateTests: XCTestCase {
+    func testShouldPreflightWithoutConsumingTokenOrDisturbingAnExistingRPC() throws {
+        var state = WorkerXPCRequestState(lastToken: 8)
+        try state.validateBegin(generation: 9)
+        XCTAssertNil(state.activeToken)
+        let token = try state.begin(generation: 9)
+        XCTAssertEqual(token, 9)
+        XCTAssertThrowsError(try state.validateBegin(generation: 9)) { cause in
+            guard case WorkerXPCTransportError.busy = cause else { return XCTFail("Wrong original cause") }
+        }
+        XCTAssertEqual(state.activeToken, token)
+        XCTAssertTrue(state.finish(token))
+        XCTAssertThrowsError(try state.validateBegin(generation: 10)) { cause in
+            guard case WorkerXPCTransportError.generationMismatch = cause else {
+                return XCTFail("Wrong generation cause")
+            }
+        }
+        try state.validateBegin(generation: 9)
+        XCTAssertEqual(try state.begin(generation: 9), token + 1)
+    }
+    func testShouldRejectInvalidPreflightBeforeAnyOwnershipMutation() throws {
+        var state = WorkerXPCRequestState()
+        XCTAssertThrowsError(try state.validateBegin(generation: 0)) { cause in
+            guard case WorkerXPCTransportError.invalidGeneration = cause else {
+                return XCTFail("Wrong invalid generation cause")
+            }
+        }
+        XCTAssertEqual(try state.begin(generation: 9), 1)
+        _ = state.retire()
+        XCTAssertThrowsError(try state.validateBegin(generation: 9)) { cause in
+            guard case WorkerXPCTransportError.retired = cause else { return XCTFail("Retirement was lost") }
+        }
+        let exhausted = WorkerXPCRequestState(lastToken: UInt64.max)
+        XCTAssertThrowsError(try exhausted.validateBegin(generation: 9)) { cause in
+            guard case WorkerXPCTransportError.sequenceExhausted = cause else {
+                return XCTFail("Sequence exhaustion was lost")
+            }
+        }
+    }
+
     func testOverlapAndDuplicateCompletionDoNotConsumeNewWork() throws {
         var state = WorkerXPCRequestState()
         let first = try state.begin(generation: 9)
