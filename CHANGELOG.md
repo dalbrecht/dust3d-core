@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Receive segmented preview sessions through actual EOF into the existing immutable C output owner, preserving native-range values and typed receipts with strict Swift copied-value lifetime verification (#270).
+
 - Generate borrowed native-budget previews in serialized document sessions, preserving typed source/fallback failures, replay admission and actual optional cache statistics without activating a transport route (#270).
 
 - Copy native indexed/source preview pairs under independent native policies, validating original identities and associations before retention without a duplicate wire buffer (#270).

@@ -1505,3 +1505,14 @@ are recorded with scoped sanitizer/coverage limits in ADR0178. Output channels, 
 ownership, authenticated/current-source publication and Apple adoption remain open; baked
 and imported profiles need separate integration. Pin/routes/quarantines and M4–M8/full
 parity status remain unchanged.
+
+### Session-output channels and C ownership (#270)
+
+Bounded borrowed output channels now preserve complete session semantics through actual
+EOF, then move into the existing immutable C output owner without legacy text/count caps
+or a duplicate whole wire body. Typed framing/range/codec/I/O receipts retain original
+causes.225CTest, actual SwiftPM C/C++/strict Swift consumers and copied Sendable actor
+lifetime verification are recorded with scoped sanitizer/boundary limits in ADR0179.
+Runtime serving, independent process/peer/current-source admission, production SDK/backend
+and baked/imported integration remain open. Pin/routes/quarantines and M4–M8/full parity
+remain unchanged.

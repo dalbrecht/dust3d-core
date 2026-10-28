@@ -65,7 +65,9 @@ typedef enum Dust3DWorkerDetailSource {
     DUST3D_WORKER_DETAIL_SESSION_OUTPUT = 29,
     DUST3D_WORKER_DETAIL_GENERATION_STATISTICS = 30,
     DUST3D_WORKER_DETAIL_SESSION_SCOPE = 31,
-    DUST3D_WORKER_DETAIL_NATIVE_SESSION = 32
+    DUST3D_WORKER_DETAIL_NATIVE_SESSION = 32,
+    DUST3D_WORKER_DETAIL_PREVIEW_CHUNK = 33,
+    DUST3D_WORKER_DETAIL_PREVIEW_RANGE = 34
 } Dust3DWorkerDetailSource;
 typedef enum Dust3DWorkerIOStage {
     DUST3D_WORKER_IO_NONE = 0,
@@ -469,7 +471,8 @@ typedef struct Dust3DWorkerImportedImage {
  * status/cause accessors remain valid for both v1 and v2. Domain1 native,2 image
  * decoder,3 producer,4 surface,5 material,6 render,7 standard; status/code preserve
  * source-native values and cause_truncated is explicit. Additional domains:8 legacy bake,
- * 9 procedural inputs,10 baked textures,11 UV,12 legacy producer,13 mesh,14 source bake. */
+ * 9 procedural inputs,10 baked textures,11 UV,12 legacy producer,13 mesh,14 source bake,
+ * 15 statistics,16 indexed mesh,17 source hints,18 indexed sources,19 preview range. */
 typedef struct Dust3DWorkerFailureDetail {
     uint8_t has_detail;
     uint16_t domain;

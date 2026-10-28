@@ -4,5 +4,6 @@ module Dust3DWorkerRuntime {
     header "Dust3DWorkerSessionOutput.h"
     header "Dust3DWorkerSession.h"
     header "Dust3DWorkerPreviewArchive.h"
+    header "Dust3DWorkerPreviewSession.h"
     export *
 }
