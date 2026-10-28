@@ -1459,3 +1459,16 @@ ordinary contracts pass. [ADR0174](adr/0174-worker-preview-archive-channels.md) 
 coverage below adoption targets and unforced OS/fault boundaries. Complete wide output
 semantics, native dispatch, authenticated/current-source admission and Apple adoption
 remain open. No production pin, active route/cap or quarantine changed; M4–M8 remain open.
+
+
+### Native-budget session semantic streaming (#270)
+
+An opt-in incremental codec preserves the existing session payload layout while checking
+records against independent native indexed/source budgets. It retains typed private values
+without a duplicate whole wire body or count-sized upfront arrays, and moves ownership once
+only after complete semantics and actual EOF. Shared legacy validation and existing caps
+remain intact. All 221 ordinary contracts and the actual SwiftPM-library codec consumer
+pass; [ADR0175](adr/0175-worker-preview-session-codec.md) records scoped coverage and the
+membership regression. Actual native full-budget generation/copy, output channels, C/Swift
+owners, authenticated/current-source admission and Apple adoption remain open. No production
+pin, active route/cap or quarantine changed; M4–M8/full parity remain incomplete.

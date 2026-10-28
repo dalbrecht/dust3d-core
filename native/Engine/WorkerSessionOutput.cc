@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 #include "WorkerSessionOutput.h"
+#include "WorkerSessionOutputValidation.h"
 #include "WorkerWire.h"
 #include <algorithm>
 #include <limits>
@@ -16,22 +17,6 @@ namespace worker {
             validateIndexedMeshPayloadLimits(limits.ordinary);
             (void)encodeFailurePayload(FailurePayload {}, limits.failure);
             (void)encodeGenerationStatistics(std::nullopt, limits.statistics);
-        }
-        void validateOutcome(const SessionOutput& value, uint32_t kind)
-        {
-            if (value.sourceIssue && (kind == 1 || (value.sourceIssue->status != FailureStatus::generationFailed && value.sourceIssue->status != FailureStatus::limitExceeded)))
-                reject(SessionOutputErrorCode::invalidOutcome, "Session source issue requires an ordinary fallback outcome and original status3/4.");
-            if (value.statistics && value.statisticsIssue)
-                reject(SessionOutputErrorCode::invalidOutcome, "Session statistics cannot be both available and failed.");
-            if (const auto* failure = std::get_if<FailurePayload>(&value.outcome); failure && failure->status == FailureStatus::noGeometry)
-                reject(SessionOutputErrorCode::invalidOutcome, "Session successful emptiness requires its explicit outcome.");
-        }
-        uint32_t kindOf(const SessionOutput& value)
-        {
-            if (value.outcome.valueless_by_exception())
-                reject(SessionOutputErrorCode::invalidOutcome, "Session outcome has no owned value.");
-            constexpr uint32_t kinds[] { 3, 1, 2, 4 };
-            return kinds[value.outcome.index()];
         }
         void charge(uint64_t& total, uint64_t bytes, uint64_t maximum)
         {
@@ -85,8 +70,8 @@ namespace worker {
     std::vector<uint8_t> encodeSessionOutput(const SessionOutput& value, const SessionOutputLimits& limits)
     {
         validateLimits(limits);
-        const auto kind = kindOf(value);
-        validateOutcome(value, kind);
+        const auto kind = detail::sessionOutputKind(value);
+        detail::validateSessionOutputOutcome(value, kind);
         std::array<std::vector<uint8_t>, 4> sections;
         if (value.sourceIssue)
             sections[1] = encodeFailurePayload(*value.sourceIssue, limits.failure);
@@ -156,7 +141,7 @@ namespace worker {
             value.statisticsIssue = decodeFailurePayload(sections[3], lengths[3], limits.failure);
         if (kind == 4)
             value.outcome = decodeFailurePayload(sections[0], lengths[0], limits.failure);
-        validateOutcome(value, kind);
+        detail::validateSessionOutputOutcome(value, kind);
         const auto decoded = remainingDecoded(value, limits);
         if (kind == 1)
             value.outcome = decodeIndexedSourcesPayload(sections[0], lengths[0], sourcedPolicy(limits, decoded, lengths[0]));

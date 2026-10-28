@@ -23,6 +23,11 @@ namespace worker {
                 reject(PreviewRangeErrorCode::arithmeticOverflow, "Preview record charge overflows UInt64.");
             return count * unit;
         }
+        void validateBudgets(const PreviewNativeBudgets& budgets)
+        {
+            if (budgets.maximumIndexedBytes > std::numeric_limits<size_t>::max() || budgets.maximumSourceBytes > DUST3D_MAX_SOURCE_PAYLOAD_BYTES)
+                reject(PreviewRangeErrorCode::invalidLimits, "Preview budgets exceed native supported policies.");
+        }
         void requireAddressable(uint64_t bytes)
         {
             if (bytes > std::numeric_limits<size_t>::max())
@@ -34,21 +39,12 @@ namespace worker {
         , m_code(code)
     {
     }
-    PreviewTransferPlan planPreviewTransfer(const PreviewTransferShape& shape, const PreviewNativeBudgets& budgets)
+    PreviewRecordPlan planPreviewRecords(const PreviewGeometryShape& shape, const PreviewNativeBudgets& budgets)
     {
-        constexpr uint64_t maximumArchiveBytes = 256ULL * 1024 * 1024;
-        const auto indexedBudget = budgets.maximumIndexedBytes ? budgets.maximumIndexedBytes : maximumArchiveBytes;
+        validateBudgets(budgets);
+        const auto indexedBudget = budgets.maximumIndexedBytes ? budgets.maximumIndexedBytes : 256ULL * 1024 * 1024;
         const auto sourceBudget = budgets.maximumSourceBytes ? budgets.maximumSourceBytes : DUST3D_DEFAULT_SOURCE_PAYLOAD_BYTES;
-        if (indexedBudget > std::numeric_limits<size_t>::max() || sourceBudget > DUST3D_MAX_SOURCE_PAYLOAD_BYTES)
-            reject(PreviewRangeErrorCode::invalidLimits, "Preview budgets exceed native supported policies.");
-        if (!shape.archiveBytes || shape.auxiliaryWireBytes < generationStatisticsPrefixBytes || shape.auxiliaryLogicalBytes > shape.auxiliaryWireBytes)
-            reject(PreviewRangeErrorCode::invalidCounts, "Preview archive or auxiliary accounting is incomplete.");
-        if (shape.archiveBytes > maximumArchiveBytes)
-            reject(PreviewRangeErrorCode::nativeBudgetExceeded, "Preview archive exceeds the native input budget.");
-        PreviewTransferPlan result;
-        result.requestPayloadBytes = add(sourceRequestPrefixBytes, shape.archiveBytes);
-        result.sessionPayloadBytes = add(sessionOutputPrefixBytes, shape.auxiliaryWireBytes);
-        result.workerLogicalBytes = shape.auxiliaryLogicalBytes;
+        PreviewRecordPlan result;
         const bool isEmpty = !shape.vertexCount && !shape.indexCount;
         if (isEmpty) {
             if (shape.sources || shape.warningBytes || shape.nodeCount || shape.partCount)
@@ -76,8 +72,28 @@ namespace worker {
                 result.sourceWireBytes = add(add(add(add(sourceHintPrefixBytes, multiply(source.identities, 8)), source.textBytes), multiply(source.corners, sourceHintCornerBytes)), multiply(source.influences, sourceHintInfluenceBytes));
                 primaryWire = add(add(indexedSourcesPrefixBytes, result.geometryWireBytes), result.sourceWireBytes);
             }
-            result.sessionPayloadBytes = add(result.sessionPayloadBytes, primaryWire);
+            result.primaryWireBytes = primaryWire;
         }
+        requireAddressable(result.primaryWireBytes);
+        requireAddressable(result.workerLogicalBytes);
+        return result;
+    }
+    PreviewTransferPlan planPreviewTransfer(const PreviewTransferShape& shape, const PreviewNativeBudgets& budgets)
+    {
+        validateBudgets(budgets);
+        if (!shape.archiveBytes || shape.auxiliaryWireBytes < generationStatisticsPrefixBytes || shape.auxiliaryLogicalBytes > shape.auxiliaryWireBytes)
+            reject(PreviewRangeErrorCode::invalidCounts, "Preview archive or auxiliary accounting is incomplete.");
+        if (shape.archiveBytes > 256ULL * 1024 * 1024)
+            reject(PreviewRangeErrorCode::nativeBudgetExceeded, "Preview archive exceeds the native input budget.");
+        const auto records = planPreviewRecords({ shape.vertexCount, shape.indexCount, shape.nodeCount, shape.partCount, shape.warningBytes, shape.sources }, budgets);
+        PreviewTransferPlan result;
+        result.requestPayloadBytes = add(sourceRequestPrefixBytes, shape.archiveBytes);
+        result.sessionPayloadBytes = add(add(sessionOutputPrefixBytes, shape.auxiliaryWireBytes), records.primaryWireBytes);
+        result.nativeIndexedBytes = records.nativeIndexedBytes;
+        result.nativeSourceBytes = records.nativeSourceBytes;
+        result.geometryWireBytes = records.geometryWireBytes;
+        result.sourceWireBytes = records.sourceWireBytes;
+        result.workerLogicalBytes = add(shape.auxiliaryLogicalBytes, records.workerLogicalBytes);
         requireAddressable(result.requestPayloadBytes);
         requireAddressable(result.sessionPayloadBytes);
         requireAddressable(result.workerLogicalBytes);
