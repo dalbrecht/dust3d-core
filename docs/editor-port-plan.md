@@ -1603,3 +1603,13 @@ QA pins/logging/process exit stay in the launcher. ADR0187 records 22 public pac
 tests,231 CTest contracts and the actual-product healthy session/normal retirement.
 Production executable/bundle/trust distribution, async Apple backend, native-range
 resource acceptance and M4–M8 remain open. Pin48b0ce2d/quarantines are unchanged.
+
+### XPC executable and unsigned bundle staging (#290)
+
+The thin `dust3d-xpc-service` product now reads explicit host requirement/configuration
+from its own matching XPC bundle. Unsigned staging copies exact actual-product bytes,
+validates metadata through the real module and emits sandbox-only entitlement policy.
+Runtime arguments/environment/QA-sidecar trust overrides are absent. ADR0188 records
+233 CTest/29 public XCTest/four Python staging cases and scoped70-line helper coverage.
+Signed launch, host embedding/verification, release identity/trust/notarization, Apple
+backend adoption and M4–M8 acceptance remain open. Pin48b0ce2d/quarantines unchanged.
