@@ -8,12 +8,20 @@ let package = Package(
         .executable(name: "dust3d-export", targets: ["Dust3DExport"]),
         .executable(name: "dust3d-worker", targets: ["Dust3DWorker"]),
         .library(name: "Dust3DEngine", type: .static, targets: ["Dust3DEngine"]),
+        .library(name: "Dust3DWorkerXPC", type: .static, targets: ["Dust3DWorkerXPC"]),
         .library(name: "Dust3DWorkerClient", type: .static, targets: ["Dust3DWorkerClient"]),
         .library(name: "Dust3DWorkerRuntime", type: .static, targets: ["Dust3DWorkerRuntime"]),
         .library(name: "Dust3DWorkerAppleImages", type: .static, targets: ["Dust3DWorkerAppleImages"]),
         .library(name: "Dust3DImageMetadata", type: .static, targets: ["Dust3DImageMetadata"]),
     ],
     targets: [
+        .target(
+            name: "Dust3DWorkerXPC", dependencies: ["Dust3DWorkerClient"], path: "native/WorkerXPC",
+            exclude: ["README.md"],
+            linkerSettings: [.linkedFramework("Security")]),
+        .testTarget(
+            name: "WorkerXPCContractTests", dependencies: ["Dust3DWorkerXPC", "Dust3DWorkerClient"],
+            path: "tests/WorkerXPC"),
         .target(name: "Dust3DWorkerClient", path: "native/WorkerClient", exclude: ["README.md"]),
         .testTarget(name: "WorkerClientPackageTests", dependencies: ["Dust3DWorkerClient"], path: "tests/WorkerClient"),
         .target(name: "Dust3DImageMetadata", path: "native/AppleImages/Metadata", exclude: ["README.md"]),
@@ -39,7 +47,7 @@ let package = Package(
             name: "Dust3DWorkerRuntime",
             dependencies: ["Dust3DEngine"],
             path: "native",
-            exclude: ["WorkerRuntime/README.md", "ExportCli/README.md", "AppleImages", "WorkerClient"],
+            exclude: ["WorkerRuntime/README.md", "ExportCli/README.md", "AppleImages", "WorkerClient", "WorkerXPC"],
             sources: [
                 "Engine/WorkerJobIO.cc", "Engine/WorkerPreviewArchiveIO.cc", "Engine/WorkerPreviewSessionIO.cc",
                 "Engine/WorkerOperation.cc",

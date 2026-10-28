@@ -49,6 +49,12 @@ It has no engine/Qt/transport dependency and is verified through public XCTest i
 and the healthy XPC host. See [ADR0185](docs/adr/0185-swift-worker-client-package.md);
 production transport, worker trust/packaging and Apple adoption remain open.
 
+`Dust3DWorkerXPC` now exposes the shared descriptor contract and async actor-owned
+connection adapter, using only the pure client module and system Foundation/Security.
+Service/signing configuration is explicit; callbacks remain separate from EOF/current-
+source publication. See [ADR0186](docs/adr/0186-public-xpc-connection-adapter.md) for
+validation limits and remaining service packaging/trust and Apple backend work.
+
 Public C++17 modeling engine and validated C API for the native Apple apps.
 Preserves full history from [huxingyi/dust3d](https://github.com/huxingyi/dust3d)
 and regularly integrates upstream through reviewed synchronization PRs.

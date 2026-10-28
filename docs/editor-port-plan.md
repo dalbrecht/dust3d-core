@@ -1581,3 +1581,15 @@ client/runtime consumer, symbol inspection and scoped coverage are recorded in A
 Production XPC adapter/worker packaging/trust, asynchronous mutable-document adoption,
 resource acceptance and baked/imported profiles remain open. Pin/active app routes and
 quarantines remain unchanged; M4–M8/full parity remain incomplete.
+
+### Public XPC connection adapter (#270)
+
+The shared XPC protocol and async actor-owned connection now live in Dust3DWorkerXPC,
+without native-runtime/engine/Qt dependency or QA identity/trust defaults. Plain options
+preserve original budgets and receipt domains. One-RPC correlation, fixed generation/PID,
+once-only completion and idle invalidation are fake-tested; the healthy existing host
+now uses a C-conversion-only facade over this adapter on one persistent connection.
+Eighteen package tests,231CTest, actual SwiftPM consumers and separate fake/healthy
+coverage limits are recorded in ADR0186. Production service/bundle/trust, mutable SwiftUI
+backend, resource acceptance and baked/imported profiles remain open. Pin/active app
+routes/quarantines and M4–M8/full parity remain unchanged.

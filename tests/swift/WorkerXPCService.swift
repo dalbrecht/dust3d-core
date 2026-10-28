@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 import Darwin
 import Dust3DWorkerRuntime
+import Dust3DWorkerXPC
 import Foundation
 import Security
 
@@ -22,7 +23,7 @@ private func checkedSandboxEntitlement() throws -> Bool {
     return true
 }
 
-final class StaticWorkerObject: NSObject, StaticWorkerJob, Sendable {
+final class StaticWorkerObject: NSObject, Dust3DWorkerXPCProtocol, Sendable {
     private let sandboxEntitlementVerified: Bool
     private let scheduler: WorkerServiceScheduler
     private let candidate: WorkerServiceConnection
@@ -356,7 +357,7 @@ final class StaticListenerDelegate: NSObject, NSXPCListenerDelegate {
         let worker = StaticWorkerObject(
             sandboxEntitlementVerified: sandboxEntitlementVerified,
             scheduler: scheduler, candidate: candidate)
-        connection.exportedInterface = NSXPCInterface(with: StaticWorkerJob.self)
+        connection.exportedInterface = WorkerXPCContract.makeInterface()
         connection.exportedObject = worker
         connection.invalidationHandler = { worker.finishWhenIdle() }
         connection.resume()
