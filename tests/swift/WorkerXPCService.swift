@@ -13,7 +13,13 @@ struct WorkerXPCService {
             let pins = try readDevelopmentPins()
             let configuration = try WorkerServiceConfiguration(
                 hostSigningRequirement: developmentRequirement(pins.host))
-            let delegate = try WorkerServiceListenerDelegate(configuration: configuration) { result in
+            // Explicit trusted QA policy in this fresh service process only, never the host/test runner.
+            let policy = try WorkerServiceResourcePolicy(
+                cpuSeconds: .init(soft: 300, hard: 600), fileBytes: .init(soft: 67_108_864, hard: 134_217_728),
+                descriptors: .init(soft: 1024, hard: 2048), minimumDescriptorCeiling: 256)
+            let resources = try WorkerServicePreparedResources.prepareFreshHelper(policy: policy)
+            let delegate = try WorkerServiceListenerDelegate(configuration: configuration, resources: resources) {
+                result in
                 switch result {
                 case .success: exit(EXIT_SUCCESS)
                 case .failure(let cause):

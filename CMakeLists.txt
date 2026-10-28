@@ -92,8 +92,13 @@ if(UNIX)
     add_library(dust3d_worker_job_io STATIC native/Engine/WorkerPreviewSessionIO.cc native/Engine/WorkerPreviewArchiveIO.cc native/Engine/WorkerJobIO.cc)
     target_link_libraries(dust3d_worker_job_io PUBLIC dust3d_worker_operation)
     add_library(dust3d_worker_runtime STATIC native/WorkerRuntime/WorkerPreviewSessionBridge.cc native/WorkerRuntime/WorkerPreviewArchiveBridge.cc native/WorkerRuntime/WorkerSessionBridge.cc native/WorkerRuntime/WorkerSessionOutputBridge.cc native/WorkerRuntime/WorkerBakedDecodedBridge.cc native/WorkerRuntime/WorkerImportedDecodedBridge.cc native/WorkerRuntime/WorkerImageDecoder.cc native/WorkerRuntime/WorkerRuntimeBridge.cc native/WorkerRuntime/WorkerReplyBridge.cc native/WorkerRuntime/WorkerDecodedBridge.cc native/WorkerRuntime/WorkerRequestBridge.cc native/WorkerRuntime/WorkerQueueBridge.cc)
+    target_sources(dust3d_worker_runtime PRIVATE native/WorkerRuntime/WorkerResourcesBridge.cc native/WorkerRuntime/WorkerResourcesUnixBridge.cc)
     target_include_directories(dust3d_worker_runtime PUBLIC native/WorkerRuntime/include PRIVATE native/Engine)
     target_link_libraries(dust3d_worker_runtime PUBLIC dust3d_worker_job_io)
+    target_link_libraries(dust3d_worker_runtime PUBLIC dust3d_worker_resource_setup)
+    if(TARGET dust3d_worker_unix_resources)
+        target_link_libraries(dust3d_worker_runtime PUBLIC dust3d_worker_unix_resources)
+    endif()
     add_executable(dust3d_worker native/Engine/WorkerMain.cc)
     target_link_libraries(dust3d_worker PRIVATE dust3d_worker_job_io dust3d_worker_resource_setup)
     if(TARGET dust3d_worker_unix_resources)
@@ -234,6 +239,20 @@ if(BUILD_TESTING)
         target_link_libraries(dust3d_worker_resource_setup_tests PRIVATE dust3d_worker_unix_resources)
         add_test(NAME worker_resource_setup_contracts COMMAND dust3d_worker_resource_setup_tests)
         set_tests_properties(worker_resource_setup_contracts PROPERTIES TIMEOUT 30)
+        add_executable(dust3d_worker_service_resource_bridge_tests
+            tests/core/worker_service_resource_bridge_tests.cc native/WorkerRuntime/WorkerResourcesBridge.cc native/WorkerRuntime/WorkerResourcesUnixBridge.cc)
+        target_include_directories(dust3d_worker_service_resource_bridge_tests PRIVATE native/WorkerRuntime/include)
+        target_link_libraries(dust3d_worker_service_resource_bridge_tests PRIVATE dust3d_worker_unix_resources)
+        add_test(NAME worker_service_resource_bridge_contracts COMMAND dust3d_worker_service_resource_bridge_tests)
+        set_tests_properties(worker_service_resource_bridge_contracts PROPERTIES TIMEOUT 30)
+        if(NOT DUST3D_ENABLE_SANITIZERS)
+            add_executable(dust3d_worker_service_resource_helper
+                tests/core/worker_service_resource_helper.cc native/WorkerRuntime/WorkerResourcesBridge.cc native/WorkerRuntime/WorkerResourcesUnixBridge.cc)
+            target_include_directories(dust3d_worker_service_resource_helper PRIVATE native/WorkerRuntime/include)
+            target_link_libraries(dust3d_worker_service_resource_helper PRIVATE dust3d_worker_unix_resources)
+            add_test(NAME worker_service_resource_helper_readback COMMAND dust3d_worker_service_resource_helper)
+            set_tests_properties(worker_service_resource_helper_readback PROPERTIES TIMEOUT 30)
+        endif()
     endif()
     add_executable(dust3d_worker_attempt_tests tests/core/worker_attempt_tests.cc)
     target_link_libraries(dust3d_worker_attempt_tests PRIVATE dust3d_worker_protocol)
@@ -773,7 +792,7 @@ if(BUILD_TESTING)
             CONTENT "module Dust3DEngine { header \"${CMAKE_CURRENT_SOURCE_DIR}/native/Engine/include/Dust3DBridge.h\" export * }\n")
         set(DUST3D_WORKER_SWIFT_MODULE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/worker-swift-module")
         file(GENERATE OUTPUT "${DUST3D_WORKER_SWIFT_MODULE_DIRECTORY}/module.modulemap"
-            CONTENT "module Dust3DWorkerRuntime { header \"${CMAKE_CURRENT_SOURCE_DIR}/native/WorkerRuntime/include/Dust3DWorkerRuntime.h\" header \"${CMAKE_CURRENT_SOURCE_DIR}/native/WorkerRuntime/include/Dust3DWorkerSession.h\" header \"${CMAKE_CURRENT_SOURCE_DIR}/native/WorkerRuntime/include/Dust3DWorkerPreviewSession.h\" export * }\n")
+            CONTENT "module Dust3DWorkerRuntime { header \"${CMAKE_CURRENT_SOURCE_DIR}/native/WorkerRuntime/include/Dust3DWorkerRuntime.h\" header \"${CMAKE_CURRENT_SOURCE_DIR}/native/WorkerRuntime/include/Dust3DWorkerSession.h\" header \"${CMAKE_CURRENT_SOURCE_DIR}/native/WorkerRuntime/include/Dust3DWorkerPreviewSession.h\" header \"${CMAKE_CURRENT_SOURCE_DIR}/native/WorkerRuntime/include/Dust3DWorkerResources.h\" export * }\n")
         set(DUST3D_CLIENT_MODULE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/worker-client-module")
         file(MAKE_DIRECTORY "${DUST3D_CLIENT_MODULE_DIRECTORY}")
         set(DUST3D_CLIENT_LIBRARY "${DUST3D_CLIENT_MODULE_DIRECTORY}/libDust3DWorkerClient.a")
@@ -1146,6 +1165,8 @@ if(BUILD_TESTING)
                     list(APPEND DUST3D_XPC_SUPPORT_SOURCES ${DUST3D_APPLE_IMAGE_SOURCES})
                     list(APPEND DUST3D_XPC_SUPPORT_SOURCES
                         "${CMAKE_CURRENT_SOURCE_DIR}/native/WorkerService/WorkerServiceConfiguration.swift"
+                        "${CMAKE_CURRENT_SOURCE_DIR}/native/WorkerService/WorkerServiceResourcePolicy.swift"
+                        "${CMAKE_CURRENT_SOURCE_DIR}/native/WorkerService/WorkerServiceResourceBootstrap.swift"
                         "${CMAKE_CURRENT_SOURCE_DIR}/native/WorkerService/WorkerServiceObject.swift"
                         "${CMAKE_CURRENT_SOURCE_DIR}/native/WorkerService/WorkerServiceListenerDelegate.swift")
                 else()
@@ -1169,9 +1190,11 @@ if(BUILD_TESTING)
                         "$<TARGET_FILE:dust3d_worker_operation>" "$<TARGET_FILE:dust3d_worker_protocol>"
                         "$<TARGET_FILE:dust3d_engine>" "$<TARGET_FILE:dust3d_core>"
                         "$<TARGET_FILE:dust3d_remesher>" "$<TARGET_FILE:dust3d_triangle>"
+                        "$<TARGET_FILE:dust3d_worker_unix_resources>" "$<TARGET_FILE:dust3d_worker_resource_setup>"
                         ${DUST3D_XPC_CLIENT_LINK} -lc++ -lz -o "${DUST3D_XPC_BINARY}"
                     DEPENDS ${DUST3D_XPC_CLIENT_LINK} ${DUST3D_XPC_SUPPORT_SOURCES} tests/swift/WorkerXPCCommon.swift native/WorkerPreview/WorkerPreviewChannels.swift "tests/swift/WorkerXPC${DUST3D_XPC_ROLE}.swift"
                         native/WorkerRuntime/include/Dust3DWorkerRuntime.h dust3d_worker_runtime
+                        dust3d_worker_unix_resources dust3d_worker_resource_setup
                         dust3d_worker_job_io dust3d_worker_operation dust3d_worker_protocol
                         dust3d_engine dust3d_core dust3d_remesher dust3d_triangle
                     VERBATIM)

@@ -10,13 +10,20 @@ final class WorkerServiceBundleTests: XCTestCase {
             "CFBundleIdentifier": "org.dust3d.worker", "CFBundleExecutable": "dust3d-xpc-service",
             "CFBundlePackageType": "XPC!", "CFBundleVersion": "1", "CFBundleInfoDictionaryVersion": "6.0",
             "XPCService": ["ServiceType": "Application", "RunLoopType": "dispatch_main"],
-            "Dust3DWorkerConfigurationVersion": "1",
+            "Dust3DWorkerConfigurationVersion": "2",
+            "Dust3DWorkerResourcePolicy": [
+                "cpuSoftSeconds": "300", "cpuHardSeconds": "600", "fileSoftBytes": "67108864",
+                "fileHardBytes": "134217728", "descriptorSoftCeiling": "256", "descriptorHardCeiling": "512",
+                "minimumDescriptorCeiling": "128",
+            ],
             "Dust3DWorkerHostRequirement": "cdhash H\"0000000000000000000000000000000000000000\"",
         ]
     }
     func testShouldPreserveExplicitBundleIdentityAndHostRequirement() throws {
         let value = try WorkerServiceBundleMetadata(bundleURL: bundleURL, infoDictionary: valid)
         XCTAssertEqual(value.serviceIdentifier, "org.dust3d.worker")
+        XCTAssertEqual(value.resourcePolicy.cpuSeconds, .init(soft: 300, hard: 600))
+        XCTAssertEqual(value.resourcePolicy.minimumDescriptorCeiling, 128)
         XCTAssertEqual(value.hostSigningRequirement, valid["Dust3DWorkerHostRequirement"] as? String)
     }
     func testShouldAcceptDottedVersionAndAsciiIdentifierVariants() throws {
@@ -37,6 +44,16 @@ final class WorkerServiceBundleTests: XCTestCase {
             XCTAssertThrowsError(try WorkerServiceBundleMetadata(bundleURL: bundleURL, infoDictionary: wrong), key)
         }
     }
+    func testShouldRejectNestedNumericAndIncompleteResourcePolicyBeforeSecurity() {
+        for resourceFields: [String: Any] in [
+            ["cpuSoftSeconds": 300], ["cpuSoftSeconds": true], [:],
+            ["unknown": "300"], ["cpuSoftSeconds": "0300"],
+        ] {
+            var values = valid
+            values["Dust3DWorkerResourcePolicy"] = resourceFields
+            XCTAssertThrowsError(try WorkerServiceBundleMetadata(bundleURL: bundleURL, infoDictionary: values))
+        }
+    }
     func testShouldRejectUnpackagedOrMismatchedBundleBeforeSecurity() {
         for path in ["/example/service", "/example/org.other.worker.xpc", "/example/org.dust3d.worker.app"] {
             XCTAssertThrowsError(
@@ -49,7 +66,7 @@ final class WorkerServiceBundleTests: XCTestCase {
             ("CFBundleExecutable", "../dust3d-xpc-service"), ("CFBundlePackageType", "APPL"),
             ("CFBundleVersion", ""), ("CFBundleVersion", "v1"), ("CFBundleVersion", "."), ("CFBundleVersion", "1..2"),
             ("CFBundleInfoDictionaryVersion", "5.0"),
-            ("Dust3DWorkerConfigurationVersion", "2"), ("Dust3DWorkerHostRequirement", ""),
+            ("Dust3DWorkerConfigurationVersion", "1"), ("Dust3DWorkerHostRequirement", ""),
             ("Dust3DWorkerHostRequirement", " \n"), ("Dust3DWorkerHostRequirement", "bad\0value"),
             ("Dust3DWorkerHostRequirement", String(repeating: "a", count: 4097)),
             ("XPCService", ["ServiceType": "Daemon", "RunLoopType": "dispatch_main"]),

@@ -7,6 +7,8 @@ public struct WorkerServiceBundleMetadata: Sendable {
     public let serviceIdentifier: String
     /// Explicit host requirement; compilation and authentication remain separate boundaries.
     public let hostSigningRequirement: String
+    /// Explicit lifetime caps copied from sealed own-bundle metadata; decoding has no OS effects.
+    public let resourcePolicy: WorkerServiceResourcePolicy
     /// Validate the supported bundle layout and configuration schema before service setup.
     /// - Parameters:
     ///   - bundleURL: Current executable bundle URL, never a caller-selected trust override.
@@ -30,7 +32,7 @@ public struct WorkerServiceBundleMetadata: Sendable {
         }
         for (key, expected) in [
             ("CFBundleExecutable", "dust3d-xpc-service"), ("CFBundlePackageType", "XPC!"),
-            ("CFBundleInfoDictionaryVersion", "6.0"), ("Dust3DWorkerConfigurationVersion", "1"),
+            ("CFBundleInfoDictionaryVersion", "6.0"), ("Dust3DWorkerConfigurationVersion", "2"),
         ] {
             guard try field(key) == expected else { throw WorkerServiceBundleError.field(key) }
         }
@@ -46,6 +48,10 @@ public struct WorkerServiceBundleMetadata: Sendable {
         guard !requirement.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
             requirement.utf8.count <= 4096, !requirement.utf8.contains(0)
         else { throw WorkerServiceBundleError.field("Dust3DWorkerHostRequirement") }
+        guard let resourceFields = infoDictionary["Dust3DWorkerResourcePolicy"] as? [String: String] else {
+            throw WorkerServiceBundleError.field("Dust3DWorkerResourcePolicy")
+        }
+        resourcePolicy = try WorkerServiceResourcePolicy(fields: resourceFields)
         serviceIdentifier = identifier
         hostSigningRequirement = requirement
     }

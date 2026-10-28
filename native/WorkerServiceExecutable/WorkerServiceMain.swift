@@ -11,7 +11,9 @@ struct WorkerServiceMain {
             guard let info = Bundle.main.infoDictionary else { throw WorkerServiceBundleError.field("Info.plist") }
             let metadata = try WorkerServiceBundleMetadata(bundleURL: Bundle.main.bundleURL, infoDictionary: info)
             let configuration = try WorkerServiceConfiguration(hostSigningRequirement: metadata.hostSigningRequirement)
-            let delegate = try WorkerServiceListenerDelegate(configuration: configuration) { result in
+            let resources = try WorkerServicePreparedResources.prepareFreshHelper(policy: metadata.resourcePolicy)
+            let delegate = try WorkerServiceListenerDelegate(configuration: configuration, resources: resources) {
+                result in
                 switch result {
                 case .success: exit(EXIT_SUCCESS)
                 case .failure(let cause):
