@@ -1642,3 +1642,14 @@ independent normal peer disappearance. Negative/lifecycle cases use fake phases 
 Control failure still does not establish native drain; deadline/process supervision, release
 trust/embedding, Apple adoption and M4–M8 acceptance remain open. Apple pin48b0ce2d and all
 quarantines remain unchanged. This stage does not claim full containment or feature parity.
+
+### Authenticated XPC retirement observation (#298)
+
+ADR0192 brackets process-source registration with matching authenticated incarnation/PID
+handshakes before job channels. Idle retirement can now separately await a registered exit
+event with explicit bounded observation and original cause retention; the healthy Capsule
+consumer also preserves independent controller PID-disappearance evidence. Synthetic sources
+cover negative/time/overlap/race cases. This is normal retirement observation, not authority
+to signal/reap launchd services or evidence of bounded active native termination. Full #123/M8
+containment, release trust/embedding, Apple adoption and feature acceptance remain open.
+Production pin48b0ce2d and every quarantine remain unchanged.

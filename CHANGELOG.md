@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Correlate registered XPC process-exit observation with fresh service-incarnation handshakes, explicit phase budgets and original failure retention (#298).
+
 - Add the owned preview executor with authenticated channel creation, joined streaming phases, copied output lifetime, monotonic reset and original failure retention (#296).
 
 - Bind authenticated worker identity before job channels with a scalar handshake that preserves original ownership status without consuming native leases or request IDs (#294).

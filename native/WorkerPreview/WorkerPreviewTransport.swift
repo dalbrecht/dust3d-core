@@ -17,6 +17,12 @@ protocol WorkerPreviewTransport: Sendable {
 }
 extension WorkerXPCConnection: WorkerPreviewTransport {}
 
+protocol WorkerPreviewExitWatching: Sendable {
+    func register(timeoutMilliseconds: UInt64) async throws
+    func waitForExit(timeoutMilliseconds: UInt64) async throws -> WorkerXPCExitObservation
+}
+extension WorkerXPCExitObserver: WorkerPreviewExitWatching {}
+
 /// Internal resource-owning phases permit fake orchestration tests without real descriptors/native parsing.
 protocol WorkerPreviewJob<Value>: Sendable {
     associatedtype Value: Sendable

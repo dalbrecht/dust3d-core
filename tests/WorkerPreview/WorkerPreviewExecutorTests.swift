@@ -6,7 +6,9 @@ import XCTest
 @testable import Dust3DWorkerPreview
 @testable import Dust3DWorkerXPC
 
-private enum ExecutorTestError: Error, Equatable { case unexpected, writing, reading, control, retirement }
+private enum ExecutorTestError: Error, Equatable {
+    case unexpected, writing, reading, control, retirement, registration
+}
 private final class ExecutorEvents: @unchecked Sendable {
     // Test-only synchronous recorder; every access uses the same lock.
     private let lock = NSLock()
@@ -26,21 +28,27 @@ private actor ExecutorTransport: WorkerPreviewTransport {
     private let failsRetirement: Bool
     private let handshakeProcess: Int32
     private let resetStatus: UInt32
+    private let changesBarrierInstance: Bool
+    private var handshakes = 0
     init(
         _ events: ExecutorEvents, failsHandshake: Bool = false, failsRetirement: Bool = false,
-        handshakeProcess: Int32 = 42, resetStatus: UInt32 = 0
+        handshakeProcess: Int32 = 42, resetStatus: UInt32 = 0, changesBarrierInstance: Bool = false
     ) {
         self.events = events
         self.failsHandshake = failsHandshake
         self.failsRetirement = failsRetirement
         self.handshakeProcess = handshakeProcess
         self.resetStatus = resetStatus
+        self.changesBarrierInstance = changesBarrierInstance
     }
     func handshake(generation: UInt64) async throws -> WorkerXPCHandshakeReceipt {
         events.append("handshake")
+        handshakes += 1
         if failsHandshake { throw ExecutorTestError.unexpected }
         return WorkerXPCHandshakeReceipt(
-            process: handshakeProcess, sandboxEntitlementVerified: true, admissionStatus: 0,
+            instance: WorkerXPCServiceInstance(high: 1, low: changesBarrierInstance && handshakes > 1 ? 2 : 1),
+            process: handshakeProcess,
+            sandboxEntitlementVerified: true, admissionStatus: 0,
             connectionGeneration: generation, observedProcess: handshakeProcess)
     }
     func submitPreview(
@@ -116,14 +124,78 @@ private struct FailingPreviewJob: WorkerPreviewJob {
     func read() async throws -> String { try await reader.read() }
     func control() async throws -> WorkerPreviewControlReceipt { throw ExecutorTestError.control }
 }
+private actor ExecutorExitWatch: WorkerPreviewExitWatching {
+    let peer: WorkerXPCHandshakeReceipt
+    let events: ExecutorEvents
+    let observationPeer: WorkerXPCHandshakeReceipt?
+    let failsRegistration: Bool
+    init(
+        peer: WorkerXPCHandshakeReceipt, events: ExecutorEvents,
+        observationPeer: WorkerXPCHandshakeReceipt? = nil, failsRegistration: Bool = false
+    ) {
+        self.peer = peer
+        self.events = events
+        self.observationPeer = observationPeer
+        self.failsRegistration = failsRegistration
+    }
+    func register(timeoutMilliseconds: UInt64) async throws {
+        events.append("register")
+        if failsRegistration { throw ExecutorTestError.registration }
+    }
+    func waitForExit(timeoutMilliseconds: UInt64) async throws -> WorkerXPCExitObservation {
+        events.append("exit")
+        return WorkerXPCExitObservation(peer: observationPeer ?? peer)
+    }
+}
+private actor HeldExitRegistration: WorkerPreviewExitWatching {
+    let peer: WorkerXPCHandshakeReceipt
+    let events: ExecutorEvents
+    private var pending: CheckedContinuation<Void, Never>?
+    private var started: CheckedContinuation<Void, Never>?
+    init(peer: WorkerXPCHandshakeReceipt, events: ExecutorEvents) {
+        self.peer = peer
+        self.events = events
+    }
+    func register(timeoutMilliseconds: UInt64) async throws {
+        events.append("register-start")
+        await withCheckedContinuation { continuation in
+            pending = continuation
+            started?.resume()
+            started = nil
+        }
+    }
+    func waitUntilStarted() async {
+        if pending != nil { return }
+        await withCheckedContinuation { started = $0 }
+    }
+    func finish() {
+        events.append("register-finish")
+        pending?.resume()
+        pending = nil
+    }
+    func waitForExit(timeoutMilliseconds: UInt64) async throws -> WorkerXPCExitObservation {
+        WorkerXPCExitObservation(peer: peer)
+    }
+}
+private func makePreviewExecutor(
+    events: ExecutorEvents, transport: any WorkerPreviewTransport,
+    makeExitWatch: WorkerXPCPreviewExecutor<String>.ExitFactory? = nil,
+    makeJob: @escaping WorkerXPCPreviewExecutor<String>.Factory
+) throws -> WorkerXPCPreviewExecutor<String> {
+    try WorkerXPCPreviewExecutor(
+        transport: transport, registrationTimeoutMilliseconds: 50,
+        makeExitWatch: makeExitWatch ?? { ExecutorExitWatch(peer: $0, events: events) }, makeJob: makeJob)
+}
 @MainActor
 final class WorkerPreviewExecutorTests: XCTestCase {
     func testShouldHandshakeBeforeFactoryAndJoinAllOwnedPhases() async throws {
         let events = ExecutorEvents()
-        let executor = WorkerXPCPreviewExecutor<String>(transport: ExecutorTransport(events)) { identity, _, _ in
-            events.append("factory")
-            return ImmediatePreviewJob(identity: identity, events: events)
-        }
+        let executor = try makePreviewExecutor(
+            events: events, transport: ExecutorTransport(events),
+            makeJob: { identity, _, _ in
+                events.append("factory")
+                return ImmediatePreviewJob(identity: identity, events: events)
+            })
         let identity = try WorkerPreviewIdentity(document: UUID(), request: 1, revision: 7, generation: 9)
         let options = WorkerXPCPreviewOptions(
             maximumCachePayloadBytes: 0, archiveBytes: 3,
@@ -134,7 +206,7 @@ final class WorkerPreviewExecutorTests: XCTestCase {
         XCTAssertEqual(completion.value, "owned value")
         XCTAssertTrue(completion.requestWritten)
         XCTAssertTrue(completion.reachedEOF)
-        XCTAssertEqual(Array(events.snapshot.prefix(2)), ["handshake", "factory"])
+        XCTAssertEqual(Array(events.snapshot.prefix(4)), ["handshake", "register", "handshake", "factory"])
         XCTAssertEqual(Set(events.snapshot.suffix(3)), Set(["write", "read", "control"]))
         let retirement = try await executor.retire()
         XCTAssertTrue(retirement.invalidationRequested)
@@ -144,7 +216,7 @@ final class WorkerPreviewExecutorTests: XCTestCase {
         let events = ExecutorEvents()
         let transport = ExecutorTransport(events)
         let reader = HeldPreviewReader()
-        let executor = WorkerXPCPreviewExecutor<String>(transport: transport) { _, _, _ in
+        let executor = try makePreviewExecutor(events: events, transport: transport) { _, _, _ in
             FailingPreviewJob(reader: reader)
         }
         let identity = try WorkerPreviewIdentity(document: UUID(), request: 1, revision: 7, generation: 9)
@@ -182,16 +254,18 @@ final class WorkerPreviewExecutorTests: XCTestCase {
             XCTFail("A failed lifetime must not reconnect")
         } catch WorkerPreviewExecutorError.retired {
         } catch { XCTFail("Unexpected retired error: \(error)") }
-        XCTAssertEqual(events.snapshot.filter { $0 == "handshake" }.count, 1)
+        XCTAssertEqual(events.snapshot.filter { $0 == "handshake" }.count, 2)
     }
 
     func testShouldPreservePreparationAndRetirementFailuresWithoutCreatingChannels() async throws {
         let events = ExecutorEvents()
         let transport = ExecutorTransport(events, failsHandshake: true, failsRetirement: true)
-        let executor = WorkerXPCPreviewExecutor<String>(transport: transport) { identity, _, _ in
-            events.append("factory")
-            return ImmediatePreviewJob(identity: identity, events: events)
-        }
+        let executor = try makePreviewExecutor(
+            events: events, transport: transport,
+            makeJob: { identity, _, _ in
+                events.append("factory")
+                return ImmediatePreviewJob(identity: identity, events: events)
+            })
         let identity = try WorkerPreviewIdentity(document: UUID(), request: 1, revision: 7, generation: 9)
         let options = WorkerXPCPreviewOptions(
             maximumCachePayloadBytes: 0, archiveBytes: 3,
@@ -217,10 +291,12 @@ final class WorkerPreviewExecutorTests: XCTestCase {
 
     func testShouldBindScopeAndMonotonicRequestsAcrossResetWithoutRehandshake() async throws {
         let events = ExecutorEvents()
-        let executor = WorkerXPCPreviewExecutor<String>(transport: ExecutorTransport(events)) { identity, _, _ in
-            events.append("factory")
-            return ImmediatePreviewJob(identity: identity, events: events)
-        }
+        let executor = try makePreviewExecutor(
+            events: events, transport: ExecutorTransport(events),
+            makeJob: { identity, _, _ in
+                events.append("factory")
+                return ImmediatePreviewJob(identity: identity, events: events)
+            })
         let document = UUID()
         func identity(_ request: UInt64, document: UUID, generation: UInt64 = 9) throws -> WorkerPreviewIdentity {
             try WorkerPreviewIdentity(document: document, request: request, revision: 7, generation: generation)
@@ -256,7 +332,7 @@ final class WorkerPreviewExecutorTests: XCTestCase {
         } catch WorkerPreviewExecutorError.replayed {
         }
         _ = try await executor.execute(identity: identity(3, document: document), source: source)
-        XCTAssertEqual(events.snapshot.filter { $0 == "handshake" }.count, 1)
+        XCTAssertEqual(events.snapshot.filter { $0 == "handshake" }.count, 2)
         XCTAssertEqual(events.snapshot.filter { $0 == "factory" }.count, 2)
         XCTAssertEqual(events.snapshot.filter { $0.hasPrefix("reset:") }, ["reset:2:0"])
         let retired = await executor.isRetired
@@ -276,9 +352,11 @@ final class WorkerPreviewExecutorTests: XCTestCase {
     }
     func testShouldRejectDifferentReceiptPeerEvenWhenReceiptFieldsAgreeWithEachOther() async throws {
         let events = ExecutorEvents()
-        let executor = WorkerXPCPreviewExecutor<String>(transport: ExecutorTransport(events)) { identity, _, _ in
-            ImmediatePreviewJob(identity: identity, events: events, process: 77)
-        }
+        let executor = try makePreviewExecutor(
+            events: events, transport: ExecutorTransport(events),
+            makeJob: { identity, _, _ in
+                ImmediatePreviewJob(identity: identity, events: events, process: 77)
+            })
         let identity = try WorkerPreviewIdentity(document: UUID(), request: 1, revision: 7, generation: 9)
         do {
             _ = try await executor.execute(identity: identity, source: source())
@@ -297,7 +375,7 @@ final class WorkerPreviewExecutorTests: XCTestCase {
     }
     func testShouldRetainResetRejectionAndSealLifetime() async throws {
         let events = ExecutorEvents()
-        let executor = WorkerXPCPreviewExecutor<String>(transport: ExecutorTransport(events, resetStatus: 7)) {
+        let executor = try makePreviewExecutor(events: events, transport: ExecutorTransport(events, resetStatus: 7)) {
             identity, _, _ in
             ImmediatePreviewJob(identity: identity, events: events)
         }
@@ -322,7 +400,9 @@ final class WorkerPreviewExecutorTests: XCTestCase {
     }
     func testShouldRejectMissingHandshakeObservationBeforeFactory() async throws {
         let events = ExecutorEvents()
-        let executor = WorkerXPCPreviewExecutor<String>(transport: ExecutorTransport(events, handshakeProcess: 0)) {
+        let executor = try makePreviewExecutor(
+            events: events, transport: ExecutorTransport(events, handshakeProcess: 0)
+        ) {
             identity, _, _ in
             events.append("factory")
             return ImmediatePreviewJob(identity: identity, events: events)
@@ -341,6 +421,179 @@ final class WorkerPreviewExecutorTests: XCTestCase {
             XCTAssertEqual(receipt.observedProcess, 0)
         }
         XCTAssertEqual(events.snapshot, ["handshake", "invalidate"])
+    }
+
+    func testShouldObserveExitOnlyAfterIdleNormalInvalidation() async throws {
+        let events = ExecutorEvents()
+        let executor = try makePreviewExecutor(
+            events: events, transport: ExecutorTransport(events),
+            makeJob: { identity, _, _ in
+                events.append("factory")
+                return ImmediatePreviewJob(identity: identity, events: events)
+            })
+        let identity = try WorkerPreviewIdentity(document: UUID(), request: 1, revision: 7, generation: 9)
+        _ = try await executor.execute(identity: identity, source: source())
+        let observed = try await executor.retireAndObserve(timeoutMilliseconds: 75)
+        XCTAssertEqual(observed.peer.observedProcess, 42)
+        XCTAssertEqual(Array(events.snapshot.prefix(4)), ["handshake", "register", "handshake", "factory"])
+        XCTAssertEqual(Array(events.snapshot.suffix(2)), ["invalidate", "exit"])
+    }
+
+    func testShouldNeverClaimAuthenticatedExitWhenPostRegistrationBarrierFailed() async throws {
+        let events = ExecutorEvents()
+        let executor = try makePreviewExecutor(
+            events: events, transport: ExecutorTransport(events, changesBarrierInstance: true),
+            makeJob: { identity, _, _ in
+                events.append("factory")
+                return ImmediatePreviewJob(identity: identity, events: events)
+            })
+        let identity = try WorkerPreviewIdentity(document: UUID(), request: 1, revision: 7, generation: 9)
+        do {
+            _ = try await executor.execute(identity: identity, source: source())
+            XCTFail("Changed incarnation cannot cross the channel factory barrier")
+        } catch WorkerPreviewExecutorError.phases(let failures) {
+            XCTAssertEqual(failures.map(\.phase), [.preparation])
+            guard let cause = failures.first?.cause as? WorkerPreviewExecutorError,
+                case .handshakeBarrier(let expected, let received) = cause
+            else { return XCTFail("Retain both original barrier receipts") }
+            XCTAssertEqual(expected.instance.low, 1)
+            XCTAssertEqual(received.instance.low, 2)
+        }
+        XCTAssertEqual(events.snapshot, ["handshake", "register", "handshake", "invalidate"])
+        let retained = await executor.peerIdentity
+        XCTAssertEqual(retained?.instance.low, 1)
+        do {
+            _ = try await executor.retireAndObserve(timeoutMilliseconds: 75)
+            XCTFail("An unverified observer may not emit authenticated process-exit evidence")
+        } catch WorkerPreviewExecutorError.uninitialized {
+        }
+        XCTAssertFalse(events.snapshot.contains("exit"))
+    }
+
+    func testShouldRetainActiveSlotAndDelayFactoryUntilRegistrationAndBarrierFinish() async throws {
+        let events = ExecutorEvents()
+        let captured = WorkerXPCHandshakeReceipt(
+            instance: WorkerXPCServiceInstance(high: 1, low: 1), process: 42,
+            sandboxEntitlementVerified: true, admissionStatus: 0, connectionGeneration: 9, observedProcess: 42)
+        let watch = HeldExitRegistration(peer: captured, events: events)
+        let executor = try WorkerXPCPreviewExecutor<String>(
+            transport: ExecutorTransport(events),
+            registrationTimeoutMilliseconds: 50, makeExitWatch: { _ in watch },
+            makeJob: { identity, _, _ in
+                events.append("factory")
+                return ImmediatePreviewJob(identity: identity, events: events)
+            })
+        let identity = try WorkerPreviewIdentity(document: UUID(), request: 1, revision: 7, generation: 9)
+        let source = try source()
+        let execution = Task { try await executor.execute(identity: identity, source: source) }
+        await watch.waitUntilStarted()
+        XCTAssertEqual(events.snapshot, ["handshake", "register-start"])
+        do {
+            _ = try await executor.execute(identity: identity, source: source)
+            XCTFail("Registration retains the active capacity")
+        } catch WorkerPreviewExecutorError.busy {
+        }
+        do {
+            _ = try await executor.retireAndObserve(timeoutMilliseconds: 75)
+            XCTFail("Retirement cannot overtake active setup")
+        } catch WorkerPreviewExecutorError.busy {
+        }
+        await watch.finish()
+        _ = try await execution.value
+        XCTAssertEqual(
+            Array(events.snapshot.prefix(5)),
+            ["handshake", "register-start", "register-finish", "handshake", "factory"])
+        _ = try await executor.retireAndObserve(timeoutMilliseconds: 75)
+    }
+
+    func testShouldRetainRegistrationFailureWithoutRunningBarrierOrFactory() async throws {
+        let events = ExecutorEvents()
+        let executor = try makePreviewExecutor(
+            events: events, transport: ExecutorTransport(events),
+            makeExitWatch: { ExecutorExitWatch(peer: $0, events: events, failsRegistration: true) },
+            makeJob: { identity, _, _ in
+                events.append("factory")
+                return ImmediatePreviewJob(identity: identity, events: events)
+            })
+        let identity = try WorkerPreviewIdentity(document: UUID(), request: 1, revision: 7, generation: 9)
+        do {
+            _ = try await executor.execute(identity: identity, source: source())
+            XCTFail("Unregistered observers must not allow job channels")
+        } catch WorkerPreviewExecutorError.phases(let failures) {
+            XCTAssertEqual(failures.map(\.phase), [.preparation])
+            XCTAssertEqual(failures.first?.cause as? ExecutorTestError, .registration)
+        }
+        XCTAssertEqual(events.snapshot, ["handshake", "register", "invalidate"])
+        let captured = await executor.peerIdentity
+        XCTAssertEqual(captured?.observedProcess, 42)
+    }
+    func testShouldRejectForeignExitObservationWithoutReplacingOriginalPeer() async throws {
+        let events = ExecutorEvents()
+        let foreign = WorkerXPCHandshakeReceipt(
+            instance: WorkerXPCServiceInstance(high: 9, low: 9), process: 42,
+            sandboxEntitlementVerified: true, admissionStatus: 0, connectionGeneration: 9, observedProcess: 42)
+        let executor = try makePreviewExecutor(
+            events: events, transport: ExecutorTransport(events),
+            makeExitWatch: { ExecutorExitWatch(peer: $0, events: events, observationPeer: foreign) },
+            makeJob: { identity, _, _ in
+                ImmediatePreviewJob(identity: identity, events: events)
+            })
+        let identity = try WorkerPreviewIdentity(document: UUID(), request: 1, revision: 7, generation: 9)
+        _ = try await executor.execute(identity: identity, source: source())
+        do {
+            _ = try await executor.retireAndObserve(timeoutMilliseconds: 75)
+            XCTFail("Foreign incarnation cannot provide exit evidence")
+        } catch WorkerPreviewExecutorError.exitObservation(let expected, let received) {
+            XCTAssertEqual(expected.instance.low, 1)
+            XCTAssertEqual(received.peer.instance.low, 9)
+        }
+        let captured = await executor.peerIdentity
+        XCTAssertEqual(captured?.instance.low, 1)
+        XCTAssertEqual(events.snapshot.filter { $0 == "invalidate" }.count, 1)
+    }
+    func testShouldValidateExitBudgetBeforeRequestingInvalidation() async throws {
+        let events = ExecutorEvents()
+        let executor = try makePreviewExecutor(
+            events: events, transport: ExecutorTransport(events),
+            makeJob: { identity, _, _ in
+                ImmediatePreviewJob(identity: identity, events: events)
+            })
+        let identity = try WorkerPreviewIdentity(document: UUID(), request: 1, revision: 7, generation: 9)
+        _ = try await executor.execute(identity: identity, source: source())
+        do {
+            _ = try await executor.retireAndObserve(timeoutMilliseconds: 0)
+            XCTFail("Invalid observation policy cannot retire a healthy lifetime")
+        } catch WorkerXPCExitObservationError.invalidBudget {
+        }
+        let retired = await executor.isRetired
+        XCTAssertFalse(retired)
+        XCTAssertFalse(events.snapshot.contains("invalidate"))
+        _ = try await executor.retireAndObserve(timeoutMilliseconds: 75)
+    }
+
+    func testShouldConstructPublicExecutorWithoutAuthenticatingOrLaunchingWork() async throws {
+        // Local requirement compilation and an unresumed Foundation object only; no service contact.
+        let configuration = try WorkerXPCConfiguration(
+            serviceIdentifier: "org.dust3d.core.xpc-static-service.qa",
+            signingRequirement: "identifier \"org.dust3d.core.xpc-static-service.qa\"")
+        for invalid: UInt64 in [0, 10001] {
+            do {
+                _ = try WorkerXPCPreviewExecutor<String>(
+                    configuration: configuration,
+                    registrationTimeoutMilliseconds: invalid, copy: { _ in "unused" })
+                XCTFail("Registration policy must validate before transport construction")
+            } catch WorkerXPCExitObservationError.invalidBudget {
+            }
+        }
+        let executor = try WorkerXPCPreviewExecutor<String>(
+            configuration: configuration,
+            registrationTimeoutMilliseconds: 50, copy: { _ in "unused" })
+        let active = await executor.activeIdentity
+        let peer = await executor.peerIdentity
+        let retired = await executor.isRetired
+        XCTAssertNil(active)
+        XCTAssertNil(peer)
+        XCTAssertFalse(retired)
     }
 
 }

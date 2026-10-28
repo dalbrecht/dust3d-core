@@ -47,3 +47,35 @@ that lifetime. It does not consume job IDs or create a native session. Repetitio
 only, not native-idle/admission proof. Existing direct job methods remain compatible and do not
 implicitly handshake. Connection invalidation and known PID do not establish native drain or
 process disappearance; the descriptor executor/supervisor must observe those independently.
+
+## Registered process exit (#298)
+
+Handshake receipts now retain a nonzero128-bit service-process incarnation. It is correlation
+metadata generated once per service process, not a signing credential. A fresh handshake must
+match the original incarnation even when the independent OS PID matches; zero/rebinding retains
+original receipts and retires the connection. The exact-revision wire reply gains two scalars:
+client/service must be rebuilt together, with no binary compatibility or production-pin claim.
+
+`WorkerXPCExitObserver(peer:)` starts unregistered. `register(timeoutMilliseconds:)` waits for
+Dispatch's underlying event-source registration, then callers must complete a **fresh matching
+authenticated handshake** before opening job channels. `waitForExit(timeoutMilliseconds:)`
+returns only an event from that registered source. The preview executor enforces the entire
+barrier and correlated retirement path. Direct observer use alone does not authenticate the
+process incarnation, admit a result or prove native cleanup. No PID is signalled or reaped.
+
+Each budget is explicit1...10000ms; only one registration/exit waiter is retained.
+Monotonic capture timestamps enforce the checked original phase end even if timer delivery
+is late. Early wakeups reschedule remaining time without extending it. A queued exit captured
+before a later wait begins remains eligible. Overflow and source-relative clock reversal retain
+original typed causes. This is event-capture timing, not an OS real-time completion guarantee. Expiry and
+unexpected raw event metadata retain their original cause for later callers and never fabricate
+exit. Stale/late callbacks do not reopen the observer. Sources/timers resume before ownership
+escapes and cancel locally on completion/failure/destruction. Public Dispatch/Darwin system
+APIs add no third-party dependency. The thin OS adapter has healthy integration evidence;
+negative/lifecycle coverage uses fake event sources and timers only. Hard native deadline/resource
+containment, signed release trust and Apple adoption remain open. See ADR0192.
+
+Callbacks synchronously capture/enqueue metadata in one bounded inbox before waking the actor.
+One pending value per five roles prevents duplicate growth; scheduled Task order cannot let a
+timeout overtake an earlier timely event. Checked clock overflow also retires and retains its
+original cause, so later callbacks cannot promote failed observation into success.

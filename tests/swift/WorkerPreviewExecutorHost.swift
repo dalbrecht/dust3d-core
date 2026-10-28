@@ -66,8 +66,8 @@ struct WorkerPreviewExecutorHost {
         let pins = try readDevelopmentPins()
         let configuration = try WorkerXPCConfiguration(
             serviceIdentifier: staticServiceIdentifier, signingRequirement: developmentRequirement(pins.service))
-        let executor = WorkerXPCPreviewExecutor<SessionXPCSnapshot>(
-            configuration: configuration, copy: copySessionXPCOutput)
+        let executor = try WorkerXPCPreviewExecutor<SessionXPCSnapshot>(
+            configuration: configuration, registrationTimeoutMilliseconds: 5000, copy: copySessionXPCOutput)
         let pipeline = WorkerPreviewPipeline(executor: executor)
         let options = WorkerXPCPreviewOptions(
             maximumCachePayloadBytes: 64 * 1024 * 1024, archiveBytes: UInt64(archive.count),
@@ -96,6 +96,12 @@ struct WorkerPreviewExecutorHost {
         guard retirement.invalidationRequested, let peer = retirement.peer,
             peer.observedProcess > 0, peer.observedProcess != getpid(), peer.sandboxEntitlementVerified
         else { throw StaticFixtureError.invalid("Independent peer retirement request observation") }
+        let observed = try await executor.retireAndObserve(timeoutMilliseconds: 5000)
+        guard observed.peer.instance == peer.instance,
+            observed.peer.observedProcess == peer.observedProcess,
+            observed.peer.connectionGeneration == peer.connectionGeneration
+        else { throw StaticFixtureError.invalid("Correlated registered service exit event") }
+        print("Registered service exit observed after fresh matching incarnation barrier")
         print("Actual public preview executor passed: servicePID=\(peer.observedProcess); hostPID=\(getpid())")
         print("Authenticated handshake before channel factory; actual writer, EOF decoder and control joined")
         print("Owned Capsule geometry copied; cache reused then rebuilt after reset; pipeline publication admitted")

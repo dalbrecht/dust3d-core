@@ -58,6 +58,8 @@ public enum WorkerPreviewExecutorError: Error {
     case invalidControls(String)
     case busy, retired, foreignScope, replayed, uninitialized, missingPhase
     case handshake(WorkerXPCHandshakeReceipt)
+    case handshakeBarrier(expected: WorkerXPCHandshakeReceipt, received: WorkerXPCHandshakeReceipt)
+    case exitObservation(expected: WorkerXPCHandshakeReceipt, received: WorkerXPCExitObservation)
     case peerReceipt(expected: WorkerXPCHandshakeReceipt, received: WorkerPreviewControlReceipt)
     case resetReceipt(WorkerXPCLegacyReceipt)
     case phases([WorkerPreviewPhaseFailure])
