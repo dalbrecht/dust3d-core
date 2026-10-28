@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 import Foundation
 
+struct WorkerXPCObservationWakeup: Sendable { let perform: @Sendable () async -> Void }
+
 protocol WorkerXPCObservationCancellation: Sendable { func cancel() }
 struct WorkerXPCExitCallbacks: Sendable {
     let registered: @Sendable () -> Void
@@ -38,6 +40,7 @@ public struct WorkerXPCExitObservation: Sendable {
 /// One bounded registration/exit waiter. Cancelling an observer never signals or stops a process.
 /// The post-registration authenticated handshake barrier remains the executor's responsibility.
 public actor WorkerXPCExitObserver {
+    typealias Delivery = @Sendable (WorkerXPCObservationWakeup) -> Void
     typealias Clock = @Sendable () -> UInt64
     typealias Events = @Sendable (Int32, WorkerXPCExitCallbacks) -> any WorkerXPCObservationCancellation
     typealias Timer = @Sendable (UInt64, WorkerXPCObservationTimeout) -> any WorkerXPCObservationCancellation
@@ -56,13 +59,18 @@ public actor WorkerXPCExitObserver {
     private let events: Events
     private let timer: Timer
     private let clock: Clock
+    private let delivery: Delivery
+    private let inbox = WorkerXPCObservationInbox()
     private var state: State = .idle
     private var source: (any WorkerXPCObservationCancellation)?
     private var alarm: (any WorkerXPCObservationCancellation)?
     private var registration: CheckedContinuation<Void, any Error>?
     private var exit: CheckedContinuation<WorkerXPCExitObservation, any Error>?
 
-    init(peer: WorkerXPCHandshakeReceipt, events: @escaping Events, timer: @escaping Timer, clock: @escaping Clock)
+    init(
+        peer: WorkerXPCHandshakeReceipt, events: @escaping Events, timer: @escaping Timer, clock: @escaping Clock,
+        delivery: @escaping Delivery
+    )
         throws
     {
         guard peer.observedProcess > 0, peer.process == peer.observedProcess,
@@ -73,8 +81,10 @@ public actor WorkerXPCExitObserver {
         self.events = events
         self.timer = timer
         self.clock = clock
+        self.delivery = delivery
     }
     deinit {
+        inbox.close()
         source?.cancel()
         alarm?.cancel()
     }
@@ -86,7 +96,10 @@ public actor WorkerXPCExitObserver {
         let start = clock()
         let end = start.addingReportingOverflow(budget.milliseconds * 1_000_000)
         guard !end.overflow else {
-            throw WorkerXPCExitObservationError.clockOverflow(start: start, milliseconds: milliseconds, peer: peer)
+            let cause = WorkerXPCExitObservationError.clockOverflow(
+                start: start, milliseconds: milliseconds, peer: peer)
+            fail(cause)
+            throw cause
         }
         return Deadline(start: start, end: end.partialValue, phase: phase)
     }
@@ -101,8 +114,30 @@ public actor WorkerXPCExitObserver {
         }
         return true
     }
+    private nonisolated func post(_ makeEvent: @Sendable () -> WorkerXPCObservationEvent) {
+        guard inbox.record(makeEvent) else { return }
+        delivery(WorkerXPCObservationWakeup(perform: { [weak self] in await self?.drainInbox() }))
+    }
+    private func drainInbox() {
+        while let event = inbox.take() {
+            switch event {
+            case .registered(let instant): didRegister(at: instant)
+            case .exited(let instant): didExit(at: instant)
+            case .unexpected(let flags): unexpected(flags)
+            case .timer(let phase, let instant): expire(phase, at: instant)
+            }
+        }
+    }
     private func scheduleTimer(for deadline: Deadline, at observed: UInt64) {
-        guard accepts(observed, since: deadline.start) else { return }
+        guard observed >= deadline.start else {
+            fail(WorkerXPCExitObservationError.clockReversed(start: deadline.start, observed: observed, peer: peer))
+            return
+        }
+        if observed >= deadline.end {
+            // A timely source event may already be queued. Arbitrate after it, never bypass the inbox.
+            post { .timer(deadline.phase, observed) }
+            return
+        }
         // The validated budget bounds this difference and rounding addition; never extend the original end.
         let milliseconds = (deadline.end - observed + 999999) / 1_000_000
         let readClock = clock
@@ -111,8 +146,7 @@ public actor WorkerXPCExitObserver {
         alarm = timer(
             milliseconds,
             WorkerXPCObservationTimeout(fire: { [weak self] in
-                let instant = readClock()
-                Task { await self?.expire(phase, at: instant) }
+                self?.post { .timer(phase, readClock()) }
             }))
     }
     /// Arm the event source while the authenticated peer is alive. No job channels may exist yet.
@@ -138,15 +172,9 @@ public actor WorkerXPCExitObserver {
             source = events(
                 peer.observedProcess,
                 WorkerXPCExitCallbacks(
-                    registered: { [weak self] in
-                        let instant = readClock()
-                        Task { await self?.didRegister(at: instant) }
-                    },
-                    exited: { [weak self] in
-                        let instant = readClock()
-                        Task { await self?.didExit(at: instant) }
-                    },
-                    failed: { [weak self] flags in Task { await self?.unexpected(flags) } }))
+                    registered: { [weak self] in self?.post { .registered(readClock()) } },
+                    exited: { [weak self] in self?.post { .exited(readClock()) } },
+                    failed: { [weak self] flags in self?.post { .unexpected(flags) } }))
             scheduleTimer(for: captured, at: clock())
         }
     }
@@ -200,6 +228,7 @@ public actor WorkerXPCExitObserver {
             // An event captured before the exit wait began can already be pending on this actor.
             guard accepts(observed, since: registrationStart) else { return }
             state = .exited
+            inbox.close()
             deadline = nil
             cancelAlarm()
             cancelSource()
@@ -220,12 +249,21 @@ public actor WorkerXPCExitObserver {
         switch (phase, state) {
         case (.registration, .registering), (.exit, .waiting):
             guard let deadline else { return }
-            scheduleTimer(for: deadline, at: observed)
+            guard observed >= deadline.start else {
+                fail(WorkerXPCExitObservationError.clockReversed(start: deadline.start, observed: observed, peer: peer))
+                return
+            }
+            if observed >= deadline.end {
+                fail(WorkerXPCExitObservationError.timeout(phase: phase, peer: peer))
+            } else {
+                scheduleTimer(for: deadline, at: clock())
+            }
         default: break
         }
     }
     private func fail(_ failure: any Error) {
         state = .retired(failure)
+        inbox.close()
         deadline = nil
         cancelAlarm()
         cancelSource()

@@ -35,6 +35,6 @@ extension WorkerXPCExitObserver {
                 source.setEventHandler(handler: timeout.fire)
                 source.resume()
                 return WorkerXPCDispatchObservation(source)
-            }, clock: { DispatchTime.now().uptimeNanoseconds })
+            }, clock: { DispatchTime.now().uptimeNanoseconds }, delivery: { wakeup in Task { await wakeup.perform() } })
     }
 }

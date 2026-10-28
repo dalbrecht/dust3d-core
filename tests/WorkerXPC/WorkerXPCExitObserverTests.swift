@@ -17,12 +17,46 @@ private final class ObservationDriver: @unchecked Sendable {
     private var timers: [WorkerXPCObservationTimeout] = []
     private var deadlines: [UInt64] = []
     private var instant: UInt64 = 0
+    private var registrationDuringStart: (captured: UInt64, returned: UInt64)?
+    func registerDuringStart(captured: UInt64, returned: UInt64) {
+        lock.withLock { registrationDuringStart = (captured, returned) }
+    }
+    private var holdsDelivery = false
+    private var wakeups: [WorkerXPCObservationWakeup] = []
+    func holdDelivery() { lock.withLock { holdsDelivery = true } }
+    func deliver(_ wakeup: WorkerXPCObservationWakeup) {
+        let held = lock.withLock {
+            if holdsDelivery {
+                wakeups.append(wakeup)
+                return true
+            }
+            return false
+        }
+        if !held { Task { await wakeup.perform() } }
+    }
+    func releaseInReverseOrder() async {
+        let pending = lock.withLock {
+            holdsDelivery = false
+            let pending = Array(wakeups.reversed())
+            wakeups.removeAll()
+            return pending
+        }
+        for wakeup in pending { await wakeup.perform() }
+    }
     var now: UInt64 { lock.withLock { instant } }
     func setTime(_ nanoseconds: UInt64) { lock.withLock { instant = nanoseconds } }
     private var waiter: (Int, CheckedContinuation<Void, Never>)?
     let source = ObservationToken()
     func start(_ process: Int32, _ callbacks: WorkerXPCExitCallbacks) -> any WorkerXPCObservationCancellation {
-        lock.withLock { self.callbacks = callbacks }
+        let duringStart = lock.withLock {
+            self.callbacks = callbacks
+            return registrationDuringStart
+        }
+        if let duringStart {
+            setTime(duringStart.captured)
+            callbacks.registered()
+            setTime(duringStart.returned)
+        }
         return source
     }
     func timer(_ milliseconds: UInt64, _ timeout: WorkerXPCObservationTimeout) -> any WorkerXPCObservationCancellation {
@@ -68,7 +102,8 @@ final class WorkerXPCExitObserverTests: XCTestCase {
             peer: WorkerXPCHandshakeReceipt(
                 instance: WorkerXPCServiceInstance(high: 7, low: 11), process: 42,
                 sandboxEntitlementVerified: true, admissionStatus: 0, connectionGeneration: 9, observedProcess: 42),
-            events: { driver.start($0, $1) }, timer: { driver.timer($0, $1) }, clock: { driver.now })
+            events: { driver.start($0, $1) }, timer: { driver.timer($0, $1) }, clock: { driver.now },
+            delivery: { driver.deliver($0) })
     }
     func testShouldSeparateRegistrationFromExitAndIgnoreEarlierTimer() async throws {
         let driver = ObservationDriver()
@@ -252,7 +287,7 @@ final class WorkerXPCExitObserverTests: XCTestCase {
             do {
                 _ = try WorkerXPCExitObserver(
                     peer: invalid, events: { driver.start($0, $1) }, timer: { driver.timer($0, $1) },
-                    clock: { driver.now })
+                    clock: { driver.now }, delivery: { driver.deliver($0) })
                 XCTFail("Untrusted scalar identity must not construct an observer")
             } catch WorkerXPCExitObservationError.invalidPeer(let original) {
                 XCTAssertEqual(original.instance, invalid.instance)
@@ -371,6 +406,128 @@ final class WorkerXPCExitObserverTests: XCTestCase {
         // The queued event can reach the actor before or after this new wait begins.
         let observed = try await observer.waitForExit(timeoutMilliseconds: 50)
         XCTAssertEqual(observed.peer.observedProcess, 42)
+    }
+
+    func testShouldSealRegistrationOverflowAndRetainCauseForEveryLaterCaller() async throws {
+        let driver = ObservationDriver()
+        driver.setTime(UInt64.max)
+        let observer = try observer(driver)
+        for attempt in 0..<3 {
+            do {
+                if attempt < 2 {
+                    try await observer.register(timeoutMilliseconds: 1)
+                } else {
+                    _ = try await observer.waitForExit(timeoutMilliseconds: 1)
+                }
+                XCTFail("Overflow cannot reopen the observer")
+            } catch WorkerXPCExitObservationError.clockOverflow(let start, let milliseconds, _) {
+                XCTAssertEqual(start, UInt64.max)
+                XCTAssertEqual(milliseconds, 1)
+            }
+            driver.setTime(0)
+        }
+        XCTAssertEqual(driver.timerCount, 0)
+    }
+    func testShouldSealExitOverflowAndIgnoreLateSourceEvents() async throws {
+        let driver = ObservationDriver()
+        let observer = try observer(driver)
+        let registration = Task { try await observer.register(timeoutMilliseconds: 50) }
+        await driver.waitForTimers(1)
+        driver.registered()
+        try await registration.value
+        driver.setTime(UInt64.max)
+        do {
+            _ = try await observer.waitForExit(timeoutMilliseconds: 1)
+            XCTFail("Exit overflow must seal observation")
+        } catch WorkerXPCExitObservationError.clockOverflow {
+        }
+        driver.setTime(1)
+        driver.exited()
+        do {
+            _ = try await observer.waitForExit(timeoutMilliseconds: 1)
+            XCTFail("A late source callback cannot turn overflow into success")
+        } catch WorkerXPCExitObservationError.clockOverflow(let start, _, _) {
+            XCTAssertEqual(start, UInt64.max)
+        }
+        XCTAssertEqual(driver.source.cancellations, 1)
+    }
+    func testShouldPreserveRegistrationCaptureOrderWhenWakeupsAreReversed() async throws {
+        let driver = ObservationDriver()
+        driver.holdDelivery()
+        let observer = try observer(driver)
+        let registration = Task { try await observer.register(timeoutMilliseconds: 50) }
+        await driver.waitForTimers(1)
+        driver.setTime(49_999_999)
+        driver.registered()
+        driver.expire(0)
+        await driver.releaseInReverseOrder()
+        try await registration.value
+        XCTAssertEqual(driver.source.cancellations, 0)
+        driver.exited()
+        _ = try await observer.waitForExit(timeoutMilliseconds: 50)
+    }
+    func testShouldPreserveExitCaptureOrderWhenWakeupsAreReversed() async throws {
+        let driver = ObservationDriver()
+        let observer = try observer(driver)
+        let registration = Task { try await observer.register(timeoutMilliseconds: 50) }
+        await driver.waitForTimers(1)
+        driver.registered()
+        try await registration.value
+        driver.holdDelivery()
+        let waiting = Task { try await observer.waitForExit(timeoutMilliseconds: 75) }
+        await driver.waitForTimers(2)
+        driver.setTime(74_999_999)
+        driver.exited()
+        driver.expire(1)
+        await driver.releaseInReverseOrder()
+        let observed = try await waiting.value
+        XCTAssertEqual(observed.peer.observedProcess, 42)
+    }
+
+    func testShouldDrainTimelyRegistrationBeforePostSetupExpiry() async throws {
+        let driver = ObservationDriver()
+        driver.registerDuringStart(captured: 49_999_999, returned: 55_000_000)
+        let observer = try observer(driver)
+        try await observer.register(timeoutMilliseconds: 50)
+        XCTAssertEqual(driver.timerCount, 0)
+        XCTAssertEqual(driver.source.cancellations, 0)
+        driver.exited()
+        _ = try await observer.waitForExit(timeoutMilliseconds: 50)
+    }
+    func testShouldDrainQueuedTimelyRegistrationBeforeDelayedEarlyTimerArbitration() async throws {
+        let driver = ObservationDriver()
+        driver.holdDelivery()
+        let observer = try observer(driver)
+        let registration = Task { try await observer.register(timeoutMilliseconds: 50) }
+        await driver.waitForTimers(1)
+        driver.setTime(40_000_000)
+        driver.fireEarly(0)
+        driver.setTime(49_999_999)
+        driver.registered()
+        driver.setTime(55_000_000)
+        await driver.releaseInReverseOrder()
+        try await registration.value
+        XCTAssertEqual(driver.timerCount, 1)
+        driver.exited()
+        _ = try await observer.waitForExit(timeoutMilliseconds: 50)
+    }
+    func testShouldBoundInboxRolesAndRetainFirstPendingCapture() {
+        let inbox = WorkerXPCObservationInbox()
+        XCTAssertTrue(inbox.record { .registered(1) })
+        XCTAssertFalse(inbox.record { .registered(2) })
+        XCTAssertFalse(inbox.record { .exited(3) })
+        XCTAssertFalse(inbox.record { .unexpected(4) })
+        XCTAssertFalse(inbox.record { .timer(.registration, 5) })
+        XCTAssertFalse(inbox.record { .timer(.exit, 6) })
+        let events = (0..<5).compactMap { _ in inbox.take() }
+        XCTAssertEqual(events.map(\.slot), [.registration, .exit, .unexpected, .registrationTimer, .exitTimer])
+        guard case .registered(let instant)? = events.first else { return XCTFail("First capture lost") }
+        XCTAssertEqual(instant, 1)
+        XCTAssertNil(inbox.take())
+        XCTAssertTrue(inbox.record { .timer(.registration, 7) })
+        inbox.close()
+        XCTAssertFalse(inbox.record { .registered(8) })
+        XCTAssertNil(inbox.take())
     }
 
 }

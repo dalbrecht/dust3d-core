@@ -814,6 +814,7 @@ if(BUILD_TESTING)
             "${CMAKE_CURRENT_SOURCE_DIR}/native/WorkerXPC/WorkerXPCConfiguration.swift"
             "${CMAKE_CURRENT_SOURCE_DIR}/native/WorkerXPC/WorkerXPCValues.swift"
             "${CMAKE_CURRENT_SOURCE_DIR}/native/WorkerXPC/WorkerXPCExitObserver.swift"
+            "${CMAKE_CURRENT_SOURCE_DIR}/native/WorkerXPC/WorkerXPCObservationInbox.swift"
             "${CMAKE_CURRENT_SOURCE_DIR}/native/WorkerXPC/WorkerXPCProcessEvents.swift"
             "${CMAKE_CURRENT_SOURCE_DIR}/native/WorkerXPC/WorkerXPCReply.swift"
             "${CMAKE_CURRENT_SOURCE_DIR}/native/WorkerXPC/WorkerXPCChannel.swift"

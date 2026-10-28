@@ -88,3 +88,33 @@ service exit/controller PID-disappearance path. All23 changed source hashes rema
 unchanged during that gate. Strict changed-Swift formatting and changed-Python syntax passed.
 The43-case instrumented report above remains scoped to application orchestration and synthetic
 boundaries; no native deadline, cancellation, failed-peer or termination probe was added.
+
+## Review corrections
+
+Copilot findings4405185496 and4405185572 identified two remaining lifecycle gaps. Checked
+deadline overflow now seals through fail before throwing, retaining the original cause for
+registration retries, exit waits and late callbacks. Synthetic exit overflow reproduced an
+incorrect success before this fix. Registration overflow tests also verify repeated callers
+cannot restart source creation after the clock changes.
+
+Independent callback Tasks could overtake a timely captured event. A synchronous locked
+inbox now captures/enqueues metadata before scheduling one actor drain. It retains at most
+one pending value per five roles, preserves the earliest pending capture, and closes on
+terminal state. Reversing scheduled wakeups reproduced false registration/exit timeouts before
+the fix; both now pass. Immediate post-setup expiry and delayed early-timer arbitration also
+enter the inbox, behind already captured timely events. Early timers calculate remaining time
+from the current monotonic clock against the same original end. No timer may bypass ordered
+arbitration merely because the actor became available after that end.
+
+50 focused tests pass after correction. Matched scoped summaries: observer220/224 reported
+line entries(98.21%),99/106 regions(93.40%),33/33 functions; inbox68/68 line entries,26/26
+regions and12/12 functions. Native process adapter coverage remains separate healthy execution
+evidence, not synthetic coverage. The earlier43-case/234CTest results describe the initial PR
+head; corrected-head full-gate evidence is recorded after rerun. No actual failed-peer,
+cancellation, signal, clock-failure or pressure/exhaustion probes were added.
+
+Corrected-head delivery gate: fresh source quarantine guard/build and234/234 CTest passed
+50.90s, including92 public XCTest cases and the healthy registered service exit/controller
+PID-disappearance path. All24 changed-source hashes stayed unchanged across validation.
+Changed Swift strict formatting and Python syntax passed. Review corrections are synthetic
+lifecycle/control-flow fixes; no new native failure, timing or cancellation probe occurs.

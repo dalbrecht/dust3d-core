@@ -74,3 +74,8 @@ escapes and cancel locally on completion/failure/destruction. Public Dispatch/Da
 APIs add no third-party dependency. The thin OS adapter has healthy integration evidence;
 negative/lifecycle coverage uses fake event sources and timers only. Hard native deadline/resource
 containment, signed release trust and Apple adoption remain open. See ADR0192.
+
+Callbacks synchronously capture/enqueue metadata in one bounded inbox before waking the actor.
+One pending value per five roles prevents duplicate growth; scheduled Task order cannot let a
+timeout overtake an earlier timely event. Checked clock overflow also retires and retains its
+original cause, so later callbacks cannot promote failed observation into success.
