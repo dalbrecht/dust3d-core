@@ -51,6 +51,8 @@ production transport, worker trust/packaging and Apple adoption remain open.
 
 `Dust3DWorkerXPC` now exposes the shared descriptor contract and async actor-owned
 connection adapter, using only the pure client module and system Foundation/Security.
+Pre-job `handshake(generation:)` captures authenticated ownership and independent peer identity
+without consuming a job ID; see [ADR0190](docs/adr/0190-pre-job-xpc-peer-handshake.md).
 Service/signing configuration is explicit; callbacks remain separate from EOF/current-
 source publication. See [ADR0186](docs/adr/0186-public-xpc-connection-adapter.md) for
 validation limits and remaining service packaging/trust and Apple backend work.

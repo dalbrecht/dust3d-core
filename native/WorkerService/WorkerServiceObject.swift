@@ -18,6 +18,9 @@ final class WorkerServiceObject: NSObject, Dust3DWorkerXPCProtocol, Sendable {
         self.scheduler = scheduler
         self.candidate = candidate
     }
+    func handshake(withReply reply: @escaping @Sendable (Int32, Bool, UInt32) -> Void) {
+        reply(getpid(), sandboxEntitlementVerified, scheduler.claimConnection(candidate).rawValue)
+    }
     func serve(
         _ input: FileHandle, output: FileHandle, isStream: Bool, requestIdentity: UInt64,
         withReply reply:

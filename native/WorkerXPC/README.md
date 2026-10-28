@@ -36,3 +36,14 @@ workers. Use the existing shared build root/native SwiftPM backend with the CTes
 package wrapper. Canonical production service executable/bundle, distribution trust and
 mutable SwiftUI backend integration remain open. QA IDs and private CDHash sidecars remain
 outside this library. No Apple dependency pin or quarantine is changed here.
+
+## Pre-job identity
+
+Call `try await connection.handshake(generation:)` before creating a real executor's job
+channels. Retain its immutable receipt separately: it preserves reported PID/sandbox/ownership
+status, independent OS-observed PID and fixed host generation after later control failure.
+The method rejects unmatched/missing PID, unverified sandbox or rejected ownership and retires
+that lifetime. It does not consume job IDs or create a native session. Repetition is ownership
+only, not native-idle/admission proof. Existing direct job methods remain compatible and do not
+implicitly handshake. Connection invalidation and known PID do not establish native drain or
+process disappearance; the descriptor executor/supervisor must observe those independently.

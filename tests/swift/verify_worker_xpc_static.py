@@ -124,6 +124,8 @@ def main():
         match = re.search(re.escape(prefix) + r'servicePID=(\d+); hostPID=(\d+)', output)
         if not match or int(match.group(2)) != process.pid or int(match.group(1)) == process.pid:
             raise RuntimeError('Missing independent service process and ordinary mesh evidence')
+        if 'XPC identity handshake verified before job submission:' not in output:
+            raise RuntimeError('Missing authenticated pre-job identity evidence')
         if 'XPC service runtime sandbox entitlement verified' not in output:
             raise RuntimeError('Missing service self-entitlement evidence')
         if channel_kind == 'socket' and 'Concurrent descriptor writer, actual EOF decoder and control receipt joined' not in output:

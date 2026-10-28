@@ -13,6 +13,9 @@ actor WorkerXPCPeer {
             configuration: try WorkerXPCConfiguration(
                 serviceIdentifier: staticServiceIdentifier, signingRequirement: requirement))
     }
+    func handshake(generation: UInt64) async throws -> WorkerXPCHandshakeReceipt {
+        try await connection.handshake(generation: generation)
+    }
     func submit(
         input: FileHandle, output: FileHandle, isStream: Bool, request: UInt64,
         generation: UInt64, outcome: WorkerOutcome<WorkerControlReceipt>
@@ -77,10 +80,22 @@ actor WorkerXPCPeer {
     func invalidate() async throws -> Int32 { try await connection.invalidate() }
 }
 func withWorkerXPCPeer<Value>(
-    requirement: String, deadline: DispatchTime, operation: (WorkerXPCPeer) throws -> Value
+    requirement: String, generation: UInt64, deadline: DispatchTime, operation: (WorkerXPCPeer) throws -> Value
 ) throws -> Value {
     let peer = try WorkerXPCPeer(requirement: requirement)
-    let result = Result { try operation(peer) }
+    let identity = WorkerOutcome<WorkerXPCHandshakeReceipt>()
+    Task.detached {
+        do { identity.finish(.success(try await peer.handshake(generation: generation))) } catch {
+            identity.finish(.failure(error))
+        }
+    }
+    let result = Result {
+        let captured = try identity.wait(until: deadline)
+        print(
+            "XPC identity handshake verified before job submission: PID=\(captured.observedProcess) generation=\(captured.connectionGeneration)"
+        )
+        return try operation(peer)
+    }
     let invalidated = WorkerOutcome<Int32>()
     Task.detached {
         do { invalidated.finish(.success(try await peer.invalidate())) } catch { invalidated.finish(.failure(error)) }

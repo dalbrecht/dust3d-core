@@ -5,6 +5,9 @@ import Foundation
 /// callbacks are original receipts, never independent peer, EOF or publication evidence.
 @objc(Dust3DWorkerXPCProtocol)
 public protocol Dust3DWorkerXPCProtocol {
+    /// Authenticate/claim a connection candidate without descriptors, request IDs or native session creation.
+    /// Reply preserves service PID, sandbox self-check and ownership-admission status; never job/drain proof.
+    func handshake(withReply reply: @escaping @Sendable (Int32, Bool, UInt32) -> Void)
     func serve(
         _ input: FileHandle, output: FileHandle, isStream: Bool, requestIdentity: UInt64,
         withReply reply:

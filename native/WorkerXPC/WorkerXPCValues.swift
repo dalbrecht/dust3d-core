@@ -63,3 +63,13 @@ public struct WorkerXPCPreviewOptions: Sendable {
         self.outputChunkBytes = outputChunkBytes
     }
 }
+
+/// Captured authenticated lifetime before job channels. Retain independently after control failure.
+/// This does not establish native/job completion, EOF, process disappearance or release trust policy.
+public struct WorkerXPCHandshakeReceipt: Sendable {
+    public let process: Int32
+    public let sandboxEntitlementVerified: Bool
+    public let admissionStatus: UInt32
+    public let connectionGeneration: UInt64
+    public let observedProcess: Int32
+}
