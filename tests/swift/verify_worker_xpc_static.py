@@ -80,7 +80,7 @@ def main():
     channel_kind = sys.argv[6] if len(sys.argv) == 7 else 'file'
     if channel_kind not in ('file', 'socket'):
         raise RuntimeError('Expected file or socket channel kind')
-    if mode not in ('mesh', 'uv', 'session', 'procedural'):
+    if mode not in ('mesh', 'uv', 'session', 'procedural', 'preview-executor'):
         raise RuntimeError('Expected base or UV fixture mode')
     if mode in ('session', 'procedural') and channel_kind != 'file':
         raise RuntimeError('Session cache fixture uses regular-file channels')
@@ -117,31 +117,41 @@ def main():
         print(output, end='')
         if process.returncode:
             raise RuntimeError(f'Fixture host exited {process.returncode}: {errors}')
-        prefix = ('Isolated XPC procedural PNG bake passed: ' if mode == 'procedural' else
+        prefix = ('Actual public preview executor passed: ' if mode == 'preview-executor' else
+                  'Isolated XPC procedural PNG bake passed: ' if mode == 'procedural' else
                   'Isolated XPC session cache reuse passed: ' if mode == 'session' else
                   'Isolated XPC ordinary UV mesh passed: 240 vertices; 80 UV triangles; ' if mode == 'uv' else
                   'Isolated XPC ordinary mesh passed: 240 vertices; ')
         match = re.search(re.escape(prefix) + r'servicePID=(\d+); hostPID=(\d+)', output)
         if not match or int(match.group(2)) != process.pid or int(match.group(1)) == process.pid:
             raise RuntimeError('Missing independent service process and ordinary mesh evidence')
-        if 'XPC identity handshake verified before job submission:' not in output:
-            raise RuntimeError('Missing authenticated pre-job identity evidence')
-        if 'XPC service runtime sandbox entitlement verified' not in output:
-            raise RuntimeError('Missing service self-entitlement evidence')
-        if channel_kind == 'socket' and 'Concurrent descriptor writer, actual EOF decoder and control receipt joined' not in output:
-            raise RuntimeError('Missing concurrent stream completion evidence')
-        if 'Service one-slot native admission accepted' not in output:
-            raise RuntimeError('Missing service admission evidence')
-        if 'Queue-authoritative service completion admitted' not in output:
-            raise RuntimeError('Missing queue-authoritative current-source admission evidence')
-        if 'Persistent service C admission accepted after actual EOF and OS peer observation' not in output:
-            raise RuntimeError('Missing persistent service completion admission evidence')
-        if mode == 'session':
-            if ('Segmented XPC preview admitted after actual EOF and independent OS peer observation' not in output
-                    or 'Actual session cache reuse observed across two requests' not in output
-                    or 'Actual session cache rebuild observed after authenticated reset' not in output
-                    or 'Session cache closed before connection invalidation' not in output):
-                raise RuntimeError('Missing retained-session reuse, reset/rebuild or explicit close evidence')
+        if mode == 'preview-executor':
+            required = (
+                'Authenticated handshake before channel factory; actual writer, EOF decoder and control joined',
+                'Owned Capsule geometry copied; cache reused then rebuilt after reset; pipeline publication admitted',
+                'Normal invalidation requested after owned phase joins',
+            )
+            if any(marker not in output for marker in required):
+                raise RuntimeError('Missing actual public executor stream/cache/publication/retirement observations')
+        else:
+            if 'XPC identity handshake verified before job submission:' not in output:
+                raise RuntimeError('Missing authenticated pre-job identity evidence')
+            if 'XPC service runtime sandbox entitlement verified' not in output:
+                raise RuntimeError('Missing service self-entitlement evidence')
+            if channel_kind == 'socket' and 'Concurrent descriptor writer, actual EOF decoder and control receipt joined' not in output:
+                raise RuntimeError('Missing concurrent stream completion evidence')
+            if 'Service one-slot native admission accepted' not in output:
+                raise RuntimeError('Missing service admission evidence')
+            if 'Queue-authoritative service completion admitted' not in output:
+                raise RuntimeError('Missing queue-authoritative current-source admission evidence')
+            if 'Persistent service C admission accepted after actual EOF and OS peer observation' not in output:
+                raise RuntimeError('Missing persistent service completion admission evidence')
+            if mode == 'session':
+                if ('Segmented XPC preview admitted after actual EOF and independent OS peer observation' not in output
+                        or 'Actual session cache reuse observed across two requests' not in output
+                        or 'Actual session cache rebuild observed after authenticated reset' not in output
+                        or 'Session cache closed before connection invalidation' not in output):
+                    raise RuntimeError('Missing retained-session reuse, reset/rebuild or explicit close evidence')
         peer = int(match.group(1))
         deadline = time.monotonic() + 10
         while True:

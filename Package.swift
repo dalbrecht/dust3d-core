@@ -9,6 +9,7 @@ let package = Package(
         .executable(name: "dust3d-xpc-service", targets: ["Dust3DWorkerServiceExecutable"]),
         .executable(name: "dust3d-worker", targets: ["Dust3DWorker"]),
         .library(name: "Dust3DEngine", type: .static, targets: ["Dust3DEngine"]),
+        .library(name: "Dust3DWorkerPreview", type: .static, targets: ["Dust3DWorkerPreview"]),
         .library(name: "Dust3DWorkerService", type: .static, targets: ["Dust3DWorkerService"]),
         .library(name: "Dust3DWorkerXPC", type: .static, targets: ["Dust3DWorkerXPC"]),
         .library(name: "Dust3DWorkerClient", type: .static, targets: ["Dust3DWorkerClient"]),
@@ -17,6 +18,14 @@ let package = Package(
         .library(name: "Dust3DImageMetadata", type: .static, targets: ["Dust3DImageMetadata"]),
     ],
     targets: [
+        .target(
+            name: "Dust3DWorkerPreview",
+            dependencies: ["Dust3DWorkerRuntime", "Dust3DWorkerClient", "Dust3DWorkerXPC"],
+            path: "native/WorkerPreview", exclude: ["README.md"]),
+        .testTarget(
+            name: "WorkerPreviewExecutorTests",
+            dependencies: ["Dust3DWorkerPreview", "Dust3DWorkerXPC", "Dust3DWorkerClient"],
+            path: "tests/WorkerPreview"),
         .executableTarget(
             name: "Dust3DWorkerServiceExecutable", dependencies: ["Dust3DWorkerService"],
             path: "native/WorkerServiceExecutable", exclude: ["README.md"]),
@@ -61,7 +70,7 @@ let package = Package(
             path: "native",
             exclude: [
                 "WorkerRuntime/README.md", "ExportCli/README.md", "AppleImages", "WorkerClient", "WorkerXPC",
-                "WorkerService",
+                "WorkerService", "WorkerServiceExecutable", "WorkerPreview",
             ],
             sources: [
                 "Engine/WorkerJobIO.cc", "Engine/WorkerPreviewArchiveIO.cc", "Engine/WorkerPreviewSessionIO.cc",

@@ -224,4 +224,35 @@ final class WorkerXPCConnectionTests: XCTestCase {
         _ = try await connection.invalidate()
     }
 
+    func testShouldPreserveExplicitStreamFlagsAndExistingFileDefault() async throws {
+        let pipe = Pipe()
+        defer {
+            for handle in [pipe.fileHandleForReading, pipe.fileHandleForWriting] {
+                do { try handle.close() } catch { XCTFail("Pipe metadata fixture cleanup: \(error)") }
+            }
+        }
+        let facts = FakeXPCFacts()
+        let connection = WorkerXPCConnection(factory: { FakeXPCChannel(facts) })
+        let identity = try WorkerPreviewIdentity(document: UUID(), request: 1, revision: 0, generation: 9)
+        let session = WorkerXPCSessionOptions(
+            maximumCachePayloadBytes: 0, maximumWireBytes: 1024,
+            maximumDecodedBytes: 1024, maximumSourceBytes: 0)
+        _ = try await connection.submitSession(
+            input: pipe.fileHandleForReading, output: pipe.fileHandleForWriting,
+            isStream: true, identity: identity, options: session)
+        XCTAssertEqual(facts.recordedStream, true)
+        let preview = WorkerXPCPreviewOptions(
+            maximumCachePayloadBytes: 0, archiveBytes: 3,
+            maximumIndexedBytes: 0, maximumSourceBytes: 0, maximumInputTransferBytes: 27, inputChunkBytes: 64,
+            maximumOutputTransferBytes: 1024, outputChunkBytes: 64)
+        _ = try await connection.submitPreview(
+            input: pipe.fileHandleForReading, output: pipe.fileHandleForWriting,
+            isStream: true, identity: identity, options: preview)
+        XCTAssertEqual(facts.recordedStream, true)
+        _ = try await connection.submitPreview(
+            input: pipe.fileHandleForReading, output: pipe.fileHandleForWriting,
+            identity: identity, options: preview)
+        XCTAssertEqual(facts.recordedStream, false)
+        _ = try await connection.invalidate()
+    }
 }

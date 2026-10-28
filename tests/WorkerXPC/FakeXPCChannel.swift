@@ -18,6 +18,9 @@ final class FakeXPCFacts: @unchecked Sendable {
     func configureHandshake(process: Int32 = 42, sandbox: Bool = true, admission: UInt32 = 0) {
         lock.withLock { greeting = (process, sandbox, admission) }
     }
+    private var stream: Bool?
+    var recordedStream: Bool? { lock.withLock { stream } }
+    func recordStream(_ value: Bool) { lock.withLock { stream = value } }
     private var rawBudget: UInt64?
     var mode: Mode {
         get { lock.withLock { selectedMode } }
@@ -121,6 +124,7 @@ private final class FakeXPCProxy: NSObject, Dust3DWorkerXPCProtocol {
                 UInt32, UInt32, UInt64, Int32, UInt32, UInt32, Int32, UInt8, Int32, Bool, Int32, UInt32, Data
             ) -> Void
     ) {
+        facts.recordStream(isStream)
         facts.deliver { reply(0, 9, requestIdentity, 0, 0, 0, 0, 0, 42, true, 0, 0, Data()) }
     }
     func servePreview(
@@ -134,6 +138,7 @@ private final class FakeXPCProxy: NSObject, Dust3DWorkerXPCProtocol {
                 UInt32, UInt64, Int32, UInt32, UInt32, Int32, UInt8, Int32, Bool, Int32, UInt32, UInt32, Data
             ) -> Void
     ) {
+        facts.recordStream(isStream)
         facts.record(maximumIndexedBytes)
         let mode = facts.mode
         let cause = mode == .oversized ? Data(repeating: 1, count: 512) : mode == .failureReceipt ? Data([255]) : Data()

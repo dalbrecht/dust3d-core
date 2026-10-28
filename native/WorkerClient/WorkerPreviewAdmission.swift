@@ -84,6 +84,20 @@ public struct WorkerPreviewControlReceipt: Sendable {
         self.observedProcess = observedProcess
         self.cause = cause
     }
+    /// Validate original control fields against host correlation, without EOF/current-source/publication authority.
+    /// - Parameter identity: Captured host identity; observations must be independently authenticated by transport.
+    /// - Throws: Original observation or receipt error, retaining all original fields/diagnostic bytes.
+    public func validateControl(identity: WorkerPreviewIdentity) throws {
+        guard observedProcess > 0, process == observedProcess, connectionGeneration == identity.generation else {
+            throw WorkerPreviewAdmissionError.observation
+        }
+        guard status == 0, request == identity.request, boundaryStatus == 0,
+            admissionStatus == 0, systemError == 0, stage == 0, source == 0, code == 0,
+            truncated == 0, cause.isEmpty, finalizationError == 0, sandboxEntitlementVerified
+        else {
+            throw WorkerPreviewAdmissionError.receipt(self)
+        }
+    }
 }
 /// Original publication rejection; a receipt rejection retains all original control fields.
 public enum WorkerPreviewAdmissionError: Error {
@@ -102,14 +116,7 @@ final class WorkerPreviewPublicationGate {
         guard !isRetired else { throw WorkerPreviewAdmissionError.retired }
         isRetired = true
         guard current == identity else { throw WorkerPreviewAdmissionError.stale }
-        guard reachedEOF, receipt.observedProcess > 0,
-            receipt.process == receipt.observedProcess, receipt.connectionGeneration == identity.generation
-        else { throw WorkerPreviewAdmissionError.observation }
-        // These are the dedicated preview OK/accepted values, not legacy job status conversion.
-        guard receipt.status == 0, receipt.request == identity.request, receipt.boundaryStatus == 0,
-            receipt.admissionStatus == 0, receipt.systemError == 0, receipt.stage == 0,
-            receipt.source == 0, receipt.code == 0, receipt.truncated == 0, receipt.cause.isEmpty,
-            receipt.finalizationError == 0, receipt.sandboxEntitlementVerified
-        else { throw WorkerPreviewAdmissionError.receipt(receipt) }
+        guard reachedEOF else { throw WorkerPreviewAdmissionError.observation }
+        try receipt.validateControl(identity: identity)
     }
 }
