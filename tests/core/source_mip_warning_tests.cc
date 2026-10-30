@@ -1,0 +1,53 @@
+// SPDX-License-Identifier: MIT
+#include <dust3d/base/retained_payload_budget.h>
+#include <iostream>
+#include <native/Engine/EngineInternal.h>
+#include <native/Engine/SourceBakedMesh.h>
+#include <stdexcept>
+
+namespace {
+void require(bool condition, const char* cause)
+{
+    if (!condition)
+        throw std::runtime_error(cause);
+}
+void fallbackWarningPreservesCauseAndChargesOwnedGrowth()
+{
+    std::string warning = "Existing diagnostic.";
+    dust3d::RetainedPayloadBudget budget(4096);
+    budget.accountDynamic(warning);
+    const auto before = budget.usedBytes();
+    const auto previousCapacity = warning.capacity();
+    dust3d::native::appendSourceMipFallbackWarning(warning, "Known procedural mip triangle has no single owning island; mipmaps are disabled.", budget);
+    require(warning == "Existing diagnostic. Known procedural mip triangle has no single owning island; mipmaps are disabled.", "Both original causes remain visible");
+    require(budget.usedBytes() == before + warning.capacity() - previousCapacity, "Warning capacity growth is charged exactly");
+    const auto retained = warning;
+    const auto charge = budget.usedBytes();
+    dust3d::native::appendSourceMipFallbackWarning(warning, "", budget);
+    require(warning == retained && budget.usedBytes() == charge, "An empty diagnostic does not alter the warning or charge");
+}
+void fallbackWarningRejectsInsufficientQuota()
+{
+    std::string warning;
+    dust3d::RetainedPayloadBudget budget(warning.capacity() + 1);
+    budget.accountDynamic(warning);
+    try {
+        dust3d::native::appendSourceMipFallbackWarning(warning, "Known procedural mip triangle has no single owning island; mipmaps are disabled.", budget);
+    } catch (const dust3d::native::DocumentError& error) {
+        require(error.status() == DUST3D_STATUS_LIMIT_EXCEEDED, "Quota failure preserves typed limit status");
+        return;
+    }
+    throw std::runtime_error("Warning growth exceeded its quota without a failure");
+}
+}
+int main()
+{
+    try {
+        fallbackWarningPreservesCauseAndChargesOwnedGrowth();
+        fallbackWarningRejectsInsufficientQuota();
+    } catch (const std::exception& error) {
+        std::cerr << error.what() << '\n';
+        return 1;
+    }
+    return 0;
+}

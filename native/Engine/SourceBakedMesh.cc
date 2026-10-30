@@ -131,6 +131,17 @@ namespace native {
             return { image.width, image.height, image.width * 4, image.pixels.size(), image.pixels.data() };
         }
     }
+    void appendSourceMipFallbackWarning(std::string& warning, const char* diagnostic, RetainedPayloadBudget& output)
+    {
+        if (!diagnostic || !*diagnostic)
+            return;
+        const size_t previousCapacity = warning.capacity();
+        if (!warning.empty())
+            warning += ' ';
+        warning += diagnostic;
+        if (warning.capacity() > previousCapacity)
+            charge(output, warning.capacity() - previousCapacity);
+    }
     SourceBakedData::SourceBakedData(const Dust3DSourceBakeOptions& options, ImportedModels& imports, size_t maximumMipLevels)
         : m_options(options)
         , m_maximumOutputBytes(quota(options.maximum_output_payload_bytes, maximumBytes))
@@ -334,12 +345,14 @@ namespace native {
         // against the native aggregate instead of guessing STL growth behavior.
         bakeOptions.maximumPayloadBytes = maximumBytes;
         SourceTextureBakeResult result;
+        const char* mipFallbackDiagnostic = "";
         if (m_maximumMipLevels > 1) {
             SourceTextureMipBakeOptions mipOptions;
             mipOptions.bake = bakeOptions;
             mipOptions.maximumLevels = m_maximumMipLevels;
             mipOptions.legacyAtlas = &legacy;
             auto chain = SourceTextureBaker::bakeMipChain(atlas, inputs, mipOptions);
+            mipFallbackDiagnostic = chain.fallbackDiagnostic();
             maximumSamplingLod = chain.maximumSamplingLod;
             result = std::move(chain.base);
             mipLevels[0] = std::move(chain.colorLevels);
@@ -410,13 +423,14 @@ namespace native {
             for (const auto& image : levels)
                 charge(output, image.pixels.capacity());
         }
-        payloadBytes = output.usedBytes();
         const std::string obsolete = "Imported geometry preview: GLB materials, textures and transparency are not yet applied.";
         const auto notice = geometry.warning.find(obsolete);
         if (notice != std::string::npos)
             geometry.warning.erase(notice, obsolete.size());
         while (!geometry.warning.empty() && geometry.warning.back() == ' ')
             geometry.warning.pop_back();
+        appendSourceMipFallbackWarning(geometry.warning, mipFallbackDiagnostic, output);
+        payloadBytes = output.usedBytes();
         checkCancellation(cancellation());
         m_legacy.reset();
         m_imports = nullptr;

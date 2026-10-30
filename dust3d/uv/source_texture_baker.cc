@@ -613,6 +613,7 @@ SourceTextureMipBakeResult SourceTextureBaker::bakeMipChain(const SourceUvAtlas&
             charts.push_back({ first.x(), first.y(), last.x() - first.x(), last.y() - first.y(), false });
             validateChart(charts.back());
         }
+        bool allKnownTrianglesHaveOwner = true;
         for (size_t index = 0; index < atlas.triangles.size(); ++index) {
             checkCancellation(options.bake);
             const auto& triangle = atlas.triangles[index];
@@ -637,9 +638,12 @@ SourceTextureMipBakeResult SourceTextureBaker::bakeMipChain(const SourceUvAtlas&
                 }
             }
             if (!hasOwner)
-                invalid("Known procedural mip triangle has no single owning island");
+                allKnownTrianglesHaveOwner = false;
         }
-        hasLegacyOwnership = true;
+        // Without a proof for every known triangle, keep the valid base bake and
+        // forbid mip sampling; a guessed island could mix unrelated surfaces.
+        hasLegacyOwnership = allKnownTrianglesHaveOwner;
+        result.hasUnprovenLegacyOwnership = !allKnownTrianglesHaveOwner;
     }
     for (const auto& triangle : atlas.triangles) {
         checkCancellation(options.bake);

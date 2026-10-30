@@ -231,7 +231,20 @@ void proceduralIslandsRetainTheirOwnCollars()
     atlas.triangles.push_back(unmatched);
     legacy.triangleUvs = { unmatched.packedUvs };
     legacy.triangleUvKnown = { 1 };
+    const auto unmatchedBase = dust3d::SourceTextureBaker::bake(atlas, inputs, options.bake);
+    const auto unmatchedResult = dust3d::SourceTextureBaker::bakeMipChain(atlas, inputs, options);
+    require(unmatchedResult.maximumSamplingLod == 0 && unmatchedResult.colorLevels.empty(), "Unproven procedural island ownership must disable mip sampling");
+    require(unmatchedResult.hasUnprovenLegacyOwnership, "Base-only result reports the unresolved procedural ownership cause");
+    require(std::string(unmatchedResult.fallbackDiagnostic()).find("no single owning island") != std::string::npos, "Fallback preserves the original ownership diagnostic");
+    require(unmatchedResult.base.color.pixels == unmatchedBase.color.pixels, "Unproven ownership preserves the ordinary base rendering");
+    atlas.triangles.push_back(unmatched);
+    legacy.triangleUvs.push_back(unmatched.packedUvs);
+    legacy.triangleUvKnown.push_back(1);
+    legacy.triangleUvs[1][0] = { -1, 0 };
     rejects([&] { dust3d::SourceTextureBaker::bakeMipChain(atlas, inputs, options); }, dust3d::TextureBakeErrorCode::invalidInput);
+    atlas.triangles.pop_back();
+    legacy.triangleUvs.pop_back();
+    legacy.triangleUvKnown.pop_back();
     atlas.triangles[0].packedUvs = { charts[0].map({ 0, 0 }), charts[0].map({ 1, 0 }), charts[0].map({ 0, 1 }) };
     legacy.triangleUvs[0] = atlas.triangles[0].packedUvs;
     require(dust3d::SourceTextureBaker::bakeMipChain(atlas, inputs, options).base.trianglePolicies[0].has_value(), "Matching known procedural triangles retain their policy");
@@ -268,6 +281,8 @@ void proceduralIslandsRetainTheirOwnCollars()
     options.bake.maximumChartCount = 100000;
     const auto mixed = dust3d::SourceTextureBaker::bakeMipChain(atlas, inputs, options);
     require(mixed.maximumSamplingLod > 0, "Mixed internal and imported charts retain supported mip levels");
+    require(!mixed.hasUnprovenLegacyOwnership, "Proven mixed ownership does not report a fallback");
+    require(std::string(mixed.fallbackDiagnostic()).empty(), "Proven ownership has no fallback diagnostic");
     for (size_t level = 1; level <= mixed.colorLevels.size(); ++level) {
         const auto uv = imported.importedChart->map({ 1, 1 });
         const auto& image = colorLevel(mixed, level);
@@ -275,7 +290,28 @@ void proceduralIslandsRetainTheirOwnCollars()
                 && sample(image, uv.x(), uv.y(), 1) < 1e-6,
             "Imported chart ownership is independent of legacy island indices");
     }
+    dust3d::SourceUvTriangle mixedUnmatched;
+    mixedUnmatched.known = true;
+    const std::array<dust3d::Vector2, 3> localUvs { dust3d::Vector2(.4, .4), dust3d::Vector2(.5, .4), dust3d::Vector2(.4, .5) };
+    for (size_t corner = 0; corner < localUvs.size(); ++corner)
+        mixedUnmatched.packedUvs[corner] = atlas.legacyChart->map(localUvs[corner]);
+    atlas.triangles.push_back(mixedUnmatched);
+    legacy.triangleUvs.resize(2);
+    legacy.triangleUvKnown = { 0, 1 };
+    legacy.triangleUvs[1] = localUvs;
+    inputs.triangleColors.push_back({ dust3d::Color(1, 1, 1), dust3d::Color(1, 1, 1), dust3d::Color(1, 1, 1) });
+    const auto mixedBase = dust3d::SourceTextureBaker::bake(atlas, inputs, options.bake);
+    const auto mixedFallback = dust3d::SourceTextureBaker::bakeMipChain(atlas, inputs, options);
+    require(mixedFallback.hasUnprovenLegacyOwnership, "Mixed fallback retains the ownership cause");
+    require(mixedFallback.maximumSamplingLod == 0 && mixedFallback.colorLevels.empty() && mixedFallback.metallicLevels.empty()
+            && mixedFallback.roughnessLevels.empty() && mixedFallback.emissiveLevels.empty() && mixedFallback.normalLevels.empty(),
+        "Mixed atlas with unproven procedural ownership exposes no mip levels");
+    require(mixedFallback.base.color.pixels == mixedBase.color.pixels && mixedFallback.base.metallic.pixels == mixedBase.metallic.pixels
+            && mixedFallback.base.roughness.pixels == mixedBase.roughness.pixels && mixedFallback.base.emissive.pixels == mixedBase.emissive.pixels,
+        "Mixed atlas fallback retains every original base map");
     atlas.triangles.clear();
+    legacy.triangleUvs.clear();
+    legacy.triangleUvKnown.clear();
     atlas.legacyChart = dust3d::SourceUvChart {};
     legacy.layouts.resize(1);
     legacy.layouts[0].left = legacy.layouts[0].top = .33;

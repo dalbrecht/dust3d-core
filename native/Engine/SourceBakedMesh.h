@@ -6,6 +6,9 @@
 #include <dust3d/uv/source_texture_baker.h>
 namespace dust3d {
 namespace native {
+    /// Append a static fallback cause and charge any retained warning growth.
+    /// Throws DocumentError if the updated warning exceeds the retained budget.
+    void appendSourceMipFallbackWarning(std::string& warning, const char* diagnostic, RetainedPayloadBudget& output);
     class SourceBakedData {
     public:
         SourceBakedData(const Dust3DSourceBakeOptions& options, ImportedModels& imports, size_t maximumMipLevels = 1);
