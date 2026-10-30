@@ -96,6 +96,10 @@ struct TextureBakeResult {
 
 class TextureBaker {
 public:
+    /// Validate inputs and predict whether this atlas produces a normal image.
+    /// This performs geometry inspection but allocates no output images.
+    /// Throws TextureBakeError for invalid inputs or cancellation.
+    static bool willProduceNormal(const Object& object, const UvAtlas& atlas, const TextureBakeInputs& inputs, const TextureBakeOptions& options = {});
     /// Bake an owned CPU atlas without modifying geometry, UVs or source pixels.
     /// @param object Generated original triangles and world-space vertices.
     /// @param atlas Aligned UV metadata and ordered layouts from UvAtlasBuilder.

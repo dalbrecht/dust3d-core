@@ -309,9 +309,16 @@ namespace native {
             atlasOptions.usePackedChartExtents = shouldPrepareMipmaps;
             atlasOptions.paddingFraction = padding;
             const auto components = resolvedUvComponents(snapshot, m_legacy->images());
-            auto proceduralAtlas = buildMipAtlasWithFallback(shouldPrepareMipmaps, paddingFallbackDiagnostic,
-                [&] { return UvAtlasBuilder::build(procedural, components, atlasOptions); },
-                [&] { atlasOptions.paddingFraction = 0; atlasOptions.usePackedChartExtents = false; return UvAtlasBuilder::build(procedural, components, atlasOptions); });
+            TextureBakeOptions planningOptions;
+            planningOptions.colorSize = m_options.legacy.color_size;
+            planningOptions.normalSize = m_options.legacy.normal_size;
+            planningOptions.materialSize = m_options.legacy.material_size;
+            planningOptions.maximumSpatialGridEntries = m_options.legacy.maximum_spatial_grid_entries;
+            planningOptions.maximumPayloadBytes = m_options.legacy.maximum_bake_payload_bytes;
+            planningOptions.cancellation = cancellation() ? &cancellation()->cancelled : nullptr;
+            const auto normalPadding = shouldPrepareMipmaps ? sourceMipPaddingFraction(planningOptions.colorSize, planningOptions.materialSize, planningOptions.normalSize, true) : 0;
+            auto proceduralAtlas = buildNormalAwareMipAtlas(procedural, components, atlasOptions, planningOptions, normalPadding,
+                shouldPrepareMipmaps, paddingFallbackDiagnostic, [&] { return m_legacy->resolvedInputs(snapshot); });
             legacy.packedTextureSize = proceduralAtlas.packedTextureSize;
             for (size_t index = 0; index < proceduralToRetained.size(); ++index) {
                 legacy.triangleUvs[proceduralToRetained[index]] = proceduralAtlas.triangleUvs[index];

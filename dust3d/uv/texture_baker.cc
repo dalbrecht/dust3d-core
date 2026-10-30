@@ -768,6 +768,11 @@ namespace detail {
         return result;
     }
 }
+bool TextureBaker::willProduceNormal(const Object& object, const UvAtlas& atlas, const TextureBakeInputs& inputs, const TextureBakeOptions& options)
+{
+    validate(object, atlas, inputs, options);
+    return mayProduceNormals(atlas, inputs, options) && confirmsNormalGeometry(object, atlas, inputs, options);
+}
 TextureBakeResult TextureBaker::bake(const Object& object, const UvAtlas& atlas, const TextureBakeInputs& inputs, const TextureBakeOptions& options)
 {
     validate(object, atlas, inputs, options);
