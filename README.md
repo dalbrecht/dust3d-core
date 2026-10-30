@@ -883,6 +883,8 @@ unchanged. See ADR0092 for the controlled precision regression, independent bake
 re-import, scoped coverage and remaining OBJ/app integration.
 
 
+The indexed OBJ C API `dust3d_indexed_mesh_export_obj` encodes an existing immutable indexed mesh as positions, normals and triangle faces with independent owned bytes. It preserves the supplied float values, seams and winding, and does not read archives or export materials. Source and output quotas remain separate; copy borrowed bytes before destroying the output. See ADR0198.
+
 The development OBJ C API now exposes independent immutable original polygon bytes via Dust3DObjExportOptions and dust3d_obj_export_load. Copy borrowed bytes before destroy. ADR0093 records quota/lifetime semantics and validation limits. CLI dispatch and app adoption remain pending.
 
 

@@ -3,6 +3,8 @@
 #define DUST3D_NATIVE_OBJ_DOCUMENT_H_
 #include <dust3d/base/object.h>
 #include <string_view>
+struct Dust3DIndexedMesh;
+struct Dust3DCancellationToken;
 namespace dust3d {
 namespace native {
     inline constexpr std::string_view objDocumentHeader = "# Dust3D native geometry OBJ\n";
@@ -25,6 +27,7 @@ namespace native {
 
     private:
         friend OwnedObjDocument encodeObjDocument(const Object&, size_t);
+        friend OwnedObjDocument encodeIndexedObjDocument(const Dust3DIndexedMesh&, size_t, const Dust3DCancellationToken*);
         explicit OwnedObjDocument(std::vector<uint8_t> bytes) noexcept
             : m_bytes(std::move(bytes))
         {
@@ -49,6 +52,11 @@ namespace native {
     /// UVs, normals, materials, rig/animation, globals, native calls or files are included.
     /// No fallback to preview triangles. Example: encodeObjDocument(originalObject).
     OwnedObjDocument encodeObjDocument(const Object& source, size_t maximumBytes = 0);
+    /// Encode finite indexed float positions/normals and one-based triangle faces.
+    /// Source and optional cancellation are borrowed only during this call.
+    /// Returns independent bytes under the root/capacity quota; throws DocumentError
+    /// on invalid input, limits or cancellation. No colors or materials are exported.
+    OwnedObjDocument encodeIndexedObjDocument(const Dust3DIndexedMesh& source, size_t maximumBytes, const Dust3DCancellationToken* cancellation);
 }
 }
 #endif

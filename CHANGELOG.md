@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add bounded owned indexed-mesh OBJ positions, normals and triangle output (#63).
+
 - Require sealed schema-3 per-job wall budgets and enforce scheduler-owned service watchdogs independently of native work, retaining original deadline causes (#304).
 
 - Require explicit bounded pre-job XPC handshake waits in the transport and preview executor, preserving attempt/deadline causes and preventing job creation after failure (#302).

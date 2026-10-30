@@ -900,6 +900,18 @@ typedef struct Dust3DObjExportOptions {
  * Example: zero options, set struct_size, load, copy bytes/count, destroy.
  */
 Dust3DObjExport* dust3d_obj_export_load(const uint8_t* bytes, size_t size, const Dust3DObjExportOptions* options, Dust3DError* error);
+/** Encode immutable indexed float positions and normals as one-based OBJ triangles.
+ * @param mesh Valid indexed owner, borrowed until return and not concurrently destroyed.
+ * @param options Required sized output quota/cancellation settings, borrowed until return.
+ * @param error Optional typed error, reset on entry; no exception crosses the ABI.
+ * @return Independent OBJ owner, or NULL on failure; destroy with dust3d_obj_export_destroy.
+ * Vertex order, float values, axes, units, normal seams and winding are preserved;
+ * no colors, UVs, materials, rig or animation are emitted. Output/warning quota is
+ * separate from the indexed owner and any caller-side copy. Example: zero options,
+ * set struct_size, encode, copy the borrowed bytes, then destroy the output owner.
+ */
+Dust3DObjExport* dust3d_indexed_mesh_export_obj(const Dust3DIndexedMesh* mesh, const Dust3DObjExportOptions* options, Dust3DError* error);
+
 /** Release owned storage. NULL accepted. */
 void dust3d_obj_export_destroy(Dust3DObjExport* output);
 /** Borrow bytes until destroy; NULL for NULL owner. Never free separately. */
