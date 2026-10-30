@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: MIT
 #ifndef DUST3D_NATIVE_MIP_ATLAS_PREPARATION_H_
 #define DUST3D_NATIVE_MIP_ATLAS_PREPARATION_H_
-#include <dust3d/uv/uv_atlas_builder.h>
-#include <dust3d/uv/texture_baker.h>
 #include <algorithm>
+#include <dust3d/uv/texture_baker.h>
+#include <dust3d/uv/uv_atlas_builder.h>
 #include <exception>
 #include <new>
-#include <utility>
+#include <stdexcept>
 #include <string>
+#include <utility>
 namespace dust3d::native {
 class AtlasRetryAllocationError : public std::bad_alloc {
 public:
