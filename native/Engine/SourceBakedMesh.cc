@@ -295,6 +295,7 @@ namespace native {
             UvAtlasOptions atlasOptions;
             atlasOptions.textureSize = m_options.legacy.atlas_texture_size;
             atlasOptions.maximumPayloadBytes = m_options.legacy.maximum_uv_payload_bytes;
+            atlasOptions.usePackedChartExtents = m_maximumMipLevels > 1;
             auto proceduralAtlas = UvAtlasBuilder::build(procedural, resolvedUvComponents(snapshot, m_legacy->images()), atlasOptions);
             legacy.packedTextureSize = proceduralAtlas.packedTextureSize;
             for (size_t index = 0; index < proceduralToRetained.size(); ++index) {

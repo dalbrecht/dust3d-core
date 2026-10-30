@@ -149,6 +149,7 @@ UvAtlas UvAtlasBuilder::build(const Object& object, const std::map<Uuid, UvAtlas
     validate(object, components);
     UvAtlas result;
     UvMapPacker packer;
+    packer.setUsePackedChartExtents(options.usePackedChartExtents);
     size_t layoutCount = 0;
     auto addPart = [&](const UvMapPacker::Part& part) {
         budget.add(1, sizeof(UvMapPacker::Layout));

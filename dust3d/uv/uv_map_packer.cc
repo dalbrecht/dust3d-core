@@ -162,15 +162,16 @@ void UvMapPacker::pack()
             }
             std::swap(partWidth, partHeight);
         }
+        const auto mappedUv = [&](const Vector2& uv) {
+            if (m_usePackedChartExtents)
+                return Vector2(left + uv.x() * layout.width, top + uv.y() * layout.height);
+            return Vector2((left * m_packedTextureSize + uv.x() * partWidth) / m_packedTextureSize,
+                (top * m_packedTextureSize + uv.y() * partHeight) / m_packedTextureSize);
+        };
         for (const auto& it : part.localUv) {
             layout.globalUv.insert({ it.first,
                 std::array<Vector2, 3> {
-                    Vector2((left * m_packedTextureSize + it.second[0].x() * partWidth) / m_packedTextureSize,
-                        (top * m_packedTextureSize + it.second[0].y() * partHeight) / m_packedTextureSize),
-                    Vector2((left * m_packedTextureSize + it.second[1].x() * partWidth) / m_packedTextureSize,
-                        (top * m_packedTextureSize + it.second[1].y() * partHeight) / m_packedTextureSize),
-                    Vector2((left * m_packedTextureSize + it.second[2].x() * partWidth) / m_packedTextureSize,
-                        (top * m_packedTextureSize + it.second[2].y() * partHeight) / m_packedTextureSize) } });
+                    mappedUv(it.second[0]), mappedUv(it.second[1]), mappedUv(it.second[2]) } });
         }
         m_packedLayouts.emplace_back(layout);
     }

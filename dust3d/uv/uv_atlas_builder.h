@@ -49,6 +49,7 @@ struct UvAtlasComponent {
 struct UvAtlasOptions {
     size_t textureSize = 4096;
     size_t maximumPayloadBytes = 0; // Zero selects 64 MiB; maximum 256 MiB.
+    bool usePackedChartExtents = false; // Opt in to chart-contained UVs for safe mip ownership.
 };
 
 /// A 512-square horizontal gradient, identified by layout ordinal rather than a global image UUID.

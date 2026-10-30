@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Align opt-in mip UVs with their packed chart extents (#59).
+
 - Preserve base textures with a zero mip sampling limit when procedural triangle ownership cannot be proven (#59).
 
 - Require sealed schema-3 per-job wall budgets and enforce scheduler-owned service watchdogs independently of native work, retaining original deadline causes (#304).

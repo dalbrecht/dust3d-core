@@ -59,6 +59,9 @@ public:
     };
 
     UvMapPacker();
+    /// Use the packed rectangle dimensions for UV mapping, keeping corners inside their layout.
+    /// Disabled by default to preserve the inherited mapping.
+    void setUsePackedChartExtents(bool enabled) { m_usePackedChartExtents = enabled; }
     void addPart(const Part& part);
     void addSeams(const std::vector<std::pair<std::set<std::array<PositionKey, 3>>, std::set<std::array<PositionKey, 3>>>>& seamTriangleUvs);
     void pack();
@@ -70,6 +73,7 @@ private:
     std::vector<Layout> m_packedLayouts;
     std::vector<std::pair<std::set<std::array<PositionKey, 3>>, std::set<std::array<PositionKey, 3>>>> m_seams;
     double m_packedTextureSize = 0.0;
+    bool m_usePackedChartExtents = false;
 
     void resolveSeamUvs();
 };
