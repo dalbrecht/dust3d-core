@@ -175,6 +175,23 @@ void crowdedChartsFallBackToBaseAtlas()
         require(error.code() == dust3d::UvAtlasErrorCode::invalidInput && std::string(error.what()).find("padded cause") != std::string::npos && std::string(error.what()).find("base cause") != std::string::npos,
             "Failed base retry must retain both causes and the base failure type");
     }
+    mip = true;
+    try {
+        (void)dust3d::native::buildMipAtlasWithFallback(mip, diagnostic,
+            [&]() -> dust3d::UvAtlas { throw dust3d::UvAtlasError(dust3d::UvAtlasErrorCode::packingFailed, "padded cause"); },
+            [&]() -> dust3d::UvAtlas { throw std::runtime_error("base generic cause"); });
+        throw std::logic_error("Generic base failure unexpectedly succeeded");
+    } catch (const std::runtime_error& error) {
+        require(std::string(error.what()).find("padded cause") != std::string::npos && std::string(error.what()).find("base generic cause") != std::string::npos,
+            "Generic base failure must retain both causes");
+        bool foundNestedCause = false;
+        try {
+            std::rethrow_if_nested(error);
+        } catch (const std::runtime_error& nested) {
+            foundNestedCause = std::string(nested.what()) == "base generic cause";
+        }
+        require(foundNestedCause, "Generic retry must retain its original nested exception");
+    }
     bool retried = false;
     mip = true;
     try {

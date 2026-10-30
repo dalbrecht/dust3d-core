@@ -4,8 +4,19 @@
 #include <dust3d/uv/uv_atlas_builder.h>
 #include <dust3d/uv/texture_baker.h>
 #include <algorithm>
+#include <exception>
+#include <new>
+#include <utility>
 #include <string>
 namespace dust3d::native {
+class AtlasRetryAllocationError : public std::bad_alloc {
+public:
+    explicit AtlasRetryAllocationError(std::string message) noexcept
+        : m_message(std::move(message)) { }
+    const char* what() const noexcept override { return m_message.c_str(); }
+private:
+    std::string m_message;
+};
 template<typename PaddedBuild, typename BaseBuild>
 auto buildMipAtlasWithFallback(bool& mip, std::string& diagnostic, PaddedBuild padded, BaseBuild base) -> decltype(padded())
 {
@@ -18,11 +29,20 @@ auto buildMipAtlasWithFallback(bool& mip, std::string& diagnostic, PaddedBuild p
             throw;
         diagnostic = std::string("Mip atlas padding could not be packed; mipmaps are disabled: ") + error.what();
         mip = false;
+        // Prepare this while allocation is still available so a failed retry can
+        // retain its original packing context without allocating in the handler.
+        auto allocationDiagnostic = diagnostic + "; base atlas failed: allocation failure";
         try {
             return base();
         } catch (const UvAtlasError& baseError) {
             const auto both = diagnostic + "; base atlas failed: " + baseError.what();
             throw UvAtlasError(baseError.code(), both.c_str());
+        } catch (const std::bad_alloc&) {
+            throw AtlasRetryAllocationError(std::move(allocationDiagnostic));
+        } catch (const std::exception& baseError) {
+            std::throw_with_nested(std::runtime_error(diagnostic + "; base atlas failed: " + baseError.what()));
+        } catch (...) {
+            std::throw_with_nested(std::runtime_error(diagnostic + "; base atlas failed with a non-standard exception"));
         }
     }
 }
