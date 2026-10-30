@@ -68,3 +68,13 @@ retains its existing payload limit and 100-attempt cap. The first atlas is relea
 before repacking. These are bounded extra costs, but the raster-sample quota does
 not account for geometry sorting or packing, and no aggregate CPU or hard memory
 containment is claimed. Performance and containment remain release work.
+
+A dedicated positive C ABI acceptance test constructs a small DS3 archive and
+constant-material GLB triangle entirely in memory, alongside a disjoint
+procedural tube. The mip loader returns both source classes and positive
+sampling LOD; independent centroid bilinear and fractional trilinear samples
+remain isolated across admitted color levels after the input archive is released.
+The test checks for the specific mip fallback diagnostics while preserving other
+warnings. It exercises ordinary synthetic import, not the historical imported
+fixture, material catalog, fault probes, GPU sampling or a production document.
+It does not establish full mixed-material or release acceptance.

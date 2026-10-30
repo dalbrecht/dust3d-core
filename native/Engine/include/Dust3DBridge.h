@@ -829,7 +829,7 @@ Dust3DSurfaceComponentKind dust3d_source_baked_mesh_component_kind(const Dust3DS
 /** Borrowed packed RGBA8, same map selectors/encoding as the legacy bake API.
  * Zero value for NULL, absent normal or invalid selector. */
 Dust3DTextureView dust3d_source_baked_mesh_texture(const Dust3DSourceBakedMesh* mesh, uint32_t map);
-/** Output LOD clamp, currently zero (also for NULL). Source-image LOD is independent. */
+/** Output LOD clamp; base-only loads and NULL return zero. Source-image LOD is independent. */
 double dust3d_source_baked_mesh_maximum_sampling_lod(const Dust3DSourceBakedMesh* mesh);
 
 /** Immutable static FBX bytes. No C++ storage crosses this boundary. */

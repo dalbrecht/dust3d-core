@@ -269,6 +269,10 @@ if(BUILD_TESTING)
     add_test(NAME worker_resource_contracts COMMAND dust3d_worker_resource_tests)
     set_tests_properties(worker_resource_contracts PROPERTIES TIMEOUT 30)
 
+    add_executable(dust3d_source_mip_mixed_synthetic_tests tests/core/source_mip_mixed_synthetic_tests.cc)
+    target_link_libraries(dust3d_source_mip_mixed_synthetic_tests PRIVATE dust3d_engine dust3d_core)
+    add_test(NAME source_mip_mixed_synthetic_contracts COMMAND dust3d_source_mip_mixed_synthetic_tests)
+
     add_executable(dust3d_source_mip_padded_atlas_tests tests/core/source_mip_padded_atlas_tests.cc)
     target_link_libraries(dust3d_source_mip_padded_atlas_tests PRIVATE dust3d_core)
     add_test(NAME source_mip_padded_atlas_contracts COMMAND dust3d_source_mip_padded_atlas_tests)
