@@ -30,6 +30,15 @@ UvMapPacker::UvMapPacker()
 {
 }
 
+bool UvMapPacker::setPaddingFraction(double fraction)
+{
+    ChartPacker validator;
+    if (!m_packedLayouts.empty() || !validator.setPaddingFraction(fraction))
+        return false;
+    m_paddingFraction = fraction;
+    return true;
+}
+
 void UvMapPacker::addPart(const Part& part)
 {
     m_partTriangleUvs.push_back(part);
@@ -124,6 +133,8 @@ void UvMapPacker::pack()
     }
 
     ChartPacker chartPacker;
+    if (m_paddingFraction > 0)
+        chartPacker.setPaddingFraction(m_paddingFraction);
     chartPacker.setCharts(chartSizes);
     m_packedTextureSize = chartPacker.pack();
     const auto& packedResult = chartPacker.getResult();

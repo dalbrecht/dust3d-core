@@ -62,6 +62,9 @@ public:
     /// Use the packed rectangle dimensions for UV mapping, keeping corners inside their layout.
     /// Disabled by default to preserve the inherited mapping.
     void setUsePackedChartExtents(bool enabled) { m_usePackedChartExtents = enabled; }
+    /// Set an optional finite per-side padding fraction in (0, 0.125] before packing.
+    /// Returns false for unsupported values or an already-packed result without changing state.
+    bool setPaddingFraction(double fraction);
     void addPart(const Part& part);
     void addSeams(const std::vector<std::pair<std::set<std::array<PositionKey, 3>>, std::set<std::array<PositionKey, 3>>>>& seamTriangleUvs);
     void pack();
@@ -74,6 +77,7 @@ private:
     std::vector<std::pair<std::set<std::array<PositionKey, 3>>, std::set<std::array<PositionKey, 3>>>> m_seams;
     double m_packedTextureSize = 0.0;
     bool m_usePackedChartExtents = false;
+    double m_paddingFraction = 0.0;
 
     void resolveSeamUvs();
 };

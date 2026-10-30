@@ -74,6 +74,9 @@ SourceUvAtlas SourceUvAtlasBuilder::build(const Object& object, const UvAtlas& l
     checkCancellation(options);
     if (!options.textureSize || options.textureSize > 8192 || !options.maximumChartCount || options.maximumChartCount > 100000 || options.maximumPayloadBytes > 256 * 1024 * 1024)
         invalid("Source UV atlas options exceed supported dimensions, chart count or quota");
+    ChartPacker paddingValidator;
+    if (options.paddingFraction != 0 && !paddingValidator.setPaddingFraction(options.paddingFraction))
+        invalid("Source UV atlas padding fraction must be in (0, 0.125]");
     const size_t count = object.triangles.size();
     auto aligned = [&](size_t size) { return !size || size == count; };
     if (!aligned(object.triangleModelKeys.size()) || !aligned(object.triangleComponentKeys.size()) || !aligned(object.triangleCornerUvs.size())
@@ -193,6 +196,8 @@ SourceUvAtlas SourceUvAtlasBuilder::build(const Object& object, const UvAtlas& l
         if (!std::isfinite(guess) || guess <= 0 || guess > std::numeric_limits<float>::max())
             invalid("Source UV packing area exceeds finite range");
         ChartPacker packer;
+        if (options.paddingFraction != 0)
+            packer.setPaddingFraction(options.paddingFraction);
         packer.setCharts(dimensions);
         bool packed = false;
         for (size_t attempt = 0; attempt < 100; ++attempt) {

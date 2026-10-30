@@ -32,6 +32,20 @@ void ChartPacker::setCharts(const std::vector<std::pair<float, float>>& chartSiz
     m_chartSizes = chartSizes;
 }
 
+bool ChartPacker::setPaddingFraction(double fraction)
+{
+    if (!std::isfinite(fraction) || fraction <= 0 || fraction > .125)
+        return false;
+    const float converted = static_cast<float>(fraction);
+    if (!std::isfinite(converted) || converted <= 0)
+        return false;
+    m_paddingSize = converted;
+    m_result.clear();
+    m_tryNum = 0;
+    m_textureSizeFactor = 1.0;
+    return true;
+}
+
 const std::vector<std::tuple<float, float, float, float, bool>>& ChartPacker::getResult()
 {
     return m_result;

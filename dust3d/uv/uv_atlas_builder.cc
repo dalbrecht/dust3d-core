@@ -144,12 +144,14 @@ UvAtlas UvAtlasBuilder::build(const Object& object, const std::map<Uuid, UvAtlas
         throw UvAtlasError(UvAtlasErrorCode::invalidInput, "UV texture scale must be from 1 to 8192.");
     if (options.maximumPayloadBytes > maximumPayload)
         throw UvAtlasError(UvAtlasErrorCode::limitExceeded, "The UV atlas output budget exceeds 256 MiB.");
+    UvMapPacker packer;
+    packer.setUsePackedChartExtents(options.usePackedChartExtents);
+    if (options.paddingFraction != 0 && !packer.setPaddingFraction(options.paddingFraction))
+        throw UvAtlasError(UvAtlasErrorCode::invalidInput, "UV atlas padding fraction must be in (0, 0.125].");
     OutputBudget budget(options.maximumPayloadBytes == 0 ? defaultPayload : options.maximumPayloadBytes);
     budget.add(object.triangles.size(), sizeof(Uvs) + sizeof(Uuid) + sizeof(uint8_t));
     validate(object, components);
     UvAtlas result;
-    UvMapPacker packer;
-    packer.setUsePackedChartExtents(options.usePackedChartExtents);
     size_t layoutCount = 0;
     auto addPart = [&](const UvMapPacker::Part& part) {
         budget.add(1, sizeof(UvMapPacker::Layout));

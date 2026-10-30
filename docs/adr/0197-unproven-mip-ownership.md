@@ -41,3 +41,17 @@ admitted level and fractional trilinear transition, including the base. It cover
 straight alpha and hidden RGB, emission, metallic, roughness and tangent normals,
 and checks exact and one-short work/output quotas. This is bounded synthetic
 evidence; real mixed-document and GPU validation remain outstanding.
+
+For opt-in mip preparation, both atlas stages request extra chart padding based
+on the smallest output map. This is a packing heuristic, not a promise that any
+mip level is safe: the ownership, footprint and collar proofs still determine the
+maximum LOD. If the padded atlas cannot be packed, a typed packing failure alone
+triggers an unpadded base-only retry and its original cause remains in the native
+warning. Invalid input, cancellation and quota failures are not retried. If the
+base retry also fails, both causes and the base failure type are retained. The
+legacy base-only request keeps its existing packing behavior.
+
+A synthetic 25-chart, 32-pixel case verifies that excessive optional padding
+still leaves a usable base atlas. Another in-memory mixed-atlas case establishes
+positive LOD and independent bilinear and trilinear checks against poisoned gaps.
+Neither case runs real imported-model generation or validates GPU rendering.

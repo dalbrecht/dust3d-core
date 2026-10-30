@@ -32,6 +32,8 @@ namespace dust3d {
 class ChartPacker {
 public:
     void setCharts(const std::vector<std::pair<float, float>>& chartSizes);
+    /// Set a finite per-side padding fraction in (0, 0.125]. Invalid input leaves the prior value unchanged.
+    bool setPaddingFraction(double fraction);
     const std::vector<std::tuple<float, float, float, float, bool>>& getResult();
     float pack();
     /// Try a positive finite scale whose quantized dimensions fit int.

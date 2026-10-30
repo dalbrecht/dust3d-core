@@ -39,12 +39,24 @@ void fallbackWarningRejectsInsufficientQuota()
     }
     throw std::runtime_error("Warning growth exceeded its quota without a failure");
 }
+void paddingHeuristicUsesSmallestBoundedMap()
+{
+    require(dust3d::native::sourceMipPaddingFraction(256, 64, 128) == .0625, "Smallest map sets four-texel padding");
+    require(dust3d::native::sourceMipPaddingFraction(1, 8192, 8192) == .125, "Small maps cap the padding fraction");
+    try {
+        (void)dust3d::native::sourceMipPaddingFraction(0, 64, 128);
+        throw std::runtime_error("Zero map dimension unexpectedly succeeded");
+    } catch (const dust3d::native::DocumentError& error) {
+        require(error.status() == DUST3D_STATUS_INVALID_DOCUMENT, "Invalid map dimension retains typed status");
+    }
+}
 }
 int main()
 {
     try {
         fallbackWarningPreservesCauseAndChargesOwnedGrowth();
         fallbackWarningRejectsInsufficientQuota();
+        paddingHeuristicUsesSmallestBoundedMap();
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';
         return 1;

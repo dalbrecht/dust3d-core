@@ -33,6 +33,7 @@ struct SourceUvAtlasOptions {
     size_t textureSize = 4096;
     size_t maximumPayloadBytes = 0; // Zero selects 64 MiB; maximum 256 MiB.
     size_t maximumChartCount = 50000; // Includes the legacy region; supported range 1..100000.
+    double paddingFraction = 0; // Zero retains the inherited per-side packing padding.
     const std::atomic_bool* cancellation = nullptr; // Borrowed only during build().
 };
 class SourceUvAtlasBuilder {

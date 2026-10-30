@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: MIT
+#include "MipAtlasPreparation.h"
 #include "SourceBakedMesh.h"
 #include "GenerationPipeline.h"
 #include "ImportedModels.h"
@@ -141,6 +142,12 @@ namespace native {
         warning += diagnostic;
         if (warning.capacity() > previousCapacity)
             charge(output, warning.capacity() - previousCapacity);
+    }
+    double sourceMipPaddingFraction(size_t colorSize, size_t materialSize, size_t normalSize)
+    {
+        if (!colorSize || !materialSize || !normalSize || colorSize > 8192 || materialSize > 8192 || normalSize > 8192)
+            invalid("Source mip padding requires map dimensions in 1..8192.");
+        return std::min(.125, 4.0 / std::min({ colorSize, materialSize, normalSize }));
     }
     SourceBakedData::SourceBakedData(const Dust3DSourceBakeOptions& options, ImportedModels& imports, size_t maximumMipLevels)
         : m_options(options)
@@ -291,12 +298,19 @@ namespace native {
         legacy.triangleUvs.resize(count);
         legacy.triangleUvKnown.resize(count);
         std::optional<TextureBakeResult> legacyBake;
+        bool shouldPrepareMipmaps = m_maximumMipLevels > 1;
+        std::string paddingFallbackDiagnostic;
+        const auto padding = shouldPrepareMipmaps ? sourceMipPaddingFraction(m_options.legacy.color_size, m_options.legacy.material_size, m_options.legacy.normal_size) : 0;
         if (!procedural.triangles.empty()) {
             UvAtlasOptions atlasOptions;
             atlasOptions.textureSize = m_options.legacy.atlas_texture_size;
             atlasOptions.maximumPayloadBytes = m_options.legacy.maximum_uv_payload_bytes;
-            atlasOptions.usePackedChartExtents = m_maximumMipLevels > 1;
-            auto proceduralAtlas = UvAtlasBuilder::build(procedural, resolvedUvComponents(snapshot, m_legacy->images()), atlasOptions);
+            atlasOptions.usePackedChartExtents = shouldPrepareMipmaps;
+            atlasOptions.paddingFraction = padding;
+            const auto components = resolvedUvComponents(snapshot, m_legacy->images());
+            auto proceduralAtlas = buildMipAtlasWithFallback(shouldPrepareMipmaps, paddingFallbackDiagnostic,
+                [&] { return UvAtlasBuilder::build(procedural, components, atlasOptions); },
+                [&] { atlasOptions.paddingFraction = 0; atlasOptions.usePackedChartExtents = false; return UvAtlasBuilder::build(procedural, components, atlasOptions); });
             legacy.packedTextureSize = proceduralAtlas.packedTextureSize;
             for (size_t index = 0; index < proceduralToRetained.size(); ++index) {
                 legacy.triangleUvs[proceduralToRetained[index]] = proceduralAtlas.triangleUvs[index];
@@ -321,15 +335,18 @@ namespace native {
                 if (legacyBake->emissive)
                     inputs.legacy.emissive = borrowed(*legacyBake->emissive);
             }
-            if (m_maximumMipLevels > 1)
+            if (shouldPrepareMipmaps)
                 legacy.layouts = std::move(proceduralAtlas.layouts);
         }
         SourceUvAtlasOptions atlasOptions;
         atlasOptions.textureSize = m_options.legacy.atlas_texture_size;
+        atlasOptions.paddingFraction = shouldPrepareMipmaps ? padding : 0;
         atlasOptions.maximumPayloadBytes = m_options.maximum_atlas_payload_bytes;
         atlasOptions.maximumChartCount = m_options.maximum_chart_count;
         atlasOptions.cancellation = cancellation() ? &cancellation()->cancelled : nullptr;
-        const auto atlas = SourceUvAtlasBuilder::build(filtered, legacy, atlasOptions);
+        const auto atlas = buildMipAtlasWithFallback(shouldPrepareMipmaps, paddingFallbackDiagnostic,
+            [&] { return SourceUvAtlasBuilder::build(filtered, legacy, atlasOptions); },
+            [&] { atlasOptions.paddingFraction = 0; return SourceUvAtlasBuilder::build(filtered, legacy, atlasOptions); });
         SourceTextureBakeOptions bakeOptions;
         bakeOptions.colorSize = m_options.legacy.color_size;
         bakeOptions.materialSize = m_options.legacy.material_size;
@@ -347,7 +364,7 @@ namespace native {
         bakeOptions.maximumPayloadBytes = maximumBytes;
         SourceTextureBakeResult result;
         const char* mipFallbackDiagnostic = "";
-        if (m_maximumMipLevels > 1) {
+        if (shouldPrepareMipmaps) {
             SourceTextureMipBakeOptions mipOptions;
             mipOptions.bake = bakeOptions;
             mipOptions.maximumLevels = m_maximumMipLevels;
@@ -430,6 +447,7 @@ namespace native {
             geometry.warning.erase(notice, obsolete.size());
         while (!geometry.warning.empty() && geometry.warning.back() == ' ')
             geometry.warning.pop_back();
+        appendSourceMipFallbackWarning(geometry.warning, paddingFallbackDiagnostic.c_str(), output);
         appendSourceMipFallbackWarning(geometry.warning, mipFallbackDiagnostic, output);
         payloadBytes = output.usedBytes();
         checkCancellation(cancellation());
