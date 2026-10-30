@@ -739,10 +739,81 @@ SourceTextureMipBakeResult SourceTextureBaker::bakeMipChain(const SourceUvAtlas&
             // Base resampling can land just beyond an island's original texel
             // centers. Such pixels cannot seed new collars, even if inside its
             // transformed rectangle; their nearest source sample belongs to a gap.
-            if (!contains(original, { (x + .5) / view->width, (y + .5) / view->height }))
+            const double sourceU = (x + .5) / view->width;
+            const double sourceV = (y + .5) / view->height;
+            if (sourceU < original.left || sourceU >= original.left + original.width
+                || sourceV < original.top || sourceV >= original.top + original.height)
                 owners[index] = std::numeric_limits<uint32_t>::max();
         }
     };
+    auto baseCoverage = [&](size_t size, int kind, std::vector<uint32_t>& owners, std::vector<uint8_t>& coverage) {
+        auto interior = chartOwnershipForCharts(size, chartViews, work, 0, false);
+        admitBaseSamples(interior, size, kind);
+        owners = chartOwnershipForCharts(size, chartViews, work, 1.0 / size, true);
+        coverage.resize(size * size);
+        for (size_t index = 0; index < coverage.size(); ++index) {
+            work.step();
+            coverage[index] = interior[index] != std::numeric_limits<uint32_t>::max() && interior[index] == owners[index];
+        }
+    };
+    auto canFillBase = [&](size_t size, int kind) {
+        std::vector<uint32_t> owners;
+        std::vector<uint8_t> coverage;
+        baseCoverage(size, kind, owners, coverage);
+        std::vector<uint32_t> queue;
+        queue.reserve(coverage.size());
+        for (size_t index = 0; index < coverage.size(); ++index) {
+            work.step();
+            if (coverage[index])
+                queue.push_back(static_cast<uint32_t>(index));
+        }
+        for (size_t cursor = 0; cursor < queue.size(); ++cursor) {
+            work.step();
+            const size_t index = queue[cursor], x = index % size, y = index / size;
+            auto spread = [&](size_t next) {
+                if (coverage[next] || owners[next] != owners[index])
+                    return;
+                coverage[next] = 1;
+                queue.push_back(static_cast<uint32_t>(next));
+            };
+            if (x)
+                spread(index - 1);
+            if (x + 1 < size)
+                spread(index + 1);
+            if (y)
+                spread(index - size);
+            if (y + 1 < size)
+                spread(index + size);
+        }
+        for (const auto covered : coverage) {
+            work.step();
+            if (!covered)
+                return false;
+        }
+        return true;
+    };
+    if (additional && atlas.legacyChart && options.legacyAtlas && !options.legacyAtlas->layouts.empty()) {
+        const bool canIsolate = canFillBase(result.base.color.width, 0) && canFillBase(result.base.metallic.width, 1)
+            && canFillBase(result.base.roughness.width, 2) && canFillBase(result.base.emissive.width, 3)
+            && (!result.base.normal || canFillBase(result.base.normal->width, 4));
+        if (!canIsolate) {
+            additional = 0;
+            result.hasUnprovenBaseFootprint = true;
+        } else {
+            auto isolate = [&](TextureImage& image, int kind) {
+                std::vector<uint32_t> owners;
+                std::vector<uint8_t> coverage;
+                baseCoverage(image.width, kind, owners, coverage);
+                dilate(image, coverage, owners, work);
+            };
+            isolate(result.base.color, 0);
+            isolate(result.base.metallic, 1);
+            isolate(result.base.roughness, 2);
+            isolate(result.base.emissive, 3);
+            if (result.base.normal)
+                isolate(*result.base.normal, 4);
+        }
+    }
     auto appendLevels = [&](std::vector<TextureImage>& levels, const TextureImage& base, int kind) {
         levels.reserve(additional);
         for (size_t level = 0; level < additional; ++level) {

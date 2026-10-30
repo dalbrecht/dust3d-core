@@ -6,6 +6,8 @@
 
 - Preserve base textures with a zero mip sampling limit when procedural triangle ownership cannot be proven (#59).
 
+- Isolate proven procedural base collars before enabling mip sampling (#59).
+
 - Require sealed schema-3 per-job wall budgets and enforce scheduler-owned service watchdogs independently of native work, retaining original deadline causes (#304).
 
 - Require explicit bounded pre-job XPC handshake waits in the transport and preview executor, preserving attempt/deadline causes and preventing job creation after failure (#302).

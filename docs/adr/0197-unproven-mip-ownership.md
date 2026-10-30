@@ -25,3 +25,19 @@ The actual cause of its missing island attribution, safe mixed mip levels,
 GPU minification and textured export/re-import remain open. A reviewed core
 dependency update and separate downstream validation are required before the
 Apple app can use this behavior.
+
+Before exposing a positive LOD for procedural islands, the opt-in baker also
+checks whether each chart's base-level ownership can be filled from source texels
+strictly within that chart. It reconstructs the base collars from those owned
+samples, then generates lower levels. If an owned chart cannot be filled, it
+keeps the original base and returns LOD zero with a distinct diagnostic. The
+base-only loader and explicit single-level requests retain their original bytes.
+Work for ownership and coverage traversal uses the existing cumulative work
+limit; retained level quotas are checked before isolation. Temporary ownership
+and queue buffers remain workspace, not a hard process-memory guarantee.
+
+The independent poisoned-gap test samples procedural chart corners at every
+admitted level and fractional trilinear transition, including the base. It covers
+straight alpha and hidden RGB, emission, metallic, roughness and tangent normals,
+and checks exact and one-short work/output quotas. This is bounded synthetic
+evidence; real mixed-document and GPU validation remain outstanding.

@@ -78,11 +78,16 @@ struct SourceTextureMipBakeResult {
     std::vector<TextureImage> normalLevels; // Empty when the base normal is absent.
     double maximumSamplingLod = 0;
     bool hasUnprovenLegacyOwnership = false;
+    bool hasUnprovenBaseFootprint = false;
     /// Returns a static diagnostic for an ownership fallback, otherwise an empty string.
     /// The pointer remains valid for the program lifetime.
     const char* fallbackDiagnostic() const noexcept
     {
-        return hasUnprovenLegacyOwnership ? "Known procedural mip triangle has no single owning island; mipmaps are disabled." : "";
+        if (hasUnprovenLegacyOwnership)
+            return "Known procedural mip triangle has no single owning island; mipmaps are disabled.";
+        if (hasUnprovenBaseFootprint)
+            return "Base mip footprint has no owned chart coverage; mipmaps are disabled.";
+        return "";
     }
     size_t payloadBytes = 0;
     size_t rasterSamples = 0;

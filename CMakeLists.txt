@@ -277,6 +277,10 @@ if(BUILD_TESTING)
     target_link_libraries(dust3d_source_mip_fallback_tests PRIVATE dust3d_core)
     add_test(NAME source_mip_fallback_contracts COMMAND dust3d_source_mip_fallback_tests)
 
+    add_executable(dust3d_source_mip_base_isolation_tests tests/core/source_mip_base_isolation_tests.cc)
+    target_link_libraries(dust3d_source_mip_base_isolation_tests PRIVATE dust3d_core)
+    add_test(NAME source_mip_base_isolation_contracts COMMAND dust3d_source_mip_base_isolation_tests)
+
     add_executable(dust3d_snapshot_writer_tests tests/core/snapshot_writer_tests.cc)
     target_link_libraries(dust3d_snapshot_writer_tests PRIVATE dust3d_core)
     add_test(NAME snapshot_writer_contracts COMMAND dust3d_snapshot_writer_tests)
