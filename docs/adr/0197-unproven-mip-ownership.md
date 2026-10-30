@@ -43,7 +43,11 @@ and checks exact and one-short work/output quotas. This is bounded synthetic
 evidence; real mixed-document and GPU validation remain outstanding.
 
 For opt-in mip preparation, both atlas stages request extra chart padding based
-on the smallest output map. This is a packing heuristic, not a promise that any
+on the smallest enabled output map. Before normal-map presence is known, the
+procedural atlas uses the guaranteed color and material maps; the source atlas
+then includes the normal dimension only if a normal image was actually baked.
+The proofs may conservatively cap a small normal map when the first atlas lacks
+sufficient padding. This is a packing heuristic, not a promise that any
 mip level is safe: the ownership, footprint and collar proofs still determine the
 maximum LOD. If the padded atlas cannot be packed, a typed packing failure alone
 triggers an unpadded base-only retry and its original cause remains in the native

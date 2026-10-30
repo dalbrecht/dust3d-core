@@ -143,11 +143,12 @@ namespace native {
         if (warning.capacity() > previousCapacity)
             charge(output, warning.capacity() - previousCapacity);
     }
-    double sourceMipPaddingFraction(size_t colorSize, size_t materialSize, size_t normalSize)
+    double sourceMipPaddingFraction(size_t colorSize, size_t materialSize, size_t normalSize, bool hasNormal)
     {
         if (!colorSize || !materialSize || !normalSize || colorSize > 8192 || materialSize > 8192 || normalSize > 8192)
             invalid("Source mip padding requires map dimensions in 1..8192.");
-        return std::min(.125, 4.0 / std::min({ colorSize, materialSize, normalSize }));
+        const auto smallest = hasNormal ? std::min({ colorSize, materialSize, normalSize }) : std::min(colorSize, materialSize);
+        return std::min(.125, 4.0 / smallest);
     }
     SourceBakedData::SourceBakedData(const Dust3DSourceBakeOptions& options, ImportedModels& imports, size_t maximumMipLevels)
         : m_options(options)
@@ -300,7 +301,7 @@ namespace native {
         std::optional<TextureBakeResult> legacyBake;
         bool shouldPrepareMipmaps = m_maximumMipLevels > 1;
         std::string paddingFallbackDiagnostic;
-        const auto padding = shouldPrepareMipmaps ? sourceMipPaddingFraction(m_options.legacy.color_size, m_options.legacy.material_size, m_options.legacy.normal_size) : 0;
+        const auto padding = shouldPrepareMipmaps ? sourceMipPaddingFraction(m_options.legacy.color_size, m_options.legacy.material_size, m_options.legacy.normal_size, false) : 0;
         if (!procedural.triangles.empty()) {
             UvAtlasOptions atlasOptions;
             atlasOptions.textureSize = m_options.legacy.atlas_texture_size;
@@ -340,7 +341,7 @@ namespace native {
         }
         SourceUvAtlasOptions atlasOptions;
         atlasOptions.textureSize = m_options.legacy.atlas_texture_size;
-        atlasOptions.paddingFraction = shouldPrepareMipmaps ? padding : 0;
+        atlasOptions.paddingFraction = shouldPrepareMipmaps ? sourceMipPaddingFraction(m_options.legacy.color_size, m_options.legacy.material_size, m_options.legacy.normal_size, bool(inputs.legacy.normal)) : 0;
         atlasOptions.maximumPayloadBytes = m_options.maximum_atlas_payload_bytes;
         atlasOptions.maximumChartCount = m_options.maximum_chart_count;
         atlasOptions.cancellation = cancellation() ? &cancellation()->cancelled : nullptr;

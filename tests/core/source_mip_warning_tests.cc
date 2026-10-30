@@ -41,10 +41,12 @@ void fallbackWarningRejectsInsufficientQuota()
 }
 void paddingHeuristicUsesSmallestBoundedMap()
 {
-    require(dust3d::native::sourceMipPaddingFraction(256, 64, 128) == .0625, "Smallest map sets four-texel padding");
-    require(dust3d::native::sourceMipPaddingFraction(1, 8192, 8192) == .125, "Small maps cap the padding fraction");
+    require(dust3d::native::sourceMipPaddingFraction(256, 64, 128, true) == .0625, "Smallest map sets four-texel padding");
+    require(dust3d::native::sourceMipPaddingFraction(1, 8192, 8192, true) == .125, "Small maps cap the padding fraction");
+    require(dust3d::native::sourceMipPaddingFraction(256, 256, 1, false) == .015625, "Absent normal map must not affect padding");
+    require(dust3d::native::sourceMipPaddingFraction(256, 256, 1, true) == .125, "Enabled normal map determines padding");
     try {
-        (void)dust3d::native::sourceMipPaddingFraction(0, 64, 128);
+        (void)dust3d::native::sourceMipPaddingFraction(0, 64, 128, true);
         throw std::runtime_error("Zero map dimension unexpectedly succeeded");
     } catch (const dust3d::native::DocumentError& error) {
         require(error.status() == DUST3D_STATUS_INVALID_DOCUMENT, "Invalid map dimension retains typed status");
