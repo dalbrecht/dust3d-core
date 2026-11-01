@@ -26,7 +26,9 @@
 #include <array>
 #include <dust3d/base/color.h>
 #include <dust3d/base/position_key.h>
+#include <dust3d/base/procedural_triangle_uv.h>
 #include <dust3d/base/rectangle.h>
+#include <dust3d/base/source_corner.h>
 #include <dust3d/base/uuid.h>
 #include <dust3d/base/vector2.h>
 #include <dust3d/base/vector3.h>
@@ -79,6 +81,11 @@ public:
     std::vector<std::optional<std::array<Color, 3>>> triangleVertexColors;
     // Authored corner coordinates remain parallel to triangles; generated surfaces are unmapped.
     std::vector<std::optional<std::array<Vector2, 3>>> triangleCornerUvs;
+    // Empty selects legacy positional charts; otherwise exactly parallel to triangles.
+    // Null records never borrow ownership or coordinates from coincident geometry.
+    std::vector<std::optional<ProceduralTriangleUv>> triangleProceduralUvs;
+    // Empty selects legacy lookup; otherwise exact triangle/corner ownership is authoritative.
+    std::vector<SourceTriangleCorners> triangleSourceCorners;
     std::vector<float> vertexSmoothCutoffDegrees;
     std::map<std::array<PositionKey, 3>, Uuid> brokenTrianglesToComponentIdMap;
     std::map<Uuid, std::string> componentNames; // the component names, for exporters to label parts
@@ -180,6 +187,12 @@ public:
     void copyUvFrom(const Object& source)
     {
         componentTriangleUvs = source.componentTriangleUvs;
+        if (source.triangleProceduralUvs.empty())
+            triangleProceduralUvs.clear();
+        else if (triangles == source.triangles && source.triangleProceduralUvs.size() == triangles.size())
+            triangleProceduralUvs = source.triangleProceduralUvs;
+        else
+            triangleProceduralUvs.assign(triangles.size(), std::nullopt);
         seamTriangleUvs = source.seamTriangleUvs;
         brokenTrianglesToComponentIdMap = source.brokenTrianglesToComponentIdMap;
         componentNames = source.componentNames;

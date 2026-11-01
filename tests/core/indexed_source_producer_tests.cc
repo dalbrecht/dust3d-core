@@ -1,0 +1,251 @@
+// SPDX-License-Identifier: MIT
+#include <cmath>
+#include <dust3d/base/object.h>
+#include <dust3d/mesh/mesh_generator.h>
+#include <iomanip>
+#include <iostream>
+#include <limits>
+#include <memory>
+#include <set>
+#include <sstream>
+#include <stdexcept>
+
+namespace {
+const std::string partA = "{00000000-0000-4000-8000-000000000010}";
+const std::string nodeA = "{00000000-0000-4000-8000-000000000011}";
+const std::string nodeB = "{00000000-0000-4000-8000-000000000012}";
+const std::string ownerA = "{00000000-0000-4000-8000-000000000001}";
+const std::string partB = "{00000000-0000-4000-8000-000000000020}";
+const std::string nodeC = "{00000000-0000-4000-8000-000000000021}";
+const std::string nodeD = "{00000000-0000-4000-8000-000000000022}";
+const std::string ownerB = "{00000000-0000-4000-8000-000000000002}";
+void require(bool value, const char* message)
+{
+    if (!value)
+        throw std::runtime_error(message);
+}
+void addPart(dust3d::Snapshot& snapshot, const std::string& part, const std::string& a,
+    const std::string& b, const std::string& component)
+{
+    snapshot.parts[part] = { { "id", part }, { "interpolated", "false" }, { "rounded", "false" } };
+    snapshot.nodes[a] = { { "id", a }, { "partId", part }, { "x", ".3" }, { "y", "0" }, { "z", "0" }, { "radius", ".2" } };
+    snapshot.nodes[b] = { { "id", b }, { "partId", part }, { "x", ".3" }, { "y", "1" }, { "z", "0" }, { "radius", ".3" } };
+    snapshot.edges[part] = { { "partId", part }, { "from", a }, { "to", b } };
+    snapshot.components[component] = { { "id", component }, { "linkDataType", "partId" }, { "linkData", part }, { "combineMode", "Uncombined" } };
+}
+std::unique_ptr<dust3d::Snapshot> snapshot(bool coincident, bool mirrored)
+{
+    auto result = std::make_unique<dust3d::Snapshot>();
+    result->canvas = { { "originX", ".5" }, { "originY", ".5" }, { "originZ", ".5" } };
+    addPart(*result, partA, nodeA, nodeB, ownerA);
+    result->rootComponent["children"] = ownerA;
+    result->parts[partA]["xMirrored"] = mirrored ? "true" : "false";
+    if (coincident) {
+        addPart(*result, partB, nodeC, nodeD, ownerB);
+        result->rootComponent["children"] += ',' + ownerB;
+    }
+    return result;
+}
+std::unique_ptr<dust3d::Object> generate(bool coincident, bool mirrored,
+    dust3d::MeshGenerator::GeneratedCacheContext* cache = nullptr)
+{
+    auto source = snapshot(coincident, mirrored);
+    dust3d::MeshGenerator generator(source.release());
+    if (cache)
+        generator.setGeneratedCacheContext(cache);
+    generator.generate();
+    require(generator.isSuccessful(), "Synthetic tube generation failed");
+    return std::unique_ptr<dust3d::Object>(generator.takeObject());
+}
+void duplicateDominantHints()
+{
+    dust3d::SourceCorner split, merged;
+    split.weighted = merged.weighted = true;
+    split.setInfluences({ { dust3d::Uuid(nodeA), .4f }, { dust3d::Uuid(nodeA), .4f }, { dust3d::Uuid(nodeB), .7f } });
+    merged.setInfluences({ { dust3d::Uuid(nodeA), .8f }, { dust3d::Uuid(nodeB), .7f } });
+    require(split.dominantNodeHint() == std::optional<dust3d::Uuid>(dust3d::Uuid(nodeA))
+            && split.dominantNodeHint() == merged.dominantNodeHint(),
+        "Equivalent duplicate-weight distributions must choose the same aggregate dominant bind node");
+    split.setInfluences({ { dust3d::Uuid(nodeB), .5f }, { dust3d::Uuid(nodeA), .5f } });
+    require(split.dominantNodeHint() == std::optional<dust3d::Uuid>(dust3d::Uuid(nodeB)),
+        "Exact aggregate ties must retain the original first-node policy");
+}
+void coincidentPartsAndCache()
+{
+    dust3d::MeshGenerator::GeneratedCacheContext cache;
+    const auto object = generate(true, false, &cache);
+    require(object && !object->triangles.empty(), "Coincident tube fixture produced no geometry");
+    require(object->triangleSourceCorners.size() == object->triangles.size(), "Generated source corners are not triangle aligned");
+    dust3d::RetainedPayloadBudget footprint(std::numeric_limits<size_t>::max());
+    footprint.accountDynamic(object->triangleSourceCorners);
+    std::cout << "Coincident tube source corners: " << object->triangles.size() * 3
+              << ", retained logical/capacity bytes: " << footprint.usedBytes() << '\n';
+    size_t observedA = 0, observedB = 0;
+    for (size_t triangle = 0; triangle < object->triangles.size(); ++triangle) {
+        const bool second = object->triangleComponentKeys.at(triangle) == ownerB;
+        second ? ++observedB : ++observedA;
+        for (size_t corner = 0; corner < 3; ++corner) {
+            const auto& value = object->triangleSourceCorners[triangle][corner];
+            require(!value.weighted && value.influences().size() == 1 && value.influences()[0].second == 1,
+                "Tube corner needs its exact original node hint");
+            const auto& position = object->vertices[object->triangles[triangle][corner]];
+            const dust3d::Uuid expected(position.y() > 0 ? (second ? nodeC : nodeA) : (second ? nodeD : nodeB));
+            require(value.influences()[0].first == expected,
+                "Coincident components borrowed a positional source from another part");
+        }
+    }
+    require(observedA && observedB, "Both distinct coincident source components must be exercised");
+    const auto warm = generate(true, false, &cache);
+    require(warm->triangleSourceCorners.size() == object->triangleSourceCorners.size(), "Warm cache lost source ownership");
+    for (size_t triangle = 0; triangle < object->triangles.size(); ++triangle)
+        for (size_t corner = 0; corner < 3; ++corner)
+            require(warm->triangleSourceCorners[triangle][corner].influences() == object->triangleSourceCorners[triangle][corner].influences(),
+                "Warm cache changed actual corner source ownership");
+}
+void mirroredCornerOrder()
+{
+    const auto object = generate(false, true);
+    require(object->triangleSourceCorners.size() == object->triangles.size(), "Mirrored source corners are not aligned");
+    size_t mirrored = 0;
+    for (size_t triangle = 0; triangle < object->triangles.size(); ++triangle) {
+        const bool isMirror = object->triangleComponentKeys.at(triangle) != ownerA;
+        for (size_t corner = 0; corner < 3; ++corner) {
+            const auto& value = object->triangleSourceCorners[triangle][corner];
+            require(value.influences().size() == 1, "Mirrored tube lost a corner source");
+            const auto& position = object->vertices[object->triangles[triangle][corner]];
+            const auto node = object->nodeMap.find(value.influences()[0].first);
+            require(node != object->nodeMap.end() && std::abs(node->second.origin.y() - position.y()) < 1e-8,
+                "Mirrored source hint no longer follows its actual reversed corner");
+            if (isMirror) {
+                require(value.influences()[0].first != dust3d::Uuid(nodeA) && value.influences()[0].first != dust3d::Uuid(nodeB),
+                    "Generated mirror node identity was silently replaced with original identity");
+                ++mirrored;
+            }
+        }
+    }
+    require(mirrored, "Mirror source regression was not exercised");
+}
+
+std::string identity(unsigned value)
+{
+    std::ostringstream text;
+    text << '{' << std::setfill('0') << std::setw(8) << value << "-0000-4000-8000-" << std::setw(12) << value << '}';
+    return text.str();
+}
+void stitchingLoopSources()
+{
+    auto source = std::make_unique<dust3d::Snapshot>();
+    source->canvas = { { "originX", ".5" }, { "originY", ".5" }, { "originZ", ".5" } };
+    std::set<dust3d::Uuid> originalNodes;
+    std::string children;
+    for (unsigned partIndex = 0; partIndex < 2; ++partIndex) {
+        const auto part = identity(100 + partIndex);
+        const auto component = identity(200 + partIndex);
+        source->parts[part] = { { "id", part }, { "target", "StitchingLoop" }, { "fillLoopInterior", "true" } };
+        source->components[component] = { { "id", component }, { "linkDataType", "partId" }, { "linkData", part } };
+        children += (children.empty() ? "" : ",") + component;
+        for (unsigned corner = 0; corner < 4; ++corner) {
+            const double angle = std::acos(-1.0) * corner / 2;
+            const double radius = partIndex ? .16 : .4;
+            const auto node = identity(1000 + partIndex * 10 + corner);
+            originalNodes.insert(dust3d::Uuid(node));
+            source->nodes[node] = { { "id", node }, { "partId", part }, { "x", std::to_string(.5 + std::cos(angle) * radius) },
+                { "y", std::to_string(.5 + std::sin(angle) * radius) }, { "z", partIndex ? ".6" : ".5" }, { "radius", ".05" } };
+            const auto edge = identity(2000 + partIndex * 10 + corner);
+            source->edges[edge] = { { "id", edge }, { "partId", part }, { "from", node }, { "to", identity(1000 + partIndex * 10 + (corner + 1) % 4) } };
+        }
+    }
+    const auto group = identity(300);
+    source->components[group] = { { "id", group }, { "children", children } };
+    source->rootComponent["children"] = group;
+    dust3d::MeshGenerator generator(source.release());
+    generator.generate();
+    require(generator.isSuccessful(), "Stitching source fixture failed");
+    std::unique_ptr<dust3d::Object> object(generator.takeObject());
+    require(object && !object->triangles.empty() && object->triangleSourceCorners.size() == object->triangles.size(),
+        "Stitching source corners lost actual triangle ordinals");
+    std::set<dust3d::Uuid> observed;
+    for (const auto& triangle : object->triangleSourceCorners)
+        for (const auto& corner : triangle.corners)
+            if (!corner.influences().empty()) {
+                require(!corner.weighted && corner.influences().size() == 1 && corner.influences()[0].second == 1,
+                    "Stitching source hints changed their direct-node policy");
+                require(originalNodes.count(corner.influences()[0].first), "Stitching corner gained an unrelated source identity");
+                observed.insert(corner.influences()[0].first);
+            }
+    require(observed.size() > 1, "Stitching regression must exercise multiple actual source nodes");
+}
+void wrapSourcesStayWeighted()
+{
+    auto source = snapshot(false, false);
+    const auto group = identity(400);
+    source->components[ownerA]["combineMode"] = "Normal";
+    source->components[group] = { { "id", group }, { "children", ownerA }, { "wrap", "Skin" }, { "wrapFaces", "64" }, { "color", "#ffffff" } };
+    source->rootComponent["children"] = group;
+    dust3d::MeshGenerator generator(source.release());
+    generator.generate();
+    require(generator.isSuccessful(), "Bounded wrap source fixture failed");
+    std::unique_ptr<dust3d::Object> object(generator.takeObject());
+    require(object && !object->triangles.empty() && object->triangleSourceCorners.size() == object->triangles.size(),
+        "Wrap source weights lost actual triangle ordinals");
+    size_t known = 0;
+    for (const auto& triangle : object->triangleSourceCorners)
+        for (const auto& corner : triangle.corners) {
+            if (corner.influences().empty())
+                continue;
+            require(corner.weighted, "Wrap source weights lost weighted-hint semantics");
+            double sum = 0;
+            for (const auto& influence : corner.influences()) {
+                require((influence.first == dust3d::Uuid(nodeA) || influence.first == dust3d::Uuid(nodeB))
+                        && std::isfinite(influence.second) && influence.second >= 0,
+                    "Wrap corner source has an invalid or unrelated weighted node");
+                sum += influence.second;
+            }
+            require(std::abs(sum - 1) < 1e-5, "Wrap builder's normalized source hints changed during ordinal transport");
+            ++known;
+        }
+    require(known > 0, "Wrap weighted-source regression was not exercised");
+}
+
+void importedNearestHintStaysVertexIndexed()
+{
+    auto source = snapshot(false, false);
+    source->parts[partA]["target"] = "ImportedModel";
+    source->parts[partA]["importedModelId"] = "synthetic";
+    dust3d::MeshGenerator::ImportedModelData model;
+    model.vertices = { { -1, 0, -1 }, { 1, 0, -1 }, { -1, 1, 1 }, { -1, 0, -1 } };
+    model.faces = { { 0, 1, 2 }, { 3, 2, 1 } };
+    dust3d::MeshGenerator generator(source.release());
+    generator.setImportedModelData({ { "synthetic", model } });
+    generator.generate();
+    require(generator.isSuccessful(), "Imported synthetic fixture failed");
+    std::unique_ptr<dust3d::Object> object(generator.takeObject());
+    require(object && object->triangleSourceCorners.size() == 2, "Imported source corners must retain actual face ordinals");
+    for (size_t triangle = 0; triangle < object->triangles.size(); ++triangle)
+        for (size_t corner = 0; corner < 3; ++corner) {
+            const auto& value = object->triangleSourceCorners[triangle][corner];
+            require(value.influences().size() == 1 && !value.weighted, "Imported vertex lost nearest-node hint policy");
+            const auto& position = object->vertices[object->triangles[triangle][corner]];
+            const auto a = object->nodeMap.at(dust3d::Uuid(nodeA)).origin;
+            const auto b = object->nodeMap.at(dust3d::Uuid(nodeB)).origin;
+            const auto expected = (position - a).lengthSquared() <= (position - b).lengthSquared() ? dust3d::Uuid(nodeA) : dust3d::Uuid(nodeB);
+            require(value.influences()[0].first == expected, "Imported source hint changed the established nearest-node decision");
+        }
+}
+}
+int main()
+{
+    try {
+        duplicateDominantHints();
+        coincidentPartsAndCache();
+        mirroredCornerOrder();
+        importedNearestHintStaysVertexIndexed();
+        stitchingLoopSources();
+        wrapSourcesStayWeighted();
+        std::cout << "Indexed source producer contracts passed\n";
+        return 0;
+    } catch (const std::exception& error) {
+        std::cerr << error.what() << '\n';
+        return 1;
+    }
+}

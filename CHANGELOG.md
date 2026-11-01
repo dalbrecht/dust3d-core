@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Share immutable node-hint distributions across corner/cache copies while retaining replacement isolation and conservative ownership accounting.
+
+- Preserve node/weighted source hints by original triangle corner through producers, Boolean interpolation, generated bridges and filtered native export; keep unknown/conflicting ownership explicit (Apple #96 prerequisite).
+
+- Preserve procedural UV corners and chart ownership by triangle ordinal through mirrors, booleans, generated seam gradients and source baking; distinguish coincident surfaces (Apple #96 prerequisite).
+
 - Require sealed schema-3 per-job wall budgets and enforce scheduler-owned service watchdogs independently of native work, retaining original deadline causes (#304).
 
 - Require explicit bounded pre-job XPC handshake waits in the transport and preview executor, preserving attempt/deadline causes and preventing job creation after failure (#302).

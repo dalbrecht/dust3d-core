@@ -66,31 +66,50 @@ namespace native {
                 throw DocumentError(DUST3D_STATUS_UNSUPPORTED_ASSET, "Unsupported imported texture minification filter.");
             }
         }
+    }
+    void populateProceduralSourceSubset(const Object& original, const std::vector<size_t>& retained, const ImportedSurfaceData& sources,
+        Object& procedural, std::vector<size_t>& proceduralToRetained, const Dust3DCancellationToken* cancellation)
+    {
         using TriangleKey = std::array<PositionKey, 3>;
-        void populateProcedural(const Object& original, const std::vector<size_t>& retained, const ImportedSurfaceData& sources,
-            Object& procedural, std::vector<size_t>& proceduralToRetained, const Dust3DCancellationToken* cancellation)
-        {
-            std::map<TriangleKey, std::set<Uuid>> allowed;
-            std::set<TriangleKey> unknownOwners;
-            for (size_t index = 0; index < retained.size(); ++index) {
-                checkCancellation(cancellation);
-                if (sources.triangles().at(index).model_index != SIZE_MAX)
-                    continue;
-                const size_t originalIndex = retained[index];
-                const auto& face = original.triangles.at(originalIndex);
-                const size_t base = procedural.vertices.size();
-                for (size_t corner = 0; corner < 3; ++corner) {
-                    const auto& position = original.vertices.at(face.at(corner));
-                    for (size_t axis = 0; axis < 3; ++axis) {
-                        const double scaled = position[axis] * 100000;
-                        const double bound = std::ldexp(1.0, std::numeric_limits<long>::digits);
-                        if (!std::isfinite(scaled) || scaled < -bound || scaled >= bound)
-                            throw DocumentError(DUST3D_STATUS_UNSUPPORTED_ASSET, "Procedural source bake positions exceed the UV key range.");
-                    }
+        const bool indexed = !original.triangleProceduralUvs.empty();
+        if (indexed && original.triangleProceduralUvs.size() != original.triangles.size())
+            throw DocumentError(DUST3D_STATUS_GENERATION_FAILED, "Procedural UV ownership is not triangle aligned.");
+        std::map<TriangleKey, std::set<Uuid>> allowed;
+        std::set<TriangleKey> unknownOwners;
+        std::map<size_t, size_t> indexedVertices;
+        for (size_t index = 0; index < retained.size(); ++index) {
+            checkCancellation(cancellation);
+            if (sources.triangles().at(index).model_index != SIZE_MAX)
+                continue;
+            const size_t originalIndex = retained[index];
+            const auto& face = original.triangles.at(originalIndex);
+            std::array<size_t, 3> triangle;
+            for (size_t corner = 0; corner < 3; ++corner) {
+                const size_t sourceVertex = face.at(corner);
+                const auto& position = original.vertices.at(sourceVertex);
+                for (size_t axis = 0; axis < 3; ++axis) {
+                    const double scaled = position[axis] * 100000;
+                    const double bound = std::ldexp(1.0, std::numeric_limits<long>::digits);
+                    if (!std::isfinite(position[axis]) || (!indexed && (!std::isfinite(scaled) || scaled < -bound || scaled >= bound)))
+                        throw DocumentError(DUST3D_STATUS_UNSUPPORTED_ASSET, "Procedural source bake positions exceed the UV key range.");
+                }
+                if (indexed) {
+                    const auto inserted = indexedVertices.emplace(sourceVertex, procedural.vertices.size());
+                    triangle[corner] = inserted.first->second;
+                    if (inserted.second)
+                        procedural.vertices.push_back(position);
+                } else {
+                    triangle[corner] = procedural.vertices.size();
                     procedural.vertices.push_back(position);
                 }
-                const TriangleKey key { PositionKey(procedural.vertices[base]), PositionKey(procedural.vertices[base + 1]), PositionKey(procedural.vertices[base + 2]) };
-                const Uuid owner = originalIndex < original.triangleComponentIds.size() ? original.triangleComponentIds[originalIndex] : Uuid {};
+            }
+            const Uuid owner = indexed
+                ? (original.triangleProceduralUvs[originalIndex] ? original.triangleProceduralUvs[originalIndex]->componentId : Uuid {})
+                : (originalIndex < original.triangleComponentIds.size() ? original.triangleComponentIds[originalIndex] : Uuid {});
+            if (indexed)
+                procedural.triangleProceduralUvs.push_back(original.triangleProceduralUvs[originalIndex]);
+            else {
+                const TriangleKey key { PositionKey(procedural.vertices[triangle[0]]), PositionKey(procedural.vertices[triangle[1]]), PositionKey(procedural.vertices[triangle[2]]) };
                 for (size_t rotation = 0; rotation < 3; ++rotation) {
                     TriangleKey rotated { key[rotation], key[(rotation + 1) % 3], key[(rotation + 2) % 3] };
                     if (!owner.isNull())
@@ -100,32 +119,36 @@ namespace native {
                         unknownOwners.insert(rotated);
                     }
                 }
-                procedural.triangles.push_back({ base, base + 1, base + 2 });
-                procedural.triangleComponentIds.push_back(owner);
-                proceduralToRetained.push_back(index);
             }
-            for (const auto& [component, mappings] : original.componentTriangleUvs)
-                for (const auto& [key, uvs] : mappings) {
-                    checkCancellation(cancellation);
-                    const auto found = allowed.find(key);
-                    if (found != allowed.end() && (unknownOwners.count(key) || found->second.empty() || found->second.count(component)))
-                        procedural.componentTriangleUvs[component].emplace(key, uvs);
-                }
-            for (const auto& [key, owner] : original.brokenTrianglesToComponentIdMap)
-                if (allowed.count(key))
-                    procedural.brokenTrianglesToComponentIdMap.emplace(key, owner);
-            for (const auto& seam : original.seamTriangleUvs) {
-                decltype(original.seamTriangleUvs)::value_type filtered;
-                for (const auto& key : seam.first)
-                    if (allowed.count(key))
-                        filtered.first.insert(key);
-                for (const auto& key : seam.second)
-                    if (allowed.count(key))
-                        filtered.second.insert(key);
-                if (!filtered.first.empty() || !filtered.second.empty())
-                    procedural.seamTriangleUvs.push_back(std::move(filtered));
-            }
+            procedural.triangles.emplace_back(triangle.begin(), triangle.end());
+            procedural.triangleComponentIds.push_back(owner);
+            proceduralToRetained.push_back(index);
         }
+        if (indexed)
+            return;
+        for (const auto& [component, mappings] : original.componentTriangleUvs)
+            for (const auto& [key, uvs] : mappings) {
+                checkCancellation(cancellation);
+                const auto found = allowed.find(key);
+                if (found != allowed.end() && (unknownOwners.count(key) || found->second.empty() || found->second.count(component)))
+                    procedural.componentTriangleUvs[component].emplace(key, uvs);
+            }
+        for (const auto& [key, owner] : original.brokenTrianglesToComponentIdMap)
+            if (allowed.count(key))
+                procedural.brokenTrianglesToComponentIdMap.emplace(key, owner);
+        for (const auto& seam : original.seamTriangleUvs) {
+            decltype(original.seamTriangleUvs)::value_type filtered;
+            for (const auto& key : seam.first)
+                if (allowed.count(key))
+                    filtered.first.insert(key);
+            for (const auto& key : seam.second)
+                if (allowed.count(key))
+                    filtered.second.insert(key);
+            if (!filtered.first.empty() || !filtered.second.empty())
+                procedural.seamTriangleUvs.push_back(std::move(filtered));
+        }
+    }
+    namespace {
         TextureImageView borrowed(const TextureImage& image)
         {
             return { image.width, image.height, image.width * 4, image.pixels.size(), image.pixels.data() };
@@ -275,7 +298,7 @@ namespace native {
         }
         Object procedural;
         std::vector<size_t> proceduralToRetained;
-        populateProcedural(object, m_originalIndices, sources, procedural, proceduralToRetained, cancellation());
+        populateProceduralSourceSubset(object, m_originalIndices, sources, procedural, proceduralToRetained, cancellation());
         UvAtlas legacy;
         legacy.triangleUvs.resize(count);
         legacy.triangleUvKnown.resize(count);

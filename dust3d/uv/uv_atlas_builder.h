@@ -81,7 +81,9 @@ public:
     /// Output accounting includes array/map elements and layout/gradient records, not allocator
     /// overhead, capacity or packing workspace. It is not a hard working-memory/time limit.
     /// Gradient layouts have null image IDs: consumers use the gradient layout ordinal to bake them.
-    /// Same-winding cyclic triangle order is resolved and UVs return in actual corner order.
+    /// Nonempty Object::triangleProceduralUvs selects strict triangle-indexed ownership;
+    /// absent records stay unknown and positional maps are not consulted. Otherwise the
+    /// legacy path resolves same-winding cyclic order and returns actual corner order.
     /// Unknown mappings remain marked zero; a known marker does not assert unique source ownership.
     /// Example: `auto atlas = UvAtlasBuilder::build(object, components);` then inspect
     /// `atlas.triangleUvKnown` before treating a generated surface as fully mapped.

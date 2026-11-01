@@ -162,8 +162,8 @@ namespace native {
                 if (sourceBaked)
                     sourceBaked->appendTriangle(triangleIndex);
                 if (sources) {
-                    for (const auto vertexIndex : triangle)
-                        sources->appendCorner(*object, object->vertices[vertexIndex], triangleIndex);
+                    for (size_t cornerIndex = 0; cornerIndex < triangle.size(); ++cornerIndex)
+                        sources->appendCorner(*object, object->vertices[triangle[cornerIndex]], triangleIndex, cornerIndex);
                 }
                 mesh->vertices.insert(mesh->vertices.end(), exportedTriangle.begin(), exportedTriangle.end());
             }

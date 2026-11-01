@@ -6,6 +6,7 @@
 #include <list>
 #include <map>
 #include <memory>
+#include <optional>
 #include <set>
 #include <string>
 #include <type_traits>
@@ -139,6 +140,14 @@ public:
     void accountDynamic(const std::pair<First, Second>& value) noexcept
     {
         accountDynamicFields(value.first, value.second);
+    }
+
+    /// Optional owners retain only an engaged value's dynamic payload.
+    template <typename T>
+    void accountDynamic(const std::optional<T>& value) noexcept
+    {
+        if (value)
+            accountDynamic(*value);
     }
 
     /// Fixed inline value arrays need no dynamic charge; new owning array shapes require an audit.

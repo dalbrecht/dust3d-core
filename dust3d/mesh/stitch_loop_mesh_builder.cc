@@ -1110,6 +1110,18 @@ std::map<Uuid, std::map<std::array<PositionKey, 3>, std::array<Vector2, 3>>> Sti
         }
     };
 
+    const auto owners = generatedFaceSourceIds();
+    for (size_t index = 0; index < m_generatedFaceUvs.size() && index < owners.size(); ++index) {
+        if (!owners[index].isNull())
+            insertTriangleUv(result[owners[index]], m_generatedFaces[index], m_generatedFaceUvs[index]);
+    }
+    return result;
+}
+
+std::vector<Uuid> StitchLoopMeshBuilder::generatedFaceSourceIds() const
+{
+    std::vector<Uuid> result;
+    result.reserve(m_generatedFaces.size());
     // Build a set of sourceIds that belong to open (non-closed) loops so that
     // Pass 2 can prefer them over closed loops when both are candidates.
     std::set<Uuid> openLoopSourceIds;
@@ -1120,7 +1132,7 @@ std::map<Uuid, std::map<std::array<PositionKey, 3>, std::array<Vector2, 3>>> Sti
 
     // Pass 1 — tally total vertex votes across all faces to find global vote counts.
     std::map<Uuid, size_t> globalVoteCounts;
-    for (size_t i = 0; i < m_generatedFaceUvs.size(); ++i) {
+    for (size_t i = 0; i < m_generatedFaces.size(); ++i) {
         for (size_t vi : m_generatedFaces[i]) {
             if (vi < m_generatedVertexLoopSourceIds.size())
                 ++globalVoteCounts[m_generatedVertexLoopSourceIds[vi]];
@@ -1130,7 +1142,7 @@ std::map<Uuid, std::map<std::array<PositionKey, 3>, std::array<Vector2, 3>>> Sti
     // Pass 2 — assign faces to sub-charts.
     // Selection key: (isOpen, voteCount) — open loops always beat closed loops
     // regardless of vote count; within the same tier, higher votes wins.
-    for (size_t i = 0; i < m_generatedFaceUvs.size(); ++i) {
+    for (size_t i = 0; i < m_generatedFaces.size(); ++i) {
         const auto& face = m_generatedFaces[i];
         std::set<Uuid> candidates;
         for (size_t vi : face) {
@@ -1151,8 +1163,7 @@ std::map<Uuid, std::map<std::array<PositionKey, 3>, std::array<Vector2, 3>>> Sti
                 bestVotes = votes;
             }
         }
-        if (!assignedId.isNull())
-            insertTriangleUv(result[assignedId], face, m_generatedFaceUvs[i]);
+        result.push_back(assignedId);
     }
 
     return result;

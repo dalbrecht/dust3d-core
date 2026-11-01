@@ -259,7 +259,7 @@ void fixtures(const std::string& directory)
         }
         require(known > 0 && dust3d_uv_mesh_chart_count(owner.get()) > 0 && dust3d_uv_mesh_texture_size(owner.get()) > 0, "Real models must retain usable charts");
         if (name == "RoundedCrossing.ds3")
-            require(known < count, "Unmapped boolean surfaces must remain explicitly unknown");
+            require(known == count, "Indexed source corners and explicit seam charts must fully map this Boolean fixture");
         if (name == "Sword.ds3")
             require(dust3d_uv_mesh_gradient_count(owner.get()) > 0, "Real seam descriptors must reach C consumers");
         for (size_t index = 0; index < dust3d_uv_mesh_gradient_count(owner.get()); ++index) {

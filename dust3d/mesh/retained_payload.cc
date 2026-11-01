@@ -21,14 +21,14 @@ void MeshCombiner::Mesh::accountDynamicPayload(RetainedPayloadBudget& budget) co
 
 void MeshState::accountDynamicPayload(RetainedPayloadBudget& budget) const noexcept
 {
-    const auto& [mesh, seamUvs, brokenTriangles, owners, models, colors, cornerUvs, reports] = *this;
-    budget.accountDynamicFields(mesh, seamUvs, brokenTriangles, owners, models, colors, cornerUvs, reports);
+    const auto& [mesh, seamUvs, brokenTriangles, owners, models, colors, cornerUvs, proceduralUvs, sourceCorners, reports] = *this;
+    budget.accountDynamicFields(mesh, seamUvs, brokenTriangles, owners, models, colors, cornerUvs, proceduralUvs, sourceCorners, reports);
 }
 
 void MeshGenerator::GeneratedPart::accountDynamicPayload(RetainedPayloadBudget& budget) const noexcept
 {
-    const auto& [vertices, sources, nodes, faces, uvs, color, metalness, roughness, successful, joined, importedColors, importedUvs, importedNormals] = *this;
-    budget.accountDynamicFields(vertices, sources, nodes, faces, uvs, color, metalness, roughness, successful, joined, importedColors, importedUvs, importedNormals);
+    const auto& [vertices, sources, nodes, faces, uvs, color, metalness, roughness, successful, joined, importedColors, importedUvs, proceduralUvs, vertexSourceCorners, importedNormals] = *this;
+    budget.accountDynamicFields(vertices, sources, nodes, faces, uvs, color, metalness, roughness, successful, joined, importedColors, importedUvs, proceduralUvs, vertexSourceCorners, importedNormals);
 }
 
 void MeshGenerator::GeneratedComponent::accountDynamicPayload(RetainedPayloadBudget& budget) const noexcept

@@ -152,26 +152,22 @@ void UvMapPacker::pack()
             layout.width = width;
             layout.height = height;
         }
-        auto partWidth = part.width;
-        auto partHeight = part.height;
-        if (flipped) {
-            for (auto& it : part.localUv) {
-                std::swap(it.second[0][0], it.second[0][1]);
-                std::swap(it.second[1][0], it.second[1][1]);
-                std::swap(it.second[2][0], it.second[2][1]);
+        auto transformCorners = [&](const std::array<Vector2, 3>& local) {
+            std::array<Vector2, 3> global;
+            for (size_t corner = 0; corner < local.size(); ++corner) {
+                const auto& uv = local[corner];
+                global[corner] = flipped
+                    ? Vector2((left * m_packedTextureSize + uv.y() * part.height) / m_packedTextureSize,
+                          (top * m_packedTextureSize + uv.x() * part.width) / m_packedTextureSize)
+                    : Vector2((left * m_packedTextureSize + uv.x() * part.width) / m_packedTextureSize,
+                          (top * m_packedTextureSize + uv.y() * part.height) / m_packedTextureSize);
             }
-            std::swap(partWidth, partHeight);
-        }
-        for (const auto& it : part.localUv) {
-            layout.globalUv.insert({ it.first,
-                std::array<Vector2, 3> {
-                    Vector2((left * m_packedTextureSize + it.second[0].x() * partWidth) / m_packedTextureSize,
-                        (top * m_packedTextureSize + it.second[0].y() * partHeight) / m_packedTextureSize),
-                    Vector2((left * m_packedTextureSize + it.second[1].x() * partWidth) / m_packedTextureSize,
-                        (top * m_packedTextureSize + it.second[1].y() * partHeight) / m_packedTextureSize),
-                    Vector2((left * m_packedTextureSize + it.second[2].x() * partWidth) / m_packedTextureSize,
-                        (top * m_packedTextureSize + it.second[2].y() * partHeight) / m_packedTextureSize) } });
-        }
+            return global;
+        };
+        for (const auto& it : part.localUv)
+            layout.globalUv.emplace(it.first, transformCorners(it.second));
+        for (const auto& it : part.indexedLocalUv)
+            layout.indexedGlobalUv.emplace(it.first, transformCorners(it.second));
         m_packedLayouts.emplace_back(layout);
     }
 }

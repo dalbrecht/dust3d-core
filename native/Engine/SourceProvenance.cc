@@ -63,8 +63,36 @@ namespace native {
         return { DUST3D_SOURCE_NODE_HINT, found->second, weight };
     }
 
-    void SourceProvenance::appendCorner(const Object& object, const Vector3& position, size_t triangleIndex)
+    void SourceProvenance::appendCorner(const Object& object, const Vector3& position, size_t triangleIndex, size_t cornerIndex)
     {
+        if (!object.triangleSourceCorners.empty()) {
+            if (object.triangleSourceCorners.size() != object.triangles.size()
+                || triangleIndex >= object.triangles.size() || cornerIndex >= 3
+                || object.triangles[triangleIndex].size() != 3)
+                throw DocumentError(DUST3D_STATUS_GENERATION_FAILED, "Indexed source corners require aligned original triangle and corner ordinals.");
+            const auto& record = object.triangleSourceCorners[triangleIndex][cornerIndex];
+            if (!record.weighted && !record.influences().empty()
+                && (record.influences().size() != 1 || record.influences()[0].second != 1))
+                throw DocumentError(DUST3D_STATUS_GENERATION_FAILED, "An unweighted indexed source corner requires one unit node hint.");
+            const size_t remaining = m_maximumBytes - m_payloadBytes;
+            if (remaining < sizeof(Dust3DSourceCorner)
+                || record.influences().size() > (remaining - sizeof(Dust3DSourceCorner)) / sizeof(Dust3DSourceInfluence))
+                throw DocumentError(DUST3D_STATUS_LIMIT_EXCEEDED, "The indexed source corner exceeds its configured payload budget.");
+            for (const auto& [node, weight] : record.influences())
+                (void)resolve(node, weight);
+            charge(sizeof(Dust3DSourceCorner) + record.influences().size() * sizeof(Dust3DSourceInfluence));
+            Dust3DSourceCorner corner { DUST3D_SOURCE_UNKNOWN, m_influences.size(), record.influences().size() };
+            if (record.weighted && !record.influences().empty())
+                corner.kind = DUST3D_SOURCE_WEIGHTED_HINT;
+            for (const auto& [node, weight] : record.influences()) {
+                const auto influence = resolve(node, weight);
+                m_influences.push_back(influence);
+                if (!record.weighted)
+                    corner.kind = influence.kind;
+            }
+            m_corners.push_back(corner);
+            return;
+        }
         Dust3DSourceCorner corner { DUST3D_SOURCE_UNKNOWN, m_influences.size(), 0 };
         charge(sizeof(corner));
         bool canQuantize = true;

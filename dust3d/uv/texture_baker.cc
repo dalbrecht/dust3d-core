@@ -44,13 +44,16 @@ namespace {
             invalid("Texture spatial grid work limit must be in 1..16000000");
         if (options.maximumPayloadBytes > maximumBudget)
             invalid("Texture output budget exceeds 256 MiB");
+        const bool needsPositionKeys = std::any_of(atlas.layouts.begin(), atlas.layouts.end(), [](const UvMapPacker::Layout& layout) {
+            return !layout.globalUv.empty() && layout.indexedGlobalUv.empty();
+        });
         for (const auto& vertex : object.vertices) {
             if (validated++ % 256 == 0)
                 checkCancellation(options);
             for (size_t axis = 0; axis < 3; ++axis) {
                 const double scaled = vertex[axis] * 100000.0;
                 const double bound = std::ldexp(1.0, std::numeric_limits<long>::digits);
-                if (!std::isfinite(vertex[axis]) || scaled < -bound || scaled >= bound)
+                if (!std::isfinite(vertex[axis]) || (needsPositionKeys && (!std::isfinite(scaled) || scaled < -bound || scaled >= bound)))
                     invalid("Texture geometry must contain finite vertices");
             }
         }
@@ -92,6 +95,16 @@ namespace {
         for (const auto& layout : atlas.layouts) {
             if (validated++ % 256 == 0)
                 checkCancellation(options);
+            for (const auto& entry : layout.indexedGlobalUv) {
+                if (validated++ % 256 == 0)
+                    checkCancellation(options);
+                if (entry.first >= object.triangles.size())
+                    invalid("Surface chart references a missing triangle ordinal");
+                for (const auto& uv : entry.second) {
+                    if (!unit(uv.x()) || !unit(uv.y()))
+                        invalid("Surface chart contains invalid indexed UV coordinates");
+                }
+            }
             for (const auto& entry : layout.globalUv) {
                 if (validated++ % 256 == 0)
                     checkCancellation(options);
@@ -314,7 +327,7 @@ namespace {
     }
     bool isFoldLayout(const UvMapPacker::Layout& layout, const TextureBakeInputs& inputs, const TextureBakeOptions& options)
     {
-        if (!layout.id.isNull() || layout.sourceId.isNull() || layout.globalUv.empty())
+        if (!layout.id.isNull() || layout.sourceId.isNull() || (layout.globalUv.empty() && layout.indexedGlobalUv.empty()))
             return false;
         const auto found = inputs.surfaces.find(layout.sourceId);
         return found != inputs.surfaces.end() && hasEffectiveFolds(found->second, options);
@@ -341,6 +354,20 @@ namespace {
                 checkCancellation(options);
             if (!isFoldLayout(layout, inputs, options))
                 continue;
+            if (!layout.indexedGlobalUv.empty()) {
+                for (const auto& entry : layout.indexedGlobalUv) {
+                    if (inspected++ % 256 == 0)
+                        checkCancellation(options);
+                    SurfaceTriangle triangle;
+                    triangle.uvs = entry.second;
+                    const auto& face = object.triangles[entry.first];
+                    for (size_t corner = 0; corner < 3; ++corner)
+                        triangle.positions[corner] = object.vertices[face[corner]];
+                    if (resolveSurfaceFrame(triangle))
+                        return true;
+                }
+                continue;
+            }
             for (const auto& entry : layout.globalUv) {
                 if (inspected++ % 256 == 0)
                     checkCancellation(options);
@@ -441,7 +468,7 @@ namespace {
         const auto needsDetails = [&](const UvMapPacker::Layout& layout) {
             if (eligibilityChecks++ % 256 == 0)
                 checkCancellation(options);
-            if (!layout.id.isNull() || layout.sourceId.isNull() || layout.globalUv.empty())
+            if (!layout.id.isNull() || layout.sourceId.isNull() || (layout.globalUv.empty() && layout.indexedGlobalUv.empty()))
                 return false;
             const auto found = inputs.surfaces.find(layout.sourceId);
             if (found == inputs.surfaces.end())
@@ -455,11 +482,17 @@ namespace {
         size_t gridEntries = 0;
         size_t prepared = 0;
         std::map<PositionKey, Vector3> positions;
-        for (const auto& vertex : object.vertices) {
-            if (prepared++ % 256 == 0)
-                checkCancellation(options);
-            positions.emplace(PositionKey(vertex), vertex);
+        const bool needsPositionLookup = std::any_of(atlas.layouts.begin(), atlas.layouts.end(), [&](const UvMapPacker::Layout& layout) {
+            return needsDetails(layout) && layout.indexedGlobalUv.empty();
+        });
+        if (needsPositionLookup) {
+            for (const auto& vertex : object.vertices) {
+                if (prepared++ % 256 == 0)
+                    checkCancellation(options);
+                positions.emplace(PositionKey(vertex), vertex);
+            }
         }
+        std::set<size_t> indexedGeometryVertices;
         indexedVertices = positions.size();
         std::vector<SurfaceChart> charts;
         for (size_t ordinal = 0; ordinal < atlas.layouts.size(); ++ordinal) {
@@ -471,24 +504,48 @@ namespace {
             SurfaceChart chart;
             chart.layoutIndex = ordinal;
             std::map<PositionKey, size_t> welded;
-            for (const auto& entry : layout.globalUv) {
+            std::map<size_t, size_t> indexed;
+            for (const auto& entry : layout.indexedGlobalUv) {
                 if (prepared++ % 256 == 0)
                     checkCancellation(options);
                 SurfaceTriangle triangle;
                 triangle.uvs = entry.second;
+                const auto& face = object.triangles[entry.first];
                 for (size_t corner = 0; corner < 3; ++corner) {
-                    const auto position = positions.find(entry.first[corner]);
-                    if (position == positions.end())
-                        invalid("Surface chart references a missing geometry position");
-                    triangle.positions[corner] = position->second;
-                    const auto inserted = welded.emplace(entry.first[corner], chart.vertices.size());
+                    const auto vertex = face[corner];
+                    triangle.positions[corner] = object.vertices[vertex];
+                    const auto inserted = indexed.emplace(vertex, chart.vertices.size());
                     if (inserted.second)
-                        chart.vertices.push_back(position->second);
+                        chart.vertices.push_back(triangle.positions[corner]);
                     triangle.vertices[corner] = inserted.first->second;
+                    if (indexedGeometryVertices.insert(vertex).second)
+                        ++indexedVertices;
                 }
-                if (!resolveSurfaceFrame(triangle))
-                    continue;
-                chart.triangles.push_back(triangle);
+                if (resolveSurfaceFrame(triangle))
+                    chart.triangles.push_back(triangle);
+            }
+            // Legacy position-keyed callers retain their existing lookup. An
+            // indexed layout is authoritative and must not duplicate those faces.
+            if (layout.indexedGlobalUv.empty()) {
+                for (const auto& entry : layout.globalUv) {
+                    if (prepared++ % 256 == 0)
+                        checkCancellation(options);
+                    SurfaceTriangle triangle;
+                    triangle.uvs = entry.second;
+                    for (size_t corner = 0; corner < 3; ++corner) {
+                        const auto position = positions.find(entry.first[corner]);
+                        if (position == positions.end())
+                            invalid("Surface chart references a missing geometry position");
+                        triangle.positions[corner] = position->second;
+                        const auto inserted = welded.emplace(entry.first[corner], chart.vertices.size());
+                        if (inserted.second)
+                            chart.vertices.push_back(position->second);
+                        triangle.vertices[corner] = inserted.first->second;
+                    }
+                    if (!resolveSurfaceFrame(triangle))
+                        continue;
+                    chart.triangles.push_back(triangle);
+                }
             }
             if (chart.triangles.empty())
                 continue;
