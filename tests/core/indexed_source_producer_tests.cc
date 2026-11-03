@@ -57,6 +57,23 @@ std::unique_ptr<dust3d::Object> generate(bool coincident, bool mirrored,
     require(generator.isSuccessful(), "Synthetic tube generation failed");
     return std::unique_ptr<dust3d::Object>(generator.takeObject());
 }
+void hollowTubeRetainsIndexedSources()
+{
+    const auto solid = generate(false, false);
+    auto source = snapshot(false, false);
+    source->parts[partA]["hollowThickness"] = ".5";
+    dust3d::MeshGenerator generator(source.release());
+    generator.generate();
+    require(generator.isSuccessful(), "Synthetic hollow tube generation failed");
+    const std::unique_ptr<dust3d::Object> hollow(generator.takeObject());
+    require(hollow && hollow->triangles.size() > solid->triangles.size(), "Snapshot hollow thickness must add inner and rim faces");
+    require(hollow->triangleSourceCorners.size() == hollow->triangles.size(), "Hollow source corners must align with triangles");
+    for (const auto& triangle : hollow->triangleSourceCorners)
+        for (size_t corner = 0; corner < 3; ++corner) {
+            const auto source = triangle[corner].dominantNodeHint();
+            require(source == dust3d::Uuid(nodeA) || source == dust3d::Uuid(nodeB), "Hollow corner must retain a source node");
+        }
+}
 void duplicateDominantHints()
 {
     dust3d::SourceCorner split, merged;
@@ -236,6 +253,7 @@ void importedNearestHintStaysVertexIndexed()
 int main()
 {
     try {
+        hollowTubeRetainsIndexedSources();
         duplicateDominantHints();
         coincidentPartsAndCache();
         mirroredCornerOrder();
