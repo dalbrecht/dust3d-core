@@ -8,6 +8,7 @@
 #include <iostream>
 #include <limits>
 #include <memory>
+#include <native/Engine/ObjDocument.h>
 #include <set>
 #include <sstream>
 #include <stdexcept>
@@ -112,6 +113,30 @@ void hollowTubeRetainsIndexedSources()
         "Hollow indexed geometry must rasterize a procedural surface pattern");
     require(patterned.tangents.size() == hollow->triangles.size(),
         "Hollow baked tangents must align with triangles");
+    const auto obj = dust3d::native::encodeObjDocument(*hollow);
+    std::istringstream records(std::string(obj.bytes().begin(), obj.bytes().end()));
+    size_t vertex = 0;
+    size_t face = 0;
+    for (std::string line; std::getline(records, line);) {
+        std::istringstream record(line);
+        std::string kind;
+        record >> kind;
+        if (kind == "v") {
+            double x, y, z;
+            require(bool(record >> x >> y >> z), "Hollow OBJ vertex must contain three coordinates");
+            const auto& expected = hollow->vertices.at(vertex++);
+            require(x == expected.x() && y == expected.y() && z == expected.z(), "Hollow OBJ must preserve positions");
+        } else if (kind == "f") {
+            std::vector<size_t> corners;
+            for (size_t index; record >> index;) {
+                require(index > 0 && index <= vertex, "Hollow OBJ index must reference an emitted vertex");
+                corners.push_back(index - 1);
+            }
+            require(corners == hollow->triangleAndQuads.at(face++), "Hollow OBJ must preserve polygon winding");
+        }
+    }
+    require(vertex == hollow->vertices.size() && face == hollow->triangleAndQuads.size() && face > 0,
+        "Hollow OBJ must preserve all original geometry");
     for (const auto& triangle : hollow->triangleSourceCorners)
         for (size_t corner = 0; corner < 3; ++corner) {
             const auto source = triangle[corner].dominantNodeHint();
