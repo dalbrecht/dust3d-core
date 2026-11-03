@@ -60,6 +60,22 @@ std::unique_ptr<dust3d::Object> generate(bool coincident, bool mirrored,
     require(generator.isSuccessful(), "Synthetic tube generation failed");
     return std::unique_ptr<dust3d::Object>(generator.takeObject());
 }
+void explicitZeroHollowMatchesDefault()
+{
+    const auto expected = generate(false, false);
+    auto source = snapshot(false, false);
+    source->parts[partA]["hollowThickness"] = "0";
+    dust3d::MeshGenerator generator(source.release());
+    generator.generate();
+    require(generator.isSuccessful(), "Explicit zero hollow thickness must produce a solid tube");
+    const std::unique_ptr<dust3d::Object> actual(generator.takeObject());
+    require(actual && expected->vertices.size() == actual->vertices.size() && expected->triangleAndQuads == actual->triangleAndQuads,
+        "Explicit zero hollow thickness must preserve the default topology");
+    for (size_t vertex = 0; vertex < actual->vertices.size(); ++vertex)
+        for (size_t axis = 0; axis < 3; ++axis)
+            require(actual->vertices[vertex][axis] == expected->vertices[vertex][axis],
+                "Explicit zero hollow thickness must preserve vertex positions exactly");
+}
 void hollowTubeRetainsIndexedSources()
 {
     const auto solid = generate(false, false);
@@ -322,6 +338,7 @@ void importedNearestHintStaysVertexIndexed()
 int main()
 {
     try {
+        explicitZeroHollowMatchesDefault();
         hollowTubeRetainsIndexedSources();
         duplicateDominantHints();
         coincidentPartsAndCache();
