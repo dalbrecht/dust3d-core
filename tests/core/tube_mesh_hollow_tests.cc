@@ -14,12 +14,12 @@ void require(bool condition, const char* message)
         throw std::runtime_error(message);
 }
 
-void hollowTubeHasConsistentTopology(bool circular)
+void hollowTubeHasConsistentTopology(bool circular, double thickness = .5)
 {
     dust3d::TubeMeshBuilder::BuildParameters parameters;
     parameters.cutFace = { { -1, -1 }, { 1, -1 }, { 1, 1 }, { -1, 1 } };
     parameters.interpolationEnabled = false;
-    parameters.hollowThickness = .5;
+    parameters.hollowThickness = thickness;
     const dust3d::Uuid first("00000000-0000-0000-0000-000000000001");
     const dust3d::Uuid second("00000000-0000-0000-0000-000000000002");
     std::vector<dust3d::MeshNode> nodes { { { 0, 0, 0 }, 1, first }, { { 0, 0, 2 }, 1, second } };
@@ -69,6 +69,7 @@ int main()
     try {
         hollowTubeHasConsistentTopology(false);
         hollowTubeHasConsistentTopology(true);
+        hollowTubeHasConsistentTopology(false, 0.99999999);
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';
         return 1;
