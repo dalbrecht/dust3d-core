@@ -14,7 +14,7 @@ void require(bool condition, const char* message)
         throw std::runtime_error(message);
 }
 
-void hollowTubeHasConsistentTopology()
+void hollowTubeHasConsistentTopology(bool circular)
 {
     dust3d::TubeMeshBuilder::BuildParameters parameters;
     parameters.cutFace = { { -1, -1 }, { 1, -1 }, { 1, 1 }, { -1, 1 } };
@@ -23,15 +23,18 @@ void hollowTubeHasConsistentTopology()
     const dust3d::Uuid first("00000000-0000-0000-0000-000000000001");
     const dust3d::Uuid second("00000000-0000-0000-0000-000000000002");
     std::vector<dust3d::MeshNode> nodes { { { 0, 0, 0 }, 1, first }, { { 0, 0, 2 }, 1, second } };
-    dust3d::TubeMeshBuilder builder(parameters, std::move(nodes), false);
+    if (circular)
+        nodes.push_back({ { 3, 0, 1 }, 1, first });
+    dust3d::TubeMeshBuilder builder(parameters, std::move(nodes), circular);
     builder.build();
     const auto& vertices = builder.generatedVertices();
     const auto& sources = builder.generatedVertexSources();
     const auto& faces = builder.generatedFaces();
     const auto& uvs = builder.generatedFaceUvs();
-    require(vertices.size() == 16, "Hollow tube retains an inner and outer ring at each end");
+    require(vertices.size() == (circular ? 24 : 16), "Hollow tube retains an inner and outer ring at each end");
     require(vertices.size() >= 8 && sources.size() == vertices.size(), "Hollow tube has owned vertex sources");
     require(!faces.empty() && faces.size() == uvs.size(), "Each hollow face has UVs");
+    require(faces.size() == (circular ? 24 : 16), "Closed centerlines generate walls without terminal rims");
     std::map<std::pair<size_t, size_t>, size_t> edges;
     std::map<std::pair<size_t, size_t>, int> winding;
     for (size_t faceIndex = 0; faceIndex < faces.size(); ++faceIndex) {
@@ -43,7 +46,7 @@ void hollowTubeHasConsistentTopology()
             require(current < vertices.size() && next < vertices.size() && current != next, "Faces contain valid edges");
             const auto& uv = uvs[faceIndex][corner];
             require(std::isfinite(uv.x()) && std::isfinite(uv.y()), "UV corners are finite");
-            const double band = static_cast<double>(faceIndex / 4) / 4.0;
+            const double band = static_cast<double>(faceIndex / (circular ? 12 : 4)) / 4.0;
             require(uv.y() >= band && uv.y() <= band + .25, "Outer, inner and rim faces use separate UV bands");
             ++edges[std::minmax(current, next)];
             winding[std::minmax(current, next)] += current < next ? 1 : -1;
@@ -64,7 +67,8 @@ void hollowTubeHasConsistentTopology()
 int main()
 {
     try {
-        hollowTubeHasConsistentTopology();
+        hollowTubeHasConsistentTopology(false);
+        hollowTubeHasConsistentTopology(true);
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';
         return 1;
