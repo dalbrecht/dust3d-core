@@ -87,6 +87,9 @@ void nearCollapseRetainsIndexedTriangles()
     require(object && object->triangles.size() == 32, "Near-collapse tube must retain both walls and rims");
     require(object->triangleSourceCorners.size() == 32 && object->triangleProceduralUvs.size() == 32,
         "Near-collapse tube must retain indexed corner records");
+    const dust3d::Uuid owner(ownerA);
+    const auto atlas = dust3d::UvAtlasBuilder::build(*object, { { owner, { dust3d::Color(1, 0, 0), std::nullopt } } });
+    require(atlas.triangleUvKnown == std::vector<uint8_t>(32, 1), "Near-collapse atlas must map every triangle");
     for (size_t face = 0; face < object->triangles.size(); ++face) {
         const auto& uv = object->triangleProceduralUvs[face];
         require(uv && uv->componentId == dust3d::Uuid(ownerA), "Near-collapse UV must retain its owner");
