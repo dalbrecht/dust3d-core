@@ -2,6 +2,7 @@
 #include <cmath>
 #include <dust3d/base/object.h>
 #include <dust3d/mesh/mesh_generator.h>
+#include <dust3d/uv/texture_baker.h>
 #include <dust3d/uv/uv_atlas_builder.h>
 #include <iomanip>
 #include <iostream>
@@ -95,6 +96,22 @@ void hollowTubeRetainsIndexedSources()
                 "Atlas must preserve each hollow corner's band coordinate");
         }
     }
+    dust3d::TextureBakeOptions options;
+    options.colorSize = options.normalSize = 32;
+    options.materialSize = 8;
+    const auto plain = dust3d::TextureBaker::bake(*hollow, atlas, {}, options);
+    dust3d::TextureBakeInputs inputs;
+    dust3d::SurfacePattern::Settings pattern;
+    pattern.type = dust3d::SurfacePattern::Type::Spots;
+    pattern.baseColor = dust3d::Color(1, 1, 1);
+    pattern.patternColor = dust3d::Color(0, 0, 0);
+    pattern.scale = .1;
+    inputs.surfaces[owner].pattern = pattern;
+    const auto patterned = dust3d::TextureBaker::bake(*hollow, atlas, inputs, options);
+    require(patterned.rasterTriangleVisits > 0 && patterned.color.pixels != plain.color.pixels,
+        "Hollow indexed geometry must rasterize a procedural surface pattern");
+    require(patterned.tangents.size() == hollow->triangles.size(),
+        "Hollow baked tangents must align with triangles");
     for (const auto& triangle : hollow->triangleSourceCorners)
         for (size_t corner = 0; corner < 3; ++corner) {
             const auto source = triangle[corner].dominantNodeHint();
