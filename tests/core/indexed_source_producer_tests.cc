@@ -76,6 +76,18 @@ void explicitZeroHollowMatchesDefault()
             require(actual->vertices[vertex][axis] == expected->vertices[vertex][axis],
                 "Explicit zero hollow thickness must preserve vertex positions exactly");
 }
+void nearCollapseRetainsIndexedTriangles()
+{
+    auto source = snapshot(false, false);
+    source->parts[partA]["hollowThickness"] = "0.99999999";
+    dust3d::MeshGenerator generator(source.release());
+    generator.generate();
+    require(generator.isSuccessful(), "Near-collapse tube generation failed");
+    const std::unique_ptr<dust3d::Object> object(generator.takeObject());
+    require(object && object->triangles.size() == 32, "Near-collapse tube must retain both walls and rims");
+    require(object->triangleSourceCorners.size() == 32 && object->triangleProceduralUvs.size() == 32,
+        "Near-collapse tube must retain indexed corner records");
+}
 void hollowTubeRetainsIndexedSources()
 {
     const auto solid = generate(false, false);
@@ -338,6 +350,7 @@ void importedNearestHintStaysVertexIndexed()
 int main()
 {
     try {
+        nearCollapseRetainsIndexedTriangles();
         explicitZeroHollowMatchesDefault();
         hollowTubeRetainsIndexedSources();
         duplicateDominantHints();
