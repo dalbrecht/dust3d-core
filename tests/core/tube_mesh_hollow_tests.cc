@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 #include <algorithm>
 #include <cmath>
+#include <dust3d/base/position_key.h>
 #include <dust3d/mesh/tube_mesh_builder.h>
 #include <iostream>
 #include <map>
@@ -28,6 +29,13 @@ void hollowTubeHasConsistentTopology(bool circular, double thickness = .5)
     dust3d::TubeMeshBuilder builder(parameters, std::move(nodes), circular);
     builder.build();
     const auto& vertices = builder.generatedVertices();
+    if (thickness > .999999) {
+        const auto& firstInner = vertices.at(8);
+        const auto& secondInner = vertices.at(9);
+        require((firstInner - secondInner).lengthSquared() > 0, "Near-one inner corners must remain distinct in double precision");
+        require(dust3d::PositionKey(firstInner) == dust3d::PositionKey(secondInner),
+            "Near-one fixture must exercise a legacy position-key collision");
+    }
     const auto& sources = builder.generatedVertexSources();
     const auto& faces = builder.generatedFaces();
     const auto& uvs = builder.generatedFaceUvs();
