@@ -97,6 +97,15 @@ void intersectingHollowBooleanRetainsIndexedRecords(const char* mode)
     require(object->triangleSourceCorners.size() == object->triangles.size()
             && object->triangleProceduralUvs.size() == object->triangles.size(),
         "Hollow Boolean must retain indexed record alignment");
+    std::set<dust3d::Uuid> nodes;
+    for (const auto& triangle : object->triangleSourceCorners)
+        for (size_t corner = 0; corner < 3; ++corner)
+            for (const auto& influence : triangle[corner].influences())
+                nodes.insert(influence.first);
+    require(nodes.count(dust3d::Uuid(nodeA)) && nodes.count(dust3d::Uuid(nodeB)),
+        "Boolean output must retain both hollow tube source nodes");
+    require(nodes.count(dust3d::Uuid(nodeC)) || nodes.count(dust3d::Uuid(nodeD)),
+        "Boolean output must retain provenance from the intersecting tube");
 }
 void mirroredHollowRetainsIndexedCorners()
 {
