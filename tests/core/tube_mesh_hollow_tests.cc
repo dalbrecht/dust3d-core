@@ -43,6 +43,8 @@ void hollowTubeHasConsistentTopology()
             require(current < vertices.size() && next < vertices.size() && current != next, "Faces contain valid edges");
             const auto& uv = uvs[faceIndex][corner];
             require(std::isfinite(uv.x()) && std::isfinite(uv.y()), "UV corners are finite");
+            const double band = static_cast<double>(faceIndex / 4) / 4.0;
+            require(uv.y() >= band && uv.y() <= band + .25, "Outer, inner and rim faces use separate UV bands");
             ++edges[std::minmax(current, next)];
             winding[std::minmax(current, next)] += current < next ? 1 : -1;
         }

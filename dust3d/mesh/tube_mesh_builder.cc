@@ -424,7 +424,12 @@ void TubeMeshBuilder::build()
         const auto outerFaceCount = m_generatedFaces.size();
         for (size_t i = 0; i < outerFaceCount; ++i) {
             auto face = m_generatedFaces[i];
-            auto uv = m_generatedFaceUvs[i];
+            auto& outerUv = m_generatedFaceUvs[i];
+            for (auto& corner : outerUv)
+                corner[1] *= .25;
+            auto uv = outerUv;
+            for (auto& corner : uv)
+                corner[1] += .25;
             for (auto& vertex : face)
                 vertex += innerOffset;
             // Keep the same quad diagonal while reversing the winding.
@@ -435,14 +440,14 @@ void TubeMeshBuilder::build()
         }
 
         if (!m_isCircle) {
-            auto addRim = [&](size_t ring, double innerV, bool reverse) {
+            auto addRim = [&](size_t ring, double band, bool reverse) {
                 const auto& section = cutFaceIndices[ring];
                 for (size_t i = 0; i < section.size(); ++i) {
                     const size_t j = (i + 1) % section.size();
                     std::vector<size_t> face { section[j], section[i], section[i] + innerOffset, section[j] + innerOffset };
                     const auto a = tubeUv(cutFaceVertexUvs[ring][i]);
                     const auto b = tubeUv(cutFaceVertexUvs[ring][i + 1]);
-                    std::vector<Vector2> uv { b, a, { a.x(), innerV }, { b.x(), innerV } };
+                    std::vector<Vector2> uv { { b.x(), band }, { a.x(), band }, { a.x(), band + .25 }, { b.x(), band + .25 } };
                     if (reverse) {
                         std::reverse(face.begin(), face.end());
                         std::reverse(uv.begin(), uv.end());
@@ -451,8 +456,8 @@ void TubeMeshBuilder::build()
                     m_generatedFaceUvs.push_back(std::move(uv));
                 }
             };
-            addRim(0, 0.0, false);
-            addRim(cutFaceIndices.size() - 1, 1.0, true);
+            addRim(0, .5, false);
+            addRim(cutFaceIndices.size() - 1, .75, true);
         }
         return;
     }
