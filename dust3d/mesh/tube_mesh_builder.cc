@@ -409,6 +409,54 @@ void TubeMeshBuilder::build()
                 tubeUv(cutFaceVertexUvs[j][m + 1]) });
         }
     }
+    const double thickness = m_buildParameters.hollowThickness;
+    if (thickness > 0.0 && thickness < 1.0) {
+        const auto innerOffset = m_generatedVertices.size();
+        for (size_t ring = 0; ring < cutFaceIndices.size(); ++ring) {
+            const auto& center = m_nodePositions[ring];
+            for (const auto outer : cutFaceIndices[ring]) {
+                const auto inner = center + (m_generatedVertices[outer] - center) * (1.0 - thickness);
+                m_generatedVertices.push_back(inner);
+                m_generatedVertexSources.push_back(m_nodes[ring].sourceId);
+            }
+        }
+
+        const auto outerFaceCount = m_generatedFaces.size();
+        for (size_t i = 0; i < outerFaceCount; ++i) {
+            auto face = m_generatedFaces[i];
+            auto uv = m_generatedFaceUvs[i];
+            for (auto& vertex : face)
+                vertex += innerOffset;
+            // Keep the same quad diagonal while reversing the winding.
+            std::reverse(face.begin() + 1, face.end());
+            std::reverse(uv.begin() + 1, uv.end());
+            m_generatedFaces.push_back(std::move(face));
+            m_generatedFaceUvs.push_back(std::move(uv));
+        }
+
+        if (!m_isCircle) {
+            auto addRim = [&](size_t ring, double innerV, bool reverse) {
+                const auto& section = cutFaceIndices[ring];
+                for (size_t i = 0; i < section.size(); ++i) {
+                    const size_t j = (i + 1) % section.size();
+                    std::vector<size_t> face { section[j], section[i], section[i] + innerOffset, section[j] + innerOffset };
+                    const auto a = tubeUv(cutFaceVertexUvs[ring][i]);
+                    const auto b = tubeUv(cutFaceVertexUvs[ring][i + 1]);
+                    std::vector<Vector2> uv { b, a, { a.x(), innerV }, { b.x(), innerV } };
+                    if (reverse) {
+                        std::reverse(face.begin(), face.end());
+                        std::reverse(uv.begin(), uv.end());
+                    }
+                    m_generatedFaces.push_back(std::move(face));
+                    m_generatedFaceUvs.push_back(std::move(uv));
+                }
+            };
+            addRim(0, 0.0, false);
+            addRim(cutFaceIndices.size() - 1, 1.0, true);
+        }
+        return;
+    }
+
     if (!m_isCircle) {
         addCap(cutFaceIndices.back(), vOffsetBecauseOfFrontCap + vTubeRatio, 1.0, false);
         addCap(cutFaceIndices.front(), vOffsetBecauseOfFrontCap, 0.0, true);

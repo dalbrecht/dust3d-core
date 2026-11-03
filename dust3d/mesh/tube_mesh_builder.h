@@ -35,6 +35,7 @@ public:
     struct BuildParameters {
         std::vector<Vector2> cutFace;
         double deformThickness = 1.0;
+        double hollowThickness = 0.0;
         double deformWidth = 1.0;
         bool deformUnified = false;
         double baseNormalRotation = 0.0;
