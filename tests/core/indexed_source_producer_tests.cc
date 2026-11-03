@@ -2,6 +2,7 @@
 #include <cmath>
 #include <dust3d/base/object.h>
 #include <dust3d/mesh/mesh_generator.h>
+#include <dust3d/rig/rig_generator.h>
 #include <dust3d/uv/texture_baker.h>
 #include <dust3d/uv/uv_atlas_builder.h>
 #include <iomanip>
@@ -145,6 +146,10 @@ void nearCollapseRetainsIndexedTriangles()
     const auto bake = dust3d::TextureBaker::bake(*object, atlas, {}, options);
     require(bake.color.pixels.size() == 32 * 32 * 4 && bake.tangents.size() == 32,
         "Near-collapse bake must retain its color map and triangle-aligned tangent records");
+    dust3d::RigGenerator rig;
+    require(rig.computeVertexBoneBindings(object.get(),
+                { { dust3d::Uuid(nodeA), { "First" } }, { dust3d::Uuid(nodeB), { "Second" } } }),
+        "Near-collapse tube must bind to bones");
     for (size_t face = 0; face < object->triangles.size(); ++face) {
         const auto& uv = object->triangleProceduralUvs[face];
         require(uv && uv->componentId == dust3d::Uuid(ownerA), "Near-collapse UV must retain its owner");
@@ -156,6 +161,9 @@ void nearCollapseRetainsIndexedTriangles()
             const auto legacyNode = object->positionToNodeIdMap.find(dust3d::PositionKey(position));
             require(legacyNode != object->positionToNodeIdMap.end() && node == legacyNode->second,
                 "Legacy rig lookup must agree with the indexed source for this tube");
+            const auto& binding = object->vertexBone1.at(object->triangles[face][corner]);
+            require(binding.first == (node == dust3d::Uuid(nodeA) ? "First" : "Second") && binding.second == 1.0f,
+                "Hollow corner must bind to the bone of its indexed source node");
             require(std::isfinite(uv->uv[corner].x()) && std::isfinite(uv->uv[corner].y()),
                 "Near-collapse UV must remain finite");
         }
