@@ -1106,7 +1106,7 @@ std::unique_ptr<MeshState> MeshGenerator::combinePartMesh(const std::string& par
         buildParameters.deformThickness = deformThickness;
         const auto hollowThickness = String::valueOrEmpty(part, "hollowThickness");
         if (!hollowThickness.empty())
-            buildParameters.hollowThickness = String::toFloat(hollowThickness);
+            buildParameters.hollowThickness = String::toDouble(hollowThickness);
         buildParameters.deformWidth = deformWidth;
         buildParameters.deformUnified = deformUnified;
         buildParameters.baseNormalRotation = cutRotation * Math::Pi;
