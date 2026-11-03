@@ -76,12 +76,12 @@ void explicitZeroHollowMatchesDefault()
             require(actual->vertices[vertex][axis] == expected->vertices[vertex][axis],
                 "Explicit zero hollow thickness must preserve vertex positions exactly");
 }
-void intersectingHollowUnionRetainsIndexedRecords()
+void intersectingHollowBooleanRetainsIndexedRecords(const char* mode)
 {
     auto source = snapshot(true, false);
     source->parts[partA]["hollowThickness"] = ".5";
     source->components[ownerA]["combineMode"] = "Normal";
-    source->components[ownerB]["combineMode"] = "Normal";
+    source->components[ownerB]["combineMode"] = mode;
     source->nodes[nodeC]["x"] = ".49";
     source->nodes[nodeD]["x"] = ".49";
     source->nodes[nodeC]["y"] = ".13";
@@ -90,12 +90,13 @@ void intersectingHollowUnionRetainsIndexedRecords()
     source->nodes[nodeD]["z"] = ".07";
     dust3d::MeshGenerator generator(source.release());
     generator.generate();
-    require(generator.isSuccessful(), "Hollow and solid tube union failed");
+    require(generator.isSuccessful(), "Hollow and solid tube Boolean failed");
     const std::unique_ptr<dust3d::Object> object(generator.takeObject());
-    require(object && !object->triangles.empty(), "Hollow union must produce geometry");
+    require(object && !object->triangles.empty(), "Hollow Boolean must produce geometry");
+    require(object->triangles.size() != 32, "Boolean output must differ from the uncut hollow tube");
     require(object->triangleSourceCorners.size() == object->triangles.size()
             && object->triangleProceduralUvs.size() == object->triangles.size(),
-        "Hollow union must retain indexed record alignment");
+        "Hollow Boolean must retain indexed record alignment");
 }
 void mirroredHollowRetainsIndexedCorners()
 {
@@ -409,7 +410,8 @@ void importedNearestHintStaysVertexIndexed()
 int main()
 {
     try {
-        intersectingHollowUnionRetainsIndexedRecords();
+        intersectingHollowBooleanRetainsIndexedRecords("Normal");
+        intersectingHollowBooleanRetainsIndexedRecords("Inversion");
         mirroredHollowRetainsIndexedCorners();
         nearCollapseRetainsIndexedTriangles();
         explicitZeroHollowMatchesDefault();
