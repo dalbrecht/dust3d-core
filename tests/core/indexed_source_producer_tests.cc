@@ -76,6 +76,24 @@ void explicitZeroHollowMatchesDefault()
             require(actual->vertices[vertex][axis] == expected->vertices[vertex][axis],
                 "Explicit zero hollow thickness must preserve vertex positions exactly");
 }
+void mirroredHollowRetainsIndexedCorners()
+{
+    auto source = snapshot(false, true);
+    source->parts[partA]["hollowThickness"] = ".5";
+    dust3d::MeshGenerator generator(source.release());
+    generator.generate();
+    require(generator.isSuccessful(), "Mirrored hollow tube generation failed");
+    const std::unique_ptr<dust3d::Object> object(generator.takeObject());
+    require(object && object->triangles.size() == 64, "Mirroring must retain both shells and rims");
+    require(object->triangleSourceCorners.size() == 64 && object->triangleProceduralUvs.size() == 64,
+        "Mirroring must retain triangle-aligned hollow records");
+    for (size_t face = 0; face < object->triangles.size(); ++face) {
+        require(object->triangleProceduralUvs[face].has_value(), "Mirrored hollow face must retain UVs");
+        for (size_t corner = 0; corner < 3; ++corner)
+            require(object->triangleSourceCorners[face][corner].dominantNodeHint().has_value(),
+                "Mirrored hollow corner must retain source ownership");
+    }
+}
 void nearCollapseRetainsIndexedTriangles()
 {
     auto source = snapshot(false, false);
@@ -370,6 +388,7 @@ void importedNearestHintStaysVertexIndexed()
 int main()
 {
     try {
+        mirroredHollowRetainsIndexedCorners();
         nearCollapseRetainsIndexedTriangles();
         explicitZeroHollowMatchesDefault();
         hollowTubeRetainsIndexedSources();
