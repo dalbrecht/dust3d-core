@@ -87,6 +87,17 @@ void nearCollapseRetainsIndexedTriangles()
     require(object && object->triangles.size() == 32, "Near-collapse tube must retain both walls and rims");
     require(object->triangleSourceCorners.size() == 32 && object->triangleProceduralUvs.size() == 32,
         "Near-collapse tube must retain indexed corner records");
+    for (size_t face = 0; face < object->triangles.size(); ++face) {
+        const auto& uv = object->triangleProceduralUvs[face];
+        require(uv && uv->componentId == dust3d::Uuid(ownerA), "Near-collapse UV must retain its owner");
+        for (size_t corner = 0; corner < 3; ++corner) {
+            const auto node = object->triangleSourceCorners[face][corner].dominantNodeHint();
+            require(node == dust3d::Uuid(nodeA) || node == dust3d::Uuid(nodeB),
+                "Near-collapse corner must retain its node");
+            require(std::isfinite(uv->uv[corner].x()) && std::isfinite(uv->uv[corner].y()),
+                "Near-collapse UV must remain finite");
+        }
+    }
 }
 void hollowTubeRetainsIndexedSources()
 {
