@@ -152,6 +152,10 @@ void nearCollapseRetainsIndexedTriangles()
             const auto node = object->triangleSourceCorners[face][corner].dominantNodeHint();
             require(node == dust3d::Uuid(nodeA) || node == dust3d::Uuid(nodeB),
                 "Near-collapse corner must retain its node");
+            const auto& position = object->vertices[object->triangles[face][corner]];
+            const auto legacyNode = object->positionToNodeIdMap.find(dust3d::PositionKey(position));
+            require(legacyNode != object->positionToNodeIdMap.end() && node == legacyNode->second,
+                "Legacy rig lookup must agree with the indexed source for this tube");
             require(std::isfinite(uv->uv[corner].x()) && std::isfinite(uv->uv[corner].y()),
                 "Near-collapse UV must remain finite");
         }
