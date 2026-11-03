@@ -68,6 +68,15 @@ void hollowTubeRetainsIndexedSources()
     const std::unique_ptr<dust3d::Object> hollow(generator.takeObject());
     require(hollow && hollow->triangles.size() > solid->triangles.size(), "Snapshot hollow thickness must add inner and rim faces");
     require(hollow->triangleSourceCorners.size() == hollow->triangles.size(), "Hollow source corners must align with triangles");
+    require(hollow->triangleProceduralUvs.size() == hollow->triangles.size(), "Hollow UV records must align with triangles");
+    for (const auto& record : hollow->triangleProceduralUvs) {
+        require(record && record->componentId == dust3d::Uuid(ownerA), "Hollow UV record must retain its component owner");
+        for (const auto& uv : record->uv)
+            require(std::isfinite(uv.x()) && std::isfinite(uv.y()), "Hollow UV corners must be finite");
+        const auto first = record->uv[1] - record->uv[0];
+        const auto second = record->uv[2] - record->uv[0];
+        require(std::abs(first.x() * second.y() - first.y() * second.x()) > 1e-12, "Hollow UV triangle must have area");
+    }
     for (const auto& triangle : hollow->triangleSourceCorners)
         for (size_t corner = 0; corner < 3; ++corner) {
             const auto source = triangle[corner].dominantNodeHint();
