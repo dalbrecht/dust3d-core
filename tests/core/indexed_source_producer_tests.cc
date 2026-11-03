@@ -76,6 +76,27 @@ void explicitZeroHollowMatchesDefault()
             require(actual->vertices[vertex][axis] == expected->vertices[vertex][axis],
                 "Explicit zero hollow thickness must preserve vertex positions exactly");
 }
+void intersectingHollowUnionRetainsIndexedRecords()
+{
+    auto source = snapshot(true, false);
+    source->parts[partA]["hollowThickness"] = ".5";
+    source->components[ownerA]["combineMode"] = "Normal";
+    source->components[ownerB]["combineMode"] = "Normal";
+    source->nodes[nodeC]["x"] = ".49";
+    source->nodes[nodeD]["x"] = ".49";
+    source->nodes[nodeC]["y"] = ".13";
+    source->nodes[nodeD]["y"] = "1.13";
+    source->nodes[nodeC]["z"] = ".07";
+    source->nodes[nodeD]["z"] = ".07";
+    dust3d::MeshGenerator generator(source.release());
+    generator.generate();
+    require(generator.isSuccessful(), "Hollow and solid tube union failed");
+    const std::unique_ptr<dust3d::Object> object(generator.takeObject());
+    require(object && !object->triangles.empty(), "Hollow union must produce geometry");
+    require(object->triangleSourceCorners.size() == object->triangles.size()
+            && object->triangleProceduralUvs.size() == object->triangles.size(),
+        "Hollow union must retain indexed record alignment");
+}
 void mirroredHollowRetainsIndexedCorners()
 {
     auto source = snapshot(false, true);
@@ -388,6 +409,7 @@ void importedNearestHintStaysVertexIndexed()
 int main()
 {
     try {
+        intersectingHollowUnionRetainsIndexedRecords();
         mirroredHollowRetainsIndexedCorners();
         nearCollapseRetainsIndexedTriangles();
         explicitZeroHollowMatchesDefault();
