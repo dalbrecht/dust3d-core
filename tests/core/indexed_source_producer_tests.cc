@@ -2,6 +2,7 @@
 #include <cmath>
 #include <dust3d/base/object.h>
 #include <dust3d/mesh/mesh_generator.h>
+#include <dust3d/uv/uv_atlas_builder.h>
 #include <iomanip>
 #include <iostream>
 #include <limits>
@@ -76,6 +77,23 @@ void hollowTubeRetainsIndexedSources()
         const auto first = record->uv[1] - record->uv[0];
         const auto second = record->uv[2] - record->uv[0];
         require(std::abs(first.x() * second.y() - first.y() * second.x()) > 1e-12, "Hollow UV triangle must have area");
+    }
+    const dust3d::Uuid owner(ownerA);
+    const auto atlas = dust3d::UvAtlasBuilder::build(*hollow, { { owner, { dust3d::Color(1, 0, 0), std::nullopt } } });
+    require(atlas.layouts.size() == 1, "Hollow tube must pack into its component chart");
+    const auto& layout = atlas.layouts.front();
+    require(atlas.triangleUvs.size() == hollow->triangles.size(), "Packed hollow UVs must align with triangles");
+    for (size_t triangle = 0; triangle < hollow->triangles.size(); ++triangle) {
+        require(atlas.triangleUvKnown.at(triangle), "Every hollow face must have a packed UV");
+        const auto& input = hollow->triangleProceduralUvs[triangle]->uv;
+        for (size_t corner = 0; corner < 3; ++corner) {
+            const auto localV = input[corner].y();
+            const auto packed = atlas.triangleUvs[triangle][corner];
+            const auto coordinate = layout.flipped ? packed.x() : packed.y();
+            const auto origin = layout.flipped ? layout.left : layout.top;
+            require(std::abs(coordinate - (origin + localV * layout.height)) < 1e-5,
+                "Atlas must preserve each hollow corner's band coordinate");
+        }
     }
     for (const auto& triangle : hollow->triangleSourceCorners)
         for (size_t corner = 0; corner < 3; ++corner) {
