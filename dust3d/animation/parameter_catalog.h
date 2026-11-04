@@ -49,6 +49,9 @@ namespace animation {
         double durationSeconds;
         int frameCount;
     };
+    /// Bound both hierarchy size and retained joint-frame pairs before sampling.
+    /// Pass the final frame count including any loop-closing key.
+    bool animationFrameWorkFits(size_t frameCount, size_t jointCount) noexcept;
     /** Return common duration/frame-count widget metadata shared by all clip types.
      * @return Process-static limits copied from the reference widget; clip defaults remain in defaultTiming.
      * No input, allocation or runtime evaluation. Example: `commonTimingDefinition().maximumFrameCount`.

@@ -114,6 +114,10 @@ int main()
             "Representable truncated fractional endpoints rejected");
         rejects([&] { sliderValue(wide, maximum + 1.0); }, ParameterConversionErrorCode::unrepresentableValue);
         rejects([&] { sliderValue(wide, minimum - 1.0); }, ParameterConversionErrorCode::unrepresentableValue);
+        require(animationFrameWorkFits(5000, 200), "Exact animation joint-frame budget rejected");
+        require(!animationFrameWorkFits(5000, 201), "Excess joint-frame work was admitted");
+        require(!animationFrameWorkFits(30, 0) && !animationFrameWorkFits(0, 30), "Empty animation work was admitted");
+        require(!animationFrameWorkFits(30, std::numeric_limits<size_t>::max()), "Unbounded rig count was admitted");
         std::cout << "Checked animation parameter catalog passed: " << definitions
                   << " descriptors, " << outOfRangeDefaults << " raw defaults outside widget range\n";
         return 0;
