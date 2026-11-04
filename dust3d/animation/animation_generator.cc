@@ -113,21 +113,13 @@ AnimationParams AnimationGenerator::defaultParameters(const std::string& type)
 
 bool AnimationGenerator::generate(const RigStructure& rigStructure,
     const std::map<std::string, Matrix4x4>& inverseBindMatrices,
-    RigAnimationClip& animationClip,
+    RigAnimationClip& output,
     const std::string& requestedAnimationType,
     const AnimationParams& inputParameters)
 {
-    animationClip.frames.clear();
+    RigAnimationClip animationClip;
+    animationClip.name = output.name;
     animationClip.animationType = requestedAnimationType;
-    animationClip.movementSpeed = 0.0f;
-    animationClip.movementDirectionX = 0.0f;
-    animationClip.movementDirectionZ = 0.0f;
-    animationClip.loop = false;
-    animationClip.entryPose.clear();
-    animationClip.exitPose.clear();
-    animationClip.rootYawDegrees = 0.0f;
-    animationClip.events.clear();
-    animationClip.rootMotion = "inPlace";
     const auto preset = animation::clipCatalog().find(requestedAnimationType);
     if (preset == animation::clipCatalog().end() || preset->second.rig != rigStructure.type)
         return false;
@@ -562,18 +554,24 @@ bool AnimationGenerator::generate(const RigStructure& rigStructure,
             it = parents.count(it->first) ? std::next(it) : frame.boneSkinMatrices.erase(it);
     }
 
-    // Never publish a partial or nonfinite animation, including invalid secondary
-    // simulations or malformed bind data supplied by a headless caller.
+    // Keep the previous clip intact unless every generated frame is admissible.
+    const auto finiteMatrices = [](const auto& transforms) {
+        return std::all_of(transforms.begin(), transforms.end(), [](const auto& transform) {
+            const auto* matrix = transform.second.constData();
+            return std::all_of(matrix, matrix + 16, [](double value) { return std::isfinite(value); });
+        });
+    };
+    double previous = -1;
     for (const auto& frame : animationClip.frames) {
-        if (!std::isfinite(frame.time) || frame.boneWorldTransforms.size() != rigStructure.bones.size()
-            || frame.boneSkinMatrices.size() != rigStructure.bones.size())
+        if (!animation::animationFrameTimeFollows(frame.time, previous, animationClip.durationSeconds)
+            || frame.boneWorldTransforms.size() != rigStructure.bones.size()
+            || frame.boneSkinMatrices.size() != rigStructure.bones.size()
+            || !finiteMatrices(frame.boneWorldTransforms) || !finiteMatrices(frame.boneSkinMatrices))
             return false;
-        for (const auto& transform : frame.boneSkinMatrices)
-            for (int i = 0; i < 16; ++i)
-                if (!std::isfinite(transform.second.constData()[i]))
-                    return false;
+        previous = frame.time;
     }
 
+    output = std::move(animationClip);
     return true;
 }
 

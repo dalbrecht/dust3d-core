@@ -771,6 +771,12 @@ namespace animation {
             && frameCount <= 1000000 / jointCount;
     }
 
+    bool animationFrameTimeFollows(double time, double previous, double duration) noexcept
+    {
+        return std::isfinite(time) && std::isfinite(previous) && std::isfinite(duration)
+            && duration > 0 && time >= 0 && time <= duration && time > previous;
+    }
+
     const CommonTimingDefinition& commonTimingDefinition() noexcept
     {
         static constexpr CommonTimingDefinition definition { 0.01, 59.99, 2, 0.1, 1, 4999, 5 };

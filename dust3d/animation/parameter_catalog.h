@@ -52,6 +52,9 @@ namespace animation {
     /// Bound both hierarchy size and retained joint-frame pairs before sampling.
     /// Pass the final frame count including any loop-closing key.
     bool animationFrameWorkFits(size_t frameCount, size_t jointCount) noexcept;
+    /// Admit a finite timestamp strictly after the preceding frame and within the clip.
+    /// Pass -1 as the preceding time for the first frame.
+    bool animationFrameTimeFollows(double time, double previous, double duration) noexcept;
     /** Return common duration/frame-count widget metadata shared by all clip types.
      * @return Process-static limits copied from the reference widget; clip defaults remain in defaultTiming.
      * No input, allocation or runtime evaluation. Example: `commonTimingDefinition().maximumFrameCount`.

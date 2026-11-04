@@ -118,6 +118,13 @@ int main()
         require(!animationFrameWorkFits(5000, 201), "Excess joint-frame work was admitted");
         require(!animationFrameWorkFits(30, 0) && !animationFrameWorkFits(0, 30), "Empty animation work was admitted");
         require(!animationFrameWorkFits(30, std::numeric_limits<size_t>::max()), "Unbounded rig count was admitted");
+        require(animationFrameTimeFollows(0, -1, 1) && animationFrameTimeFollows(1, 0.5, 1),
+            "Initial and terminal animation timestamps must be admitted");
+        require(!animationFrameTimeFollows(0.5, 0.5, 1) && !animationFrameTimeFollows(0.25, 0.5, 1),
+            "Repeated or reversed animation timestamps were admitted");
+        require(!animationFrameTimeFollows(1.01, 0.5, 1)
+                && !animationFrameTimeFollows(std::numeric_limits<double>::infinity(), 0.5, 1),
+            "Out-of-range animation timestamps were admitted");
         std::cout << "Checked animation parameter catalog passed: " << definitions
                   << " descriptors, " << outOfRangeDefaults << " raw defaults outside widget range\n";
         return 0;
