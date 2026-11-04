@@ -172,6 +172,21 @@ void nearCollapseRetainsIndexedTriangles()
 void hollowTubeRetainsIndexedSources()
 {
     const auto solid = generate(false, false);
+    auto endpointSource = snapshot(false, false);
+    endpointSource->parts[partA]["hollowThickness"] = "1";
+    dust3d::MeshGenerator endpointGenerator(endpointSource.release());
+    endpointGenerator.generate();
+    require(endpointGenerator.isSuccessful(), "Solid thickness endpoint generation failed");
+    const std::unique_ptr<dust3d::Object> endpoint(endpointGenerator.takeObject());
+    require(endpoint && endpoint->vertices.size() == solid->vertices.size() && endpoint->triangles == solid->triangles,
+        "Hollow thickness 1 must generate the same solid geometry as thickness 0");
+    for (size_t index = 0; index < solid->vertices.size(); ++index) {
+        const auto& actual = endpoint->vertices[index];
+        const auto& expected = solid->vertices[index];
+        require(actual.x() == expected.x() && actual.y() == expected.y() && actual.z() == expected.z(),
+            "Solid thickness endpoint must retain the exact vertex positions");
+    }
+
     auto source = snapshot(false, false);
     source->parts[partA]["hollowThickness"] = ".5";
     dust3d::MeshGenerator generator(source.release());
