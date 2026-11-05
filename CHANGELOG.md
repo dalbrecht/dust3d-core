@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Generate hollow tubes for thicknesses strictly between 0 and 1. Both endpoints use the ordinary solid tube (Apple #96).
+
 - Share immutable node-hint distributions across corner/cache copies while retaining replacement isolation and conservative ownership accounting.
 
 - Preserve node/weighted source hints by original triangle corner through producers, Boolean interpolation, generated bridges and filtered native export; keep unknown/conflicting ownership explicit (Apple #96 prerequisite).
