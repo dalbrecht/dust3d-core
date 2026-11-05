@@ -1,4 +1,5 @@
 """Ordinary filesystem contracts for the Qt-free static FBX export command."""
+import json
 import os
 from pathlib import Path
 import subprocess
@@ -24,6 +25,27 @@ class ExportCliTests(unittest.TestCase):
     def assert_unchanged(self):
         self.assertEqual(self.source.read_bytes(), self.original)
         self.assertEqual(list(self.directory.rglob('.dust3d-export-*')), [])
+
+    def test_should_emit_only_json_receipts_for_committed_geometry(self):
+        obj = self.directory / 'export ü.obj'
+        fbx = self.directory / 'export ü.fbx'
+        result = self.run_export('--json', self.source, '-o', obj, '-output', fbx)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue(result.stdout.endswith('\n'))
+        records = [json.loads(line) for line in result.stdout.splitlines()]
+        self.assertEqual(len(records), 2)
+        for index, (record, output) in enumerate(zip(records, (obj, fbx)), 1):
+            human_output = self.directory / ('human' + output.suffix)
+            human = self.run_export(self.source, human_output)
+            self.assertEqual(human.returncode, 0, human.stderr)
+            self.assertEqual(output.read_bytes(), human_output.read_bytes())
+            self.assertEqual(record, {
+                'version': 1, 'jobIndex': index, 'jobCount': 2,
+                'source': str(self.source), 'destination': str(output),
+                'format': output.suffix[1:], 'mode': 'geometry',
+                'committed': True, 'byteCount': output.stat().st_size, 'diagnostic': '',
+            })
+        self.assert_unchanged()
 
     def test_should_export_original_obj_polygons_and_reject_baked_obj(self):
         destination = self.directory / 'original ü.OBJ'
