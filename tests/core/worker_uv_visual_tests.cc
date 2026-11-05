@@ -66,11 +66,8 @@ void licensedVisuals(const std::string& helper, const std::filesystem::path& fix
     request.archive = read(fixtures / "RoundedCrossing.ds3");
     const auto crossing = roundTrip(helper, request, 2);
     const auto known = std::count_if(crossing.uv.triangles.begin(), crossing.uv.triangles.end(), [](const auto& triangle) { return triangle.known != 0; });
-    require(known > 0 && static_cast<size_t>(known) < crossing.uv.triangles.size(), "Boolean result retains mapped and explicitly unmapped triangles");
+    require(known > 0 && static_cast<size_t>(known) == crossing.uv.triangles.size(), "Indexed Boolean result preserves every RoundedCrossing mapping through the worker");
     for (const auto& triangle : crossing.uv.triangles) {
-        if (!triangle.known)
-            for (const auto& corner : triangle.uv)
-                require(corner[0] == 0 && corner[1] == 0, "Unmapped Boolean corners cannot invent UVs");
         require(triangle.association == UvAssociation::component ? triangle.componentIndex < crossing.uv.components.size() : triangle.componentIndex == noUvComponent, "Source association remains independent of chart availability");
     }
 }
