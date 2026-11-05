@@ -4,6 +4,7 @@
 #include <dust3d/mesh/interpolation_identities.h>
 #include <iomanip>
 #include <limits>
+#include <locale>
 #include <numeric>
 #include <sstream>
 #include <stdexcept>
@@ -58,6 +59,7 @@ namespace {
     std::string fallbackIdentity(uint64_t sequence)
     {
         std::ostringstream raw;
+        raw.imbue(std::locale::classic());
         raw << "00000000" << std::hex << std::setfill('0') << std::setw(4) << (sequence >> 48)
             << "40008000" << std::setw(12) << (sequence & UINT64_C(0x0000ffffffffffff));
         return formatUuid(raw.str());

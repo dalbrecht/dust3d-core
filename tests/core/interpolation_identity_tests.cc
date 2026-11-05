@@ -2,6 +2,7 @@
 #include <algorithm>
 #include <dust3d/mesh/interpolation_identities.h>
 #include <iostream>
+#include <locale>
 #include <set>
 #include <stdexcept>
 
@@ -93,6 +94,35 @@ void originalUuidSpellingsRemainReserved()
     const auto raw = dust3d::planInterpolationIdentities({ { edge, from, to } }, { from, to }, { edge, rawAlias });
     require(raw[0].edgeIds[1] != legacyEdges[1], "Generated edge aliases an unbraced original UUID");
 }
+void fallbackDoesNotDependOnGlobalNumericLocale()
+{
+    std::vector<dust3d::InterpolationEdge> inputs;
+    std::set<std::string> edges;
+    for (char prefix = '1'; prefix <= '8'; ++prefix) {
+        const auto id = std::string("{") + prefix + "0000000-0000-4000-8333-333333333333}";
+        inputs.push_back({ id, from, to });
+        edges.insert(id);
+    }
+    const auto ordinary = dust3d::planInterpolationIdentities(inputs, { from, to }, edges);
+    class GroupedHex : public std::numpunct<char> {
+    protected:
+        char do_thousands_sep() const override { return '_'; }
+        std::string do_grouping() const override { return "\1"; }
+    };
+    const auto previous = std::locale();
+    std::vector<dust3d::InterpolatedEdgeIdentities> grouped;
+    try {
+        std::locale::global(std::locale(std::locale::classic(), new GroupedHex));
+        grouped = dust3d::planInterpolationIdentities(inputs, { from, to }, edges);
+        std::locale::global(previous);
+    } catch (...) {
+        std::locale::global(previous);
+        throw;
+    }
+    for (size_t index = 0; index < inputs.size(); ++index)
+        require(ordinary[index].nodeIds == grouped[index].nodeIds && ordinary[index].edgeIds == grouped[index].edgeIds,
+            "Interpolation fallback depends on process numeric locale");
+}
 void invalidRequestsAreValuesOnly()
 {
     const auto rejects = [](const auto& inputs, const auto& nodes, const auto& edges) {
@@ -124,6 +154,7 @@ int main()
         sharedPrefixAndOriginalCollisions();
         allInputsPreflightAndStableOrder();
         originalUuidSpellingsRemainReserved();
+        fallbackDoesNotDependOnGlobalNumericLocale();
         invalidRequestsAreValuesOnly();
         std::cout << "Interpolation identity admission contracts passed\n";
         return 0;
