@@ -69,6 +69,7 @@ public:
 
     static std::pair<double, int> defaultTiming(const std::string& animationType);
 
+    // Replace the supplied clip on success, retaining its caller-provided name.
     static bool generate(const RigStructure& rigStructure,
         const std::map<std::string, Matrix4x4>& inverseBindMatrices,
         RigAnimationClip& animationClip,
