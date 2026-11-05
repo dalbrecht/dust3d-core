@@ -38,11 +38,9 @@ int main()
 
     bool deliveryAttempted = false;
     try {
-        publishWithReceipt(record, []() -> int { throw std::runtime_error("rename failed"); },
-            [&](const std::string&) {
+        publishWithReceipt(record, []() -> int { throw std::runtime_error("rename failed"); }, [&](const std::string&) {
                 deliveryAttempted = true;
-                return true;
-            });
+                return true; });
         require(false);
     } catch (const std::runtime_error& error) {
         require(std::string(error.what()) == "rename failed");

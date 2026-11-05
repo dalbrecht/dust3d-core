@@ -91,4 +91,5 @@ diagnostic. Paths must be valid UTF-8 in this mode.
 Exit 6 reports receipt delivery failure after a successful single export or
 during a batch. Published files remain committed. For a failed single export,
 the original export exit code takes precedence. A failed receipt may leave an
-incomplete final line on stdout. Inspect the destination before retrying.
+incomplete final line on stdout. A batch continues exporting, but sends no more
+records after a delivery failure. Inspect the destination before retrying.

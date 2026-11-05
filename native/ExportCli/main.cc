@@ -288,19 +288,22 @@ struct ReceiptOutput {
     int descriptor = -1;
     size_t jobIndex = 1;
     size_t jobCount = 1;
+    bool deliveryEnabled = true;
 
     std::string prepare(const Arguments& job, bool committed, size_t bytes, const char* diagnostic) const
     {
         if (descriptor < 0)
             return {};
+        const auto extension = destinationExtension(job.destination);
+        const auto format = extension == ".obj" ? "obj" : extension == ".fbx" ? "fbx" : "unknown";
         return serializeReceipt({ jobIndex, jobCount, job.source.string(), job.destination.string(),
-            destinationExtension(job.destination) == ".obj" ? "obj"
-                : destinationExtension(job.destination) == ".fbx" ? "fbx" : "unknown", job.baked ? "baked" : "geometry",
-            committed, bytes, diagnostic });
+            format, job.baked ? "baked" : "geometry", committed, bytes, diagnostic });
     }
 
     bool deliver(const std::string& record) const noexcept
     {
+        if (!deliveryEnabled)
+            return false;
         size_t offset = 0;
         while (offset < record.size()) {
             const auto written = ::write(descriptor, record.data() + offset, record.size() - offset);
@@ -440,7 +443,7 @@ int execute(const Invocation& invocation, int receiptDescriptor)
     size_t failed = 0;
     bool receiptsDelivered = true;
     for (size_t index = 0; index < invocation.jobs.size(); ++index) {
-        const ReceiptOutput receipt { receiptDescriptor, index + 1, invocation.jobs.size() };
+        const ReceiptOutput receipt { receiptDescriptor, index + 1, invocation.jobs.size(), receiptsDelivered };
         try {
             const auto current = pathIdentity(invocation.jobs[index].destination);
             for (size_t previous = 0; previous < index; ++previous) {
