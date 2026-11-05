@@ -42,7 +42,14 @@ namespace {
 
     Vector2 interpolateCorner(const std::array<Vector2, 3>& values, double w, double u, double v)
     {
-        return values[0] * w + values[1] * u + values[2] * v;
+        const auto result = values[0] * w + values[1] * u + values[2] * v;
+        // Normalized barycentric arithmetic can overshoot a unit boundary by an
+        // ulp. Preserve invalid/tiled source input rather than silently repairing it.
+        const bool unitSource = std::all_of(values.begin(), values.end(), [](const Vector2& value) {
+            return std::isfinite(value.x()) && std::isfinite(value.y())
+                && value.x() >= 0 && value.x() <= 1 && value.y() >= 0 && value.y() <= 1;
+        });
+        return unitSource ? Vector2(std::clamp(result.x(), 0.0, 1.0), std::clamp(result.y(), 0.0, 1.0)) : result;
     }
 
     using SourceWeights = std::map<Uuid, double>;
@@ -385,11 +392,16 @@ std::unique_ptr<MeshState> MeshState::combine(const MeshState& first, const Mesh
                     // original records rather than repeatedly scanning every source face.
                     std::vector<const Uuid*> vertexOwners(combinedVertices.size(), nullptr);
                     std::vector<bool> ambiguousVertexOwners(combinedVertices.size(), false);
-                    for (size_t index = 0; index < combinedFaces.size() && index < originalUvs.size(); ++index) {
-                        if (!originalUvs[index] || originalUvs[index]->componentId.isNull())
-                            continue;
-                        const auto& owner = originalUvs[index]->componentId;
+                    for (size_t index = 0; index < combinedFaces.size(); ++index) {
+                        const auto* record = index < originalUvs.size() && originalUvs[index] ? &*originalUvs[index] : nullptr;
                         for (const auto vertex : combinedFaces[index]) {
+                            // One mapped incident face cannot prove ownership when
+                            // another contributor is unmapped or has mixed owners.
+                            if (!record || record->gradient || record->componentId.isNull()) {
+                                ambiguousVertexOwners.at(vertex) = true;
+                                continue;
+                            }
+                            const auto& owner = record->componentId;
                             auto& known = vertexOwners.at(vertex);
                             if (known && *known != owner)
                                 ambiguousVertexOwners.at(vertex) = true;

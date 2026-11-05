@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: MIT
+#include <algorithm>
 #include <cmath>
 #include <dust3d/base/object.h>
 #include <dust3d/mesh/mesh_generator.h>
 #include <dust3d/mesh/mesh_state.h>
+#include <dust3d/uv/uv_atlas_builder.h>
 #include <iomanip>
 #include <iostream>
 #include <memory>
@@ -168,6 +170,107 @@ std::unique_ptr<dust3d::Object> tube(bool mirrored, dust3d::MeshGenerator::Gener
     }
     return object;
 }
+void unitBoundaryTransportBuildsAtlas()
+{
+    for (double offset : { .4, .37, .41, .13, .67 }) {
+        auto first = box(0, ownerA), second = box(offset, ownerB);
+        for (auto* state : { first.get(), second.get() })
+            for (auto& record : state->triangleProceduralUvs)
+                for (auto& uv : record->uv)
+                    uv = dust3d::Vector2(1, uv.y());
+        auto result = dust3d::MeshState::combine(*first, *second, dust3d::MeshCombiner::Method::Union, false);
+        require(result && !result->isNull(), "Ordinary UV boundary Boolean failed");
+        dust3d::Object object;
+        result->fetch(object.vertices, object.triangles);
+        object.triangleProceduralUvs = result->triangleProceduralUvs;
+        for (const auto& record : object.triangleProceduralUvs)
+            if (record)
+                for (const auto& uv : record->uv)
+                    require(uv.x() >= 0 && uv.x() <= 1 && uv.y() >= 0 && uv.y() <= 1, "Finite unit source UV escaped the atlas boundary during Boolean interpolation");
+        const auto atlas = dust3d::UvAtlasBuilder::build(object, { { dust3d::Uuid(ownerA), { dust3d::Color(1, 0, 0), std::nullopt } }, { dust3d::Uuid(ownerB), { dust3d::Color(0, 0, 1), std::nullopt } } });
+        require(atlas.triangleUvs.size() == object.triangles.size(), "Boundary transport did not build a complete atlas");
+    }
+}
+void invalidSourceUvIsNotClamped()
+{
+    auto first = box(0, ownerA), second = box(.4, ownerB);
+    for (auto* state : { first.get(), second.get() })
+        for (auto& record : state->triangleProceduralUvs)
+            for (auto& uv : record->uv)
+                uv = dust3d::Vector2(1.25, uv.y());
+    auto result = dust3d::MeshState::combine(*first, *second, dust3d::MeshCombiner::Method::Union, false);
+    require(result && !result->isNull(), "Ordinary invalid-UV metadata transport failed");
+    dust3d::Object object;
+    result->fetch(object.vertices, object.triangles);
+    object.triangleProceduralUvs = result->triangleProceduralUvs;
+    for (const auto& record : object.triangleProceduralUvs)
+        if (record)
+            for (const auto& uv : record->uv)
+                require(uv.x() > 1, "Out-of-unit source UV was silently repaired");
+    try {
+        (void)dust3d::UvAtlasBuilder::build(object, { { dust3d::Uuid(ownerA), { dust3d::Color(1, 0, 0), std::nullopt } }, { dust3d::Uuid(ownerB), { dust3d::Color(0, 0, 1), std::nullopt } } });
+        throw std::runtime_error("Invalid source UV unexpectedly built an atlas");
+    } catch (const dust3d::UvAtlasError& error) {
+        require(error.code() == dust3d::UvAtlasErrorCode::invalidInput, "Invalid source UV lost its atlas admission cause");
+    }
+}
+
+void partiallyUnknownBridgeOwnership()
+{
+    for (bool gradientSource : { false, true }) {
+        auto first = box(0, ownerA), second = box(.4, ownerB);
+        for (size_t face : { size_t(2), size_t(3) }) {
+            if (gradientSource) {
+                auto& record = *first->triangleProceduralUvs[face];
+                record.componentId = {};
+                record.gradient = dust3d::ProceduralUvGradient { dust3d::Uuid("{00000000-0000-4000-8000-000000000099}"), dust3d::Uuid(ownerA), dust3d::Uuid(ownerB) };
+            } else
+                first->triangleProceduralUvs[face] = std::nullopt;
+        }
+        auto original = dust3d::MeshState::combine(*first, *second, dust3d::MeshCombiner::Method::Union, false);
+        auto result = dust3d::MeshState::combine(*first, *second, dust3d::MeshCombiner::Method::Union, true);
+        require(original && result && !original->isNull() && !result->isNull(), "Partly unknown ordinary Boolean failed");
+        std::vector<std::pair<dust3d::MeshCombiner::Source, size_t>> sources;
+        std::unique_ptr<dust3d::MeshCombiner::Mesh> raw(dust3d::MeshCombiner::combine(*first->mesh, *second->mesh, dust3d::MeshCombiner::Method::Union, &sources));
+        std::vector<dust3d::Vector3> vertices;
+        std::vector<std::vector<size_t>> faces;
+        raw->fetch(vertices, faces);
+        dust3d::MeshRecombiner recombiner;
+        recombiner.setVertices(&vertices, &sources);
+        recombiner.setFaces(&faces);
+        require(recombiner.recombine(), "Partly unknown bridge fixture did not recombine");
+        const auto& groups = recombiner.generatedBridgingFaceIndices();
+        const auto& boundaries = recombiner.generatedBridgingBoundaryVertices();
+        size_t unknownEndpoints = 0;
+        auto touchesUnknown = [&](const std::vector<size_t>& boundary) {
+            for (auto vertex : boundary)
+                for (size_t face = 0; face < faces.size(); ++face) {
+                    if (std::find(faces[face].begin(), faces[face].end(), vertex) == faces[face].end())
+                        continue;
+                    const auto& record = original->triangleProceduralUvs.at(face);
+                    if (!record || record->gradient || record->componentId.isNull())
+                        return true;
+                }
+            return false;
+        };
+        for (size_t group = 0; group < groups.size(); ++group) {
+            const auto& indices = groups[group].first.empty() ? groups[group].second : groups[group].first;
+            require(!indices.empty(), "Bridge has no face ordinal");
+            const auto& record = result->triangleProceduralUvs.at(indices.front());
+            require(record && record->gradient, "Generated bridge has no gradient record");
+            if (touchesUnknown(boundaries[group].first)) {
+                ++unknownEndpoints;
+                require(record->gradient->largeComponentId.isNull(), "Unknown incident face borrowed another incident component owner");
+            }
+            if (touchesUnknown(boundaries[group].second)) {
+                ++unknownEndpoints;
+                require(record->gradient->smallComponentId.isNull(), "Unknown incident face borrowed another incident component owner");
+            }
+        }
+        require(unknownEndpoints > 0, "Fixture did not exercise a partly unknown bridge boundary");
+    }
+}
+
 void unknownBooleanSources()
 {
     auto first = box(0, ownerA);
@@ -282,6 +385,9 @@ void generationAndMirror()
 int main()
 {
     try {
+        partiallyUnknownBridgeOwnership();
+        unitBoundaryTransportBuildsAtlas();
+        invalidSourceUvIsNotClamped();
         bridgeOrdinalsAndGradientTransport();
         copyAndBoolean();
         unknownBooleanSources();
