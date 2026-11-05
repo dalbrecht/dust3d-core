@@ -925,8 +925,12 @@ TextureBakeResult TextureBaker::bake(const Object& object, const UvAtlas& atlas,
         auto coverage = rectangles(output, atlas, 8.0 / 1024, options, [&](size_t ordinal, const UvMapPacker::Layout& layout, double, double) -> Pixel {
             const auto& material = colorSources[ordinal].material;
             if (kind == 2) {
-                const auto strength = std::min(1.0, material.emissive);
-                return { byte(layout.color.r() * strength), byte(layout.color.g() * strength), byte(layout.color.b() * strength), 255 };
+                const float strength = static_cast<float>(std::min(1.0, material.emissive));
+                // The Qt atlas scales already-quantized color channels and truncates the result.
+                const auto emissiveChannel = [strength](double channel) {
+                    return static_cast<uint8_t>(byte(channel) * strength);
+                };
+                return { emissiveChannel(layout.color.r()), emissiveChannel(layout.color.g()), emissiveChannel(layout.color.b()), 255 };
             }
             const auto value = byte(kind == 0 ? material.metallic : material.roughness);
             return { value, value, value, 255 };
