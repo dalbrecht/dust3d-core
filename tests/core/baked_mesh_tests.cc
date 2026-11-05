@@ -339,6 +339,10 @@ void publicImagesAndMaterials()
     for (size_t index = 0; index < color.byte_count; index += 4)
         require(std::equal(pixels.begin(), pixels.end(), color.pixels + index), "Actual archive baking must resolve borrowed pixels and preserve straight alpha");
     require(dust3d_baked_mesh_texture(owner.get(), DUST3D_TEXTURE_METALLIC).pixels[0] == 128 && dust3d_baked_mesh_texture(owner.get(), DUST3D_TEXTURE_ROUGHNESS).pixels[0] == 64 && dust3d_baked_mesh_texture(owner.get(), DUST3D_TEXTURE_EMISSIVE).pixels[0] == 255, "Actual generated snapshot must retain material scalar inputs");
+    const auto halfBytes = model("emissive='.5'");
+    Owner half(dust3d_baked_mesh_load(reinterpret_cast<const uint8_t*>(halfBytes.data()), halfBytes.size(), &options, &error), dust3d_baked_mesh_destroy);
+    require(half && dust3d_baked_mesh_texture(half.get(), DUST3D_TEXTURE_EMISSIVE).pixels[0] == 127,
+        "Procedural half-strength white emission must match the Qt byte truncation");
     const auto invalid = dust3d_baked_mesh_texture(owner.get(), uint32_t(99));
     require(!invalid.pixels && invalid.byte_count == 0, "Invalid map requests must return empty views without indexing storage");
     require(!dust3d_baked_mesh_texture(owner.get(), std::numeric_limits<uint32_t>::max()).pixels, "All unknown selector bit patterns must be safely rejected");
