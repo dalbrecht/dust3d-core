@@ -37,5 +37,16 @@ inline std::string serializeReceipt(const ExportReceipt& receipt)
     return value.dump() + '\n';
 }
 
+template <typename Publish, typename Deliver>
+auto publishWithReceipt(const std::string& record, Publish publish, Deliver deliver)
+{
+    struct Result {
+        decltype(publish()) publication;
+        bool delivered;
+    };
+    auto publication = publish();
+    return Result { publication, record.empty() || deliver(record) };
+}
+
 }
 #endif
