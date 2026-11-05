@@ -46,4 +46,20 @@ int main()
         require(std::string(error.what()) == "rename failed");
     }
     require(!deliveryAttempted);
+
+    ReceiptDeliveryState delivery;
+    int publishedJobs = 0;
+    int attemptedWrites = 0;
+    for (int job = 0; job < 2; ++job) {
+        const auto result = publishWithReceipt(record, [&] { return ++publishedJobs; }, [&](const std::string&) {
+                if (!delivery.enabled())
+                    return false;
+                ++attemptedWrites;
+                return false; });
+        delivery.record(result.delivered);
+    }
+    require(publishedJobs == 2 && attemptedWrites == 1);
+    require(delivery.batchExitCode(5, 6) == 6);
+    require(delivery.singleExitCode(3, 6) == 3);
+    require(delivery.singleExitCode(0, 6) == 6);
 }

@@ -37,6 +37,25 @@ inline std::string serializeReceipt(const ExportReceipt& receipt)
     return value.dump() + '\n';
 }
 
+class ReceiptDeliveryState {
+public:
+    bool enabled() const noexcept { return m_delivered; }
+    void record(bool delivered) noexcept { m_delivered = m_delivered && delivered; }
+
+    int batchExitCode(int exportExitCode, int receiptExitCode) const noexcept
+    {
+        return m_delivered ? exportExitCode : receiptExitCode;
+    }
+
+    int singleExitCode(int exportExitCode, int receiptExitCode) const noexcept
+    {
+        return exportExitCode != 0 ? exportExitCode : batchExitCode(0, receiptExitCode);
+    }
+
+private:
+    bool m_delivered = true;
+};
+
 template <typename Publish, typename Deliver>
 auto publishWithReceipt(const std::string& record, Publish publish, Deliver deliver)
 {

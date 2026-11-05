@@ -282,6 +282,7 @@ struct stat publish(const std::filesystem::path& destination, const struct stat&
     return published;
 }
 using dust3d::export_cli::publishWithReceipt;
+using dust3d::export_cli::ReceiptDeliveryState;
 using dust3d::export_cli::serializeReceipt;
 
 struct ReceiptOutput {
@@ -425,25 +426,31 @@ std::vector<PathIdentity> preflightBatch(const std::vector<Arguments>& jobs)
 }
 int execute(const Invocation& invocation, int receiptDescriptor)
 {
+    ReceiptDeliveryState delivery;
+    constexpr auto deliveryFailure = static_cast<int>(ExitCode::receiptDelivery);
     if (!invocation.isBatch) {
         const auto& job = invocation.jobs.front();
         const ReceiptOutput receipt { receiptDescriptor };
         try {
             const auto result = exportFile(job, receipt);
-            return result.receiptDelivered ? 0 : static_cast<int>(ExitCode::receiptDelivery);
+            delivery.record(result.receiptDelivered);
+            return delivery.singleExitCode(0, deliveryFailure);
+        } catch (const ExportError& cause) {
+            delivery.record(receipt.deliverFailure(job, cause.what()));
+            std::fprintf(stderr, "%s\n", cause.what());
+            return delivery.singleExitCode(cause.exitCode(), deliveryFailure);
         } catch (const std::exception& cause) {
-            // Preserve the original export exit class when an uncommitted job also loses its receipt.
-            receipt.deliverFailure(job, cause.what());
-            throw;
+            delivery.record(receipt.deliverFailure(job, cause.what()));
+            std::fprintf(stderr, "Export failed: %s\n", cause.what());
+            return delivery.singleExitCode(static_cast<int>(ExitCode::filesystem), deliveryFailure);
         }
     }
     auto destinations = preflightBatch(invocation.jobs);
     // Allocate bookkeeping before publication so recording a committed inode cannot fail after rename.
     std::vector<bool> hasCommitted(invocation.jobs.size(), false);
     size_t failed = 0;
-    bool receiptsDelivered = true;
     for (size_t index = 0; index < invocation.jobs.size(); ++index) {
-        const ReceiptOutput receipt { receiptDescriptor, index + 1, invocation.jobs.size(), receiptsDelivered };
+        const ReceiptOutput receipt { receiptDescriptor, index + 1, invocation.jobs.size(), delivery.enabled() };
         try {
             const auto current = pathIdentity(invocation.jobs[index].destination);
             for (size_t previous = 0; previous < index; ++previous) {
@@ -451,7 +458,7 @@ int execute(const Invocation& invocation, int receiptDescriptor)
                     throw ExportError(ExitCode::usage, "Batch destination aliases a previously committed output.");
             }
             const auto published = exportFile(invocation.jobs[index], receipt);
-            receiptsDelivered &= published.receiptDelivered;
+            delivery.record(published.receiptDelivered);
             destinations[index].metadata = published.identity;
             destinations[index].exists = true;
             hasCommitted[index] = true;
@@ -459,18 +466,17 @@ int execute(const Invocation& invocation, int receiptDescriptor)
                 std::printf("Job %zu/%zu committed\n", index + 1, invocation.jobs.size());
         } catch (const ExportError& cause) {
             ++failed;
-            receiptsDelivered &= receipt.deliverFailure(invocation.jobs[index], cause.what());
+            delivery.record(receipt.deliverFailure(invocation.jobs[index], cause.what()));
             std::fprintf(stderr, "Job %zu/%zu failed (exit %d): %s\n", index + 1, invocation.jobs.size(), cause.exitCode(), cause.what());
         } catch (const std::exception& cause) {
             ++failed;
-            receiptsDelivered &= receipt.deliverFailure(invocation.jobs[index], cause.what());
+            delivery.record(receipt.deliverFailure(invocation.jobs[index], cause.what()));
             std::fprintf(stderr, "Job %zu/%zu failed (exit 4): %s\n", index + 1, invocation.jobs.size(), cause.what());
         }
     }
     std::fprintf(stderr, "Batch: %zu committed, %zu failed\n", invocation.jobs.size() - failed, failed);
-    if (!receiptsDelivered)
-        return static_cast<int>(ExitCode::receiptDelivery);
-    return failed ? (invocation.usesLegacyOutputs ? 1 : static_cast<int>(ExitCode::partialBatch)) : 0;
+    const auto exportExit = failed ? (invocation.usesLegacyOutputs ? 1 : static_cast<int>(ExitCode::partialBatch)) : 0;
+    return delivery.batchExitCode(exportExit, deliveryFailure);
 }
 
 }
@@ -484,7 +490,7 @@ int main(int argc, char** argv)
         const auto invocation = parseArguments(argc, argv);
         if (!invocation.jsonReceipts)
             return execute(invocation, -1);
-        Descriptor receiptDescriptor(::dup(STDOUT_FILENO));
+        Descriptor receiptDescriptor(::fcntl(STDOUT_FILENO, F_DUPFD_CLOEXEC, STDERR_FILENO + 1));
         if (receiptDescriptor.get() < 0 || ::dup2(STDERR_FILENO, STDOUT_FILENO) < 0)
             filesystemFailure("Configure receipt output", errno);
         if (std::signal(SIGPIPE, SIG_IGN) == SIG_ERR)
