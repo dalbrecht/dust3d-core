@@ -8,6 +8,7 @@
 #include <iomanip>
 #include <iostream>
 #include <limits>
+#include <map>
 #include <memory>
 #include <native/Engine/ObjDocument.h>
 #include <set>
@@ -126,6 +127,33 @@ void mirroredHollowRetainsIndexedCorners()
                 "Mirrored hollow corner must retain source ownership");
     }
 }
+void requireObjPreservesGeometry(const dust3d::Object& object)
+{
+    const auto obj = dust3d::native::encodeObjDocument(object);
+    std::istringstream records(std::string(obj.bytes().begin(), obj.bytes().end()));
+    size_t vertex = 0;
+    size_t face = 0;
+    for (std::string line; std::getline(records, line);) {
+        std::istringstream record(line);
+        std::string kind;
+        record >> kind;
+        if (kind == "v") {
+            double x, y, z;
+            require(bool(record >> x >> y >> z), "Hollow OBJ vertex must contain three coordinates");
+            const auto& expected = object.vertices.at(vertex++);
+            require(x == expected.x() && y == expected.y() && z == expected.z(), "Hollow OBJ must preserve positions");
+        } else if (kind == "f") {
+            std::vector<size_t> corners;
+            for (size_t index; record >> index;) {
+                require(index > 0 && index <= vertex, "Hollow OBJ index must reference an emitted vertex");
+                corners.push_back(index - 1);
+            }
+            require(corners == object.triangleAndQuads.at(face++), "Hollow OBJ must preserve polygon winding");
+        }
+    }
+    require(vertex == object.vertices.size() && face == object.triangleAndQuads.size() && face > 0,
+        "Hollow OBJ must preserve all original geometry");
+}
 void nearCollapseRetainsIndexedTriangles()
 {
     auto source = snapshot(false, false);
@@ -135,6 +163,21 @@ void nearCollapseRetainsIndexedTriangles()
     require(generator.isSuccessful(), "Near-collapse tube generation failed");
     const std::unique_ptr<dust3d::Object> object(generator.takeObject());
     require(object && object->triangles.size() == 32, "Near-collapse tube must retain both walls and rims");
+    std::map<dust3d::PositionKey, size_t> vertexCounts;
+    for (const auto& vertex : object->vertices)
+        ++vertexCounts[dust3d::PositionKey(vertex)];
+    size_t triangleCount = 0;
+    for (const auto& polygon : object->triangleAndQuads) {
+        require(polygon.size() == 3 || polygon.size() == 4, "Near-collapse polygon must be a triangle or quad");
+        triangleCount += polygon.size() - 2;
+        if (polygon.size() == 4) {
+            require(vertexCounts.at(dust3d::PositionKey(object->vertices[polygon[1]])) == 1
+                    && vertexCounts.at(dust3d::PositionKey(object->vertices[polygon[3]])) == 1,
+                "Recovered quad must not use an ambiguous position key on its diagonal");
+        }
+    }
+    require(triangleCount == object->triangles.size(), "Recovered polygons must account for all source triangles");
+    requireObjPreservesGeometry(*object);
     require(object->triangleSourceCorners.size() == 32 && object->triangleProceduralUvs.size() == 32,
         "Near-collapse tube must retain indexed corner records");
     const dust3d::Uuid owner(ownerA);
@@ -237,30 +280,7 @@ void hollowTubeRetainsIndexedSources()
         "Hollow indexed geometry must rasterize a procedural surface pattern");
     require(patterned.tangents.size() == hollow->triangles.size(),
         "Hollow baked tangents must align with triangles");
-    const auto obj = dust3d::native::encodeObjDocument(*hollow);
-    std::istringstream records(std::string(obj.bytes().begin(), obj.bytes().end()));
-    size_t vertex = 0;
-    size_t face = 0;
-    for (std::string line; std::getline(records, line);) {
-        std::istringstream record(line);
-        std::string kind;
-        record >> kind;
-        if (kind == "v") {
-            double x, y, z;
-            require(bool(record >> x >> y >> z), "Hollow OBJ vertex must contain three coordinates");
-            const auto& expected = hollow->vertices.at(vertex++);
-            require(x == expected.x() && y == expected.y() && z == expected.z(), "Hollow OBJ must preserve positions");
-        } else if (kind == "f") {
-            std::vector<size_t> corners;
-            for (size_t index; record >> index;) {
-                require(index > 0 && index <= vertex, "Hollow OBJ index must reference an emitted vertex");
-                corners.push_back(index - 1);
-            }
-            require(corners == hollow->triangleAndQuads.at(face++), "Hollow OBJ must preserve polygon winding");
-        }
-    }
-    require(vertex == hollow->vertices.size() && face == hollow->triangleAndQuads.size() && face > 0,
-        "Hollow OBJ must preserve all original geometry");
+    requireObjPreservesGeometry(*hollow);
     for (const auto& triangle : hollow->triangleSourceCorners)
         for (size_t corner = 0; corner < 3; ++corner) {
             const auto source = triangle[corner].dominantNodeHint();
