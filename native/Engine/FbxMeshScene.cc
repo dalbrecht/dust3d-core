@@ -117,6 +117,10 @@ namespace native {
             properties.push_back(parameter("EmissiveFactor", "Number", "", 1));
             properties.push_back(vectorParameter("Maya|emissive", { emission, emission, emission }, "Vector3D"));
             properties.push_back(parameter("Maya|emissive_intensity", "double", "Number", emission));
+            if (!material.pngMaps[1].empty()) {
+                properties.push_back(vectorParameter("Bump", { 0, 0, 0 }, "Vector3D"));
+                properties.push_back(parameter("BumpFactor", "double", "Number", 1));
+            }
             constexpr std::array<const char*, 6> names { "color", "normal", "metallic", "roughness", "emissive", "ao" };
             constexpr std::array<const char*, 6> nativeProperties { "Maya|TEX_color_map", "Maya|TEX_normal_map", "Maya|TEX_metallic_map", "Maya|TEX_roughness_map", "Maya|TEX_emissive_map", "Maya|TEX_ao_map" };
             constexpr std::array<const char*, 6> standardProperties { "DiffuseColor", "NormalMap", "Metalness", "Roughness", "EmissiveColor", "AmbientColor" };
@@ -154,6 +158,8 @@ namespace native {
                 };
                 connectProperty(nativeProperties[channel]);
                 connectProperty(standardProperties[channel]);
+                if (channel == 1)
+                    connectProperty("Bump");
             }
             FbxPropertyBlock materialProperties;
             materialProperties.appendInt64(612150002);
