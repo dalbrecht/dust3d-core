@@ -137,6 +137,8 @@ public:
         std::map<std::string, std::unique_ptr<MeshState>> cachedCombination;
         // Wrap surfaces and weights by their inputs (see WrapMeshBuilder::Cache).
         WrapMeshBuilder::Cache wrapCache;
+        // Exact derived identities used by the successfully generated cached parts.
+        std::map<std::string, std::string> interpolationIdentityPlans;
     };
 
     struct ComponentPreview {
@@ -190,6 +192,7 @@ private:
     Color m_defaultPartColor = Color::createWhite();
     Snapshot* m_snapshot = nullptr;
     GeneratedCacheContext* m_cacheContext = nullptr;
+    std::map<std::string, std::string> m_pendingInterpolationIdentityPlans;
     std::set<std::string> m_dirtyComponentIds;
     std::set<std::string> m_dirtyPartIds;
     std::set<std::string> m_generatedComponentIds;

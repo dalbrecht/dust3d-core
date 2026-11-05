@@ -27,6 +27,7 @@
 #include <dust3d/base/part_target.h>
 #include <dust3d/base/snapshot_xml.h>
 #include <dust3d/base/string.h>
+#include <dust3d/mesh/interpolation_identities.h>
 #include <dust3d/mesh/mesh_generator.h>
 #include <dust3d/mesh/mesh_recombiner.h>
 #include <dust3d/mesh/rope_mesh.h>
@@ -2551,6 +2552,8 @@ void MeshGenerator::interpolateEdgesAroundJoints()
             partEdgeIds[partId].insert(edge.first);
     }
 
+    std::vector<std::pair<std::string, std::string>> edgesToInterpolate;
+    std::vector<InterpolationEdge> identityInputs;
     for (auto& partEntry : partEdgeIds) {
         const std::string& partIdString = partEntry.first;
         auto findPart = m_snapshot->parts.find(partIdString);
@@ -2564,7 +2567,6 @@ void MeshGenerator::interpolateEdgesAroundJoints()
         std::string interpolatedString = String::valueOrEmpty(findPart->second, "interpolated");
         if (!interpolatedString.empty() && !String::isTrue(interpolatedString))
             continue;
-        std::vector<std::string> edgesToInterpolate;
         for (const auto& edgeIdString : partEntry.second) {
             auto findEdge = m_snapshot->edges.find(edgeIdString);
             if (findEdge == m_snapshot->edges.end())
@@ -2590,110 +2592,128 @@ void MeshGenerator::interpolateEdgesAroundJoints()
             float dy = toY - fromY;
             float dz = toZ - fromZ;
             float edgeLength = std::sqrt(dx * dx + dy * dy + dz * dz);
-            if (edgeLength <= (fromRadius + toRadius) * 1.5f)
+            if (edgeLength <= (fromRadius + toRadius) * 1.5f || edgeLength < 0.0001f)
                 continue;
-            edgesToInterpolate.push_back(edgeIdString);
+            edgesToInterpolate.emplace_back(partIdString, edgeIdString);
+            identityInputs.push_back({ edgeIdString, fromNodeId, toNodeId });
         }
-        for (const auto& edgeIdString : edgesToInterpolate) {
-            auto& edge = m_snapshot->edges[edgeIdString];
-            std::string fromNodeId = String::valueOrEmpty(edge, "from");
-            std::string toNodeId = String::valueOrEmpty(edge, "to");
-            std::string boneName = String::valueOrEmpty(edge, "boneName");
-            auto& fromNode = m_snapshot->nodes[fromNodeId];
-            auto& toNode = m_snapshot->nodes[toNodeId];
-            float fromX = String::toFloat(String::valueOrEmpty(fromNode, "x"));
-            float fromY = String::toFloat(String::valueOrEmpty(fromNode, "y"));
-            float fromZ = String::toFloat(String::valueOrEmpty(fromNode, "z"));
-            float fromRadius = String::toFloat(String::valueOrEmpty(fromNode, "radius"));
-            float toX = String::toFloat(String::valueOrEmpty(toNode, "x"));
-            float toY = String::toFloat(String::valueOrEmpty(toNode, "y"));
-            float toZ = String::toFloat(String::valueOrEmpty(toNode, "z"));
-            float toRadius = String::toFloat(String::valueOrEmpty(toNode, "radius"));
-            float dx = toX - fromX;
-            float dy = toY - fromY;
-            float dz = toZ - fromZ;
-            float edgeLength = std::sqrt(dx * dx + dy * dy + dz * dz);
-            if (edgeLength < 0.0001f)
+    }
+    std::vector<InterpolatedEdgeIdentities> identities;
+    if (!identityInputs.empty()) {
+        std::set<std::string> originalNodeIds;
+        std::set<std::string> originalEdgeIds;
+        for (const auto& node : m_snapshot->nodes)
+            originalNodeIds.insert(node.first);
+        for (const auto& edge : m_snapshot->edges)
+            originalEdgeIds.insert(edge.first);
+        identities = planInterpolationIdentities(identityInputs, originalNodeIds, originalEdgeIds);
+    }
+    if (m_cacheContext) {
+        for (size_t index = 0; index < edgesToInterpolate.size(); ++index) {
+            auto& signature = m_pendingInterpolationIdentityPlans[edgesToInterpolate[index].first];
+            signature += edgesToInterpolate[index].second;
+            for (const auto& id : identities[index].nodeIds)
+                signature += id;
+            for (const auto& id : identities[index].edgeIds)
+                signature += id;
+        }
+        // Global reservations can change a clean part's generated IDs when another part changes.
+        for (const auto& plan : m_pendingInterpolationIdentityPlans) {
+            const auto previous = m_cacheContext->interpolationIdentityPlans.find(plan.first);
+            if (previous == m_cacheContext->interpolationIdentityPlans.end() || previous->second != plan.second)
+                m_snapshot->parts.at(plan.first)["__dirty"] = "true";
+        }
+        for (const auto& previous : m_cacheContext->interpolationIdentityPlans) {
+            if (!m_pendingInterpolationIdentityPlans.count(previous.first) && m_snapshot->parts.count(previous.first))
+                m_snapshot->parts.at(previous.first)["__dirty"] = "true";
+        }
+    }
+    // No snapshot mutation occurs until every edge's identities have been admitted.
+    for (size_t edgeIndex = 0; edgeIndex < edgesToInterpolate.size(); ++edgeIndex) {
+        const auto& partIdString = edgesToInterpolate[edgeIndex].first;
+        const auto& edgeIdString = edgesToInterpolate[edgeIndex].second;
+        auto& edge = m_snapshot->edges.at(edgeIdString);
+        std::string fromNodeId = String::valueOrEmpty(edge, "from");
+        std::string toNodeId = String::valueOrEmpty(edge, "to");
+        std::string boneName = String::valueOrEmpty(edge, "boneName");
+        auto& fromNode = m_snapshot->nodes.at(fromNodeId);
+        auto& toNode = m_snapshot->nodes.at(toNodeId);
+        float fromX = String::toFloat(String::valueOrEmpty(fromNode, "x"));
+        float fromY = String::toFloat(String::valueOrEmpty(fromNode, "y"));
+        float fromZ = String::toFloat(String::valueOrEmpty(fromNode, "z"));
+        float fromRadius = String::toFloat(String::valueOrEmpty(fromNode, "radius"));
+        float toX = String::toFloat(String::valueOrEmpty(toNode, "x"));
+        float toY = String::toFloat(String::valueOrEmpty(toNode, "y"));
+        float toZ = String::toFloat(String::valueOrEmpty(toNode, "z"));
+        float toRadius = String::toFloat(String::valueOrEmpty(toNode, "radius"));
+        float dx = toX - fromX;
+        float dy = toY - fromY;
+        float dz = toZ - fromZ;
+        float edgeLength = std::sqrt(dx * dx + dy * dy + dz * dz);
+        if (edgeLength < 0.0001f)
+            continue;
+        float ndx = dx / edgeLength;
+        float ndy = dy / edgeLength;
+        float ndz = dz / edgeLength;
+        float a1x = fromX + ndx * fromRadius;
+        float a1y = fromY + ndy * fromRadius;
+        float a1z = fromZ + ndz * fromRadius;
+        float a2x = toX - ndx * toRadius;
+        float a2y = toY - ndy * toRadius;
+        float a2z = toZ - ndz * toRadius;
+        float t1 = fromRadius / edgeLength;
+        float t2 = toRadius / edgeLength;
+        float a1Radius = fromRadius * (1.0f - t1) + toRadius * t1;
+        float a2Radius = toRadius * (1.0f - t2) + fromRadius * t2;
+
+        const auto& ids = identities[edgeIndex];
+        const auto& newNodeId1 = ids.nodeIds[0];
+        const auto& newNodeId2 = ids.nodeIds[1];
+        const auto& newEdgeId1 = ids.edgeIds[0];
+        const auto& newEdgeId2 = ids.edgeIds[1];
+        const auto& newEdgeId3 = ids.edgeIds[2];
+
+        std::map<std::string, std::string> node1;
+        node1["id"] = newNodeId1;
+        node1["x"] = String::fromDouble(a1x);
+        node1["y"] = String::fromDouble(a1y);
+        node1["z"] = String::fromDouble(a1z);
+        node1["radius"] = String::fromDouble(a1Radius);
+        node1["partId"] = partIdString;
+        std::map<std::string, std::string> node2;
+        node2["id"] = newNodeId2;
+        node2["x"] = String::fromDouble(a2x);
+        node2["y"] = String::fromDouble(a2y);
+        node2["z"] = String::fromDouble(a2z);
+        node2["radius"] = String::fromDouble(a2Radius);
+        node2["partId"] = partIdString;
+        // carry a per-node cross-section scale along the edge like the radius
+        for (const char* key : { "deformWidth", "deformThickness" }) {
+            std::string fromString = String::valueOrEmpty(fromNode, key);
+            std::string toString = String::valueOrEmpty(toNode, key);
+            if (fromString.empty() && toString.empty())
                 continue;
-            float ndx = dx / edgeLength;
-            float ndy = dy / edgeLength;
-            float ndz = dz / edgeLength;
-            float a1x = fromX + ndx * fromRadius;
-            float a1y = fromY + ndy * fromRadius;
-            float a1z = fromZ + ndz * fromRadius;
-            float a2x = toX - ndx * toRadius;
-            float a2y = toY - ndy * toRadius;
-            float a2z = toZ - ndz * toRadius;
-            float t1 = fromRadius / edgeLength;
-            float t2 = toRadius / edgeLength;
-            float a1Radius = fromRadius * (1.0f - t1) + toRadius * t1;
-            float a2Radius = toRadius * (1.0f - t2) + fromRadius * t2;
-
-            // Build deterministic IDs by combining parts of existing from/to node IDs and edge ID
-            // UUID format: {xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx}
-            //               1        10   15   20   25
-            auto extractRaw = [](const std::string& uuid) {
-                return uuid.substr(1, 8) + uuid.substr(10, 4) + uuid.substr(15, 4) + uuid.substr(20, 4) + uuid.substr(25, 12);
-            };
-            auto formatUuid = [](const std::string& raw) {
-                return "{" + raw.substr(0, 8) + "-" + raw.substr(8, 4) + "-" + raw.substr(12, 4) + "-" + raw.substr(16, 4) + "-" + raw.substr(20, 12) + "}";
-            };
-            std::string fromRaw = extractRaw(fromNodeId);
-            std::string toRaw = extractRaw(toNodeId);
-            std::string edgeRaw = extractRaw(edgeIdString);
-            // newNodeId1: first half from fromNodeId, second half from edgeId
-            std::string newNodeId1 = formatUuid(fromRaw.substr(0, 16) + edgeRaw.substr(16, 16));
-            // newNodeId2: first half from toNodeId, second half from edgeId
-            std::string newNodeId2 = formatUuid(toRaw.substr(0, 16) + edgeRaw.substr(16, 16));
-            // newEdgeId1: first half from edgeId, second half from fromNodeId
-            std::string newEdgeId1 = formatUuid(edgeRaw.substr(0, 16) + fromRaw.substr(16, 16));
-            // newEdgeId2: first half from fromNodeId, second half from toNodeId
-            std::string newEdgeId2 = formatUuid(fromRaw.substr(0, 16) + toRaw.substr(16, 16));
-            // newEdgeId3: first half from edgeId, second half from toNodeId
-            std::string newEdgeId3 = formatUuid(edgeRaw.substr(0, 16) + toRaw.substr(16, 16));
-
-            std::map<std::string, std::string> node1;
-            node1["id"] = newNodeId1;
-            node1["x"] = String::fromDouble(a1x);
-            node1["y"] = String::fromDouble(a1y);
-            node1["z"] = String::fromDouble(a1z);
-            node1["radius"] = String::fromDouble(a1Radius);
-            node1["partId"] = partIdString;
-            std::map<std::string, std::string> node2;
-            node2["id"] = newNodeId2;
-            node2["x"] = String::fromDouble(a2x);
-            node2["y"] = String::fromDouble(a2y);
-            node2["z"] = String::fromDouble(a2z);
-            node2["radius"] = String::fromDouble(a2Radius);
-            node2["partId"] = partIdString;
-            // carry a per-node cross-section scale along the edge like the radius
-            for (const char* key : { "deformWidth", "deformThickness" }) {
-                std::string fromString = String::valueOrEmpty(fromNode, key);
-                std::string toString = String::valueOrEmpty(toNode, key);
-                if (fromString.empty() && toString.empty())
-                    continue;
-                float fromValue = fromString.empty() ? 1.0f : String::toFloat(fromString);
-                float toValue = toString.empty() ? 1.0f : String::toFloat(toString);
-                node1[key] = String::fromDouble(fromValue * (1.0f - t1) + toValue * t1);
-                node2[key] = String::fromDouble(toValue * (1.0f - t2) + fromValue * t2);
-            }
-            m_snapshot->nodes[newNodeId1] = node1;
-            m_snapshot->nodes[newNodeId2] = node2;
-            auto createEdge = [&](const std::string& id, const std::string& from, const std::string& to) {
-                std::map<std::string, std::string> e;
-                e["id"] = id;
-                e["from"] = from;
-                e["to"] = to;
-                e["partId"] = partIdString;
-                if (!boneName.empty())
-                    e["boneName"] = boneName;
-                return e;
-            };
-            m_snapshot->edges[newEdgeId1] = createEdge(newEdgeId1, fromNodeId, newNodeId1);
-            m_snapshot->edges[newEdgeId2] = createEdge(newEdgeId2, newNodeId1, newNodeId2);
-            m_snapshot->edges[newEdgeId3] = createEdge(newEdgeId3, newNodeId2, toNodeId);
-            m_snapshot->edges.erase(edgeIdString);
+            float fromValue = fromString.empty() ? 1.0f : String::toFloat(fromString);
+            float toValue = toString.empty() ? 1.0f : String::toFloat(toString);
+            node1[key] = String::fromDouble(fromValue * (1.0f - t1) + toValue * t1);
+            node2[key] = String::fromDouble(toValue * (1.0f - t2) + fromValue * t2);
         }
+        m_snapshot->nodes[newNodeId1] = node1;
+        m_snapshot->nodes[newNodeId2] = node2;
+        auto createEdge = [&](const std::string& id, const std::string& from, const std::string& to) {
+            std::map<std::string, std::string> e;
+            e["id"] = id;
+            e["from"] = from;
+            e["to"] = to;
+            e["partId"] = partIdString;
+            if (!boneName.empty())
+                e["boneName"] = boneName;
+            return e;
+        };
+        m_snapshot->edges[newEdgeId1] = createEdge(newEdgeId1, fromNodeId, newNodeId1);
+        m_snapshot->edges[newEdgeId2] = createEdge(newEdgeId2, newNodeId1, newNodeId2);
+        m_snapshot->edges[newEdgeId3] = createEdge(newEdgeId3, newNodeId2, toNodeId);
+        m_snapshot->edges.erase(edgeIdString);
     }
 }
 
@@ -3025,6 +3045,7 @@ void MeshGenerator::addComponentPreview(const Uuid& componentId, ComponentPrevie
 void MeshGenerator::generate()
 {
     m_generationMetrics = {};
+    m_pendingInterpolationIdentityPlans.clear();
     if (nullptr == m_snapshot)
         return;
 
@@ -3146,6 +3167,8 @@ void MeshGenerator::generate()
     applyImportedAttributes(m_object);
 
     generateDisabledComponentPreviews();
+    if (m_isSuccessful)
+        m_cacheContext->interpolationIdentityPlans = std::move(m_pendingInterpolationIdentityPlans);
 }
 
 }
