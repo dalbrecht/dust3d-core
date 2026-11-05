@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Generate hollow tubes for thicknesses strictly between 0 and 1. Both endpoints use the ordinary solid tube (Apple #96).
+
 - Keep Boolean-derived unit UVs inside atlas bounds without repairing invalid source coordinates, and retain unknown/gradient incident-face ownership at generated seam boundaries.
 
 - Share immutable node-hint distributions across corner/cache copies while retaining replacement isolation and conservative ownership accounting.

@@ -2,10 +2,15 @@
 #include <cmath>
 #include <dust3d/base/object.h>
 #include <dust3d/mesh/mesh_generator.h>
+#include <dust3d/rig/rig_generator.h>
+#include <dust3d/uv/texture_baker.h>
+#include <dust3d/uv/uv_atlas_builder.h>
 #include <iomanip>
 #include <iostream>
 #include <limits>
+#include <map>
 #include <memory>
+#include <native/Engine/ObjDocument.h>
 #include <set>
 #include <sstream>
 #include <stdexcept>
@@ -56,6 +61,231 @@ std::unique_ptr<dust3d::Object> generate(bool coincident, bool mirrored,
     generator.generate();
     require(generator.isSuccessful(), "Synthetic tube generation failed");
     return std::unique_ptr<dust3d::Object>(generator.takeObject());
+}
+void explicitZeroHollowMatchesDefault()
+{
+    const auto expected = generate(false, false);
+    auto source = snapshot(false, false);
+    source->parts[partA]["hollowThickness"] = "0";
+    dust3d::MeshGenerator generator(source.release());
+    generator.generate();
+    require(generator.isSuccessful(), "Explicit zero hollow thickness must produce a solid tube");
+    const std::unique_ptr<dust3d::Object> actual(generator.takeObject());
+    require(actual && expected->vertices.size() == actual->vertices.size() && expected->triangleAndQuads == actual->triangleAndQuads,
+        "Explicit zero hollow thickness must preserve the default topology");
+    for (size_t vertex = 0; vertex < actual->vertices.size(); ++vertex)
+        for (size_t axis = 0; axis < 3; ++axis)
+            require(actual->vertices[vertex][axis] == expected->vertices[vertex][axis],
+                "Explicit zero hollow thickness must preserve vertex positions exactly");
+}
+void intersectingHollowBooleanRetainsIndexedRecords(const char* mode)
+{
+    auto source = snapshot(true, false);
+    source->parts[partA]["hollowThickness"] = ".5";
+    source->components[ownerA]["combineMode"] = "Normal";
+    source->components[ownerB]["combineMode"] = mode;
+    source->nodes[nodeC]["x"] = ".49";
+    source->nodes[nodeD]["x"] = ".49";
+    source->nodes[nodeC]["y"] = ".13";
+    source->nodes[nodeD]["y"] = "1.13";
+    source->nodes[nodeC]["z"] = ".07";
+    source->nodes[nodeD]["z"] = ".07";
+    dust3d::MeshGenerator generator(source.release());
+    generator.generate();
+    require(generator.isSuccessful(), "Hollow and solid tube Boolean failed");
+    const std::unique_ptr<dust3d::Object> object(generator.takeObject());
+    require(object && !object->triangles.empty(), "Hollow Boolean must produce geometry");
+    require(object->triangles.size() != 32, "Boolean output must differ from the uncut hollow tube");
+    require(object->triangleSourceCorners.size() == object->triangles.size()
+            && object->triangleProceduralUvs.size() == object->triangles.size(),
+        "Hollow Boolean must retain indexed record alignment");
+    std::set<dust3d::Uuid> nodes;
+    for (const auto& triangle : object->triangleSourceCorners)
+        for (size_t corner = 0; corner < 3; ++corner)
+            for (const auto& influence : triangle[corner].influences())
+                nodes.insert(influence.first);
+    require(nodes.count(dust3d::Uuid(nodeA)) && nodes.count(dust3d::Uuid(nodeB)),
+        "Boolean output must retain both hollow tube source nodes");
+    require(nodes.count(dust3d::Uuid(nodeC)) || nodes.count(dust3d::Uuid(nodeD)),
+        "Boolean output must retain provenance from the intersecting tube");
+}
+void mirroredHollowRetainsIndexedCorners()
+{
+    auto source = snapshot(false, true);
+    source->parts[partA]["hollowThickness"] = ".5";
+    dust3d::MeshGenerator generator(source.release());
+    generator.generate();
+    require(generator.isSuccessful(), "Mirrored hollow tube generation failed");
+    const std::unique_ptr<dust3d::Object> object(generator.takeObject());
+    require(object && object->triangles.size() == 64, "Mirroring must retain both shells and rims");
+    require(object->triangleSourceCorners.size() == 64 && object->triangleProceduralUvs.size() == 64,
+        "Mirroring must retain triangle-aligned hollow records");
+    for (size_t face = 0; face < object->triangles.size(); ++face) {
+        require(object->triangleProceduralUvs[face].has_value(), "Mirrored hollow face must retain UVs");
+        for (size_t corner = 0; corner < 3; ++corner)
+            require(object->triangleSourceCorners[face][corner].dominantNodeHint().has_value(),
+                "Mirrored hollow corner must retain source ownership");
+    }
+}
+void requireObjPreservesGeometry(const dust3d::Object& object)
+{
+    const auto obj = dust3d::native::encodeObjDocument(object);
+    std::istringstream records(std::string(obj.bytes().begin(), obj.bytes().end()));
+    size_t vertex = 0;
+    size_t face = 0;
+    for (std::string line; std::getline(records, line);) {
+        std::istringstream record(line);
+        std::string kind;
+        record >> kind;
+        if (kind == "v") {
+            double x, y, z;
+            require(bool(record >> x >> y >> z), "Hollow OBJ vertex must contain three coordinates");
+            const auto& expected = object.vertices.at(vertex++);
+            require(x == expected.x() && y == expected.y() && z == expected.z(), "Hollow OBJ must preserve positions");
+        } else if (kind == "f") {
+            std::vector<size_t> corners;
+            for (size_t index; record >> index;) {
+                require(index > 0 && index <= vertex, "Hollow OBJ index must reference an emitted vertex");
+                corners.push_back(index - 1);
+            }
+            require(corners == object.triangleAndQuads.at(face++), "Hollow OBJ must preserve polygon winding");
+        }
+    }
+    require(vertex == object.vertices.size() && face == object.triangleAndQuads.size() && face > 0,
+        "Hollow OBJ must preserve all original geometry");
+}
+void nearCollapseRetainsIndexedTriangles()
+{
+    auto source = snapshot(false, false);
+    source->parts[partA]["hollowThickness"] = "0.99999999";
+    dust3d::MeshGenerator generator(source.release());
+    generator.generate();
+    require(generator.isSuccessful(), "Near-collapse tube generation failed");
+    const std::unique_ptr<dust3d::Object> object(generator.takeObject());
+    require(object && object->triangles.size() == 32, "Near-collapse tube must retain both walls and rims");
+    std::map<dust3d::PositionKey, size_t> vertexCounts;
+    for (const auto& vertex : object->vertices)
+        ++vertexCounts[dust3d::PositionKey(vertex)];
+    size_t triangleCount = 0;
+    for (const auto& polygon : object->triangleAndQuads) {
+        require(polygon.size() == 3 || polygon.size() == 4, "Near-collapse polygon must be a triangle or quad");
+        triangleCount += polygon.size() - 2;
+        if (polygon.size() == 4) {
+            require(vertexCounts.at(dust3d::PositionKey(object->vertices[polygon[1]])) == 1
+                    && vertexCounts.at(dust3d::PositionKey(object->vertices[polygon[3]])) == 1,
+                "Recovered quad must not use an ambiguous position key on its diagonal");
+        }
+    }
+    require(triangleCount == object->triangles.size(), "Recovered polygons must account for all source triangles");
+    requireObjPreservesGeometry(*object);
+    require(object->triangleSourceCorners.size() == 32 && object->triangleProceduralUvs.size() == 32,
+        "Near-collapse tube must retain indexed corner records");
+    const dust3d::Uuid owner(ownerA);
+    const auto atlas = dust3d::UvAtlasBuilder::build(*object, { { owner, { dust3d::Color(1, 0, 0), std::nullopt } } });
+    require(atlas.triangleUvKnown == std::vector<uint8_t>(32, 1), "Near-collapse atlas must map every triangle");
+    dust3d::TextureBakeOptions options;
+    options.colorSize = options.normalSize = 32;
+    options.materialSize = 8;
+    const auto bake = dust3d::TextureBaker::bake(*object, atlas, {}, options);
+    require(bake.color.pixels.size() == 32 * 32 * 4 && bake.tangents.size() == 32,
+        "Near-collapse bake must retain its color map and triangle-aligned tangent records");
+    dust3d::RigGenerator rig;
+    require(rig.computeVertexBoneBindings(object.get(),
+                { { dust3d::Uuid(nodeA), { "First" } }, { dust3d::Uuid(nodeB), { "Second" } } }),
+        "Near-collapse tube must bind to bones");
+    for (size_t face = 0; face < object->triangles.size(); ++face) {
+        const auto& uv = object->triangleProceduralUvs[face];
+        require(uv && uv->componentId == dust3d::Uuid(ownerA), "Near-collapse UV must retain its owner");
+        for (size_t corner = 0; corner < 3; ++corner) {
+            const auto node = object->triangleSourceCorners[face][corner].dominantNodeHint();
+            require(node == dust3d::Uuid(nodeA) || node == dust3d::Uuid(nodeB),
+                "Near-collapse corner must retain its node");
+            const auto& position = object->vertices[object->triangles[face][corner]];
+            const auto legacyNode = object->positionToNodeIdMap.find(dust3d::PositionKey(position));
+            require(legacyNode != object->positionToNodeIdMap.end() && node == legacyNode->second,
+                "Legacy rig lookup must agree with the indexed source for this tube");
+            const auto& binding = object->vertexBone1.at(object->triangles[face][corner]);
+            require(binding.first == (node == dust3d::Uuid(nodeA) ? "First" : "Second") && binding.second == 1.0f,
+                "Hollow corner must bind to the bone of its indexed source node");
+            require(std::isfinite(uv->uv[corner].x()) && std::isfinite(uv->uv[corner].y()),
+                "Near-collapse UV must remain finite");
+        }
+    }
+}
+void hollowTubeRetainsIndexedSources()
+{
+    const auto solid = generate(false, false);
+    auto endpointSource = snapshot(false, false);
+    endpointSource->parts[partA]["hollowThickness"] = "1";
+    dust3d::MeshGenerator endpointGenerator(endpointSource.release());
+    endpointGenerator.generate();
+    require(endpointGenerator.isSuccessful(), "Solid thickness endpoint generation failed");
+    const std::unique_ptr<dust3d::Object> endpoint(endpointGenerator.takeObject());
+    require(endpoint && endpoint->vertices.size() == solid->vertices.size() && endpoint->triangles == solid->triangles,
+        "Hollow thickness 1 must generate the same solid geometry as thickness 0");
+    for (size_t index = 0; index < solid->vertices.size(); ++index) {
+        const auto& actual = endpoint->vertices[index];
+        const auto& expected = solid->vertices[index];
+        require(actual.x() == expected.x() && actual.y() == expected.y() && actual.z() == expected.z(),
+            "Solid thickness endpoint must retain the exact vertex positions");
+    }
+
+    auto source = snapshot(false, false);
+    source->parts[partA]["hollowThickness"] = ".5";
+    dust3d::MeshGenerator generator(source.release());
+    generator.generate();
+    require(generator.isSuccessful(), "Synthetic hollow tube generation failed");
+    const std::unique_ptr<dust3d::Object> hollow(generator.takeObject());
+    require(hollow && hollow->triangles.size() > solid->triangles.size(), "Snapshot hollow thickness must add inner and rim faces");
+    require(hollow->triangleSourceCorners.size() == hollow->triangles.size(), "Hollow source corners must align with triangles");
+    require(hollow->triangleProceduralUvs.size() == hollow->triangles.size(), "Hollow UV records must align with triangles");
+    for (const auto& record : hollow->triangleProceduralUvs) {
+        require(record && record->componentId == dust3d::Uuid(ownerA), "Hollow UV record must retain its component owner");
+        for (const auto& uv : record->uv)
+            require(std::isfinite(uv.x()) && std::isfinite(uv.y()), "Hollow UV corners must be finite");
+        const auto first = record->uv[1] - record->uv[0];
+        const auto second = record->uv[2] - record->uv[0];
+        require(std::abs(first.x() * second.y() - first.y() * second.x()) > 1e-12, "Hollow UV triangle must have area");
+    }
+    const dust3d::Uuid owner(ownerA);
+    const auto atlas = dust3d::UvAtlasBuilder::build(*hollow, { { owner, { dust3d::Color(1, 0, 0), std::nullopt } } });
+    require(atlas.layouts.size() == 1, "Hollow tube must pack into its component chart");
+    const auto& layout = atlas.layouts.front();
+    require(atlas.triangleUvs.size() == hollow->triangles.size(), "Packed hollow UVs must align with triangles");
+    for (size_t triangle = 0; triangle < hollow->triangles.size(); ++triangle) {
+        require(atlas.triangleUvKnown.at(triangle), "Every hollow face must have a packed UV");
+        const auto& input = hollow->triangleProceduralUvs[triangle]->uv;
+        for (size_t corner = 0; corner < 3; ++corner) {
+            const auto localV = input[corner].y();
+            const auto packed = atlas.triangleUvs[triangle][corner];
+            const auto coordinate = layout.flipped ? packed.x() : packed.y();
+            const auto origin = layout.flipped ? layout.left : layout.top;
+            require(std::abs(coordinate - (origin + localV * layout.height)) < 1e-5,
+                "Atlas must preserve each hollow corner's band coordinate");
+        }
+    }
+    dust3d::TextureBakeOptions options;
+    options.colorSize = options.normalSize = 32;
+    options.materialSize = 8;
+    const auto plain = dust3d::TextureBaker::bake(*hollow, atlas, {}, options);
+    dust3d::TextureBakeInputs inputs;
+    dust3d::SurfacePattern::Settings pattern;
+    pattern.type = dust3d::SurfacePattern::Type::Spots;
+    pattern.baseColor = dust3d::Color(1, 1, 1);
+    pattern.patternColor = dust3d::Color(0, 0, 0);
+    pattern.scale = .1;
+    inputs.surfaces[owner].pattern = pattern;
+    const auto patterned = dust3d::TextureBaker::bake(*hollow, atlas, inputs, options);
+    require(patterned.rasterTriangleVisits > 0 && patterned.color.pixels != plain.color.pixels,
+        "Hollow indexed geometry must rasterize a procedural surface pattern");
+    require(patterned.tangents.size() == hollow->triangles.size(),
+        "Hollow baked tangents must align with triangles");
+    requireObjPreservesGeometry(*hollow);
+    for (const auto& triangle : hollow->triangleSourceCorners)
+        for (size_t corner = 0; corner < 3; ++corner) {
+            const auto source = triangle[corner].dominantNodeHint();
+            require(source == dust3d::Uuid(nodeA) || source == dust3d::Uuid(nodeB), "Hollow corner must retain a source node");
+        }
 }
 void duplicateDominantHints()
 {
@@ -236,6 +466,12 @@ void importedNearestHintStaysVertexIndexed()
 int main()
 {
     try {
+        intersectingHollowBooleanRetainsIndexedRecords("Normal");
+        intersectingHollowBooleanRetainsIndexedRecords("Inversion");
+        mirroredHollowRetainsIndexedCorners();
+        nearCollapseRetainsIndexedTriangles();
+        explicitZeroHollowMatchesDefault();
+        hollowTubeRetainsIndexedSources();
         duplicateDominantHints();
         coincidentPartsAndCache();
         mirroredCornerOrder();

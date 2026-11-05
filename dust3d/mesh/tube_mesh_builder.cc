@@ -29,6 +29,122 @@
 
 namespace dust3d {
 
+namespace {
+
+double cross(const Vector2& a, const Vector2& b)
+{
+    return a.x() * b.y() - a.y() * b.x();
+}
+
+bool segmentsMeet(const Vector2& a, const Vector2& b, const Vector2& c, const Vector2& d)
+{
+    if (std::max(a.x(), b.x()) < std::min(c.x(), d.x())
+        || std::max(c.x(), d.x()) < std::min(a.x(), b.x())
+        || std::max(a.y(), b.y()) < std::min(c.y(), d.y())
+        || std::max(c.y(), d.y()) < std::min(a.y(), b.y()))
+        return false;
+    const auto ab = b - a;
+    const auto cd = d - c;
+    const double first = cross(ab, c - a);
+    const double second = cross(ab, d - a);
+    const double third = cross(cd, a - c);
+    const double fourth = cross(cd, b - c);
+    return (first == 0 || second == 0 || (first < 0) != (second < 0))
+        && (third == 0 || fourth == 0 || (third < 0) != (fourth < 0));
+}
+
+bool insetRimsAreDisjoint(const std::vector<Vector2>& outer, const std::vector<Vector2>& inner)
+{
+    const auto count = outer.size();
+    for (size_t i = 0; i < count; ++i) {
+        const auto next = (i + 1) % count;
+        if (Vector2::dotProduct(outer[next] - outer[i], inner[next] - inner[i]) <= 0)
+            return false;
+        for (size_t j = 0; j < count; ++j) {
+            const auto end = (j + 1) % count;
+            if (segmentsMeet(inner[i], inner[next], outer[j], outer[end]))
+                return false;
+            if (i != j && i != end && next != j
+                && (segmentsMeet(inner[i], inner[next], inner[j], inner[end])
+                    || segmentsMeet(outer[i], outer[next], outer[j], outer[end])))
+                return false;
+            if (i != j && segmentsMeet(outer[i], inner[i], outer[j], inner[j]))
+                return false;
+            if (i != j && i != end
+                && (segmentsMeet(outer[i], inner[i], outer[j], outer[end])
+                    || segmentsMeet(outer[i], inner[i], inner[j], inner[end])))
+                return false;
+        }
+    }
+    return true;
+}
+
+std::vector<Vector2> hollowProfile(const std::vector<Vector2>& outer, double thickness)
+{
+    const auto count = outer.size();
+    double area = 0;
+    for (size_t i = 0; i < count; ++i)
+        area += cross(outer[i], outer[(i + 1) % count]);
+    if (area == 0 || !std::isfinite(area))
+        return {};
+    const double winding = area > 0 ? 1 : -1;
+    bool radial = true;
+    size_t turns = 0;
+    for (size_t i = 0; i < count; ++i) {
+        const auto& a = outer[i];
+        const auto& b = outer[(i + 1) % count];
+        const auto side = cross(a, b);
+        radial = radial && winding * side > 0;
+        // Count crossings of the positive X axis to exclude multi-turn profiles.
+        if ((a.y() > 0) != (b.y() > 0) && (side > 0) == (b.y() > a.y()))
+            ++turns;
+    }
+    std::vector<Vector2> inner(count);
+    if (radial && turns == 1) {
+        for (size_t i = 0; i < count; ++i)
+            inner[i] = outer[i] * (1 - thickness);
+        return inner;
+    }
+
+    // Keep the ring correspondence for non-star-shaped cuts. Limit the
+    // quadratic validation to custom profiles with a bounded point count.
+    if (count > 1024)
+        return {};
+    std::vector<Vector2> normals(count);
+    double shortestEdge = std::numeric_limits<double>::max();
+    for (size_t i = 0; i < count; ++i) {
+        const auto edge = outer[(i + 1) % count] - outer[i];
+        const double length = edge.length();
+        if (length == 0 || !std::isfinite(length))
+            return {};
+        shortestEdge = std::min(shortestEdge, length);
+        normals[i] = Vector2(-edge.y(), edge.x()) * (winding / length);
+    }
+    std::vector<Vector2> miters(count);
+    for (size_t i = 0; i < count; ++i) {
+        const auto& previous = normals[(i + count - 1) % count];
+        const double denominator = 1 + Vector2::dotProduct(previous, normals[i]);
+        if (denominator <= std::numeric_limits<double>::epsilon())
+            return {};
+        miters[i] = (previous + normals[i]) / denominator;
+    }
+    double distance = shortestEdge * .5;
+    for (size_t attempt = 0; attempt < 16; ++attempt, distance *= .5) {
+        for (size_t i = 0; i < count; ++i)
+            inner[i] = outer[i] + miters[i] * distance;
+        if (!insetRimsAreDisjoint(outer, inner))
+            continue;
+        for (size_t i = 0; i < count; ++i)
+            inner[i] = outer[i] + miters[i] * (distance * thickness);
+        if (insetRimsAreDisjoint(outer, inner))
+            return inner;
+        break;
+    }
+    return {};
+}
+
+}
+
 TubeMeshBuilder::TubeMeshBuilder(const BuildParameters& buildParameters, std::vector<MeshNode>&& nodes, bool isCircle)
     : m_buildParameters(buildParameters)
     , m_nodes(std::move(nodes))
@@ -269,9 +385,9 @@ std::vector<Vector3> TubeMeshBuilder::buildCutFaceVertices(const Vector3& origin
     double radius,
     const Vector3& forwardDirection,
     double nodeDeformWidth,
-    double nodeDeformThickness)
+    double nodeDeformThickness, const std::vector<Vector2>& profile)
 {
-    std::vector<Vector3> cutFaceVertices(m_buildParameters.cutFace.size());
+    std::vector<Vector3> cutFaceVertices(profile.size());
     Vector3 u = m_generatedBaseNormal.rotated(-forwardDirection, m_buildParameters.baseNormalRotation);
     Vector3 v = Vector3::crossProduct(forwardDirection, u).normalized();
     u = Vector3::crossProduct(v, forwardDirection).normalized();
@@ -285,8 +401,8 @@ std::vector<Vector3> TubeMeshBuilder::buildCutFaceVertices(const Vector3& origin
             vFactor *= m_maxNodeRadius / radius;
         }
     }
-    for (size_t i = 0; i < m_buildParameters.cutFace.size(); ++i) {
-        const auto& t = m_buildParameters.cutFace[i];
+    for (size_t i = 0; i < profile.size(); ++i) {
+        const auto& t = profile[i];
         cutFaceVertices[i] = origin + (uFactor * t.x() + vFactor * t.y());
     }
     return cutFaceVertices;
@@ -296,6 +412,14 @@ void TubeMeshBuilder::build()
 {
     if (!preprocessNodes())
         return;
+
+    const double thickness = m_buildParameters.hollowThickness;
+    const bool hollow = thickness > 0.0 && thickness < 1.0;
+    const auto innerProfile = hollow ? hollowProfile(m_buildParameters.cutFace, thickness) : std::vector<Vector2>();
+    if (hollow && innerProfile.empty()) {
+        dust3dDebug << "Tube cut face cannot form a contained hollow profile";
+        return;
+    }
 
     buildNodePositionAndDirections();
 
@@ -326,7 +450,7 @@ void TubeMeshBuilder::build()
             m_nodes[i].radius,
             m_nodeForwardDirections[i],
             m_nodes[i].deformWidth,
-            m_nodes[i].deformThickness));
+            m_nodes[i].deformThickness, m_buildParameters.cutFace));
     }
 
     // Build all vertex Uvs
@@ -409,6 +533,58 @@ void TubeMeshBuilder::build()
                 tubeUv(cutFaceVertexUvs[j][m + 1]) });
         }
     }
+    if (hollow) {
+        const auto innerOffset = m_generatedVertices.size();
+        for (size_t ring = 0; ring < cutFaceIndices.size(); ++ring) {
+            const auto innerVertices = buildCutFaceVertices(m_nodePositions[ring], m_nodes[ring].radius,
+                m_nodeForwardDirections[ring], m_nodes[ring].deformWidth, m_nodes[ring].deformThickness, innerProfile);
+            for (const auto& inner : innerVertices) {
+                m_generatedVertices.push_back(inner);
+                m_generatedVertexSources.push_back(m_nodes[ring].sourceId);
+            }
+        }
+
+        const auto outerFaceCount = m_generatedFaces.size();
+        for (size_t i = 0; i < outerFaceCount; ++i) {
+            auto face = m_generatedFaces[i];
+            auto& outerUv = m_generatedFaceUvs[i];
+            for (auto& corner : outerUv)
+                corner[1] *= .25;
+            auto uv = outerUv;
+            for (auto& corner : uv)
+                corner[1] += .25;
+            for (auto& vertex : face)
+                vertex += innerOffset;
+            // Keep the same quad diagonal while reversing the winding.
+            std::reverse(face.begin() + 1, face.end());
+            std::reverse(uv.begin() + 1, uv.end());
+            m_generatedFaces.push_back(std::move(face));
+            m_generatedFaceUvs.push_back(std::move(uv));
+        }
+
+        if (!m_isCircle) {
+            auto addRim = [&](size_t ring, double band, bool reverse) {
+                const auto& section = cutFaceIndices[ring];
+                for (size_t i = 0; i < section.size(); ++i) {
+                    const size_t j = (i + 1) % section.size();
+                    std::vector<size_t> face { section[j], section[i], section[i] + innerOffset, section[j] + innerOffset };
+                    const auto a = tubeUv(cutFaceVertexUvs[ring][i]);
+                    const auto b = tubeUv(cutFaceVertexUvs[ring][i + 1]);
+                    std::vector<Vector2> uv { { b.x(), band }, { a.x(), band }, { a.x(), band + .25 }, { b.x(), band + .25 } };
+                    if (reverse) {
+                        std::reverse(face.begin(), face.end());
+                        std::reverse(uv.begin(), uv.end());
+                    }
+                    m_generatedFaces.push_back(std::move(face));
+                    m_generatedFaceUvs.push_back(std::move(uv));
+                }
+            };
+            addRim(0, .5, false);
+            addRim(cutFaceIndices.size() - 1, .75, true);
+        }
+        return;
+    }
+
     if (!m_isCircle) {
         addCap(cutFaceIndices.back(), vOffsetBecauseOfFrontCap + vTubeRatio, 1.0, false);
         addCap(cutFaceIndices.front(), vOffsetBecauseOfFrontCap, 0.0, true);

@@ -254,8 +254,13 @@ void MeshGenerator::subdivideFace(std::vector<Vector2>* face)
 void MeshGenerator::recoverQuads(const std::vector<Vector3>& vertices, const std::vector<std::vector<size_t>>& triangles, const std::set<std::pair<PositionKey, PositionKey>>& sharedQuadEdges, std::vector<std::vector<size_t>>& triangleAndQuads)
 {
     std::vector<PositionKey> verticesPositionKeys;
+    verticesPositionKeys.reserve(vertices.size());
+    std::set<PositionKey> seenPositionKeys;
+    std::set<PositionKey> ambiguousPositionKeys;
     for (const auto& position : vertices) {
-        verticesPositionKeys.push_back(PositionKey(position));
+        const auto& key = verticesPositionKeys.emplace_back(position);
+        if (!seenPositionKeys.insert(key).second)
+            ambiguousPositionKeys.insert(key);
     }
     std::map<std::pair<size_t, size_t>, std::pair<size_t, size_t>> triangleEdgeMap;
     for (size_t i = 0; i < triangles.size(); i++) {
@@ -272,6 +277,9 @@ void MeshGenerator::recoverQuads(const std::vector<Vector3>& vertices, const std
         if (unionedFaces.find(edge.second.first) != unionedFaces.end())
             continue;
         auto pair = std::make_pair(verticesPositionKeys[edge.first.first], verticesPositionKeys[edge.first.second]);
+        // A quantized diagonal shared by distinct vertex indices cannot identify an original quad.
+        if (ambiguousPositionKeys.count(pair.first) || ambiguousPositionKeys.count(pair.second))
+            continue;
         if (sharedQuadEdges.find(pair) != sharedQuadEdges.end()) {
             auto oppositeEdge = triangleEdgeMap.find(std::make_pair(edge.first.second, edge.first.first));
             if (oppositeEdge == triangleEdgeMap.end()) {
@@ -1104,6 +1112,9 @@ std::unique_ptr<MeshState> MeshGenerator::combinePartMesh(const std::string& par
         std::unique_ptr<TubeMeshBuilder> tubeMeshBuilder;
         TubeMeshBuilder::BuildParameters buildParameters;
         buildParameters.deformThickness = deformThickness;
+        const auto hollowThickness = String::valueOrEmpty(part, "hollowThickness");
+        if (!hollowThickness.empty())
+            buildParameters.hollowThickness = String::toDouble(hollowThickness);
         buildParameters.deformWidth = deformWidth;
         buildParameters.deformUnified = deformUnified;
         buildParameters.baseNormalRotation = cutRotation * Math::Pi;
