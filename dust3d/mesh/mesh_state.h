@@ -26,6 +26,8 @@
 #include <array>
 #include <dust3d/base/color.h>
 #include <dust3d/base/position_key.h>
+#include <dust3d/base/procedural_triangle_uv.h>
+#include <dust3d/base/source_corner.h>
 #include <dust3d/base/vector2.h>
 #include <dust3d/mesh/mesh_combiner.h>
 #include <dust3d/mesh/mesh_recombiner.h>
@@ -53,6 +55,10 @@ public:
     std::vector<std::optional<std::array<Color, 3>>> triangleVertexColors;
     // Parallel source coordinates; generated bridges have no authored UV mapping.
     std::vector<std::optional<std::array<Vector2, 3>>> triangleCornerUvs;
+    // Local procedural chart coordinates remain separate from imported authored UVs.
+    std::vector<std::optional<ProceduralTriangleUv>> triangleProceduralUvs;
+    // Actual triangle-corner node ownership; empty channel alone selects legacy lookup.
+    std::vector<SourceTriangleCorners> triangleSourceCorners;
     // Seam diagnostics of the combine() that produced this state
     std::vector<MeshRecombiner::SeamReport> seamReports;
 

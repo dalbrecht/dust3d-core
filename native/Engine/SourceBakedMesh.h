@@ -6,6 +6,14 @@
 #include <dust3d/uv/source_texture_baker.h>
 namespace dust3d {
 namespace native {
+    /// Build generation-local procedural input from retained original triangle ordinals.
+    /// Indexed input preserves vertex sharing and explicit UV/gradient ownership; legacy
+    /// input retains positional charts. Outputs must initially be empty and never escape
+    /// the serialized generation operation. Imported surface records remain separate.
+    void populateProceduralSourceSubset(const Object& original, const std::vector<size_t>& retained,
+        const ImportedSurfaceData& sources, Object& procedural, std::vector<size_t>& proceduralToRetained,
+        const Dust3DCancellationToken* cancellation);
+
     class SourceBakedData {
     public:
         SourceBakedData(const Dust3DSourceBakeOptions& options, ImportedModels& imports, size_t maximumMipLevels = 1);

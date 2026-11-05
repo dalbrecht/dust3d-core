@@ -89,7 +89,7 @@ struct TextureBakeResult {
     std::optional<TextureImage> roughness;
     std::optional<TextureImage> emissive;
     std::vector<TextureTangent> tangents;
-    size_t surfaceVertexIndexEntries = 0; // Unique position entries retained for active procedural charts.
+    size_t surfaceVertexIndexEntries = 0; // Geometry-index entries for indexed charts plus position entries for legacy charts.
     size_t rasterTriangleVisits = 0; // Procedural triangle-row candidate evaluations, for work diagnostics.
     size_t payloadBytes = 0;
 };

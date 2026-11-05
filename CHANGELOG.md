@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Keep Boolean-derived unit UVs inside atlas bounds without repairing invalid source coordinates, and retain unknown/gradient incident-face ownership at generated seam boundaries.
+
+- Share immutable node-hint distributions across corner/cache copies while retaining replacement isolation and conservative ownership accounting.
+
+- Preserve node/weighted source hints by original triangle corner through producers, Boolean interpolation, generated bridges and filtered native export; keep unknown/conflicting ownership explicit (Apple #96 prerequisite).
+
+- Preserve procedural UV corners and chart ownership by triangle ordinal through mirrors, booleans, generated seam gradients and source baking; distinguish coincident surfaces (Apple #96 prerequisite).
+
 - Add versioned newline-delimited JSON export receipts with `--json`. Successful receipts follow atomic publication. Exit status 6 reports a delivery failure while preserving committed files (#306).
 
 - Require sealed schema-3 per-job wall budgets and enforce scheduler-owned service watchdogs independently of native work, retaining original deadline causes (#304).

@@ -46,8 +46,130 @@
 #include <locale>
 #include <memory>
 #include <sstream>
+#include <stdexcept>
 
 namespace dust3d {
+
+namespace {
+    // Use the same triangulation as MeshCombiner, retaining each face's actual corner ordinals.
+    std::vector<std::optional<std::array<Vector2, 3>>> triangulatedProceduralUvs(const std::vector<Vector3>& vertices,
+        const std::vector<std::vector<size_t>>& faces, const std::vector<std::vector<Vector2>>& faceUvs)
+    {
+        std::vector<std::optional<std::array<Vector2, 3>>> result;
+        for (size_t faceIndex = 0; faceIndex < faces.size(); ++faceIndex) {
+            const auto& face = faces[faceIndex];
+            std::vector<std::vector<size_t>> triangles;
+            if (face.size() <= 3)
+                triangles.push_back(face);
+            else
+                triangulate(vertices, face, &triangles);
+            for (const auto& triangle : triangles) {
+                std::optional<std::array<Vector2, 3>> corners;
+                if (triangle.size() == 3 && faceIndex < faceUvs.size() && faceUvs[faceIndex].size() == face.size()) {
+                    std::array<Vector2, 3> uv;
+                    bool known = true;
+                    for (size_t corner = 0; corner < 3; ++corner) {
+                        const auto found = std::find(face.begin(), face.end(), triangle[corner]);
+                        if (found == face.end() || std::find(found + 1, face.end(), triangle[corner]) != face.end()) {
+                            known = false;
+                            break;
+                        }
+                        uv[corner] = faceUvs[faceIndex][size_t(found - face.begin())];
+                    }
+                    if (known)
+                        corners = uv;
+                }
+                result.push_back(corners);
+            }
+        }
+        return result;
+    }
+
+    SourceCorner nodeSourceHint(const Uuid& node)
+    {
+        SourceCorner result;
+        if (!node.isNull())
+            result.setInfluences({ { node, 1 } });
+        return result;
+    }
+
+    void setSourceCorners(MeshState& mesh, const std::vector<SourceCorner>& vertexSources)
+    {
+        std::vector<Vector3> vertices;
+        std::vector<std::vector<size_t>> faces;
+        mesh.fetch(vertices, faces);
+        mesh.triangleSourceCorners.clear();
+        mesh.triangleSourceCorners.reserve(faces.size());
+        for (const auto& face : faces) {
+            SourceTriangleCorners triangle;
+            if (face.size() == 3) {
+                for (size_t corner = 0; corner < 3; ++corner) {
+                    if (face[corner] < vertexSources.size())
+                        triangle[corner] = vertexSources[face[corner]];
+                }
+            }
+            mesh.triangleSourceCorners.push_back(std::move(triangle));
+        }
+    }
+
+    bool sameSourceHint(const SourceCorner& first, const SourceCorner& second)
+    {
+        if (first.weighted != second.weighted)
+            return false;
+        auto canonical = [](const SourceCorner& source) {
+            std::map<Uuid, double> result;
+            for (const auto& influence : source.influences())
+                result[influence.first] += influence.second;
+            return result;
+        };
+        return canonical(first) == canonical(second);
+    }
+
+    // A shared vertex can have conflicting corner provenance. Such a vertex is
+    // not one bind sample; do not pick one incident face or duplicate samples.
+    std::vector<SourceCorner> uniqueVertexSources(const MeshState& mesh,
+        const std::vector<std::vector<size_t>>& faces, size_t count)
+    {
+        if (mesh.triangleSourceCorners.size() != faces.size())
+            throw std::runtime_error("Indexed source records must align with fetched triangles.");
+        std::vector<SourceCorner> result(count);
+        std::vector<bool> seen(count, false), ambiguous(count, false);
+        for (size_t triangle = 0; triangle < faces.size(); ++triangle) {
+            if (faces[triangle].size() != 3)
+                throw std::runtime_error("Indexed source input must be triangulated.");
+            for (size_t corner = 0; corner < 3; ++corner) {
+                const auto vertex = faces[triangle][corner];
+                const auto& source = mesh.triangleSourceCorners[triangle][corner];
+                if (source.influences().empty() || (seen.at(vertex) && !sameSourceHint(result.at(vertex), source)))
+                    ambiguous.at(vertex) = true;
+                if (!seen.at(vertex)) {
+                    result.at(vertex) = source;
+                    seen.at(vertex) = true;
+                }
+            }
+        }
+        for (size_t vertex = 0; vertex < count; ++vertex)
+            if (ambiguous[vertex])
+                result[vertex] = SourceCorner {};
+        return result;
+    }
+
+    std::optional<Uuid> dominantSourceNode(const SourceCorner& source)
+    {
+        return source.dominantNodeHint();
+    }
+
+    void setProceduralUvs(MeshState& mesh, const std::vector<std::optional<std::array<Vector2, 3>>>& corners, const Uuid& owner)
+    {
+        mesh.triangleProceduralUvs.reserve(corners.size());
+        for (const auto& uv : corners) {
+            if (uv && !owner.isNull())
+                mesh.triangleProceduralUvs.emplace_back(ProceduralTriangleUv { owner, *uv });
+            else
+                mesh.triangleProceduralUvs.emplace_back(std::nullopt);
+        }
+    }
+}
 
 double MeshGenerator::m_minimalRadius = 0.001;
 
@@ -590,6 +712,11 @@ std::unique_ptr<MeshState> MeshGenerator::combineStitchingMesh(const std::string
 
     const auto& faceUvs = stitchMeshBuilder->generatedFaceUvs();
     Uuid componentId = Uuid(componentIdString);
+    if (mesh) {
+        setProceduralUvs(*mesh, triangulatedProceduralUvs(generatedVertices, generatedFaces, faceUvs), componentId);
+        mesh->triangleComponentKeys.assign(mesh->triangleProceduralUvs.size(), componentIdString);
+        mesh->triangleModelKeys.resize(mesh->triangleProceduralUvs.size());
+    }
     auto& triangleUvs = componentCache.componentTriangleUvs[componentId];
     for (size_t i = 0; i < faceUvs.size(); ++i) {
         const auto& uv = faceUvs[i];
@@ -611,6 +738,13 @@ std::unique_ptr<MeshState> MeshGenerator::combineStitchingMesh(const std::string
         }
     }
     const auto& vertexSources = stitchMeshBuilder->generatedVertexSources();
+    if (mesh) {
+        std::vector<SourceCorner> sources;
+        sources.reserve(vertexSources.size());
+        for (const auto& node : vertexSources)
+            sources.push_back(nodeSourceHint(node));
+        setSourceCorners(*mesh, sources);
+    }
     for (size_t i = 0; i < vertexSources.size(); ++i) {
         componentCache.positionToNodeIdMap.emplace(std::make_pair(PositionKey(generatedVertices[i]), vertexSources[i]));
     }
@@ -626,8 +760,11 @@ std::unique_ptr<MeshState> MeshGenerator::combineStitchingMesh(const std::string
         ropeMesh.addRope(positions, false);
 
         ComponentPreview stitchingLinePreview;
-        if (mesh)
+        if (mesh) {
             mesh->fetch(stitchingLinePreview.vertices, stitchingLinePreview.triangles);
+            stitchingLinePreview.triangleProceduralUvs = mesh->triangleProceduralUvs;
+            stitchingLinePreview.triangleSourceCorners = mesh->triangleSourceCorners;
+        }
         size_t startIndex = stitchingLinePreview.vertices.size();
 
         stitchingLinePreview.color = Color(color[0], color[1], color[2], 0.15);
@@ -659,6 +796,8 @@ std::unique_ptr<MeshState> MeshGenerator::combineStitchingMesh(const std::string
                 startIndex + ropeTriangles[1],
                 startIndex + ropeTriangles[2] });
         }
+        stitchingLinePreview.triangleProceduralUvs.resize(stitchingLinePreview.triangles.size());
+        stitchingLinePreview.triangleSourceCorners.resize(stitchingLinePreview.triangles.size());
         addComponentPreview(spline.sourceId, ComponentPreview(stitchingLinePreview));
     }
 
@@ -751,6 +890,33 @@ std::unique_ptr<MeshState> MeshGenerator::combineStitchingLoopMesh(const std::st
             componentHasImage = !String::valueOrEmpty(findComp->second, "colorImageId").empty();
     }
 
+    if (mesh) {
+        const auto owners = loopMeshBuilder->generatedFaceSourceIds();
+        for (size_t faceIndex = 0; faceIndex < generatedFaces.size(); ++faceIndex) {
+            const auto owner = componentHasImage ? componentId : (faceIndex < owners.size() ? owners[faceIndex] : Uuid());
+            const std::vector<std::vector<size_t>> face { generatedFaces[faceIndex] };
+            const std::vector<std::vector<Vector2>> uv = faceIndex < faceUvs.size() ? std::vector<std::vector<Vector2>> { faceUvs[faceIndex] } : std::vector<std::vector<Vector2>> {};
+            const auto corners = triangulatedProceduralUvs(generatedVertices, face, uv);
+            setProceduralUvs(*mesh, corners, owner);
+            std::string ownerKey;
+            if (componentHasImage)
+                ownerKey = componentIdString;
+            else if (!owner.isNull()) {
+                for (const auto& candidate : componentIdStrings) {
+                    if (Uuid(candidate) == owner) {
+                        if (!ownerKey.empty() && ownerKey != candidate) {
+                            ownerKey.clear();
+                            break;
+                        }
+                        ownerKey = candidate;
+                    }
+                }
+            }
+            mesh->triangleComponentKeys.insert(mesh->triangleComponentKeys.end(), corners.size(), ownerKey);
+            mesh->triangleModelKeys.resize(mesh->triangleComponentKeys.size());
+        }
+    }
+
     auto insertTriangleUv = [&](std::map<std::array<PositionKey, 3>, std::array<Vector2, 3>>& uvMap,
                                 const std::vector<size_t>& face, const std::vector<Vector2>& uv) {
         if (3 == face.size()) {
@@ -783,6 +949,13 @@ std::unique_ptr<MeshState> MeshGenerator::combineStitchingLoopMesh(const std::st
         }
     }
     const auto& vertexSources = loopMeshBuilder->generatedVertexSources();
+    if (mesh) {
+        std::vector<SourceCorner> sources;
+        sources.reserve(vertexSources.size());
+        for (const auto& node : vertexSources)
+            sources.push_back(nodeSourceHint(node));
+        setSourceCorners(*mesh, sources);
+    }
     for (size_t i = 0; i < vertexSources.size(); ++i) {
         componentCache.positionToNodeIdMap.emplace(std::make_pair(PositionKey(generatedVertices[i]), vertexSources[i]));
     }
@@ -798,8 +971,11 @@ std::unique_ptr<MeshState> MeshGenerator::combineStitchingLoopMesh(const std::st
         ropeMesh.addRope(positions, loop.closed);
 
         ComponentPreview stitchingLoopPreview;
-        if (mesh)
+        if (mesh) {
             mesh->fetch(stitchingLoopPreview.vertices, stitchingLoopPreview.triangles);
+            stitchingLoopPreview.triangleProceduralUvs = mesh->triangleProceduralUvs;
+            stitchingLoopPreview.triangleSourceCorners = mesh->triangleSourceCorners;
+        }
         size_t startIndex = stitchingLoopPreview.vertices.size();
 
         stitchingLoopPreview.color = Color(color[0], color[1], color[2], 0.15);
@@ -828,6 +1004,8 @@ std::unique_ptr<MeshState> MeshGenerator::combineStitchingLoopMesh(const std::st
                 startIndex + ropeTriangles[1],
                 startIndex + ropeTriangles[2] });
         }
+        stitchingLoopPreview.triangleProceduralUvs.resize(stitchingLoopPreview.triangles.size());
+        stitchingLoopPreview.triangleSourceCorners.resize(stitchingLoopPreview.triangles.size());
         addComponentPreview(loop.sourceId, ComponentPreview(stitchingLoopPreview));
     }
 
@@ -942,7 +1120,12 @@ std::unique_ptr<MeshState> MeshGenerator::combinePartMesh(const std::string& par
             for (auto& it : partCache.faces)
                 std::reverse(it.begin(), it.end());
         }
-        const auto& faceUvs = tubeMeshBuilder->generatedFaceUvs();
+        auto faceUvs = tubeMeshBuilder->generatedFaceUvs();
+        if (!__mirrorFromPartId.empty()) {
+            for (auto& uv : faceUvs)
+                std::reverse(uv.begin(), uv.end());
+        }
+        partCache.proceduralTriangleUvs = triangulatedProceduralUvs(partCache.vertices, partCache.faces, faceUvs);
         for (size_t i = 0; i < faceUvs.size(); ++i) {
             const auto& uv = faceUvs[i];
             const auto& face = partCache.faces[i];
@@ -963,6 +1146,9 @@ std::unique_ptr<MeshState> MeshGenerator::combinePartMesh(const std::string& par
             }
         }
         const auto& vertexSources = tubeMeshBuilder->generatedVertexSources();
+        partCache.vertexSourceCorners.reserve(vertexSources.size());
+        for (const auto& node : vertexSources)
+            partCache.vertexSourceCorners.push_back(nodeSourceHint(node));
         for (size_t i = 0; i < vertexSources.size(); ++i) {
             partCache.positionToNodeIdMap.emplace(std::make_pair(PositionKey(partCache.vertices[i]), vertexSources[i]));
         }
@@ -1079,6 +1265,7 @@ std::unique_ptr<MeshState> MeshGenerator::combinePartMesh(const std::string& par
                             bestNodeId = mn.sourceId;
                         }
                     }
+                    partCache.vertexSourceCorners.push_back(nodeSourceHint(bestNodeId));
                     partCache.positionToNodeIdMap.emplace(std::make_pair(PositionKey(partCache.vertices[i]), bestNodeId));
                 }
             }
@@ -1089,7 +1276,7 @@ std::unique_ptr<MeshState> MeshGenerator::combinePartMesh(const std::string& par
     std::unique_ptr<MeshState> mesh;
 
     mesh = std::make_unique<MeshState>(partCache.vertices, partCache.faces);
-    if (!m_importedModelData.empty() && !mesh->isNull()) {
+    if (!mesh->isNull()) {
         std::vector<Vector3> vertices;
         std::vector<std::vector<size_t>> faces;
         mesh->fetch(vertices, faces);
@@ -1097,6 +1284,9 @@ std::unique_ptr<MeshState> MeshGenerator::combinePartMesh(const std::string& par
         mesh->triangleModelKeys.assign(faces.size(), target == PartTarget::ImportedModel ? String::valueOrEmpty(part, "importedModelId") : std::string());
     }
     mesh->triangleCornerUvs = partCache.importedTriangleUvs;
+    setSourceCorners(*mesh, partCache.vertexSourceCorners);
+    if (target == PartTarget::Model)
+        setProceduralUvs(*mesh, partCache.proceduralTriangleUvs, Uuid(componentIdString));
     if (!partCache.importedVertexColors.empty()) {
         std::vector<Vector3> vertices;
         std::vector<std::vector<size_t>> faces;
@@ -1120,6 +1310,8 @@ std::unique_ptr<MeshState> MeshGenerator::combinePartMesh(const std::string& par
         if (mesh) {
             preview.triangleCornerUvs = mesh->triangleCornerUvs;
             preview.triangleModelKeys = mesh->triangleModelKeys;
+            preview.triangleProceduralUvs = mesh->triangleProceduralUvs;
+            preview.triangleSourceCorners = mesh->triangleSourceCorners;
         }
         if (!partCache.importedVertexColors.empty()) {
             for (size_t index = 0; index < preview.vertices.size(); ++index)
@@ -1791,6 +1983,16 @@ void MeshGenerator::collectIncombinableMesh(const MeshState* mesh, const Generat
         m_object->triangleModelKeys.insert(m_object->triangleModelKeys.end(), mesh->triangleModelKeys.begin(), mesh->triangleModelKeys.end());
     else
         m_object->triangleModelKeys.resize(m_object->triangles.size() + uncombinedFaces.size());
+    m_object->triangleSourceCorners.resize(m_object->triangles.size());
+    if (mesh->triangleSourceCorners.size() == uncombinedFaces.size())
+        m_object->triangleSourceCorners.insert(m_object->triangleSourceCorners.end(), mesh->triangleSourceCorners.begin(), mesh->triangleSourceCorners.end());
+    else
+        m_object->triangleSourceCorners.resize(m_object->triangles.size() + uncombinedFaces.size());
+    m_object->triangleProceduralUvs.resize(m_object->triangles.size());
+    if (mesh->triangleProceduralUvs.size() == uncombinedFaces.size())
+        m_object->triangleProceduralUvs.insert(m_object->triangleProceduralUvs.end(), mesh->triangleProceduralUvs.begin(), mesh->triangleProceduralUvs.end());
+    else
+        m_object->triangleProceduralUvs.resize(m_object->triangles.size() + uncombinedFaces.size());
     m_object->triangleCornerUvs.resize(m_object->triangles.size());
     if (mesh->triangleCornerUvs.size() == uncombinedFaces.size())
         m_object->triangleCornerUvs.insert(m_object->triangleCornerUvs.end(), mesh->triangleCornerUvs.begin(), mesh->triangleCornerUvs.end());
@@ -1889,10 +2091,17 @@ void MeshGenerator::collectBindSamples(const std::string& componentIdString,
         std::vector<Vector3> vertices;
         std::vector<std::vector<size_t>> faces;
         mesh->fetch(vertices, faces);
-        for (const auto& vertex : vertices) {
-            auto findNode = cache.positionToNodeIdMap.find(PositionKey(vertex));
-            if (findNode != cache.positionToNodeIdMap.end())
-                builder->addBindSample(vertex, findNode->second);
+        if (!mesh->triangleSourceCorners.empty()) {
+            const auto sources = uniqueVertexSources(*mesh, faces, vertices.size());
+            for (size_t vertex = 0; vertex < vertices.size(); ++vertex)
+                if (const auto node = dominantSourceNode(sources[vertex]))
+                    builder->addBindSample(vertices[vertex], *node);
+        } else {
+            for (const auto& vertex : vertices) {
+                auto findNode = cache.positionToNodeIdMap.find(PositionKey(vertex));
+                if (findNode != cache.positionToNodeIdMap.end())
+                    builder->addBindSample(vertex, findNode->second);
+            }
         }
         if (nullptr != surfaceVertices && nullptr != surfaceFaces) {
             size_t offset = surfaceVertices->size();
@@ -1966,6 +2175,13 @@ void MeshGenerator::collectWrapSources(const std::string& componentIdString,
         ++(*sourceCount);
         if (carve)
             return;
+        if (!mesh->triangleSourceCorners.empty()) {
+            const auto sources = uniqueVertexSources(*mesh, faces, vertices.size());
+            for (size_t vertex = 0; vertex < vertices.size(); ++vertex)
+                if (const auto node = dominantSourceNode(sources[vertex]))
+                    builder->addBindSample(vertices[vertex], *node);
+            return;
+        }
         for (const auto& vertex : vertices) {
             PositionKey key(vertex);
             auto findNode = cache.positionToNodeIdMap.find(key);
@@ -2264,7 +2480,26 @@ std::unique_ptr<MeshState> MeshGenerator::buildWrapMesh(const std::string& compo
     }
     dust3dDebug << "Wrap of component" << componentIdString.c_str() << ":" << (cloth ? "cloth" : "skin")
                 << sourceCount << "sources," << vertices.size() << "vertices," << triangles.size() << "triangles, cell" << builder.cellSize();
-    return std::make_unique<MeshState>(vertices, triangles);
+    auto mesh = std::make_unique<MeshState>(vertices, triangles);
+    std::vector<SourceCorner> sources(vertices.size());
+    for (size_t vertex = 0; vertex < vertices.size() && vertex < nodeWeights.size(); ++vertex) {
+        sources[vertex].weighted = true;
+        SourceCorner::Influences influences;
+        influences.reserve(nodeWeights[vertex].size());
+        for (const auto& influence : nodeWeights[vertex])
+            influences.emplace_back(influence.nodeId, influence.weight);
+        sources[vertex].setInfluences(std::move(influences));
+    }
+    setSourceCorners(*mesh, sources);
+    mesh->triangleComponentKeys.assign(triangles.size(), componentIdString);
+    mesh->triangleModelKeys.resize(triangles.size());
+    for (size_t index = 0; index < triangles.size(); ++index) {
+        if (index < triangleUvs.size())
+            mesh->triangleProceduralUvs.emplace_back(ProceduralTriangleUv { componentId, triangleUvs[index] });
+        else
+            mesh->triangleProceduralUvs.emplace_back(std::nullopt);
+    }
+    return mesh;
 }
 
 void MeshGenerator::collectBrokenTriangles(const std::string& componentIdString)
@@ -2654,6 +2889,12 @@ void MeshGenerator::collectComponentPreview(const std::string& componentIdString
         std::vector<std::vector<size_t>> triangles;
         mesh->fetch(vertices, triangles);
         size_t offset = preview.vertices.size();
+        preview.triangleProceduralUvs.resize(preview.triangles.size());
+        for (size_t index = 0; index < triangles.size(); ++index)
+            preview.triangleProceduralUvs.push_back(index < mesh->triangleProceduralUvs.size() ? mesh->triangleProceduralUvs[index] : std::nullopt);
+        preview.triangleSourceCorners.resize(preview.triangles.size());
+        for (size_t index = 0; index < triangles.size(); ++index)
+            preview.triangleSourceCorners.push_back(index < mesh->triangleSourceCorners.size() ? mesh->triangleSourceCorners[index] : SourceTriangleCorners {});
         std::vector<std::tuple<Color, float, float>> properties;
         for (const auto& vertex : vertices) {
             Color vertexColor = preview.color;
@@ -2880,6 +3121,8 @@ void MeshGenerator::generate()
             m_object->triangleComponentIds.emplace_back(key);
         m_object->triangleVertexColors = combinedMesh->triangleVertexColors;
         m_object->triangleCornerUvs = combinedMesh->triangleCornerUvs;
+        m_object->triangleProceduralUvs = combinedMesh->triangleProceduralUvs;
+        m_object->triangleSourceCorners = combinedMesh->triangleSourceCorners;
         m_object->triangleModelKeys = combinedMesh->triangleModelKeys;
     }
 
