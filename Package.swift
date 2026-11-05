@@ -52,7 +52,8 @@ let package = Package(
             linkerSettings: [.linkedFramework("CoreGraphics"), .linkedFramework("ImageIO")]
         ),
         .executableTarget(
-            name: "Dust3DExport", dependencies: ["Dust3DEngine"], path: "native/ExportCli", exclude: ["README.md"]
+            name: "Dust3DExport", dependencies: ["Dust3DEngine"], path: "native/ExportCli", exclude: ["README.md"],
+            cxxSettings: [.headerSearchPath("../../third_party/json")]
         ),
         .executableTarget(
             name: "Dust3DWorker",
