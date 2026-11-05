@@ -15,6 +15,40 @@ void require(bool condition, const char* message)
         throw std::runtime_error(message);
 }
 
+void customHollowProfileContainsCavity(const std::vector<dust3d::Vector2>& profile, double thickness)
+{
+    dust3d::TubeMeshBuilder::BuildParameters parameters;
+    parameters.cutFace = profile;
+    parameters.interpolationEnabled = false;
+    parameters.hollowThickness = thickness;
+    dust3d::TubeMeshBuilder builder(parameters, { { { 0, 0, 0 }, 1, {} }, { { 0, 0, 2 }, 1, {} } }, false);
+    builder.build();
+    const auto& vertices = builder.generatedVertices();
+    const auto count = profile.size();
+    require(vertices.size() == count * 4, "Custom hollow profile must retain both walls");
+    const auto side = [](const auto& a, const auto& b, const auto& point) {
+        return (b.x() - a.x()) * (point.y() - a.y()) - (b.y() - a.y()) * (point.x() - a.x());
+    };
+    for (size_t i = 0; i < count; ++i) {
+        const auto& point = vertices[count * 2 + i];
+        const auto& next = vertices[count * 2 + (i + 1) % count];
+        bool inside = false;
+        for (size_t j = 0; j < count; ++j) {
+            const auto& a = vertices[j];
+            const auto& b = vertices[(j + 1) % count];
+            const auto cross = side(a, b, point);
+            require(!(cross * side(a, b, next) < 0 && side(point, next, a) * side(point, next, b) < 0),
+                "Inner edge must not cross the outer contour");
+            const auto dot = (point.x() - a.x()) * (point.x() - b.x()) + (point.y() - a.y()) * (point.y() - b.y());
+            require(std::abs(cross) > 1e-12 || dot > 0, "Inner vertex must not lie on the outer contour");
+            if ((a.y() > point.y()) != (b.y() > point.y())
+                && point.x() < a.x() + (point.y() - a.y()) * (b.x() - a.x()) / (b.y() - a.y()))
+                inside = !inside;
+        }
+        require(inside, "Custom profile must strictly contain each inner vertex");
+    }
+}
+
 void hollowTubeHasConsistentTopology(bool circular, double thickness = .5)
 {
     dust3d::TubeMeshBuilder::BuildParameters parameters;
@@ -75,6 +109,12 @@ void hollowTubeHasConsistentTopology(bool circular, double thickness = .5)
 int main()
 {
     try {
+        customHollowProfileContainsCavity({ { -1, -1 }, { 1, -1 }, { -1, 1 } }, .5);
+        const std::vector<dust3d::Vector2> concave { { -1, -1 }, { 1, -1 }, { 1, 1 }, { .5, 1 },
+            { .5, -.5 }, { -.5, -.5 }, { -.5, 1 }, { -1, 1 } };
+        customHollowProfileContainsCavity(concave, .25);
+        customHollowProfileContainsCavity(concave, .99);
+        customHollowProfileContainsCavity({ concave.rbegin(), concave.rend() }, .25);
         hollowTubeHasConsistentTopology(false);
         hollowTubeHasConsistentTopology(true);
         hollowTubeHasConsistentTopology(false, 0.99999999);

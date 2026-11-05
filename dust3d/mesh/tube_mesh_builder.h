@@ -70,8 +70,8 @@ private:
     std::vector<Vector3> buildCutFaceVertices(const Vector3& origin,
         double radius,
         const Vector3& forwardDirection,
-        double nodeDeformWidth = 1.0,
-        double nodeDeformThickness = 1.0);
+        double nodeDeformWidth,
+        double nodeDeformThickness, const std::vector<Vector2>& profile);
     void turnSingleNodeToTube();
     void applyRoundEnd();
     bool applyInterpolation(size_t maxNodes);
