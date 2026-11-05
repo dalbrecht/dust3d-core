@@ -2,12 +2,8 @@
 #ifndef DUST3D_NATIVE_CANCELLATION_H_
 #define DUST3D_NATIVE_CANCELLATION_H_
 
+#include "CancellationToken.h"
 #include "EngineInternal.h"
-#include <atomic>
-
-struct Dust3DCancellationToken {
-    std::atomic_bool cancelled { false };
-};
 
 namespace dust3d {
 namespace native {

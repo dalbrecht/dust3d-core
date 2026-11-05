@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Stop CLI exports cooperatively on SIGINT, retaining files committed before cancellation and returning exit status 130 when cancellation prevents publication.
+
+- Add versioned newline-delimited JSON export receipts with `--json`. Successful receipts follow atomic publication. Exit status 6 reports a delivery failure while preserving committed files (#306).
+
 - Require sealed schema-3 per-job wall budgets and enforce scheduler-owned service watchdogs independently of native work, retaining original deadline causes (#304).
 
 - Require explicit bounded pre-job XPC handshake waits in the transport and preview executor, preserving attempt/deadline causes and preventing job creation after failure (#302).

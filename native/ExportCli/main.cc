@@ -1,9 +1,13 @@
 // SPDX-License-Identifier: MIT
+#include "../Engine/CancellationToken.h"
+#include "ExportCancellation.h"
+#include "ExportReceipt.h"
 #include <Dust3DBridge.h>
 #include <algorithm>
 #include <array>
 #include <cerrno>
 #include <charconv>
+#include <csignal>
 #include <cstdio>
 #include <cstdlib>
 #include <fcntl.h>
@@ -22,7 +26,9 @@ namespace {
 enum class ExitCode { usage = 2,
     native = 3,
     filesystem = 4,
-    partialBatch = 5 };
+    partialBatch = 5,
+    receiptDelivery = 6,
+    cancelled = 130 };
 class ExportError : public std::runtime_error {
 public:
     ExportError(ExitCode code, const std::string& cause)
@@ -39,6 +45,36 @@ private:
 {
     throw ExportError(ExitCode::filesystem, std::string(operation) + ": " + std::error_code(cause, std::generic_category()).message() + " (errno " + std::to_string(cause) + ')');
 }
+using dust3d::export_cli::commitUnlessCancelled;
+using dust3d::export_cli::ExportCancelled;
+
+static_assert(std::atomic_bool::is_always_lock_free, "SIGINT requires a lock-free cancellation flag");
+Dust3DCancellationToken cancellationToken;
+
+void cancelExport(int)
+{
+    cancellationToken.cancelled.store(true, std::memory_order_relaxed);
+}
+
+bool isCancelled()
+{
+    return dust3d_cancellation_token_is_cancelled(&cancellationToken);
+}
+
+void installCancellationHandler()
+{
+    struct sigaction action { };
+    action.sa_handler = cancelExport;
+    if (sigemptyset(&action.sa_mask) < 0 || ::sigaction(SIGINT, &action, nullptr) < 0)
+        filesystemFailure("Configure export cancellation", errno);
+}
+
+void checkCancellation()
+{
+    if (isCancelled())
+        throw ExportCancelled();
+}
+
 class Descriptor {
 public:
     explicit Descriptor(int value) noexcept
@@ -82,6 +118,7 @@ struct Invocation {
     std::vector<Arguments> jobs;
     bool isBatch = false;
     bool usesLegacyOutputs = false;
+    bool jsonReceipts = false;
 };
 Invocation parseArguments(int argc, char** argv)
 {
@@ -101,6 +138,8 @@ Invocation parseArguments(int argc, char** argv)
             if (legacyOutputs.size() == 64)
                 throw ExportError(ExitCode::usage, "Legacy export supports at most64targets.");
             legacyOutputs.emplace_back(argv[index]);
+        } else if (!optionsEnded && argument == "--json") {
+            invocation.jsonReceipts = true;
         } else if (!optionsEnded && argument == "--batch") {
             invocation.isBatch = true;
         } else if (!optionsEnded && argument == "--baked") {
@@ -232,8 +271,10 @@ public:
     void commit(const std::filesystem::path& destination)
     {
         descriptor.closeForCommit();
-        if (::rename(m_path.c_str(), destination.c_str()) != 0)
-            filesystemFailure("Commit staged output", errno);
+        commitUnlessCancelled(isCancelled, [&] {
+            if (::rename(m_path.c_str(), destination.c_str()) != 0)
+                filesystemFailure("Commit staged output", errno);
+        });
         m_committed = true;
     }
     Descriptor descriptor;
@@ -254,6 +295,7 @@ struct stat publish(const std::filesystem::path& destination, const struct stat&
     if (::fcntl(descriptor, F_SETFD, FD_CLOEXEC) != 0)
         filesystemFailure("Protect staged descriptor", errno);
     for (size_t offset = 0; offset < count;) {
+        checkCancellation();
         const auto written = ::write(descriptor, bytes + offset, std::min(count - offset, size_t { 65536 }));
         if (written < 0) {
             if (errno == EINTR)
@@ -264,7 +306,10 @@ struct stat publish(const std::filesystem::path& destination, const struct stat&
             filesystemFailure("Write staged output made no progress", EIO);
         offset += static_cast<size_t>(written);
     }
-    while (::fsync(descriptor) != 0) {
+    for (;;) {
+        checkCancellation();
+        if (::fsync(descriptor) == 0)
+            break;
         if (errno != EINTR)
             filesystemFailure("Flush staged output", errno);
     }
@@ -275,8 +320,80 @@ struct stat publish(const std::filesystem::path& destination, const struct stat&
     output.commit(destination);
     return published;
 }
-struct stat exportFile(const Arguments& arguments)
+using dust3d::export_cli::publishWithReceipt;
+using dust3d::export_cli::ReceiptDeliveryState;
+using dust3d::export_cli::serializeReceipt;
+
+struct ReceiptOutput {
+    int descriptor = -1;
+    size_t jobIndex = 1;
+    size_t jobCount = 1;
+    bool deliveryEnabled = true;
+
+    std::string prepare(const Arguments& job, bool committed, size_t bytes, const char* diagnostic) const
+    {
+        if (descriptor < 0)
+            return {};
+        const auto extension = destinationExtension(job.destination);
+        const auto format = extension == ".obj" ? "obj" : extension == ".fbx" ? "fbx" : "unknown";
+        return serializeReceipt({ jobIndex, jobCount, job.source.string(), job.destination.string(),
+            format, job.baked ? "baked" : "geometry", committed, bytes, diagnostic });
+    }
+
+    bool deliver(const std::string& record) const noexcept
+    {
+        if (!deliveryEnabled)
+            return false;
+        size_t offset = 0;
+        while (offset < record.size()) {
+            const auto written = ::write(descriptor, record.data() + offset, record.size() - offset);
+            if (written < 0 && errno == EINTR)
+                continue;
+            if (written <= 0) {
+                std::fprintf(stderr, "Job %zu/%zu receipt delivery failed (errno %d)\n",
+                    jobIndex, jobCount, written == 0 ? EIO : errno);
+                return false;
+            }
+            offset += static_cast<size_t>(written);
+        }
+        return true;
+    }
+
+    bool deliverFailure(const Arguments& job, const char* diagnostic) const noexcept
+    {
+        if (descriptor < 0)
+            return true;
+        try {
+            return deliver(prepare(job, false, 0, diagnostic));
+        } catch (const std::exception& cause) {
+            std::fprintf(stderr, "Job %zu/%zu receipt preparation failed: %s\n",
+                jobIndex, jobCount, cause.what());
+            return false;
+        }
+    }
+};
+
+struct ExportResult {
+    struct stat identity;
+    bool receiptDelivered;
+};
+
+ExportResult publishExport(const Arguments& job, const struct stat& source, const uint8_t* bytes,
+    size_t count, const char* warning, const ReceiptOutput& receipt)
 {
+    const auto record = receipt.prepare(job, true, count, warning);
+    const auto result = publishWithReceipt(record, [&] { return publish(job.destination, source, bytes, count); },
+        [&](const std::string& line) { return receipt.deliver(line); });
+    if (receipt.descriptor < 0)
+        std::printf("Exported %zu bytes\n", count);
+    if (*warning)
+        std::fprintf(stderr, "Source note: %s\n", warning);
+    return { result.publication, result.delivered };
+}
+
+ExportResult exportFile(const Arguments& arguments, const ReceiptOutput& receipt)
+{
+    checkCancellation();
     const auto archive = readArchive(arguments.source);
     validateDestination(arguments.destination, archive.identity);
     if (destinationExtension(arguments.destination) == ".obj") {
@@ -284,22 +401,21 @@ struct stat exportFile(const Arguments& arguments)
             throw ExportError(ExitCode::usage, "OBJ exports original geometry only; --baked requires FBX.");
         Dust3DObjExportOptions options {};
         options.struct_size = sizeof(options);
+        options.cancellation = &cancellationToken;
         options.maximum_output_payload_bytes = arguments.maximumOutputBytes;
         Dust3DError error {};
         std::unique_ptr<Dust3DObjExport, decltype(&dust3d_obj_export_destroy)> owner(
             dust3d_obj_export_load(archive.bytes.data(), archive.bytes.size(), &options, &error), dust3d_obj_export_destroy);
+        if (!owner && error.status == DUST3D_STATUS_CANCELLED)
+            throw ExportCancelled();
         if (!owner)
             throw ExportError(ExitCode::native, "Native export status " + std::to_string(error.status) + ": " + error.message);
-        const auto count = dust3d_obj_export_byte_count(owner.get());
-        const auto published = publish(arguments.destination, archive.identity, dust3d_obj_export_bytes(owner.get()), count);
-        std::printf("Exported %zu bytes\n", count);
-        const auto* warning = dust3d_obj_export_warning(owner.get());
-        if (*warning)
-            std::fprintf(stderr, "Source note: %s\n", warning);
-        return published;
+        return publishExport(arguments, archive.identity, dust3d_obj_export_bytes(owner.get()),
+            dust3d_obj_export_byte_count(owner.get()), dust3d_obj_export_warning(owner.get()), receipt);
     }
     Dust3DFbxExportOptions options {};
     options.struct_size = sizeof(options);
+    options.cancellation = &cancellationToken;
     options.mode = arguments.baked ? DUST3D_FBX_EXPORT_BAKED : DUST3D_FBX_EXPORT_GEOMETRY;
     options.maximum_output_payload_bytes = arguments.maximumOutputBytes;
     options.bake.struct_size = sizeof(options.bake);
@@ -307,16 +423,12 @@ struct stat exportFile(const Arguments& arguments)
     Dust3DError error {};
     std::unique_ptr<Dust3DFbxExport, decltype(&dust3d_fbx_export_destroy)> owner(
         dust3d_fbx_export_load(archive.bytes.data(), archive.bytes.size(), &options, &error), dust3d_fbx_export_destroy);
+    if (!owner && error.status == DUST3D_STATUS_CANCELLED)
+        throw ExportCancelled();
     if (!owner)
         throw ExportError(ExitCode::native, "Native export status " + std::to_string(error.status) + ": " + error.message);
-    const auto count = dust3d_fbx_export_byte_count(owner.get());
-    const auto published = publish(arguments.destination, archive.identity, dust3d_fbx_export_bytes(owner.get()), count);
-    // Reporting cannot turn a committed file into a failed transaction through C++ exceptions.
-    std::printf("Exported %zu bytes\n", count);
-    const auto* warning = dust3d_fbx_export_warning(owner.get());
-    if (*warning)
-        std::fprintf(stderr, "Source note: %s\n", warning);
-    return published;
+    return publishExport(arguments, archive.identity, dust3d_fbx_export_bytes(owner.get()),
+        dust3d_fbx_export_byte_count(owner.get()), dust3d_fbx_export_warning(owner.get()), receipt);
 }
 struct PathIdentity {
     std::filesystem::path canonical;
@@ -358,38 +470,66 @@ std::vector<PathIdentity> preflightBatch(const std::vector<Arguments>& jobs)
     }
     return destinations;
 }
-int execute(const Invocation& invocation)
+int execute(const Invocation& invocation, int receiptDescriptor)
 {
+    ReceiptDeliveryState delivery;
+    constexpr auto deliveryFailure = static_cast<int>(ExitCode::receiptDelivery);
     if (!invocation.isBatch) {
-        exportFile(invocation.jobs.front());
-        return 0;
+        const auto& job = invocation.jobs.front();
+        const ReceiptOutput receipt { receiptDescriptor };
+        try {
+            const auto result = exportFile(job, receipt);
+            delivery.record(result.receiptDelivered);
+            return delivery.singleExitCode(0, deliveryFailure);
+        } catch (const ExportCancelled& cause) {
+            receipt.deliverFailure(job, cause.what());
+            throw;
+        } catch (const ExportError& cause) {
+            delivery.record(receipt.deliverFailure(job, cause.what()));
+            std::fprintf(stderr, "%s\n", cause.what());
+            return delivery.singleExitCode(cause.exitCode(), deliveryFailure);
+        } catch (const std::exception& cause) {
+            delivery.record(receipt.deliverFailure(job, cause.what()));
+            std::fprintf(stderr, "Export failed: %s\n", cause.what());
+            return delivery.singleExitCode(static_cast<int>(ExitCode::filesystem), deliveryFailure);
+        }
     }
     auto destinations = preflightBatch(invocation.jobs);
     // Allocate bookkeeping before publication so recording a committed inode cannot fail after rename.
     std::vector<bool> hasCommitted(invocation.jobs.size(), false);
     size_t failed = 0;
     for (size_t index = 0; index < invocation.jobs.size(); ++index) {
+        const ReceiptOutput receipt { receiptDescriptor, index + 1, invocation.jobs.size(), delivery.enabled() };
         try {
+            checkCancellation();
             const auto current = pathIdentity(invocation.jobs[index].destination);
             for (size_t previous = 0; previous < index; ++previous) {
                 if (hasCommitted[previous] && aliases(current, destinations[previous]))
                     throw ExportError(ExitCode::usage, "Batch destination aliases a previously committed output.");
             }
-            const auto published = exportFile(invocation.jobs[index]);
-            destinations[index].metadata = published;
+            const auto published = exportFile(invocation.jobs[index], receipt);
+            delivery.record(published.receiptDelivered);
+            destinations[index].metadata = published.identity;
             destinations[index].exists = true;
             hasCommitted[index] = true;
-            std::printf("Job %zu/%zu committed\n", index + 1, invocation.jobs.size());
+            if (receiptDescriptor < 0)
+                std::printf("Job %zu/%zu committed\n", index + 1, invocation.jobs.size());
+        } catch (const ExportCancelled& cause) {
+            receipt.deliverFailure(invocation.jobs[index], cause.what());
+            throw;
         } catch (const ExportError& cause) {
             ++failed;
+            delivery.record(receipt.deliverFailure(invocation.jobs[index], cause.what()));
             std::fprintf(stderr, "Job %zu/%zu failed (exit %d): %s\n", index + 1, invocation.jobs.size(), cause.exitCode(), cause.what());
         } catch (const std::exception& cause) {
             ++failed;
+            delivery.record(receipt.deliverFailure(invocation.jobs[index], cause.what()));
             std::fprintf(stderr, "Job %zu/%zu failed (exit 4): %s\n", index + 1, invocation.jobs.size(), cause.what());
         }
     }
     std::fprintf(stderr, "Batch: %zu committed, %zu failed\n", invocation.jobs.size() - failed, failed);
-    return failed ? (invocation.usesLegacyOutputs ? 1 : static_cast<int>(ExitCode::partialBatch)) : 0;
+    const auto exportExit = failed ? (invocation.usesLegacyOutputs ? 1 : static_cast<int>(ExitCode::partialBatch)) : 0;
+    return delivery.batchExitCode(exportExit, deliveryFailure);
 }
 
 }
@@ -397,10 +537,22 @@ int main(int argc, char** argv)
 {
     try {
         if (argc == 2 && std::string(argv[1]) == "--help") {
-            std::cout << "dust3d-export [--batch] [--baked] [--texture-size 1...8192] [--max-output-bytes N] [--] input.ds3 output.fbx|output.obj [input.ds3 output...]\nLegacy: dust3d-export input.ds3 -o output.obj [-output output.fbx ...]\n";
+            std::cout << "dust3d-export [--json] [--batch] [--baked] [--texture-size 1...8192] [--max-output-bytes N] [--] input.ds3 output.fbx|output.obj [input.ds3 output...]\nLegacy: dust3d-export input.ds3 -o output.obj [-output output.fbx ...]\n";
             return 0;
         }
-        return execute(parseArguments(argc, argv));
+        const auto invocation = parseArguments(argc, argv);
+        installCancellationHandler();
+        if (!invocation.jsonReceipts)
+            return execute(invocation, -1);
+        Descriptor receiptDescriptor(::fcntl(STDOUT_FILENO, F_DUPFD_CLOEXEC, STDERR_FILENO + 1));
+        if (receiptDescriptor.get() < 0 || ::dup2(STDERR_FILENO, STDOUT_FILENO) < 0)
+            filesystemFailure("Configure receipt output", errno);
+        if (std::signal(SIGPIPE, SIG_IGN) == SIG_ERR)
+            filesystemFailure("Configure receipt delivery", errno);
+        return execute(invocation, receiptDescriptor.get());
+    } catch (const ExportCancelled& cause) {
+        std::fprintf(stderr, "%s\n", cause.what());
+        return static_cast<int>(ExitCode::cancelled);
     } catch (const ExportError& cause) {
         std::fprintf(stderr, "%s\n", cause.what());
         return cause.exitCode();

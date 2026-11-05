@@ -75,3 +75,29 @@ argument/preflight errors return2. Later aliases of committed outputs remain
 per-target failures and preserve the earlier file. Unsupported formats fail per job, so later
 supported targets can still commit. Each job generates afresh; no claim of Qt's
 single-generation performance, paste-XML or color-toggle compatibility is made.
+
+### Machine-readable receipts
+
+Add `--json` before `--` to emit one UTF-8 JSON record per attempted job on
+stdout. Diagnostics go to stderr. Invocation and batch-preflight failures have
+no job receipt because no job starts.
+
+Version 1 records include `version`, one-based `jobIndex`, `jobCount`, `source`,
+`destination`, `format`, `mode`, `committed`, `byteCount`, and `diagnostic`.
+A successful record is delivered after the atomic rename and its byte count
+describes the published file. A failed job reports zero bytes and its original
+diagnostic. Paths must be valid UTF-8 in this mode.
+
+Exit 6 reports receipt delivery failure after a successful single export or
+during a batch. Published files remain committed. For a failed single export,
+the original export exit code takes precedence. A failed receipt may leave an
+incomplete final line on stdout. A batch continues exporting, but sends no more
+records after a delivery failure. Inspect the destination before retrying.
+
+### Cooperative interruption
+
+SIGINT requests cancellation. If observed before publication, the current
+staged file is removed, existing destinations remain intact, and the CLI
+returns 130. Earlier commits in a batch remain published. A signal after
+publication cannot roll back that file or suppress its success receipt.
+Cancellation is cooperative and has no fixed response-time guarantee.
