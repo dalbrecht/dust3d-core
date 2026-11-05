@@ -285,7 +285,7 @@ namespace native {
         modelProperties.appendString(std::string("Dust3D\0\1Model", 13));
         modelProperties.appendString("Mesh");
         auto objects = children(FbxNode("Geometry", std::move(geometryProperties), std::move(geometryChildren), { maximumBytes }), FbxNode("Model", std::move(modelProperties), children(integer("Version", 232), FbxNode("Properties70"), text("Culling", "CullingOff"))));
-        auto settings = children(parameter("UpAxis", "int", "Integer", 1, true), parameter("UpAxisSign", "int", "Integer", 1, true), parameter("FrontAxis", "int", "Integer", 2, true), parameter("FrontAxisSign", "int", "Integer", 1, true), parameter("CoordAxis", "int", "Integer", 0, true), parameter("CoordAxisSign", "int", "Integer", 1, true), parameter("OriginalUpAxis", "int", "Integer", 1, true), parameter("OriginalUpAxisSign", "int", "Integer", 1, true), parameter("UnitScaleFactor", "double", "Number", 100), parameter("OriginalUnitScaleFactor", "double", "Number", 1));
+        auto settings = children(parameter("UpAxis", "int", "Integer", 1, true), parameter("UpAxisSign", "int", "Integer", 1, true), parameter("FrontAxis", "int", "Integer", 2, true), parameter("FrontAxisSign", "int", "Integer", 1, true), parameter("CoordAxis", "int", "Integer", 0, true), parameter("CoordAxisSign", "int", "Integer", 1, true), parameter("OriginalUpAxis", "int", "Integer", -1, true), parameter("OriginalUpAxisSign", "int", "Integer", 1, true), parameter("UnitScaleFactor", "double", "Number", 100), parameter("OriginalUnitScaleFactor", "double", "Number", 1));
         auto connections = children(connection(612150001, 0), connection(612150000, 612150001));
         if (material)
             appendMaterial(*material, objects, connections);
