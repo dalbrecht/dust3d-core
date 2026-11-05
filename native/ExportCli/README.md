@@ -93,3 +93,11 @@ during a batch. Published files remain committed. For a failed single export,
 the original export exit code takes precedence. A failed receipt may leave an
 incomplete final line on stdout. A batch continues exporting, but sends no more
 records after a delivery failure. Inspect the destination before retrying.
+
+### Cooperative interruption
+
+SIGINT requests cancellation. If observed before publication, the current
+staged file is removed, existing destinations remain intact, and the CLI
+returns 130. Earlier commits in a batch remain published. A signal after
+publication cannot roll back that file or suppress its success receipt.
+Cancellation is cooperative and has no fixed response-time guarantee.

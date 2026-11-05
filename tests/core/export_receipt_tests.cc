@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: MIT
+#include "ExportCancellation.h"
 #include "ExportReceipt.h"
 #include <json.hpp>
 #include <stdexcept>
@@ -62,4 +63,19 @@ int main()
     require(delivery.batchExitCode(5, 6) == 6);
     require(delivery.singleExitCode(3, 6) == 3);
     require(delivery.singleExitCode(0, 6) == 6);
+
+    bool destinationReplaced = false;
+    bool receiptWritten = false;
+    try {
+        publishWithReceipt(record, [&] {
+            commitUnlessCancelled([] { return true; }, [&] { destinationReplaced = true; });
+            return 0; }, [&](const std::string&) {
+            receiptWritten = true;
+            return true; });
+        require(false);
+    } catch (const ExportCancelled&) {
+    }
+    require(!destinationReplaced && !receiptWritten);
+    commitUnlessCancelled([] { return false; }, [&] { destinationReplaced = true; });
+    require(destinationReplaced);
 }

@@ -1,4 +1,6 @@
 // SPDX-License-Identifier: MIT
+#include "../Engine/CancellationToken.h"
+#include "ExportCancellation.h"
 #include "ExportReceipt.h"
 #include <Dust3DBridge.h>
 #include <algorithm>
@@ -25,7 +27,8 @@ enum class ExitCode { usage = 2,
     native = 3,
     filesystem = 4,
     partialBatch = 5,
-    receiptDelivery = 6 };
+    receiptDelivery = 6,
+    cancelled = 130 };
 class ExportError : public std::runtime_error {
 public:
     ExportError(ExitCode code, const std::string& cause)
@@ -42,6 +45,36 @@ private:
 {
     throw ExportError(ExitCode::filesystem, std::string(operation) + ": " + std::error_code(cause, std::generic_category()).message() + " (errno " + std::to_string(cause) + ')');
 }
+using dust3d::export_cli::commitUnlessCancelled;
+using dust3d::export_cli::ExportCancelled;
+
+static_assert(std::atomic_bool::is_always_lock_free, "SIGINT requires a lock-free cancellation flag");
+Dust3DCancellationToken cancellationToken;
+
+void cancelExport(int)
+{
+    cancellationToken.cancelled.store(true, std::memory_order_relaxed);
+}
+
+bool isCancelled()
+{
+    return dust3d_cancellation_token_is_cancelled(&cancellationToken);
+}
+
+void installCancellationHandler()
+{
+    struct sigaction action { };
+    action.sa_handler = cancelExport;
+    if (sigemptyset(&action.sa_mask) < 0 || ::sigaction(SIGINT, &action, nullptr) < 0)
+        filesystemFailure("Configure export cancellation", errno);
+}
+
+void checkCancellation()
+{
+    if (isCancelled())
+        throw ExportCancelled();
+}
+
 class Descriptor {
 public:
     explicit Descriptor(int value) noexcept
@@ -238,8 +271,10 @@ public:
     void commit(const std::filesystem::path& destination)
     {
         descriptor.closeForCommit();
-        if (::rename(m_path.c_str(), destination.c_str()) != 0)
-            filesystemFailure("Commit staged output", errno);
+        commitUnlessCancelled(isCancelled, [&] {
+            if (::rename(m_path.c_str(), destination.c_str()) != 0)
+                filesystemFailure("Commit staged output", errno);
+        });
         m_committed = true;
     }
     Descriptor descriptor;
@@ -260,6 +295,7 @@ struct stat publish(const std::filesystem::path& destination, const struct stat&
     if (::fcntl(descriptor, F_SETFD, FD_CLOEXEC) != 0)
         filesystemFailure("Protect staged descriptor", errno);
     for (size_t offset = 0; offset < count;) {
+        checkCancellation();
         const auto written = ::write(descriptor, bytes + offset, std::min(count - offset, size_t { 65536 }));
         if (written < 0) {
             if (errno == EINTR)
@@ -270,7 +306,10 @@ struct stat publish(const std::filesystem::path& destination, const struct stat&
             filesystemFailure("Write staged output made no progress", EIO);
         offset += static_cast<size_t>(written);
     }
-    while (::fsync(descriptor) != 0) {
+    for (;;) {
+        checkCancellation();
+        if (::fsync(descriptor) == 0)
+            break;
         if (errno != EINTR)
             filesystemFailure("Flush staged output", errno);
     }
@@ -354,6 +393,7 @@ ExportResult publishExport(const Arguments& job, const struct stat& source, cons
 
 ExportResult exportFile(const Arguments& arguments, const ReceiptOutput& receipt)
 {
+    checkCancellation();
     const auto archive = readArchive(arguments.source);
     validateDestination(arguments.destination, archive.identity);
     if (destinationExtension(arguments.destination) == ".obj") {
@@ -361,10 +401,13 @@ ExportResult exportFile(const Arguments& arguments, const ReceiptOutput& receipt
             throw ExportError(ExitCode::usage, "OBJ exports original geometry only; --baked requires FBX.");
         Dust3DObjExportOptions options {};
         options.struct_size = sizeof(options);
+        options.cancellation = &cancellationToken;
         options.maximum_output_payload_bytes = arguments.maximumOutputBytes;
         Dust3DError error {};
         std::unique_ptr<Dust3DObjExport, decltype(&dust3d_obj_export_destroy)> owner(
             dust3d_obj_export_load(archive.bytes.data(), archive.bytes.size(), &options, &error), dust3d_obj_export_destroy);
+        if (!owner && error.status == DUST3D_STATUS_CANCELLED)
+            throw ExportCancelled();
         if (!owner)
             throw ExportError(ExitCode::native, "Native export status " + std::to_string(error.status) + ": " + error.message);
         return publishExport(arguments, archive.identity, dust3d_obj_export_bytes(owner.get()),
@@ -372,6 +415,7 @@ ExportResult exportFile(const Arguments& arguments, const ReceiptOutput& receipt
     }
     Dust3DFbxExportOptions options {};
     options.struct_size = sizeof(options);
+    options.cancellation = &cancellationToken;
     options.mode = arguments.baked ? DUST3D_FBX_EXPORT_BAKED : DUST3D_FBX_EXPORT_GEOMETRY;
     options.maximum_output_payload_bytes = arguments.maximumOutputBytes;
     options.bake.struct_size = sizeof(options.bake);
@@ -379,6 +423,8 @@ ExportResult exportFile(const Arguments& arguments, const ReceiptOutput& receipt
     Dust3DError error {};
     std::unique_ptr<Dust3DFbxExport, decltype(&dust3d_fbx_export_destroy)> owner(
         dust3d_fbx_export_load(archive.bytes.data(), archive.bytes.size(), &options, &error), dust3d_fbx_export_destroy);
+    if (!owner && error.status == DUST3D_STATUS_CANCELLED)
+        throw ExportCancelled();
     if (!owner)
         throw ExportError(ExitCode::native, "Native export status " + std::to_string(error.status) + ": " + error.message);
     return publishExport(arguments, archive.identity, dust3d_fbx_export_bytes(owner.get()),
@@ -435,6 +481,9 @@ int execute(const Invocation& invocation, int receiptDescriptor)
             const auto result = exportFile(job, receipt);
             delivery.record(result.receiptDelivered);
             return delivery.singleExitCode(0, deliveryFailure);
+        } catch (const ExportCancelled& cause) {
+            receipt.deliverFailure(job, cause.what());
+            throw;
         } catch (const ExportError& cause) {
             delivery.record(receipt.deliverFailure(job, cause.what()));
             std::fprintf(stderr, "%s\n", cause.what());
@@ -464,6 +513,9 @@ int execute(const Invocation& invocation, int receiptDescriptor)
             hasCommitted[index] = true;
             if (receiptDescriptor < 0)
                 std::printf("Job %zu/%zu committed\n", index + 1, invocation.jobs.size());
+        } catch (const ExportCancelled& cause) {
+            receipt.deliverFailure(invocation.jobs[index], cause.what());
+            throw;
         } catch (const ExportError& cause) {
             ++failed;
             delivery.record(receipt.deliverFailure(invocation.jobs[index], cause.what()));
@@ -488,6 +540,7 @@ int main(int argc, char** argv)
             return 0;
         }
         const auto invocation = parseArguments(argc, argv);
+        installCancellationHandler();
         if (!invocation.jsonReceipts)
             return execute(invocation, -1);
         Descriptor receiptDescriptor(::fcntl(STDOUT_FILENO, F_DUPFD_CLOEXEC, STDERR_FILENO + 1));
@@ -496,6 +549,9 @@ int main(int argc, char** argv)
         if (std::signal(SIGPIPE, SIG_IGN) == SIG_ERR)
             filesystemFailure("Configure receipt delivery", errno);
         return execute(invocation, receiptDescriptor.get());
+    } catch (const ExportCancelled& cause) {
+        std::fprintf(stderr, "%s\n", cause.what());
+        return static_cast<int>(ExitCode::cancelled);
     } catch (const ExportError& cause) {
         std::fprintf(stderr, "%s\n", cause.what());
         return cause.exitCode();
