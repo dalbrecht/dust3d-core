@@ -35,6 +35,15 @@ match. Missing or ambiguous endpoint ownership retains the prior gray default;
 chart identity is used only for grouping, and first-face order keeps equivalent
 cold builds deterministic. Empty channels retain the legacy compatibility path.
 
+Boolean UV interpolation can overshoot a unit boundary by an ulp even after
+normalizing barycentric coefficients. Clamp derived coordinates only when every
+source corner is finite and within [0, 1]; out-of-range authored input remains
+unchanged and atlas admission still rejects it. A boundary vertex incident to any
+unmapped, gradient or otherwise ownerless face is ambiguous even when another
+incident face has a known owner. Such vertices cannot supply a component color
+for a generated seam endpoint. Bounded transport regressions build the resulting
+unit-boundary atlas and verify partially unknown/gradient endpoint fallback.
+
 UvMapPacker accepts triangle-ordinal maps in addition to its legacy position maps.
 Packing transforms coordinates and preserves ordinal identity; it does not join
 charts merely because vertices coincide. The indexed atlas groups chart inputs by

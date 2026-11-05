@@ -52,6 +52,10 @@ int main(int argc, char** argv)
         require(hasDoublePrecision, "Export geometry reconstructed from float preview");
         const auto encoded = encodeFbxMeshScene(geometry->object());
         require(!encoded.bytes().empty(), "Retained geometry cannot form a static FBX scene");
+        const std::string_view staticBytes(reinterpret_cast<const char*>(encoded.bytes().data()), encoded.bytes().size());
+        constexpr char originalAxis[] = "OriginalUpAxisS\x03\0\0\0intS\x07\0\0\0IntegerS\0\0\0\0I\xff\xff\xff\xff";
+        require(staticBytes.find(std::string_view(originalAxis, sizeof(originalAxis) - 1)) != std::string_view::npos,
+            "Static FBX must identify the original up axis as unspecified, like Qt");
         const auto retainedBytes = encoded.bytes();
         preview.reset();
         const auto other = generateMesh(snapshot(bytes), "");

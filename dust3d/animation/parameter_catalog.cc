@@ -765,6 +765,18 @@ namespace animation {
         return empty;
     }
 
+    bool animationFrameWorkFits(size_t frameCount, size_t jointCount) noexcept
+    {
+        return frameCount >= 2 && frameCount <= 5000 && jointCount > 0 && jointCount <= 1024
+            && frameCount <= 1000000 / jointCount;
+    }
+
+    bool animationFrameTimeFollows(double time, double previous, double duration) noexcept
+    {
+        return std::isfinite(time) && std::isfinite(previous) && std::isfinite(duration)
+            && duration > 0 && time >= 0 && time <= duration && time > previous;
+    }
+
     const CommonTimingDefinition& commonTimingDefinition() noexcept
     {
         static constexpr CommonTimingDefinition definition { 0.01, 59.99, 2, 0.1, 1, 4999, 5 };
