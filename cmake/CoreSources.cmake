@@ -24,6 +24,7 @@ set(DUST3D_CORE_SOURCES
     dust3d/mesh/hole_stitcher.cc
     dust3d/mesh/hole_wrapper.cc
     dust3d/mesh/mesh_combiner.cc
+    dust3d/mesh/interpolation_identities.cc
     dust3d/mesh/mesh_generator.cc
     dust3d/mesh/mesh_recombiner.cc
     dust3d/mesh/retained_payload.cc

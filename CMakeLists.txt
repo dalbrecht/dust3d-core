@@ -126,6 +126,17 @@ endif()
 
 include(CTest)
 if(BUILD_TESTING)
+    add_executable(dust3d_interpolation_identity_tests
+        tests/core/interpolation_identity_tests.cc
+        dust3d/mesh/interpolation_identities.cc)
+    target_include_directories(dust3d_interpolation_identity_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    add_test(NAME interpolation_identity_contracts COMMAND dust3d_interpolation_identity_tests)
+    set_tests_properties(interpolation_identity_contracts PROPERTIES TIMEOUT 10)
+    add_executable(dust3d_interpolation_mesh_tests tests/core/interpolation_mesh_tests.cc)
+    target_link_libraries(dust3d_interpolation_mesh_tests PRIVATE dust3d_core)
+    add_test(NAME interpolation_mesh_contracts COMMAND dust3d_interpolation_mesh_tests)
+    set_tests_properties(interpolation_mesh_contracts PROPERTIES TIMEOUT 30)
+
     add_executable(dust3d_spring_step_admission_tests
         tests/core/spring_step_admission_tests.cc
         dust3d/animation/spring_step_admission.cc)

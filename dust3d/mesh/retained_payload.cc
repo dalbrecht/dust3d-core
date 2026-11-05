@@ -39,8 +39,8 @@ void MeshGenerator::GeneratedComponent::accountDynamicPayload(RetainedPayloadBud
 
 void MeshGenerator::GeneratedCacheContext::accountDynamicPayload(RetainedPayloadBudget& budget) const noexcept
 {
-    const auto& [components, parts, mirrors, combinations, wraps] = *this;
-    budget.accountDynamicFields(components, parts, mirrors, combinations, wraps);
+    const auto& [components, parts, mirrors, combinations, wraps, interpolationPlans] = *this;
+    budget.accountDynamicFields(components, parts, mirrors, combinations, wraps, interpolationPlans);
 }
 
 void WrapMeshBuilder::NodeWeight::accountDynamicPayload(RetainedPayloadBudget& budget) const noexcept

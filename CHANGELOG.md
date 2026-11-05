@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Preflight interpolation node/edge identities before mutation, preserving original records and collision-free deterministic chains for shared-prefix UUIDs (#315).
+
 - Generate hollow tubes for thicknesses strictly between 0 and 1. Both endpoints use the ordinary solid tube (Apple #96).
 
 - Keep Boolean-derived unit UVs inside atlas bounds without repairing invalid source coordinates, and retain unknown/gradient incident-face ownership at generated seam boundaries.
