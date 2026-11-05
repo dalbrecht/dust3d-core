@@ -78,4 +78,24 @@ int main()
     require(!destinationReplaced && !receiptWritten);
     commitUnlessCancelled([] { return false; }, [&] { destinationReplaced = true; });
     require(destinationReplaced);
+
+    bool cancelled = false;
+    size_t commits = 0;
+    size_t successReceipts = 0;
+    const auto publishJob = [&] {
+        return publishWithReceipt(record, [&] {
+            commitUnlessCancelled([&] { return cancelled; }, [&] { ++commits; });
+            cancelled = true; // Arrives after this job has committed.
+            return commits; }, [&](const std::string&) {
+            ++successReceipts;
+            return true; });
+    };
+    const auto firstJob = publishJob();
+    require(firstJob.delivered && firstJob.publication == 1);
+    try {
+        publishJob();
+        require(false);
+    } catch (const ExportCancelled&) {
+    }
+    require(commits == 1 && successReceipts == 1);
 }

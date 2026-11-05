@@ -501,6 +501,7 @@ int execute(const Invocation& invocation, int receiptDescriptor)
     for (size_t index = 0; index < invocation.jobs.size(); ++index) {
         const ReceiptOutput receipt { receiptDescriptor, index + 1, invocation.jobs.size(), delivery.enabled() };
         try {
+            checkCancellation();
             const auto current = pathIdentity(invocation.jobs[index].destination);
             for (size_t previous = 0; previous < index; ++previous) {
                 if (hasCommitted[previous] && aliases(current, destinations[previous]))
