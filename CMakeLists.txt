@@ -55,6 +55,7 @@ add_library(dust3d_engine STATIC
     native/Engine/RigTransformValidation.cc
     native/Engine/RigTemplateMesh.cc
     native/Engine/RigTemplateBridge.cc
+    native/Engine/FinalRigGeneration.cc
     native/Engine/GeneratedRigInput.cc
     native/Engine/RigFinalData.cc
     native/Engine/SourceBakedMesh.cc
@@ -292,6 +293,13 @@ if(BUILD_TESTING)
 
 
 
+
+    # Ordinary actual rig/bind/ground fixture; no pose, animation, writer or mesh generation.
+    add_executable(dust3d_final_rig_generation_tests tests/core/final_rig_generation_tests.cc)
+    target_include_directories(dust3d_final_rig_generation_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} native/Engine)
+    target_link_libraries(dust3d_final_rig_generation_tests PRIVATE dust3d_engine)
+    add_test(NAME final_rig_generation_contracts COMMAND dust3d_final_rig_generation_tests)
+    set_tests_properties(final_rig_generation_contracts PROPERTIES TIMEOUT 30)
 
     # Pure value ownership/accounting; no generator/pose/exporter execution.
     add_executable(dust3d_generated_rig_input_tests tests/core/generated_rig_input_tests.cc native/Engine/GeneratedRigInput.cc)

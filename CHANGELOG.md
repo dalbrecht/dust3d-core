@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Generate finalized actual-rig positions, bindings and grounded owned mesh data in one serialized private operation; preserve input and report optional eyelid absence (#324).
+
 - Retain bounded coherent processed snapshot/Object inputs for future generated rigs, including complete Object metadata/cache accounting (#323).
 
 - Preserve original vertex indices for optional preview corner mapping after Float32 filtering (#322).
