@@ -32,7 +32,7 @@ The initial tests failed compilation because the public header did not exist.
 The full CMake engine target compiled with the new source. The standalone Swift6
 consumer in tests/SwiftAudioWav copies bytes before destruction and transfers an
 immutable array through an actor; that contract passed with strict concurrency.
-SwiftPM integration and the required full core gate remain pending.
+The SwiftPM Dust3DEngine target also compiled. The required full core gate remains pending.
 
 No synthesis, playback, animation/rig evaluation, native file publication or
 combined model export is enabled. Production pin, quarantines and the prior

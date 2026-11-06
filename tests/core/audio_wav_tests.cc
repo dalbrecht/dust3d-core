@@ -1,5 +1,9 @@
 // SPDX-License-Identifier: MIT
 #include "Dust3DAudioWav.h"
+// Contract calls inside assertions must execute in Release builds too.
+#ifdef NDEBUG
+#undef NDEBUG
+#endif
 #include <cassert>
 #include <cstdint>
 #include <cstring>
