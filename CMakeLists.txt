@@ -292,6 +292,13 @@ if(BUILD_TESTING)
 
 
 
+    # Ordinary prepared Object only; no mesh/rig generator, writer or pose execution.
+    add_executable(dust3d_preview_vertex_mapping_tests tests/core/preview_vertex_mapping_tests.cc)
+    target_include_directories(dust3d_preview_vertex_mapping_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} native/Engine)
+    target_link_libraries(dust3d_preview_vertex_mapping_tests PRIVATE dust3d_engine)
+    add_test(NAME preview_vertex_mapping_contracts COMMAND dust3d_preview_vertex_mapping_tests)
+    set_tests_properties(preview_vertex_mapping_contracts PROPERTIES TIMEOUT 30)
+
     # Data-copy-only contracts: no generator, Object cache materialization or pose runtime.
     add_executable(dust3d_rig_final_data_tests
         tests/core/rig_final_data_tests.cc native/Engine/RigFinalData.cc)

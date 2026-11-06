@@ -19,6 +19,11 @@ namespace native {
         originalExport };
     /// Named borrowed output hooks. All pointees outlive this synchronous generation call.
     struct GenerationOutputs {
+        /// Optional original Object vertex index for each admitted preview draw corner.
+        /// Preserves triangle/corner order after Float32 collapse filtering. Replaced only
+        /// after every requested output succeeds; caller owns storage. Preview purpose only.
+        /// At most five million triangles (15 million size_t records), like preview storage.
+        std::vector<size_t>* previewVertexIndices = nullptr;
         SourceProvenance* sources = nullptr;
         UvMetadata* uvs = nullptr;
         BakedMeshData* baked = nullptr;

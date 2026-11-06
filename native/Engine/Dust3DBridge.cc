@@ -31,7 +31,7 @@ namespace native {
             if (outputs.purpose != GenerationPurpose::preview && outputs.purpose != GenerationPurpose::originalExport)
                 throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Unknown generation output purpose.");
             if (outputs.purpose == GenerationPurpose::originalExport) {
-                if ((!outputs.fbxGeometry && !outputs.objDocument) || outputs.sources || outputs.surfaces || outputs.sourceBaked)
+                if ((!outputs.fbxGeometry && !outputs.objDocument) || outputs.sources || outputs.surfaces || outputs.sourceBaked || outputs.previewVertexIndices)
                     throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Original exports require an export owner and cannot return render source descriptors.");
                 if ((outputs.uvs && !outputs.fbxGeometry) || (outputs.baked && (!outputs.uvs || !outputs.useFbxAtlasUvs)))
                     throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Original baked export requires aligned FBX atlas outputs.");
@@ -103,11 +103,14 @@ namespace native {
                 uvs->prepare(*object, *generated, images, textureSize);
         }
         PreparedExports prepared;
+        std::vector<size_t> previewVertexIndices;
         // Validate/copy original geometry before any bake now that float validation is skipped.
         if (outputs.purpose == GenerationPurpose::originalExport)
             prepared = prepareExports(*object, outputs);
         if (outputs.purpose == GenerationPurpose::preview) {
             mesh->vertices.reserve(object->triangles.size() * 3);
+            if (outputs.previewVertexIndices)
+                previewVertexIndices.reserve(object->triangles.size() * 3);
             const auto* normals = object->triangleVertexNormals();
             for (size_t triangleIndex = 0; triangleIndex < object->triangles.size(); ++triangleIndex) {
                 if (triangleIndex % 256 == 0)
@@ -166,6 +169,8 @@ namespace native {
                         sources->appendCorner(*object, object->vertices[triangle[cornerIndex]], triangleIndex, cornerIndex);
                 }
                 mesh->vertices.insert(mesh->vertices.end(), exportedTriangle.begin(), exportedTriangle.end());
+                if (outputs.previewVertexIndices)
+                    previewVertexIndices.insert(previewVertexIndices.end(), triangle.begin(), triangle.end());
             }
             if (mesh->vertices.empty())
                 throw dust3d::native::DocumentError(DUST3D_STATUS_GENERATION_FAILED, "All generated triangles collapse at the exported coordinate precision.");
@@ -185,6 +190,8 @@ namespace native {
         if (outputs.purpose == GenerationPurpose::preview)
             prepared = prepareExports(*object, outputs);
         checkOutputCancellation(outputs);
+        if (outputs.previewVertexIndices)
+            *outputs.previewVertexIndices = std::move(previewVertexIndices);
         if (outputs.fbxGeometry)
             *outputs.fbxGeometry = std::move(prepared.fbx);
         if (outputs.objDocument)
