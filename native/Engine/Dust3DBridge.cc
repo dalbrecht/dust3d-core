@@ -2,6 +2,7 @@
 #include "FbxAtlasGeometry.h"
 #include "FbxGeometrySelection.h"
 #include "GenerationPipeline.h"
+#include "GeneratedRigInput.h"
 #include "ImportedModels.h"
 #include "ImportedSurface.h"
 #include "ObjDocument.h"
@@ -31,7 +32,7 @@ namespace native {
             if (outputs.purpose != GenerationPurpose::preview && outputs.purpose != GenerationPurpose::originalExport)
                 throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Unknown generation output purpose.");
             if (outputs.purpose == GenerationPurpose::originalExport) {
-                if ((!outputs.fbxGeometry && !outputs.objDocument) || outputs.sources || outputs.surfaces || outputs.sourceBaked || outputs.previewVertexIndices)
+                if ((!outputs.fbxGeometry && !outputs.objDocument) || outputs.sources || outputs.surfaces || outputs.sourceBaked || outputs.previewVertexIndices || outputs.rigInput)
                     throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Original exports require an export owner and cannot return render source descriptors.");
                 if ((outputs.uvs && !outputs.fbxGeometry) || (outputs.baked && (!outputs.uvs || !outputs.useFbxAtlasUvs)))
                     throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Original baked export requires aligned FBX atlas outputs.");
@@ -78,6 +79,8 @@ namespace native {
     {
         validateGenerationOutputs(outputs);
         checkOutputCancellation(outputs);
+        if (outputs.rigInput)
+            throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Borrowed Object preparation cannot retain generated rig inputs.");
         if (!result.vertices.empty())
             throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Output preparation requires fresh preview storage.");
         if (original.triangles.size() > 5000000)
@@ -226,12 +229,21 @@ namespace native {
         if (object->triangles.size() > 5000000)
             throw dust3d::native::DocumentError(DUST3D_STATUS_LIMIT_EXCEEDED, "The generated mesh exceeds the five million triangle limit.");
         std::unique_ptr<Snapshot> generated;
-        if (outputs.uvs || outputs.sourceBaked) {
+        if (outputs.uvs || outputs.sourceBaked || outputs.rigInput) {
             generated.reset(generator.takeSnapshot());
             if (!generated)
                 throw DocumentError(DUST3D_STATUS_GENERATION_FAILED, "The generator returned no UV material snapshot.");
         }
-        prepareGeneratedObject(*object, generated.get(), *mesh, outputs);
+        // Stage retention before preparation publishes any other requested output.
+        std::unique_ptr<GeneratedRigInput> rigInput;
+        if (outputs.rigInput)
+            rigInput = retainGeneratedRigInput(std::move(generated), std::move(object), outputs.maximumRigInputBytes);
+        auto preparationOutputs = outputs;
+        preparationOutputs.rigInput = nullptr;
+        prepareGeneratedObject(rigInput ? rigInput->object() : *object,
+            rigInput ? &rigInput->snapshot() : generated.get(), *mesh, preparationOutputs);
+        if (outputs.rigInput)
+            *outputs.rigInput = std::move(rigInput);
         return mesh;
     }
 

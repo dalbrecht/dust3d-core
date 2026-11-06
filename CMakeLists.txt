@@ -55,6 +55,7 @@ add_library(dust3d_engine STATIC
     native/Engine/RigTransformValidation.cc
     native/Engine/RigTemplateMesh.cc
     native/Engine/RigTemplateBridge.cc
+    native/Engine/GeneratedRigInput.cc
     native/Engine/RigFinalData.cc
     native/Engine/SourceBakedMesh.cc
     native/Engine/ImportedSurface.cc
@@ -291,6 +292,13 @@ if(BUILD_TESTING)
 
 
 
+
+    # Pure value ownership/accounting; no generator/pose/exporter execution.
+    add_executable(dust3d_generated_rig_input_tests tests/core/generated_rig_input_tests.cc native/Engine/GeneratedRigInput.cc)
+    target_include_directories(dust3d_generated_rig_input_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} native/Engine)
+    target_link_libraries(dust3d_generated_rig_input_tests PRIVATE dust3d_core)
+    add_test(NAME generated_rig_input_contracts COMMAND dust3d_generated_rig_input_tests)
+    set_tests_properties(generated_rig_input_contracts PROPERTIES TIMEOUT 30)
 
     # Ordinary prepared Object only; no mesh/rig generator, writer or pose execution.
     add_executable(dust3d_preview_vertex_mapping_tests tests/core/preview_vertex_mapping_tests.cc)

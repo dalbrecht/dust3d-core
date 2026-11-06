@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Retain bounded coherent processed snapshot/Object inputs for future generated rigs, including complete Object metadata/cache accounting (#323).
+
 - Preserve original vertex indices for optional preview corner mapping after Float32 filtering (#322).
 
 - Add a private owned final-joint/four-influence data validator with exact names, parent resolution, normalized bound weights, explicit unbound vertices, bounded retained output and cooperative cancellation; generation/C ABI/Apple adoption remain separate (#320).

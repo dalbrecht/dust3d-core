@@ -177,7 +177,7 @@ let package = Package(
                 "FbxNode.cc",
                 "FbxPropertyBlock.cc",
                 "FbxAnimationMath.cc",
-                "RigTransformValidation.cc", "RigTemplateMesh.cc", "RigTemplateBridge.cc", "RigFinalData.cc",
+                "RigTransformValidation.cc", "RigTemplateMesh.cc", "RigTemplateBridge.cc", "RigFinalData.cc", "GeneratedRigInput.cc",
                 "SourceBakedMesh.cc", "ImportedSurface.cc", "ImportedAssets.cc", "ImportedModels.cc", "GlbReader.cc",
                 "BakedMesh.cc",
                 "Cancellation.cc",

@@ -8,6 +8,7 @@
 
 namespace dust3d {
 namespace native {
+    class GeneratedRigInput;
     class SourceProvenance;
     class UvMetadata;
     class BakedMeshData;
@@ -24,6 +25,12 @@ namespace native {
         /// after every requested output succeeds; caller owns storage. Preview purpose only.
         /// At most five million triangles (15 million size_t records), like preview storage.
         std::vector<size_t>* previewVertexIndices = nullptr;
+        /// Optional coherent generator-produced snapshot/Object retained after success.
+        /// Does not materialize Qt-equivalent UVs; no rig-readiness claim. Preview only.
+        /// Not accepted by prepareGeneratedObject, which only borrows its inputs.
+        std::unique_ptr<GeneratedRigInput>* rigInput = nullptr;
+        /// Zero64MiB, maximum256MiB; full capacity accounting, excluding allocator overhead.
+        size_t maximumRigInputBytes = 0;
         SourceProvenance* sources = nullptr;
         UvMetadata* uvs = nullptr;
         BakedMeshData* baked = nullptr;
