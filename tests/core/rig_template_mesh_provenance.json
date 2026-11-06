@@ -1,0 +1,22 @@
+{
+  "referenceRevision": "b475c7307641c9bcf78c8b14da191af4e9c06f96",
+  "referenceAlgorithm": "application/sources/rig_skeleton_mesh_generator.cc",
+  "referenceAlgorithmSHA256": "9a157c8b09f21fdd67f81acf787a62d9f5b46375a623106ade777c1931207bf7",
+  "license": "MIT; original repository LICENSE retained",
+  "inputs": {
+    "application/resources/rig_biped.xml": "eeafc76ba5868aa89f6073374e70d64f0ed994b3608589715739eefaacccfa49",
+    "application/resources/rig_bird.xml": "137c46e5370f2c95c12d84af0d6cff69250102a2cfe944ab264af1977b8e13ed",
+    "application/resources/rig_fish.xml": "501cf7d4882cc447ade472a89fdfd58b02b5598ef89a4b47fa438d3a55d91c64",
+    "application/resources/rig_insect.xml": "73f6bb6abb322d1e521153bf7eec3c504979c10032d652c0920248afcc8c608e",
+    "application/resources/rig_quadruped.xml": "787cfa96921b7fc50ad477b6953dfd5995c8523ad9bcc7b97870cef700747edf",
+    "application/resources/rig_snake.xml": "d80d22845ea6a5d72e1c13ad36d97b584c24ea1664a3fd7530f7217813d5aff5",
+    "application/resources/rig_spider.xml": "88a9566a941e609dbbdd7281d144cf3fbfd874e975e357f1c708cf942309ef97"
+  },
+  "coordinateConversion": "Qt BoneNode float fields: strtof then exact promotion to Vector3 double",
+  "capsuleRadius": "Qt template XML loader leaves capsuleRadius at zero",
+  "expectedPerBone": {
+    "vertices": 296,
+    "triangles": 588
+  },
+  "evidenceScope": "Source-derived topology/normalization/ownership properties; no Qt runtime or full rig/pose equivalence claim"
+}

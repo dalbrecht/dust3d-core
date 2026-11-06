@@ -53,6 +53,7 @@ add_library(dust3d_engine STATIC
     native/Engine/FbxPropertyBlock.cc
     native/Engine/FbxAnimationMath.cc
     native/Engine/RigTransformValidation.cc
+    native/Engine/RigTemplateMesh.cc
     native/Engine/SourceBakedMesh.cc
     native/Engine/ImportedSurface.cc
     native/Engine/ImportedAssets.cc
@@ -288,6 +289,16 @@ if(BUILD_TESTING)
 
 
 
+
+    # Pure template visualization math: no document/rig/pose generator or writer dependency.
+    add_executable(dust3d_rig_template_mesh_tests
+        tests/core/rig_template_mesh_tests.cc native/Engine/RigTemplateMesh.cc
+        dust3d/mesh/rope_mesh.cc dust3d/mesh/base_normal.cc dust3d/base/vector3.cc)
+    target_include_directories(dust3d_rig_template_mesh_tests PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR} native/Engine third_party/rapidxml-1.13)
+    add_test(NAME rig_template_mesh_contracts COMMAND dust3d_rig_template_mesh_tests
+        "${CMAKE_CURRENT_SOURCE_DIR}/application/resources")
+    set_tests_properties(rig_template_mesh_contracts PROPERTIES TIMEOUT 30)
 
     add_executable(dust3d_original_export_preparation_tests tests/core/original_export_preparation_tests.cc)
     target_include_directories(dust3d_original_export_preparation_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} native/Engine)

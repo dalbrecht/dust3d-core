@@ -1303,3 +1303,16 @@ host identity before retaining/reading the request body or generating geometry.
 The Swift prototype adapter uses it explicitly. Transport authentication and current
 parent publication admission remain separate; see
 [ADR0165](docs/adr/0165-worker-host-request-preflight.md).
+
+## Rig template visualization extraction (#319)
+
+Private `native/Engine/RigTemplateMesh` ports the Qt template geometry to owned
+portable C++ values, retaining tapered bone solids, capsule rings, source-order
+bone/selection roles and optional 1.5-unit normalization. Bounded metadata/output
+validation precedes geometry allocation. The new focused contract target exercises
+small source-derived cases and all seven licensed templates; it links only this
+math plus RopeMesh/BaseNormal/Vector3. It invokes no document, rig, pose or animation
+generator. See [ADR0204](docs/adr/0204-rig-template-visualization-mesh.md).
+
+This is not a public C ABI or Apple preview adoption. The Apple production pin and
+all quarantines remain unchanged. Full rig/skin/IK/pose and Qt/HIG acceptance remain open.
