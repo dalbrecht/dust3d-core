@@ -52,3 +52,6 @@ Head parent indices, finite closing angles, left/right upper/lower vertex bindin
 unit weights, unchanged input and retained topology are checked. This synthetic
 geometry contract is not visual acceptance or coverage of real-world eyelid models.
 No pose, animation, rest transform, writer or Qt runtime is executed by the test.
+
+Follow-up ADR0209 adds final rest-world/inverse-bind output and scoped numerical
+validation; its runtime and quota scope supersedes the earlier rest-matrix omission.

@@ -36,6 +36,31 @@ void rejectsDocument(F run, Dust3DStatus status)
     }
     throw std::runtime_error("Expected document rejection");
 }
+void checkRest(const FinalRigGeneration& rig)
+{
+    require(rig.restTransforms.size() == rig.data.joints.size(), "Rest transforms lost source joint order/count");
+    for (size_t joint = 0; joint < rig.data.joints.size(); ++joint) {
+        const auto& world = rig.restTransforms[joint].world;
+        const auto& inverse = rig.restTransforms[joint].inverseBind;
+        const auto& bone = rig.data.joints[joint];
+        double lengthSquared = 0;
+        for (size_t axis = 0; axis < 3; ++axis) {
+            require(std::abs(world[12 + axis] - bone.headPosition[axis]) < 1e-6, "Rest origin differs from grounded head");
+            const double delta = bone.tailPosition[axis] - bone.headPosition[axis];
+            lengthSquared += delta * delta;
+        }
+        if (lengthSquared > 1e-12)
+            for (size_t axis = 0; axis < 3; ++axis)
+                require(std::abs(world[8 + axis] - (bone.tailPosition[axis] - bone.headPosition[axis]) / std::sqrt(lengthSquared)) < 1e-6, "Rest +Z axis differs from final bone direction");
+        for (size_t column = 0; column < 4; ++column)
+            for (size_t row = 0; row < 4; ++row) {
+                double product = 0;
+                for (size_t k = 0; k < 4; ++k)
+                    product += world[k * 4 + row] * inverse[column * 4 + k];
+                require(std::abs(product - (column == row ? 1 : 0)) < 1e-6, "Rest/inverse-bind product differs from identity");
+            }
+    }
+}
 int main()
 {
     try {
@@ -68,6 +93,12 @@ int main()
             require(weight.joints[0] == 0 && weight.weights[0] == 1, "Assigned source weight lost");
         require(input->object().vertices[0].y() == 1 && templ.bones[0].posY == 99, "Input mutated");
         require(result.object->triangleVertexUvs()->at(0).at(2).x() == 1 && result.object->triangles == input->object().triangles, "UV/topology lost");
+        checkRest(result);
+        RigFinalDataOptions exactQuota;
+        exactQuota.maximumPayloadBytes = result.payloadBytes;
+        require(generateFinalRig(*input, templ, exactQuota).payloadBytes == result.payloadBytes, "Exact aggregate rest quota rejected");
+        --exactQuota.maximumPayloadBytes;
+        rejectsValue([&] { generateFinalRig(*input, templ, exactQuota); }, RigFinalDataFailure::limitExceeded);
         require(!result.eyelidsGenerated, "Unrequested eyelids generated");
         templ.headHasEyelids = true;
         const auto absent = generateFinalRig(*input, templ);
@@ -97,6 +128,7 @@ int main()
         auto headTemplate = templ;
         headTemplate.bones[0].name = "Head";
         const auto lids = generateFinalRig(*eyes, headTemplate);
+        checkRest(lids);
         require(lids.eyelidsGenerated && lids.data.joints.size() == 5, "Symmetric eye holes did not generate four lids");
         const std::array<std::string, 4> names { "LeftUpperEyelid", "LeftLowerEyelid", "RightUpperEyelid", "RightLowerEyelid" };
         for (size_t i = 0; i < names.size(); ++i) {
@@ -109,6 +141,18 @@ int main()
         for (const auto& weights : lids.data.vertices)
             require(weights.weights[0] == 1 && weights.weights[1] == 0 && weights.weights[2] == 0 && weights.weights[3] == 0, "Eyelid final weights not normalized");
         require(eyes->object().vertices[0].y() == 1.25 && lids.object->triangles == eyes->object().triangles, "Eyelid generation changed input/topology");
+        auto unusedTemplate = templ;
+        unusedTemplate.headHasEyelids = false;
+        RigNode unused;
+        unused.name = "Unused";
+        unused.parent = "Body";
+        unusedTemplate.bones.push_back(unused);
+        const auto zeroAxis = generateFinalRig(*input, unusedTemplate);
+        checkRest(zeroAxis);
+        require(zeroAxis.data.joints[1].headPosition == zeroAxis.data.joints[1].tailPosition, "Unused actual joint gained an invented axis");
+        for (size_t column = 0; column < 3; ++column)
+            for (size_t row = 0; row < 3; ++row)
+                require(zeroAxis.restTransforms[1].world[column * 4 + row] == (column == row ? 1 : 0), "Zero axis rest frame is not translation-only");
         std::atomic_bool cancelled { true };
         RigFinalDataOptions options;
         options.cancellation = &cancelled;

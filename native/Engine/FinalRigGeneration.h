@@ -3,11 +3,18 @@
 #define DUST3D_NATIVE_FINAL_RIG_GENERATION_H_
 #include "GeneratedRigInput.h"
 #include "RigFinalData.h"
+#include "RigMatrix.h"
 namespace dust3d {
 namespace native {
+    struct RigRestTransforms {
+        RigMatrix world {};
+        RigMatrix inverseBind {};
+    };
     struct FinalRigGeneration {
         std::unique_ptr<Object> object;
         RigFinalData data;
+        /// Source-joint order; column-major doubles acting on column vectors.
+        std::vector<RigRestTransforms> restTransforms;
         bool eyelidsGenerated = false;
         size_t payloadBytes = 0;
     };
@@ -18,12 +25,13 @@ namespace native {
     /// geometry and bounded graph/mirror depth/work. This is NOT an untrusted C boundary.
     /// Caller inputs remain unchanged; result publishes only after complete success.
     /// Optional eyelid absence leaves the valid base rig and reports eyelidsGenerated=false.
-    /// Options limit final Object capacities plus data logical bytes (max256MiB), excluding
+    /// Options limit final Object capacities plus data/rest logical bytes (max256MiB), excluding
     /// input, snapshot borrowing, generation/copy workspace and allocator overhead.
     /// Cooperative cancellation is checked between inherited stages, not inside their loops.
     /// Throws DocumentError for generation/quota/configuration, RigFinalDataError for copied
     /// value validation/cancellation; parser/allocation exceptions propagate for future C handling.
-    /// No rest matrices, pose/animation, UV materialization or draw expansion is performed.
+    /// Rest-world/inverse-bind matrices use final grounded/post-eyelid bones and validated rigid frames.
+    /// No pose/animation, UV materialization or draw expansion is performed.
     FinalRigGeneration generateFinalRig(const GeneratedRigInput&, const RigStructure&, const RigFinalDataOptions& = {});
 }
 }

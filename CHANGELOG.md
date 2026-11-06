@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Include source-ordered validated rest-world/inverse-bind matrices for finalized grounded rigs and generated eyelids, within the aggregate output quota (#325).
+
 - Generate finalized actual-rig positions, bindings and grounded owned mesh data in one serialized private operation; preserve input and report optional eyelid absence (#324).
 
 - Retain bounded coherent processed snapshot/Object inputs for future generated rigs, including complete Object metadata/cache accounting (#323).
