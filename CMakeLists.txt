@@ -294,6 +294,13 @@ if(BUILD_TESTING)
 
 
 
+    # Geometry validation only; malformed fields never reach inherited rig methods.
+    add_executable(dust3d_rig_geometry_preflight_tests tests/core/rig_geometry_preflight_tests.cc
+        native/Engine/RigFinalData.cc dust3d/base/position_key.cc dust3d/base/vector3.cc)
+    target_include_directories(dust3d_rig_geometry_preflight_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} native/Engine)
+    add_test(NAME rig_geometry_preflight_contracts COMMAND dust3d_rig_geometry_preflight_tests)
+    set_tests_properties(rig_geometry_preflight_contracts PROPERTIES TIMEOUT 30)
+
     # Ordinary actual rig/bind/ground fixture; no pose, animation, writer or mesh generation.
     add_executable(dust3d_final_rig_generation_tests tests/core/final_rig_generation_tests.cc)
     target_include_directories(dust3d_final_rig_generation_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} native/Engine)
@@ -317,7 +324,8 @@ if(BUILD_TESTING)
 
     # Data-copy-only contracts: no generator, Object cache materialization or pose runtime.
     add_executable(dust3d_rig_final_data_tests
-        tests/core/rig_final_data_tests.cc native/Engine/RigFinalData.cc)
+        tests/core/rig_final_data_tests.cc native/Engine/RigFinalData.cc
+        dust3d/base/position_key.cc dust3d/base/vector3.cc)
     target_include_directories(dust3d_rig_final_data_tests PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR} native/Engine)
     add_test(NAME rig_final_data_contracts COMMAND dust3d_rig_final_data_tests)

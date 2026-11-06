@@ -39,8 +39,7 @@ namespace native {
             throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Final rig generation requires template bones and mesh vertices.");
         // Validate hierarchy before the inherited topological fallback can tolerate malformed data.
         (void)copyFinalRigData(templateRig, Object {}, options);
-        if (input.object().vertices.size() > options.maximumVertices)
-            throw RigFinalDataError(RigFinalDataFailure::limitExceeded, "Final rig source exceeds the vertex count limit.");
+        validateRigGeometry(input.object(), options);
         RetainedPayloadBudget initial(options.maximumPayloadBytes);
         initial.accountObject(input.object());
         if (initial.isExceeded())

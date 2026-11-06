@@ -42,6 +42,40 @@ namespace native {
             bytes += count * unit;
         }
     }
+    void validateRigGeometry(const Object& object, const RigFinalDataOptions& options, size_t maximumTriangles)
+    {
+        cancelled(options);
+        if (!options.maximumVertices || options.maximumVertices > 1000000 || !maximumTriangles || maximumTriangles > 5000000)
+            fail(RigFinalDataFailure::invalidData, "Rig geometry count limits are invalid.");
+        if (object.vertices.empty() || object.triangles.empty())
+            fail(RigFinalDataFailure::invalidData, "Rig geometry requires vertices and triangles.");
+        if (object.vertices.size() > options.maximumVertices || object.triangles.size() > maximumTriangles)
+            fail(RigFinalDataFailure::limitExceeded, "Rig geometry exceeds its count limits.");
+        for (size_t index = 0; index < object.vertices.size(); ++index) {
+            if (index % 1024 == 0)
+                cancelled(options);
+            const auto& position = object.vertices[index];
+            for (size_t axis = 0; axis < 3; ++axis)
+                coordinate(position[axis]);
+            // Reuse the guarded platform-long quantizer rather than duplicate its limits.
+            try {
+                (void)PositionKey(position);
+            } catch (const PositionQuantizationError& cause) {
+                throw RigFinalDataError(RigFinalDataFailure::limitExceeded, cause.what());
+            }
+        }
+        for (size_t index = 0; index < object.triangles.size(); ++index) {
+            if (index % 1024 == 0)
+                cancelled(options);
+            const auto& triangle = object.triangles[index];
+            if (triangle.size() != 3)
+                fail(RigFinalDataFailure::invalidData, "Rig geometry contains a non-triangle face.");
+            for (const auto vertex : triangle)
+                if (vertex >= object.vertices.size())
+                    fail(RigFinalDataFailure::invalidData, "Rig geometry triangle references a missing vertex.");
+        }
+        cancelled(options);
+    }
     RigFinalData copyFinalRigData(const RigStructure& rig, const Object& object, const RigFinalDataOptions& options)
     {
         if (!options.maximumBones || options.maximumBones > 256 || !options.maximumVertices || options.maximumVertices > 1000000 || !options.maximumPayloadBytes)

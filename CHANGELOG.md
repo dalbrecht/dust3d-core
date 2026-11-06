@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Preflight finite bounded positions and valid original triangle indices before rig binding/eyelid processing, with typed geometry and cancellation errors (#328).
+
 - Include source-ordered validated rest-world/inverse-bind matrices for finalized grounded rigs and generated eyelids, within the aggregate output quota (#325).
 
 - Generate finalized actual-rig positions, bindings and grounded owned mesh data in one serialized private operation; preserve input and report optional eyelid absence (#324).

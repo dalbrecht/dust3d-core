@@ -58,6 +58,12 @@ namespace native {
     // Input references and optional cancellation are borrowed for this call only. Throws typed
     // RigFinalDataError; allocation exceptions remain for a future C boundary to catch.
     RigFinalData copyFinalRigData(const RigStructure&, const Object&, const RigFinalDataOptions& = {});
+    /// Validate original mesh fields before inherited binding/eyelid calls. Requires
+    /// nonempty positions/triangles, finite coordinates within1M AND PositionKey range,
+    /// exactly3 corners per face, and valid indices. Repeated/degenerate faces stay valid.
+    /// Uses only options.maximumVertices (1..1M) and borrowed cancellation; triangle
+    /// limit is1..5M. No input mutation, rig call or cache materializer; throws typed errors.
+    void validateRigGeometry(const Object&, const RigFinalDataOptions& = {}, size_t maximumTriangles = 5000000);
 }
 }
 #endif
