@@ -1494,34 +1494,49 @@ bool RigGenerator::getNodePositionInternal(const Snapshot* snapshot, const Uuid&
     if (!snapshot)
         return false;
 
-    std::string nodeIdString = nodeId.toString();
-    if (visited.count(nodeIdString))
-        return false; // cycle detected
-
-    visited.insert(nodeIdString);
-
-    auto it = snapshot->nodes.find(nodeIdString);
-    if (it == snapshot->nodes.end())
-        return false;
-
-    std::string mirrorFromNodeId = String::valueOrEmpty(it->second, "__mirrorFromNodeId");
-    if (!mirrorFromNodeId.empty()) {
-        Uuid mirrorNode(mirrorFromNodeId);
-        float mx = 0, my = 0, mz = 0;
-        if (getNodePositionInternal(snapshot, mirrorNode, mx, my, mz, visited)) {
-            x = -mx;
-            y = my;
-            z = mz;
-            return true;
+    Uuid current = nodeId;
+    const std::map<std::string, std::string>* attributes = nullptr;
+    size_t reflections = 0;
+    while (true) {
+        const std::string currentId = current.toString();
+        if (visited.count(currentId)) {
+            if (!attributes)
+                return false;
+            // A failed child falls back to its immediate parent's own coordinates.
+            --reflections;
+            break;
         }
-
-        // Fall back to this node when mirror source fails
+        visited.insert(currentId);
+        const auto found = snapshot->nodes.find(currentId);
+        if (found == snapshot->nodes.end()) {
+            if (!attributes)
+                return false;
+            --reflections;
+            break;
+        }
+        attributes = &found->second;
+        const std::string mirror = String::valueOrEmpty(*attributes, "__mirrorFromNodeId");
+        if (mirror.empty())
+            break;
+        current = Uuid(mirror);
+        ++reflections;
     }
 
-    // Apply same coordinate transformation as MeshGenerator uses
-    x = (String::toFloat(String::valueOrEmpty(it->second, "x")) - m_mainProfileMiddleX);
-    y = (m_mainProfileMiddleY - String::toFloat(String::valueOrEmpty(it->second, "y")));
-    z = (m_sideProfileMiddleX - String::toFloat(String::valueOrEmpty(it->second, "z")));
+    // Parse only the terminal/fallback node, as successful recursive mirrors did.
+    // Keeping the walk iterative avoids consuming call stack per mirror source.
+    if (reflections == 0) {
+        x = String::toFloat(String::valueOrEmpty(*attributes, "x")) - m_mainProfileMiddleX;
+        y = m_mainProfileMiddleY - String::toFloat(String::valueOrEmpty(*attributes, "y"));
+        z = m_sideProfileMiddleX - String::toFloat(String::valueOrEmpty(*attributes, "z"));
+    } else {
+        // Recursive ancestors published only after the child's complete parse succeeded.
+        const float mx = String::toFloat(String::valueOrEmpty(*attributes, "x")) - m_mainProfileMiddleX;
+        const float my = m_mainProfileMiddleY - String::toFloat(String::valueOrEmpty(*attributes, "y"));
+        const float mz = m_sideProfileMiddleX - String::toFloat(String::valueOrEmpty(*attributes, "z"));
+        x = reflections % 2 ? -mx : mx;
+        y = my;
+        z = mz;
+    }
     return true;
 }
 
