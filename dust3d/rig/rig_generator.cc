@@ -1217,9 +1217,9 @@ bool RigGenerator::computeVertexBoneBindings(Object* object,
         return false;
     }
 
-    // Initialize vertex bone arrays parallel to vertices
-    object->vertexBone1.resize(object->vertices.size());
-    object->vertexBone2.resize(object->vertices.size());
+    // Replace previous bindings: a reused vertex may no longer have an influence.
+    object->vertexBone1.assign(object->vertices.size(), { std::string(), 0.0f });
+    object->vertexBone2.assign(object->vertices.size(), { std::string(), 0.0f });
     object->vertexBone3.assign(object->vertices.size(), { std::string(), 0.0f });
     object->vertexBone4.assign(object->vertices.size(), { std::string(), 0.0f });
 

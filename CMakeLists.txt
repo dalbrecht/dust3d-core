@@ -340,6 +340,14 @@ if(BUILD_TESTING)
     target_link_libraries(dust3d_rig_template_c_tests PRIVATE dust3d_rig_template_test_bridge)
     add_test(NAME rig_template_c_contracts COMMAND dust3d_rig_template_c_tests)
     set_tests_properties(rig_template_bridge_contracts rig_template_c_contracts PROPERTIES TIMEOUT 30)
+    # Only the vertex-weight data-binding method runs; no rig/mesh/pose generation.
+    add_executable(dust3d_rig_rebinding_tests
+        tests/core/rig_rebinding_tests.cc dust3d/rig/rig_generator.cc
+        dust3d/base/uuid.cc dust3d/base/string.cc dust3d/base/vector3.cc
+        dust3d/base/position_key.cc dust3d/base/part_target.cc)
+    target_include_directories(dust3d_rig_rebinding_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    add_test(NAME rig_rebinding_contracts COMMAND dust3d_rig_rebinding_tests)
+    set_tests_properties(rig_rebinding_contracts PROPERTIES TIMEOUT 30)
 
     add_executable(dust3d_original_export_preparation_tests tests/core/original_export_preparation_tests.cc)
     target_include_directories(dust3d_original_export_preparation_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} native/Engine)
