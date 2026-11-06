@@ -29,6 +29,8 @@
 - Walk rig mirror sources iteratively, preserving reflection parity and immediate-parent fallback without recursive call-stack growth (#326).
 - Support an optional cooperative cancellation flag inside vertex binding and nearest-bound searches; cancelled partial bindings must be discarded (#327).
 
+- Add generator-independent owned PCM16/WAV bytes with checked RIFF arithmetic, format/frame validation and caller output quotas (#318); synthesis, playback and app adoption remain separate.
+
 - Preflight interpolation node/edge identities before mutation, preserving original records and collision-free deterministic chains for shared-prefix UUIDs (#315).
 
 - Generate hollow tubes for thicknesses strictly between 0 and 1. Both endpoints use the ordinary solid tube (Apple #96).

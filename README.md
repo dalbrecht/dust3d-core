@@ -1352,3 +1352,11 @@ animation. Quotas bound logical retained/staging records and separate temporary
 input/final data stages, not process RSS or fixed cancellation latency. See
 [ADR0212](docs/adr/0212-generated-rig-c-abi.md) for the precise contract and validation.
 Apple production pin, active app routes and quarantines remain unchanged.
+
+### Owned PCM16/WAV encoding
+
+`native/Engine/include/Dust3DAudioWav.h` provides checked scalar planning and
+owned PCM16 WAV bytes for core #318. Caller quotas include the 44-byte header;
+empty PCM is valid, and output is immutable until owner destruction. The encoder
+performs no synthesis, native evaluation, file I/O or playback. See
+[ADR 0204](docs/adr/0204-owned-pcm-wav.md) for tests and remaining delivery gates.
