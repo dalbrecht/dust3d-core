@@ -1217,14 +1217,31 @@ bool RigGenerator::computeVertexBoneBindings(Object* object,
         return false;
     }
 
+    const auto cancelled = [this]() {
+        if (!m_bindingCancellationFlag || !m_bindingCancellationFlag->load(std::memory_order_relaxed))
+            return false;
+        m_errorMessage = "Vertex bone binding cancelled";
+        return true;
+    };
+    if (cancelled())
+        return false;
+
     // Replace previous bindings: a reused vertex may no longer have an influence.
     object->vertexBone1.assign(object->vertices.size(), { std::string(), 0.0f });
+    if (cancelled())
+        return false;
     object->vertexBone2.assign(object->vertices.size(), { std::string(), 0.0f });
+    if (cancelled())
+        return false;
     object->vertexBone3.assign(object->vertices.size(), { std::string(), 0.0f });
+    if (cancelled())
+        return false;
     object->vertexBone4.assign(object->vertices.size(), { std::string(), 0.0f });
 
     // For each vertex, trace back to its source node and apply bone influence
     for (size_t i = 0; i < object->vertices.size(); ++i) {
+        if (cancelled())
+            return false;
         const Vector3& vertexPos = object->vertices[i];
         PositionKey posKey(vertexPos);
 
@@ -1237,6 +1254,8 @@ bool RigGenerator::computeVertexBoneBindings(Object* object,
                 continue;
             std::map<std::string, float> boneWeights;
             for (const auto& nodeWeight : findWeights->second) {
+                if (cancelled())
+                    return false;
                 auto boneIt = nodeBoneInfluences.find(nodeWeight.first);
                 if (boneIt == nodeBoneInfluences.end())
                     continue;
@@ -1247,11 +1266,15 @@ bool RigGenerator::computeVertexBoneBindings(Object* object,
                     boneWeights[binding.bone2] += nodeWeight.second * binding.weight2;
             }
             std::vector<std::pair<std::string, float>> sorted(boneWeights.begin(), boneWeights.end());
+            if (cancelled())
+                return false;
             std::sort(sorted.begin(), sorted.end(), [](const std::pair<std::string, float>& a, const std::pair<std::string, float>& b) {
                 if (a.second != b.second)
                     return a.second > b.second;
                 return a.first < b.first;
             });
+            if (cancelled())
+                return false;
             if (sorted.size() > 4)
                 sorted.resize(4);
             float sum = 0.0f;
@@ -1289,6 +1312,8 @@ bool RigGenerator::computeVertexBoneBindings(Object* object,
     std::vector<size_t> boundIndices;
     std::vector<size_t> unboundIndices;
     for (size_t i = 0; i < object->vertices.size(); ++i) {
+        if (cancelled())
+            return false;
         if (object->vertexBone1[i].first.empty())
             unboundIndices.push_back(i);
         else
@@ -1296,10 +1321,14 @@ bool RigGenerator::computeVertexBoneBindings(Object* object,
     }
     if (!unboundIndices.empty() && !boundIndices.empty()) {
         for (size_t i : unboundIndices) {
+            if (cancelled())
+                return false;
             const Vector3& position = object->vertices[i];
             double bestDistance2 = std::numeric_limits<double>::max();
             size_t bestIndex = boundIndices[0];
             for (size_t j : boundIndices) {
+                if (cancelled())
+                    return false;
                 double distance2 = (object->vertices[j] - position).lengthSquared();
                 if (distance2 < bestDistance2) {
                     bestDistance2 = distance2;
@@ -1314,6 +1343,8 @@ bool RigGenerator::computeVertexBoneBindings(Object* object,
         dust3dDebug << "Bound" << unboundIndices.size() << "vertices without source node to nearest bound vertex";
     }
 
+    if (cancelled())
+        return false;
     m_errorMessage = "";
     return true;
 }

@@ -363,6 +363,13 @@ if(BUILD_TESTING)
     target_include_directories(dust3d_rig_mirror_walk_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
     add_test(NAME rig_mirror_walk_contracts COMMAND dust3d_rig_mirror_walk_tests)
     set_tests_properties(rig_mirror_walk_contracts PROPERTIES TIMEOUT 30)
+    # Ordinary vertex binding only; no rig/pose/mesh generation or cancellation races.
+    add_executable(dust3d_rig_binding_cancellation_tests tests/core/rig_binding_cancellation_tests.cc
+        dust3d/rig/rig_generator.cc dust3d/base/uuid.cc dust3d/base/string.cc
+        dust3d/base/vector3.cc dust3d/base/position_key.cc dust3d/base/part_target.cc)
+    target_include_directories(dust3d_rig_binding_cancellation_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    add_test(NAME rig_binding_cancellation_contracts COMMAND dust3d_rig_binding_cancellation_tests)
+    set_tests_properties(rig_binding_cancellation_contracts PROPERTIES TIMEOUT 30)
 
     add_executable(dust3d_original_export_preparation_tests tests/core/original_export_preparation_tests.cc)
     target_include_directories(dust3d_original_export_preparation_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} native/Engine)
