@@ -1,8 +1,12 @@
 // SPDX-License-Identifier: MIT
 #include <Dust3DBridge.h>
 #include <cmath>
+#include <cstdlib>
 #include <cstring>
+#include <fstream>
 #include <iostream>
+#include <rapidxml.hpp>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -99,6 +103,74 @@ void exactUtf8AndInvalidInputs()
     require(error.status == DUST3D_STATUS_OK && error.message[0] == 0, "Success clears original error");
     dust3d_rig_template_mesh_destroy(empty);
 }
+void licensedTemplateCorpus(const std::string& directory)
+{
+    size_t total = 0;
+    for (const auto* type : { "biped", "bird", "fish", "insect", "quadruped", "snake", "spider" }) {
+        std::ifstream file(directory + "/rig_" + type + ".xml");
+        require(file.good(), "Licensed XML input exists");
+        std::ostringstream stream;
+        stream << file.rdbuf();
+        std::string xml = stream.str();
+        require(xml.size() <= 16384, "Pinned XML input bound");
+        xml.push_back(0);
+        rapidxml::xml_document<> document;
+        document.parse<0>(xml.data());
+        auto* rig = document.first_node("rig");
+        require(rig != nullptr, "Template root");
+        std::vector<Dust3DRigTemplateBoneInput> bones;
+        auto coordinate = [](rapidxml::xml_node<>* node, const char* axis) {
+            require(node != nullptr, "Coordinate element");
+            auto* value = node->first_attribute(axis);
+            require(value != nullptr, "Coordinate attribute");
+            char* end = nullptr;
+            float result = std::strtof(value->value(), &end);
+            require(end != value->value() && *end == 0 && std::isfinite(result), "Qt Float32 coordinate");
+            return result;
+        };
+        for (auto* element = rig->first_node("bone"); element; element = element->next_sibling("bone")) {
+            auto* name = element->first_attribute("name");
+            require(name != nullptr, "Exact name");
+            Dust3DRigTemplateBoneInput bone {};
+            bone.name = name->value();
+            bone.name_length = name->value_size();
+            size_t axis = 0;
+            for (auto* key : { "x", "y", "z" }) {
+                bone.from_position[axis] = coordinate(element->first_node("position"), key);
+                bone.to_position[axis] = coordinate(element->first_node("endPosition"), key);
+                ++axis;
+            }
+            bones.push_back(bone);
+        }
+        require(!bones.empty(), "Corpus bones");
+        auto options = dust3d_rig_template_default_options();
+        options.selected_bone_name = bones[0].name;
+        options.selected_bone_name_length = bones[0].name_length;
+        Dust3DError error {};
+        auto* owner = dust3d_rig_template_mesh_create(bones.data(), bones.size(), &options, &error);
+        require(owner != nullptr, "Every licensed template crosses the real C boundary");
+        require(dust3d_rig_template_mesh_vertex_count(owner) == bones.size() * 1764, "Corpus complete flat geometry");
+        require(dust3d_rig_template_mesh_bone_count(owner) == bones.size(), "Corpus source indices");
+        size_t selected = 0;
+        for (size_t i = 0; i < bones.size(); ++i) {
+            size_t bytes = 0;
+            const auto* name = dust3d_rig_template_mesh_bone_name(owner, i, &bytes);
+            require(name && bytes == bones[i].name_length && !std::memcmp(name, bones[i].name, bytes), "Corpus exact name order");
+        }
+        const auto* draw = dust3d_rig_template_mesh_vertices(owner);
+        for (size_t i = 0; i < dust3d_rig_template_mesh_vertex_count(owner); ++i) {
+            require(draw[i].bone_index < bones.size(), "Corpus valid draw identity");
+            if (draw[i].role == DUST3D_RIG_TEMPLATE_SELECTED_BONE)
+                ++selected;
+            for (size_t axis = 0; axis < 3; ++axis)
+                require(std::isfinite(draw[i].position[axis]) && std::isfinite(draw[i].normal[axis]), "Corpus finite C draw data");
+        }
+        require(selected == 36, "Only selected solid receives selected role");
+        total += bones.size();
+        dust3d_rig_template_mesh_destroy(owner);
+    }
+    require(total == 172, "All seven source templates covered");
+}
 void boundedBoundaryFailures()
 {
     Dust3DError error {};
@@ -113,6 +185,9 @@ void boundedBoundaryFailures()
     options.reserved = 1;
     rejects(options, DUST3D_STATUS_INVALID_DOCUMENT);
     options = dust3d_rig_template_default_options();
+    options.maximum_bones = 1;
+    auto two = std::vector<Dust3DRigTemplateBoneInput> { bone, bone };
+    require(!dust3d_rig_template_mesh_create(two.data(), two.size(), &options, &error) && error.status == DUST3D_STATUS_LIMIT_EXCEEDED, "Count rejects before copying names");
     options.maximum_bones = 0;
     rejects(options, DUST3D_STATUS_INVALID_DOCUMENT);
     options.maximum_bones = 257;
@@ -167,9 +242,11 @@ void nullAccessorsAndCancellation()
     dust3d_cancellation_token_destroy(token);
 }
 }
-int main()
+int main(int argc, char** argv)
 {
     try {
+        require(argc == 2, "Pass licensed resources directory");
+        licensedTemplateCorpus(argv[1]);
         ownershipAndRendering();
         boundedBoundaryFailures();
         exactUtf8AndInvalidInputs();
