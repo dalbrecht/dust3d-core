@@ -1316,3 +1316,12 @@ generator. See [ADR0204](docs/adr/0204-rig-template-visualization-mesh.md).
 
 This is not a public C ABI or Apple preview adoption. The Apple production pin and
 all quarantines remain unchanged. Full rig/skin/IK/pose and Qt/HIG acceptance remain open.
+
+The template-only C interface uses `dust3d_rig_template_default_options()` and
+`dust3d_rig_template_mesh_create(bones, count, &options, &error)`. A successful
+owner exposes triangle draw records and copied source-order bone names; destroy
+it with `dust3d_rig_template_mesh_destroy`. Borrowed accessor views end at destroy.
+`maximum_vertices` counts expanded draw vertices; retained logical bytes charge
+records and NUL-terminated names, excluding temporary/container overhead. Empty
+input is a successful empty owner, while failures return NULL with a typed cause.
+This API does not generate an actual rig or change the Apple production pin.

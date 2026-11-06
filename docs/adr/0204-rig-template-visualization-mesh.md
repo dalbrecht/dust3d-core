@@ -1,6 +1,6 @@
 # ADR 0204: Portable owned template visualization geometry
 
-Status: Private extraction locally validated, core #319 / Apple M5 #144. Public ABI/adoption remain pending.
+Status: Private extraction and C boundary locally validated, core #319 / Apple M5 #144. Apple adoption remains pending.
 
 Qt BoneManageWidget's template pane calls RigSkeletonMeshGenerator with radius
 0.02 and normalization. Its skin pane uses the same geometry with actual generated
@@ -54,3 +54,29 @@ weights, IK, pose and physical keyboard/VoiceOver remain separate requirements.
 Production Apple pin48b0ce2d and all quarantines remain unchanged. The existing core
 CI runs unfiltered CTest; publication must respect the current runtime restrictions,
 not move a rejected local gate to another execution surface.
+
+### Owned C boundary
+
+The follow-up public API accepts borrowed source-ordered float bone records and
+version1 options, then returns an opaque independent owner. Consecutive draw
+records form triangles with flat normals, exact source bone indices and roles.
+Names are copied as exact non-NUL UTF-8; canonical Unicode spellings remain distinct.
+The owner retains no caller input. Accessors borrow immutable views until destroy;
+NULL owners and out-of-range name requests return empty results.
+
+Options require exact version/size, reserved zero and explicit positive quotas.
+The draw cap applies to expanded triangle vertices. Logical retained output charges
+32 bytes per draw record plus each name's bytes and terminating NUL; container and
+temporary workspace are excluded. Internal indexed geometry uses the same caps,
+then expanded output is checked before publication. Ordinary allocation exceptions
+map to a typed limit error; original diagnostics are preserved. No fault injection
+is used. Engine calls serialize, with cooperative cancellation checks around math
+and copying. Cancellation is not interruptible inside a single helper call.
+
+A pure-C consumer checks actual linkage, ownership and record offsets. Public C++
+contracts check independent results, copied names, exact/short quotas, normals and
+roles, scalar validation, null accessors and pre-cancelled tokens. Both focused
+CTest contracts pass; fresh ASan/UBSan and actual CMake engine compilation pass.
+These are template-only tests with EngineSupport/Cancellation and the existing
+math dependencies. They do not invoke generated rigs, poses, writers or GLB.
+Swift copies and native rendering remain future work; the production pin is unchanged.

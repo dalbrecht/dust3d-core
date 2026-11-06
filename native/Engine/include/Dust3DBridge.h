@@ -1028,6 +1028,76 @@ int dust3d_animation_catalog_control_value(const Dust3DAnimationCatalog* catalog
  */
 int dust3d_animation_catalog_control_slider(const Dust3DAnimationCatalog* catalog, size_t clip_index, size_t control_index, double parameter_value, int* output, Dust3DError* error);
 
+/** Independent immutable template-only visualization owner. No document/rig/pose
+ * generator is invoked. Release with dust3d_rig_template_mesh_destroy. */
+typedef struct Dust3DRigTemplateMesh Dust3DRigTemplateMesh;
+/** Borrowed input for one source-ordered template bone. Names are exact non-NUL
+ * UTF8 (1...1024 bytes); positions/radius must be finite and within1M. Borrow all
+ * input spans and cancellation token for the complete create call only. */
+typedef struct Dust3DRigTemplateBoneInput {
+    const char* name;
+    size_t name_length;
+    float from_position[3];
+    float to_position[3];
+    float capsule_radius;
+} Dust3DRigTemplateBoneInput;
+typedef enum Dust3DRigTemplateVertexRole {
+    DUST3D_RIG_TEMPLATE_BONE = 0,
+    DUST3D_RIG_TEMPLATE_SELECTED_BONE = 1,
+    DUST3D_RIG_TEMPLATE_RING = 2
+} Dust3DRigTemplateVertexRole;
+/** Consecutive triples form triangles, with reference flat normals. role stores
+ * Dust3DRigTemplateVertexRole; bone_index addresses the owner's exact names. */
+typedef struct Dust3DRigTemplateDrawVertex {
+    float position[3];
+    float normal[3];
+    uint32_t bone_index;
+    uint32_t role;
+} Dust3DRigTemplateDrawVertex;
+/** Version1 requires exact struct_size and normalize0/1. maximum_vertices bounds
+ * expanded draw vertices, maximum_triangles bounds source triangles. Logical
+ * retained bytes charge draw records plus owned name bytes including their NUL;
+ * exclude container/allocator overhead and temporary generation workspace. */
+typedef struct Dust3DRigTemplateOptions {
+    uint32_t version;
+    uint32_t struct_size;
+    double start_radius;
+    uint32_t normalize;
+    uint32_t reserved;
+    size_t maximum_bones;
+    size_t maximum_vertices;
+    size_t maximum_triangles;
+    size_t maximum_output_bytes;
+    const char* selected_bone_name;
+    size_t selected_bone_name_length;
+    const Dust3DCancellationToken* cancellation;
+} Dust3DRigTemplateOptions;
+/** Returns initialized version1 options: radius.02, normalize1,256bones,
+ * 500000draw vertices,200000triangles,32MiB logical retained output. */
+Dust3DRigTemplateOptions dust3d_rig_template_default_options(void);
+/** Copy borrowed template records and build an independent owner. NULL options
+ * uses defaults; NULL bones requires count0. Counts/names/finite values/quotas
+ * validate before publication; empty input succeeds with an empty owner. Calls
+ * serialize and observe cooperative cancellation before/after generation and
+ * during draw copying. Invalid input/limit/cancellation/original generation
+ * causes remain typed. Returns NULL on failure, clears optional error on success;
+ * no C++ exception or STL ownership crosses this boundary.
+ * Example: owner=dust3d_rig_template_mesh_create(bones,count,NULL,&error). */
+Dust3DRigTemplateMesh* dust3d_rig_template_mesh_create(const Dust3DRigTemplateBoneInput* bones, size_t count, const Dust3DRigTemplateOptions* options, Dust3DError* error);
+/** NULL-safe destruction. No view remains valid after this call. */
+void dust3d_rig_template_mesh_destroy(Dust3DRigTemplateMesh* mesh);
+/** Expanded draw count; zero for NULL. */
+size_t dust3d_rig_template_mesh_vertex_count(const Dust3DRigTemplateMesh* mesh);
+/** Borrow immutable draw records until destroy; NULL for NULL/empty owner. */
+const Dust3DRigTemplateDrawVertex* dust3d_rig_template_mesh_vertices(const Dust3DRigTemplateMesh* mesh);
+/** Exact source-order name count; zero for NULL. */
+size_t dust3d_rig_template_mesh_bone_count(const Dust3DRigTemplateMesh* mesh);
+/** Borrow exact owned name until destroy. Optional byte_count excludes NUL and
+ * clears on NULL/out-of-range; NULL returned for invalid owner/index. */
+const char* dust3d_rig_template_mesh_bone_name(const Dust3DRigTemplateMesh* mesh, size_t index, size_t* byte_count);
+/** Logical retained output charge described by options; zero for NULL. */
+size_t dust3d_rig_template_mesh_output_bytes(const Dust3DRigTemplateMesh* mesh);
+
 #ifdef __cplusplus
 }
 #endif

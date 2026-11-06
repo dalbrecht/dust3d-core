@@ -54,6 +54,7 @@ add_library(dust3d_engine STATIC
     native/Engine/FbxAnimationMath.cc
     native/Engine/RigTransformValidation.cc
     native/Engine/RigTemplateMesh.cc
+    native/Engine/RigTemplateBridge.cc
     native/Engine/SourceBakedMesh.cc
     native/Engine/ImportedSurface.cc
     native/Engine/ImportedAssets.cc
@@ -299,6 +300,21 @@ if(BUILD_TESTING)
     add_test(NAME rig_template_mesh_contracts COMMAND dust3d_rig_template_mesh_tests
         "${CMAKE_CURRENT_SOURCE_DIR}/application/resources")
     set_tests_properties(rig_template_mesh_contracts PROPERTIES TIMEOUT 30)
+
+    # C boundary contracts retain the same template-only runtime closure.
+    add_library(dust3d_rig_template_test_bridge STATIC
+        native/Engine/RigTemplateBridge.cc native/Engine/RigTemplateMesh.cc
+        native/Engine/EngineSupport.cc native/Engine/Cancellation.cc
+        dust3d/mesh/rope_mesh.cc dust3d/mesh/base_normal.cc dust3d/base/vector3.cc)
+    target_include_directories(dust3d_rig_template_test_bridge PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR} native/Engine native/Engine/include)
+    add_executable(dust3d_rig_template_bridge_tests tests/core/rig_template_bridge_tests.cc)
+    target_link_libraries(dust3d_rig_template_bridge_tests PRIVATE dust3d_rig_template_test_bridge)
+    add_test(NAME rig_template_bridge_contracts COMMAND dust3d_rig_template_bridge_tests)
+    add_executable(dust3d_rig_template_c_tests tests/core/rig_template_c_tests.c)
+    target_link_libraries(dust3d_rig_template_c_tests PRIVATE dust3d_rig_template_test_bridge)
+    add_test(NAME rig_template_c_contracts COMMAND dust3d_rig_template_c_tests)
+    set_tests_properties(rig_template_bridge_contracts rig_template_c_contracts PROPERTIES TIMEOUT 30)
 
     add_executable(dust3d_original_export_preparation_tests tests/core/original_export_preparation_tests.cc)
     target_include_directories(dust3d_original_export_preparation_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} native/Engine)
