@@ -55,6 +55,7 @@ add_library(dust3d_engine STATIC
     native/Engine/RigTransformValidation.cc
     native/Engine/RigTemplateMesh.cc
     native/Engine/RigTemplateBridge.cc
+    native/Engine/GeneratedRigBridge.cc
     native/Engine/FinalRigGeneration.cc
     native/Engine/GeneratedRigInput.cc
     native/Engine/RigFinalData.cc
@@ -293,6 +294,15 @@ if(BUILD_TESTING)
 
 
 
+
+    # New procedural Capsule consumers only; no mixed export/pose/import suites.
+    add_executable(dust3d_generated_rig_bridge_tests tests/core/generated_rig_bridge_tests.cc)
+    add_executable(dust3d_generated_rig_c_tests tests/core/generated_rig_c_tests.c)
+    target_link_libraries(dust3d_generated_rig_bridge_tests PRIVATE dust3d_engine)
+    target_link_libraries(dust3d_generated_rig_c_tests PRIVATE dust3d_engine)
+    add_test(NAME generated_rig_bridge_contracts COMMAND dust3d_generated_rig_bridge_tests "${CMAKE_CURRENT_SOURCE_DIR}/tests/core/fixtures/Capsule.ds3")
+    add_test(NAME generated_rig_c_contracts COMMAND dust3d_generated_rig_c_tests "${CMAKE_CURRENT_SOURCE_DIR}/tests/core/fixtures/Capsule.ds3")
+    set_tests_properties(generated_rig_bridge_contracts generated_rig_c_contracts PROPERTIES TIMEOUT 30)
 
     # One known-positive procedural Capsule load only; no exporter/pose/import runtime.
     add_executable(dust3d_rig_input_generation_tests tests/core/rig_input_generation_tests.cc)

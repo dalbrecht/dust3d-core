@@ -1098,6 +1098,82 @@ const char* dust3d_rig_template_mesh_bone_name(const Dust3DRigTemplateMesh* mesh
 /** Logical retained output charge described by options; zero for NULL. */
 size_t dust3d_rig_template_mesh_output_bytes(const Dust3DRigTemplateMesh* mesh);
 
+/** Owned procedural generated rig. All views below are borrowed until destroy. */
+typedef struct Dust3DGeneratedRig Dust3DGeneratedRig;
+/** Exact UTF8 spans,1..1024-byte name; empty parent means root. Positions are
+ * derived from document assignments, radius recomputed; closing_angle is retained. */
+typedef struct Dust3DGeneratedRigBoneInput {
+    const char* name;
+    size_t name_length;
+    const char* parent;
+    size_t parent_length;
+    float closing_angle;
+} Dust3DGeneratedRigBoneInput;
+/** Source order, UINT32_MAX root parent. Column-major double matrices act on
+ * column vectors; heads/tails share the grounded mesh frame. reserved is zero. */
+typedef struct Dust3DGeneratedRigJoint {
+    uint32_t parent_index;
+    float head_position[3];
+    float tail_position[3];
+    float capsule_radius;
+    float closing_angle;
+    uint32_t reserved;
+    double rest_world[16];
+    double inverse_bind[16];
+} Dust3DGeneratedRigJoint;
+/** One record per admitted mesh draw corner, same order as mesh vertices.
+ * All four slots preserved; unused joint UINT32_MAX has weight0. */
+typedef struct Dust3DGeneratedRigWeights {
+    uint32_t joints[4];
+    float weights[4];
+} Dust3DGeneratedRigWeights;
+/** Exact version1 size, boolean0/1 and reserved0. Limits must be nonzero.
+ * Output quota (<=256MiB) also admits conservative pre-filter draw/map staging;
+ * Retained input has its own limit. The private final Object/data stage reuses
+ * maximum_output_bytes as a separate temporary quota (not summed with C output).
+ * These are not total RSS/time bounds.
+ * Other rig stages/allocations/sort do not guarantee fixed cancellation latency. */
+typedef struct Dust3DGeneratedRigOptions {
+    uint32_t version;
+    uint32_t struct_size;
+    uint32_t head_has_eyelids;
+    uint32_t reserved;
+    size_t maximum_bones;
+    size_t maximum_original_vertices;
+    size_t maximum_draw_vertices;
+    size_t maximum_output_bytes;
+    size_t maximum_retained_input_bytes;
+    const Dust3DCancellationToken* cancellation;
+} Dust3DGeneratedRigOptions;
+/** Version1:256bones,1M original vertices,15M draw corners,64MiB output/input. */
+Dust3DGeneratedRigOptions dust3d_generated_rig_default_options(void);
+/** Load procedural archive and derive an independent grounded rig/mesh owner.
+ * Borrow archive/type/template/options/token for this call; type is1..1024 UTF8
+ * bytes. Templates require unique names/resolved acyclic parents,1..256 bones.
+ * Imported model assets reject explicitly (no GLB decode); no UV/export/pose or
+ * animation result is promised. Returns NULL with typed cause on failure; clears
+ * optional error on success. Exceptions/STL ownership never cross this boundary.
+ * Example: rig=dust3d_generated_rig_load(bytes,size,"Biped",5,bones,n,NULL,&error). */
+Dust3DGeneratedRig* dust3d_generated_rig_load(const uint8_t* bytes, size_t size, const char* rig_type, size_t rig_type_length,
+    const Dust3DGeneratedRigBoneInput* bones, size_t count, const Dust3DGeneratedRigOptions* options, Dust3DError* error);
+/** NULL-safe. Invalidates every borrowed view; do not separately destroy mesh. */
+void dust3d_generated_rig_destroy(Dust3DGeneratedRig* rig);
+/** Borrow grounded mesh, NULL for NULL owner. Do not pass it to mesh_destroy. */
+const Dust3DMesh* dust3d_generated_rig_mesh(const Dust3DGeneratedRig* rig);
+/** Source-order joint count;0 for NULL. */
+size_t dust3d_generated_rig_joint_count(const Dust3DGeneratedRig* rig);
+/** Borrow joint array;NULL for NULL/empty. */
+const Dust3DGeneratedRigJoint* dust3d_generated_rig_joints(const Dust3DGeneratedRig* rig);
+/** Borrow exact owned name; byte_count excludes NUL, clears on invalid index/owner. */
+const char* dust3d_generated_rig_joint_name(const Dust3DGeneratedRig* rig, size_t index, size_t* byte_count);
+/** Borrow weights, count equals borrowed mesh vertex count;NULL for NULL/empty. */
+const Dust3DGeneratedRigWeights* dust3d_generated_rig_weights(const Dust3DGeneratedRig* rig);
+/**1 only when optional detection generated eyelids;0 for absent/unrequested/NULL. */
+uint32_t dust3d_generated_rig_eyelids_generated(const Dust3DGeneratedRig* rig);
+/** Logical retained mesh vertex capacity, weight/joint records, NUL names/warning.
+ * Excludes container/allocator overhead and temporary maps/generation work.0 for NULL. */
+size_t dust3d_generated_rig_output_bytes(const Dust3DGeneratedRig* rig);
+
 #ifdef __cplusplus
 }
 #endif

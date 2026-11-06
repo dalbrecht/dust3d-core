@@ -1335,3 +1335,20 @@ sentinels, logical quotas and cooperative cancellation. It does not generate a
 rig, evaluate a pose or expose a public C ABI. See ADR0205. The standalone
 `rig_final_data_contracts` target links no generator, cache materializer or writer.
 Production dependency pins and runtime quarantines remain unchanged.
+
+## Owned procedural generated rigs (development C ABI)
+
+`dust3d_generated_rig_load` copies bounded template name/parent spans and derives
+actual joints/bindings/grounding from a procedural `.ds3` document. Use version1
+`Dust3DGeneratedRigOptions` or defaults; provide the exact rig type and template
+hierarchy. The owner exposes a borrowed grounded `Dust3DMesh`, source-ordered
+joints with rest-world/inverse-bind matrices, exact owned names and four-slot
+weights matching every admitted draw corner. Copy every view before destroying
+the rig; never independently destroy its borrowed mesh.
+
+Typed invalid/limit/cancel errors retain original causes. Imported model assets
+reject explicitly; this does not provide UV/material export, pose deformation or
+animation. Quotas bound logical retained/staging records and separate temporary
+input/final data stages, not process RSS or fixed cancellation latency. See
+[ADR0212](docs/adr/0212-generated-rig-c-abi.md) for the precise contract and validation.
+Apple production pin, active app routes and quarantines remain unchanged.

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Expose a versioned owned procedural generated-rig C boundary with grounded mesh, source-order joints/rest matrices and four-slot weights aligned to admitted draw corners; add C/C++ and strict Swift ownership consumers (#330).
+
 - Add a private retained-rig generation purpose that preserves processed Snapshot/Object inputs without allocating a discarded preview buffer (#329).
 
 - Preflight finite bounded positions and valid original triangle indices before rig binding/eyelid processing, with typed geometry and cancellation errors (#328).
