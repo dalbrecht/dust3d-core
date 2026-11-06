@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add a private retained-rig generation purpose that preserves processed Snapshot/Object inputs without allocating a discarded preview buffer (#329).
+
 - Preflight finite bounded positions and valid original triangle indices before rig binding/eyelid processing, with typed geometry and cancellation errors (#328).
 
 - Include source-ordered validated rest-world/inverse-bind matrices for finalized grounded rigs and generated eyelids, within the aggregate output quota (#325).

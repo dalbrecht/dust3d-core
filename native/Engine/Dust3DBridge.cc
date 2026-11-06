@@ -29,8 +29,14 @@ namespace native {
     namespace {
         void validateGenerationOutputs(const GenerationOutputs& outputs)
         {
-            if (outputs.purpose != GenerationPurpose::preview && outputs.purpose != GenerationPurpose::originalExport)
+            if (outputs.purpose != GenerationPurpose::preview && outputs.purpose != GenerationPurpose::originalExport && outputs.purpose != GenerationPurpose::rigInputOnly)
                 throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Unknown generation output purpose.");
+            if (outputs.purpose == GenerationPurpose::rigInputOnly
+                && (!outputs.rigInput || outputs.previewVertexIndices || outputs.sources || outputs.uvs || outputs.baked
+                    || outputs.surfaces || outputs.sourceBaked || outputs.fbxGeometry || outputs.objDocument || outputs.images || outputs.useFbxAtlasUvs))
+                throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Rig-input-only generation requires its owner and no other output hooks.");
+            if (outputs.rigInput && outputs.maximumRigInputBytes > 256 * 1024 * 1024)
+                throw DocumentError(DUST3D_STATUS_LIMIT_EXCEEDED, "Generated rig input quota exceeds 256 MiB.");
             if (outputs.purpose == GenerationPurpose::originalExport) {
                 if ((!outputs.fbxGeometry && !outputs.objDocument) || outputs.sources || outputs.surfaces || outputs.sourceBaked || outputs.previewVertexIndices || outputs.rigInput)
                     throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Original exports require an export owner and cannot return render source descriptors.");
@@ -240,8 +246,11 @@ namespace native {
             rigInput = retainGeneratedRigInput(std::move(generated), std::move(object), outputs.maximumRigInputBytes);
         auto preparationOutputs = outputs;
         preparationOutputs.rigInput = nullptr;
-        prepareGeneratedObject(rigInput ? rigInput->object() : *object,
-            rigInput ? &rigInput->snapshot() : generated.get(), *mesh, preparationOutputs);
+        if (outputs.purpose != GenerationPurpose::rigInputOnly)
+            prepareGeneratedObject(rigInput ? rigInput->object() : *object,
+                rigInput ? &rigInput->snapshot() : generated.get(), *mesh, preparationOutputs);
+        else
+            checkOutputCancellation(outputs);
         if (outputs.rigInput)
             *outputs.rigInput = std::move(rigInput);
         return mesh;

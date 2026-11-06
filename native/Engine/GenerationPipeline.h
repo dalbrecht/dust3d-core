@@ -17,7 +17,8 @@ namespace native {
     class FbxGeometrySelection;
     class OwnedObjDocument;
     enum class GenerationPurpose { preview,
-        originalExport };
+        originalExport,
+        rigInputOnly };
     /// Named borrowed output hooks. All pointees outlive this synchronous generation call.
     struct GenerationOutputs {
         /// Optional original Object vertex index for each admitted preview draw corner.
@@ -55,6 +56,9 @@ namespace native {
         size_t maximumObjPayloadBytes = 0;
         /// Original export skips float conversion and render descriptors. Requires an export
         /// owner and rejects source/surface/source-bake outputs. UVs/bake prepare export maps only.
+        /// rigInputOnly requires rigInput, forbids other output hooks/images and skips
+        /// render/UV/export preparation. Returned Dust3DMesh contains source metadata only;
+        /// original geometry remains in the retained input, with no float filtering.
         GenerationPurpose purpose = GenerationPurpose::preview;
     };
     Color sourceCornerColor(const Object& object, size_t triangleIndex, size_t corner);

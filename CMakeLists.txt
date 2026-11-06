@@ -294,6 +294,13 @@ if(BUILD_TESTING)
 
 
 
+    # One known-positive procedural Capsule load only; no exporter/pose/import runtime.
+    add_executable(dust3d_rig_input_generation_tests tests/core/rig_input_generation_tests.cc)
+    target_include_directories(dust3d_rig_input_generation_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} native/Engine)
+    target_link_libraries(dust3d_rig_input_generation_tests PRIVATE dust3d_engine)
+    add_test(NAME rig_input_generation_contracts COMMAND dust3d_rig_input_generation_tests "${CMAKE_CURRENT_SOURCE_DIR}/tests/core/fixtures/Capsule.ds3")
+    set_tests_properties(rig_input_generation_contracts PROPERTIES TIMEOUT 30)
+
     # Geometry validation only; malformed fields never reach inherited rig methods.
     add_executable(dust3d_rig_geometry_preflight_tests tests/core/rig_geometry_preflight_tests.cc
         native/Engine/RigFinalData.cc dust3d/base/position_key.cc dust3d/base/vector3.cc)
