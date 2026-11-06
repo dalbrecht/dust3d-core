@@ -49,14 +49,17 @@ namespace native {
         RigStructure actual;
         bool eyelidsGenerated = false;
         RigGenerator generator;
+        generator.setBindingCancellationFlag(options.cancellation);
         {
             std::lock_guard<std::mutex> lock(engineMutex());
             cancellation(options);
             if (!generator.generateRig(&input.snapshot(), templateRig, actual))
                 throw DocumentError(DUST3D_STATUS_GENERATION_FAILED, generator.getErrorMessage());
             cancellation(options);
-            if (!generator.applyRigBindings(object.get(), &input.snapshot(), &actual))
+            if (!generator.applyRigBindings(object.get(), &input.snapshot(), &actual)) {
+                cancellation(options);
                 throw DocumentError(DUST3D_STATUS_GENERATION_FAILED, generator.getErrorMessage());
+            }
             cancellation(options);
             if (actual.headHasEyelids)
                 eyelidsGenerated = generator.generateEyelidBones(object.get(), &input.snapshot(), actual);

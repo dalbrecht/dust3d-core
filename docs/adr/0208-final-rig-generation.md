@@ -55,3 +55,9 @@ No pose, animation, rest transform, writer or Qt runtime is executed by the test
 
 Follow-up ADR0209 adds final rest-world/inverse-bind output and scoped numerical
 validation; its runtime and quota scope supersedes the earlier rest-matrix omission.
+
+Follow-up core327 supplies the operation's borrowed atomic flag to vertex binding
+and translates a cancelled binding-false into the original typed cancellation.
+Other rig stages, allocation and sorting retain between-stage checks only; no
+fixed latency or timed/concurrent cancellation proof is claimed. The private
+Object copy is discarded on every failure, including mid-binding cancellation.

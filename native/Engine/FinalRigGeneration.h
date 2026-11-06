@@ -27,7 +27,8 @@ namespace native {
     /// Optional eyelid absence leaves the valid base rig and reports eyelidsGenerated=false.
     /// Options limit final Object capacities plus data/rest logical bytes (max256MiB), excluding
     /// input, snapshot borrowing, generation/copy workspace and allocator overhead.
-    /// Cooperative cancellation is checked between inherited stages, not inside their loops.
+    /// Cooperative cancellation is checked between stages and inside vertex binding.
+    /// Other inherited stages/allocations/sorting retain no fixed cancellation latency.
     /// Throws DocumentError for generation/quota/configuration, RigFinalDataError for copied
     /// value validation/cancellation; parser/allocation exceptions propagate for future C handling.
     /// Rest-world/inverse-bind matrices use final grounded/post-eyelid bones and validated rigid frames.

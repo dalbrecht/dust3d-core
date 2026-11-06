@@ -94,7 +94,9 @@ int main()
         require(input->object().vertices[0].y() == 1 && templ.bones[0].posY == 99, "Input mutated");
         require(result.object->triangleVertexUvs()->at(0).at(2).x() == 1 && result.object->triangles == input->object().triangles, "UV/topology lost");
         checkRest(result);
+        std::atomic_bool running { false };
         RigFinalDataOptions exactQuota;
+        exactQuota.cancellation = &running;
         exactQuota.maximumPayloadBytes = result.payloadBytes;
         require(generateFinalRig(*input, templ, exactQuota).payloadBytes == result.payloadBytes, "Exact aggregate rest quota rejected");
         --exactQuota.maximumPayloadBytes;
