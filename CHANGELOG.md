@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add a private owned final-joint/four-influence data validator with exact names, parent resolution, normalized bound weights, explicit unbound vertices, bounded retained output and cooperative cancellation; generation/C ABI/Apple adoption remain separate (#320).
+
 - Extract private portable rig-template visualization geometry with complete tapered solids/rings, normalization, exact selected-bone roles and bounded owned output; add an owned versioned C boundary with source indices, flat draw normals, exact UTF-8 names, quotas and cooperative cancellation; Apple preview adoption remains separate (#319).
 
 - Preflight interpolation node/edge identities before mutation, preserving original records and collision-free deterministic chains for shared-prefix UUIDs (#315).

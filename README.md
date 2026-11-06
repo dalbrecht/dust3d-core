@@ -1325,3 +1325,13 @@ it with `dust3d_rig_template_mesh_destroy`. Borrowed accessor views end at destr
 records and NUL-terminated names, excluding temporary/container overhead. Empty
 input is a successful empty owner, while failures return NULL with a typed cause.
 This API does not generate an actual rig or change the Apple production pin.
+
+## Final rig data ownership boundary (#320)
+
+Private `native/Engine/RigFinalData` copies already finalized joint/vertex-weight
+values into independent storage. It validates exact source names, parent forests,
+finite values, all four influence channels, normalized bound weights, unbound
+sentinels, logical quotas and cooperative cancellation. It does not generate a
+rig, evaluate a pose or expose a public C ABI. See ADR0205. The standalone
+`rig_final_data_contracts` target links no generator, cache materializer or writer.
+Production dependency pins and runtime quarantines remain unchanged.

@@ -55,6 +55,7 @@ add_library(dust3d_engine STATIC
     native/Engine/RigTransformValidation.cc
     native/Engine/RigTemplateMesh.cc
     native/Engine/RigTemplateBridge.cc
+    native/Engine/RigFinalData.cc
     native/Engine/SourceBakedMesh.cc
     native/Engine/ImportedSurface.cc
     native/Engine/ImportedAssets.cc
@@ -290,6 +291,14 @@ if(BUILD_TESTING)
 
 
 
+
+    # Data-copy-only contracts: no generator, Object cache materialization or pose runtime.
+    add_executable(dust3d_rig_final_data_tests
+        tests/core/rig_final_data_tests.cc native/Engine/RigFinalData.cc)
+    target_include_directories(dust3d_rig_final_data_tests PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR} native/Engine)
+    add_test(NAME rig_final_data_contracts COMMAND dust3d_rig_final_data_tests)
+    set_tests_properties(rig_final_data_contracts PROPERTIES TIMEOUT 30)
 
     # Pure template visualization math: no document/rig/pose generator or writer dependency.
     add_executable(dust3d_rig_template_mesh_tests
