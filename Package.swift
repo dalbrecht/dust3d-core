@@ -163,7 +163,7 @@ let package = Package(
             dependencies: ["Dust3DCore"],
             path: "native/Engine",
             sources: [
-                "EngineSupport.cc", "AnimationCatalogBridge.cc",
+                "EngineSupport.cc", "AnimationCatalogBridge.cc", "AudioWavBridge.cc",
                 "ComponentPreviewBridge.cc", "ComponentPreviewOutput.cc",
                 "ObjDocument.cc", "ObjGeometryPlan.cc",
                 "FbxMaterialImagePlan.cc",
