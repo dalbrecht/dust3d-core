@@ -27,6 +27,11 @@ namespace native {
         double durationSeconds() const { return m_durationSeconds; }
         bool loops() const { return m_loops; }
         size_t jointCount() const { return m_jointCount; }
+        size_t logicalPayloadBytes() const
+        {
+            return m_name.size() + m_animationType.size() + m_sampleTimes.size() * sizeof(double)
+                + m_modelFromJoint.size() * sizeof(RigMatrix);
+        }
         const std::vector<double>& sampleTimes() const { return m_sampleTimes; }
         /// Frame-major matrices in rig.bones order, in the producer's model space.
         const std::vector<RigMatrix>& modelFromJoint() const { return m_modelFromJoint; }

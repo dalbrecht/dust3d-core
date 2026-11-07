@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 #include "GroundedFishIdlePreview.h"
-#include "EngineInternal.h"
+#include "Cancellation.h"
 #include "RigTransformValidation.h"
 #include <optional>
 
@@ -25,5 +25,27 @@ namespace dust3d::native {
         if (!clip || clip->jointCount() != rest.data.joints.size())
             throw DocumentError(DUST3D_STATUS_GENERATION_FAILED, "FishIdle preview lost its grounded joint order.");
         return { std::move(rest), std::move(*clip) };
+    }
+
+    GroundedFishIdleDrawPreview generateGroundedFishIdleDrawPreview(const GeneratedRigInput& input,
+        std::unique_ptr<Dust3DMesh> metadata, const RigStructure& templateRig,
+        const AnimationParams& parameters, const RigFinalDataOptions& options,
+        size_t maximumDrawVertices, const Dust3DCancellationToken* token)
+    {
+        auto sharedOptions = options;
+        sharedOptions.cancellation = token ? &token->cancelled : nullptr;
+        if (!metadata || !metadata->vertices.empty() || !maximumDrawVertices || maximumDrawVertices > 15000000
+            || (options.cancellation && options.cancellation != sharedOptions.cancellation))
+            throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Invalid grounded FishIdle draw inputs.");
+        checkCancellation(token);
+        auto preview = generateGroundedFishIdlePreview(input, templateRig, parameters, sharedOptions);
+        const auto limit = sharedOptions.maximumPayloadBytes;
+        const auto poseBytes = preview.clip.logicalPayloadBytes();
+        if (preview.rest.payloadBytes > limit || poseBytes > limit - preview.rest.payloadBytes)
+            throw DocumentError(DUST3D_STATUS_LIMIT_EXCEEDED, "Grounded FishIdle preview exceeds its aggregate quota.");
+        auto rest = makeGeneratedRigDrawOwner(preview.rest, std::move(metadata), maximumDrawVertices,
+            limit - preview.rest.payloadBytes - poseBytes, token);
+        checkCancellation(token);
+        return { std::move(rest), std::move(preview.clip) };
     }
 }
