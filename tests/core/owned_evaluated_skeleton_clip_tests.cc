@@ -67,6 +67,11 @@ int main()
     invalid.frames.back().time = 0.75f;
     rejects(DUST3D_STATUS_GENERATION_FAILED, [&] { OwnedEvaluatedSkeletonClip::copy(invalid, rig); });
     invalid = fixture();
+    invalid.frames.back().boneWorldTransforms.at("a-child").data()[12] = 4.0;
+    rejects(DUST3D_STATUS_GENERATION_FAILED, [&] { OwnedEvaluatedSkeletonClip::copy(invalid, rig); });
+    invalid.loop = false;
+    require(OwnedEvaluatedSkeletonClip::copy(invalid, rig).modelFromJoint().back()[12] == 4.0);
+    invalid = fixture();
     invalid.frames[1].boneWorldTransforms.erase("a-child");
     invalid.frames[1].boneWorldTransforms.emplace("other", Matrix4x4 {});
     rejects(DUST3D_STATUS_GENERATION_FAILED, [&] { OwnedEvaluatedSkeletonClip::copy(invalid, rig); });

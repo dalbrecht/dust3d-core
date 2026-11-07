@@ -76,6 +76,9 @@ namespace native {
             result.m_sampleTimes.push_back(frame.time);
             previous = frame.time;
         }
+        const auto& matrices = result.m_modelFromJoint;
+        if (clip.loop && !std::equal(matrices.begin(), matrices.begin() + jointCount, matrices.end() - jointCount))
+            throw DocumentError(DUST3D_STATUS_GENERATION_FAILED, "Evaluated skeleton loop must close at its first pose.");
         checkCancellation();
         return result;
     }
