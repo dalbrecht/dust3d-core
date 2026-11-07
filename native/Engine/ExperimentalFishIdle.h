@@ -65,6 +65,39 @@ int dust3d_experimental_fish_idle_describe(const Dust3DExperimentalFishIdle*, Du
 int dust3d_experimental_fish_idle_matrix_at(const Dust3DExperimentalFishIdle*, size_t frame, size_t joint,
     Dust3DExperimentalFishIdleMatrix*);
 
+/* V2 opt-in PCM request. The surface must be an exact reference catalog name.
+   The default options require the caller to supply a surface span. */
+typedef struct Dust3DExperimentalFishIdlePCMOptions {
+    uint32_t version;
+    uint32_t struct_size;
+    Dust3DGeneratedRigOptions rig;
+    const char* surface;
+    size_t surface_length;
+} Dust3DExperimentalFishIdlePCMOptions;
+
+typedef struct Dust3DExperimentalFishIdlePCMInfo {
+    Dust3DExperimentalFishIdleInfo visual;
+    uint32_t sample_rate;
+    uint32_t channel_count;
+    size_t sample_count;
+    /* Combined retained visual and PCM bytes. All audio fields are zero for
+       an owner with no samples. The nested visual receipt excludes PCM. */
+    size_t output_bytes;
+} Dust3DExperimentalFishIdlePCMInfo;
+
+Dust3DExperimentalFishIdlePCMOptions dust3d_experimental_fish_idle_default_pcm_options(void);
+/* Same borrowed input and owned result rules as the visual load. A shared
+   maximum_output_bytes also bounds the PCM and temporary reference mix. */
+Dust3DExperimentalFishIdle* dust3d_experimental_fish_idle_load_pcm(const uint8_t* archive, size_t archive_size,
+    const Dust3DGeneratedRigBoneInput* bones, size_t bone_count,
+    const Dust3DExperimentalFishIdleParameter* parameters, size_t parameter_count,
+    const Dust3DExperimentalFishIdlePCMOptions*, Dust3DError*);
+/* As for the visual describe, every borrowed field expires with the owner. */
+int dust3d_experimental_fish_idle_describe_pcm(const Dust3DExperimentalFishIdle*, Dust3DExperimentalFishIdlePCMInfo*);
+/* Copies one signed mono PCM sample. Invalid owner/index/destination returns
+   0 and leaves any destination unchanged. */
+int dust3d_experimental_fish_idle_pcm_at(const Dust3DExperimentalFishIdle*, size_t sample, int16_t*);
+
 #ifdef __cplusplus
 }
 #endif
