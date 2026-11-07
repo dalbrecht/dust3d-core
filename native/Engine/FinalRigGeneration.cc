@@ -32,6 +32,12 @@ namespace native {
     }
     FinalRigGeneration generateFinalRig(const GeneratedRigInput& input, const RigStructure& templateRig, const RigFinalDataOptions& options)
     {
+        return generateFinalRigWithGroundedHandoff(input, templateRig, options, {});
+    }
+
+    FinalRigGeneration generateFinalRigWithGroundedHandoff(const GeneratedRigInput& input, const RigStructure& templateRig,
+        const RigFinalDataOptions& options, const GroundedRigHandoff& handoff)
+    {
         cancellation(options);
         if (!options.maximumPayloadBytes || options.maximumPayloadBytes > 256 * 1024 * 1024)
             throw DocumentError(DUST3D_STATUS_LIMIT_EXCEEDED, "Final rig output quota must be in 1..256 MiB.");
@@ -71,6 +77,7 @@ namespace native {
         auto copyOptions = options;
         copyOptions.maximumPayloadBytes -= retained.usedBytes();
         auto data = copyFinalRigData(actual, *object, copyOptions);
+        const auto bytes = retained.usedBytes() + data.logicalBytes;
         std::vector<RigRestTransforms> rest(data.joints.size());
         {
             std::lock_guard<std::mutex> lock(engineMutex());
@@ -102,8 +109,11 @@ namespace native {
                 validateRigTransform(rest[index].inverseBind, RigTransformUse::generatedWorld);
                 validateRestPair(rest[index]);
             }
+            if (handoff) {
+                cancellation(options);
+                handoff(actual, inverse, options.maximumPayloadBytes - bytes);
+            }
         }
-        const auto bytes = retained.usedBytes() + data.logicalBytes;
         cancellation(options);
         return { std::move(object), std::move(data), std::move(rest), eyelidsGenerated, bytes };
     }

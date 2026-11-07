@@ -4,7 +4,10 @@
 #include "GeneratedRigInput.h"
 #include "RigFinalData.h"
 #include "RigMatrix.h"
+#include <functional>
+#include <map>
 namespace dust3d {
+class Matrix4x4;
 namespace native {
     struct RigRestTransforms {
         RigMatrix world {};
@@ -34,6 +37,14 @@ namespace native {
     /// Rest-world/inverse-bind matrices use final grounded/post-eyelid bones and validated rigid frames.
     /// No pose/animation, UV materialization or draw expansion is performed.
     FinalRigGeneration generateFinalRig(const GeneratedRigInput&, const RigStructure&, const RigFinalDataOptions& = {});
+
+    /// Private synchronous handoff of the same grounded rig and validated inverse binds.
+    /// Borrows both values under engineMutex; the callback must not reacquire that lock
+    /// or publish results. The remaining bytes bound any copied output the callback stages.
+    using GroundedRigHandoff = std::function<void(const RigStructure&,
+        const std::map<std::string, Matrix4x4>&, size_t remainingBytes)>;
+    FinalRigGeneration generateFinalRigWithGroundedHandoff(const GeneratedRigInput&, const RigStructure&,
+        const RigFinalDataOptions&, const GroundedRigHandoff&);
 }
 }
 #endif
