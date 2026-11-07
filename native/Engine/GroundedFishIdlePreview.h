@@ -10,12 +10,13 @@ namespace dust3d::native {
     struct GroundedFishIdlePreview {
         FinalRigGeneration rest;
         OwnedEvaluatedSkeletonClip clip;
+        size_t derivedPayloadBytes = 0;
     };
 
     /// Source-only prototype. The retained quota covers the final rest data and copied clip together.
     /// Evaluator workspace and later draw expansion have separate costs.
     GroundedFishIdlePreview generateGroundedFishIdlePreview(const GeneratedRigInput&, const RigStructure&,
-        const AnimationParams&, const RigFinalDataOptions&);
+        const AnimationParams&, const RigFinalDataOptions&, const FishIdleClipHandoff& = {});
 
     struct GroundedFishIdleDrawPreview {
         std::unique_ptr<Dust3DGeneratedRig> rest;
@@ -26,6 +27,7 @@ namespace dust3d::native {
     /// reserves the concurrently held original rest result and the temporary draw-corner map.
     GroundedFishIdleDrawPreview generateGroundedFishIdleDrawPreview(const GeneratedRigInput&,
         std::unique_ptr<Dust3DMesh> metadata, const RigStructure&, const AnimationParams&,
-        const RigFinalDataOptions&, size_t maximumDrawVertices, const Dust3DCancellationToken*);
+        const RigFinalDataOptions&, size_t maximumDrawVertices, const Dust3DCancellationToken*,
+        const FishIdleClipHandoff& = {});
 }
 #endif

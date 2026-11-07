@@ -30,7 +30,7 @@ namespace dust3d::native {
     OwnedEvaluatedSkeletonClip evaluateFishIdle(const RigStructure& groundedRig,
         const std::map<std::string, Matrix4x4>& inverseBindMatrices,
         const AnimationParams& authoredParameters, size_t maximumPayloadBytes,
-        const std::atomic_bool* cancellation)
+        const std::atomic_bool* cancellation, const FishIdleClipHandoff& handoff)
     {
         const auto checkCancellation = [cancellation] {
             if (cancellation && cancellation->load(std::memory_order_relaxed))
@@ -85,6 +85,14 @@ namespace dust3d::native {
         if (clip.animationType != clipType || !clip.loop || clip.frames.size() != retainedFrameCount
             || clip.durationSeconds != static_cast<float>(duration) || clip.frames.back().time != clip.durationSeconds)
             throw DocumentError(DUST3D_STATUS_GENERATION_FAILED, "Reference FishIdle returned unexpected clip timing.");
-        return OwnedEvaluatedSkeletonClip::copy(clip, groundedRig, maximumPayloadBytes, cancellation);
+        auto owned = OwnedEvaluatedSkeletonClip::copy(clip, groundedRig, maximumPayloadBytes, cancellation);
+        if (handoff) {
+            checkCancellation();
+            const auto remaining = maximumPayloadBytes - owned.logicalPayloadBytes();
+            if (handoff(clip, remaining) > remaining)
+                throw DocumentError(DUST3D_STATUS_LIMIT_EXCEEDED, "FishIdle derived output exceeds its retained quota.");
+            checkCancellation();
+        }
+        return owned;
     }
 }
