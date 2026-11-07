@@ -96,6 +96,58 @@ std::unique_ptr<Dust3DGeneratedRig> dust3d::native::makeGeneratedRigDrawOwner(
     checkCancellation(cancellation);
     return owner;
 }
+PreparedGeneratedRigSource dust3d::native::prepareGeneratedRigSource(const uint8_t* bytes, size_t size,
+    const char* type, size_t typeSize, const Dust3DGeneratedRigBoneInput* input, size_t count,
+    const Dust3DGeneratedRigOptions& config)
+{
+    if (config.version != 1 || config.struct_size != sizeof(config))
+        invalid("Unsupported generated rig options version/size.");
+    if (config.head_has_eyelids > 1 || config.reserved || !config.maximum_bones || config.maximum_bones > 256
+        || !config.maximum_original_vertices || config.maximum_original_vertices > 1000000
+        || !config.maximum_draw_vertices || config.maximum_draw_vertices > 15000000
+        || !config.maximum_output_bytes || config.maximum_output_bytes > 256 * 1024 * 1024
+        || !config.maximum_retained_input_bytes || config.maximum_retained_input_bytes > 256 * 1024 * 1024)
+        invalid("Invalid generated rig options/limits.");
+    if (!count || !input)
+        invalid("Generated rig requires a nonempty template span.");
+    if (count > config.maximum_bones)
+        limit("Generated rig template exceeds its bone limit.");
+    checkCancellation(config.cancellation);
+    RigStructure templ;
+    templ.type = text(type, typeSize, false);
+    templ.headHasEyelids = config.head_has_eyelids != 0;
+    templ.bones.reserve(count);
+    for (size_t i = 0; i < count; ++i) {
+        checkCancellation(config.cancellation);
+        RigNode bone;
+        bone.name = text(input[i].name, input[i].name_length, false);
+        bone.parent = text(input[i].parent, input[i].parent_length, true);
+        bone.closingAngle = input[i].closing_angle;
+        templ.bones.push_back(std::move(bone));
+    }
+    RigFinalDataOptions native;
+    native.maximumBones = config.maximum_bones;
+    native.maximumVertices = config.maximum_original_vertices;
+    native.maximumPayloadBytes = config.maximum_output_bytes;
+    native.cancellation = config.cancellation ? &config.cancellation->cancelled : nullptr;
+    (void)copyFinalRigData(templ, Object {}, native);
+    std::unique_ptr<GeneratedRigInput> retained;
+    std::unique_ptr<Dust3DMesh> metadata;
+    {
+        std::lock_guard<std::mutex> lock(engineMutex());
+        checkCancellation(config.cancellation);
+        std::string warning;
+        auto snapshot = readDocument(bytes, size, warning);
+        GenerationOutputs outputs;
+        outputs.purpose = GenerationPurpose::rigInputOnly;
+        outputs.rigInput = &retained;
+        outputs.maximumRigInputBytes = config.maximum_retained_input_bytes;
+        outputs.cancellation = config.cancellation;
+        metadata = generateMesh(std::move(snapshot), warning, nullptr, nullptr, nullptr, outputs);
+    }
+    return { std::move(templ), native, std::move(retained), std::move(metadata) };
+}
+
 Dust3DGeneratedRigOptions dust3d_generated_rig_default_options(void)
 {
     Dust3DGeneratedRigOptions options {};
@@ -118,51 +170,9 @@ Dust3DGeneratedRig* dust3d_generated_rig_load(const uint8_t* bytes, size_t size,
         if (options && (options->version != 1 || options->struct_size != sizeof(*options)))
             invalid("Unsupported generated rig options version/size.");
         const auto config = options ? *options : dust3d_generated_rig_default_options();
-        if (config.head_has_eyelids > 1 || config.reserved || !config.maximum_bones || config.maximum_bones > 256
-            || !config.maximum_original_vertices || config.maximum_original_vertices > 1000000
-            || !config.maximum_draw_vertices || config.maximum_draw_vertices > 15000000
-            || !config.maximum_output_bytes || config.maximum_output_bytes > 256 * 1024 * 1024
-            || !config.maximum_retained_input_bytes || config.maximum_retained_input_bytes > 256 * 1024 * 1024)
-            invalid("Invalid generated rig options/limits.");
-        if (!count || !input)
-            invalid("Generated rig requires a nonempty template span.");
-        if (count > config.maximum_bones)
-            limit("Generated rig template exceeds its bone limit.");
-        checkCancellation(config.cancellation);
-        RigStructure templ;
-        templ.type = text(type, typeSize, false);
-        templ.headHasEyelids = config.head_has_eyelids != 0;
-        templ.bones.reserve(count);
-        for (size_t i = 0; i < count; ++i) {
-            checkCancellation(config.cancellation);
-            RigNode bone;
-            bone.name = text(input[i].name, input[i].name_length, false);
-            bone.parent = text(input[i].parent, input[i].parent_length, true);
-            bone.closingAngle = input[i].closing_angle;
-            templ.bones.push_back(std::move(bone));
-        }
-        RigFinalDataOptions native;
-        native.maximumBones = config.maximum_bones;
-        native.maximumVertices = config.maximum_original_vertices;
-        native.maximumPayloadBytes = config.maximum_output_bytes;
-        native.cancellation = config.cancellation ? &config.cancellation->cancelled : nullptr;
-        (void)copyFinalRigData(templ, Object {}, native);
-        std::unique_ptr<GeneratedRigInput> retained;
-        std::unique_ptr<Dust3DMesh> metadata;
-        {
-            std::lock_guard<std::mutex> lock(engineMutex());
-            checkCancellation(config.cancellation);
-            std::string warning;
-            auto snapshot = readDocument(bytes, size, warning);
-            GenerationOutputs outputs;
-            outputs.purpose = GenerationPurpose::rigInputOnly;
-            outputs.rigInput = &retained;
-            outputs.maximumRigInputBytes = config.maximum_retained_input_bytes;
-            outputs.cancellation = config.cancellation;
-            metadata = generateMesh(std::move(snapshot), warning, nullptr, nullptr, nullptr, outputs);
-        }
-        auto final = generateFinalRig(*retained, templ, native);
-        return makeGeneratedRigDrawOwner(final, std::move(metadata), config.maximum_draw_vertices,
+        auto prepared = prepareGeneratedRigSource(bytes, size, type, typeSize, input, count, config);
+        auto final = generateFinalRig(*prepared.input, prepared.rig, prepared.options);
+        return makeGeneratedRigDrawOwner(final, std::move(prepared.metadata), config.maximum_draw_vertices,
             config.maximum_output_bytes, config.cancellation).release();
     } catch (const RigFinalDataError& e) {
         const auto status = e.failure() == RigFinalDataFailure::invalidData ? DUST3D_STATUS_INVALID_DOCUMENT : e.failure() == RigFinalDataFailure::limitExceeded ? DUST3D_STATUS_LIMIT_EXCEEDED
