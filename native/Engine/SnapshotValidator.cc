@@ -74,17 +74,22 @@ namespace native {
                 const auto& neighbors = part.second;
                 if (neighbors.empty())
                     continue;
-                bool preserveLoopWinding = String::valueOrEmpty(snapshot.parts.at(part.first), "target") == "StitchingLoop";
+                bool hasEndpoint = false;
+                bool coherentDirection = true;
                 for (const auto& node : neighbors) {
                     if (node.second.size() > 2)
                         throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "A part contains branching edges; split it into separate parts first.");
-                    if (preserveLoopWinding) {
+                    if (node.second.size() == 1) {
+                        hasEndpoint = true;
+                    } else if (coherentDirection) {
                         const auto outgoing = [&](const Neighbor& neighbor) {
                             return String::valueOrEmpty(snapshot.edges.at(neighbor.second), "from") == node.first;
                         };
-                        preserveLoopWinding = node.second.size() == 2 && outgoing(node.second[0]) != outgoing(node.second[1]);
+                        coherentDirection = outgoing(node.second[0]) != outgoing(node.second[1]);
                     }
                 }
+                const bool preserveDirection = coherentDirection
+                    && (hasEndpoint || String::valueOrEmpty(snapshot.parts.at(part.first), "target") == "StitchingLoop");
                 auto current = neighbors.begin()->first;
                 for (const auto& node : neighbors) {
                     if (node.second.size() == 1) {
@@ -98,9 +103,9 @@ namespace native {
                     for (const auto& next : neighbors.at(current)) {
                         if (!visitedEdges.insert(next.second).second)
                             continue;
-                        // A coherent stitching cycle already supplies the Qt traversal direction.
-                        // Still traverse it to reject disconnected cycles.
-                        if (!preserveLoopWinding) {
+                        // A coherent chain or stitching cycle already supplies the traversal direction.
+                        // Still traverse it to reject disconnected edge chains.
+                        if (!preserveDirection) {
                             auto& edge = snapshot.edges.at(next.second);
                             edge["from"] = current;
                             edge["to"] = next.first;

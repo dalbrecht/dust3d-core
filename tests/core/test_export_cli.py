@@ -235,6 +235,33 @@ class ExportCliTests(unittest.TestCase):
         self.assertIn(b'Dust3D_color.png', self.destination.read_bytes())
         self.assert_unchanged()
 
+    def test_should_keep_model_chain_geometry_independent_of_endpoint_ids(self):
+        first = '{11111111-1111-4111-8111-111111111111}'
+        second = '{22222222-2222-4222-8222-222222222222}'
+        part = '{33333333-3333-4333-8333-333333333333}'
+        component = '{44444444-4444-4444-8444-444444444444}'
+        edge = '{55555555-5555-4555-8555-555555555555}'
+
+        def export(start, end, name):
+            xml = f"""<canvas originX=".5" originY=".5" originZ=".5">
+            <nodes><node id="{start}" partId="{part}" x=".3" y=".5" z=".5" radius=".1"/>
+            <node id="{end}" partId="{part}" x=".7" y=".5" z=".5" radius=".12"/></nodes>
+            <edges><edge id="{edge}" partId="{part}" from="{start}" to="{end}"/></edges>
+            <parts><part id="{part}" cutRotation=".25"/></parts>
+            <components><component id="{component}" linkDataType="partId" linkData="{part}"/></components>
+            </canvas>""".encode()
+            header = f'<ds3><model name="model.xml" offset="0" size="{len(xml)}"/></ds3>'.encode()
+            prefix = b'DUST3D 1.0 xml '
+            self.source.write_bytes(prefix + f'{len(prefix) + 12 + len(header):010d}\r\n'.encode() + header + xml)
+            destination = self.directory / f'{name}.obj'
+            result = self.run_export(self.source, destination)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            return destination.read_bytes()
+
+        baseline = export(first, second, 'ascending')
+        self.assertIn(b'\nf ', baseline)
+        self.assertEqual(export(second, first, 'descending'), baseline)
+
     def test_should_keep_stitching_loop_geometry_independent_of_edge_ids(self):
         def identity(number):
             return f'{{{number:08d}-0000-4000-8000-{number:012d}}}'

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Preserve authored direction for coherently directed open chains.
+
 - Keep authored stitching-loop winding when the closed edge cycle is already consistent.
 
 - Preflight interpolation node/edge identities before mutation, preserving original records and collision-free deterministic chains for shared-prefix UUIDs (#315).
