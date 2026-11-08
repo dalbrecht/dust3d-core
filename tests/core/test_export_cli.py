@@ -5,6 +5,7 @@ from pathlib import Path
 import subprocess
 import tempfile
 import unittest
+from xml.etree import ElementTree
 
 
 class ExportCliTests(unittest.TestCase):
@@ -233,6 +234,60 @@ class ExportCliTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn(b'Dust3D_color.png', self.destination.read_bytes())
         self.assert_unchanged()
+
+    def test_should_keep_stitching_loop_geometry_independent_of_edge_ids(self):
+        def identity(number):
+            return f'{{{number:08d}-0000-4000-8000-{number:012d}}}'
+
+        canvas = ElementTree.Element('canvas', originX='.5', originY='.5', originZ='.5')
+        nodes, edges, parts, components = [ElementTree.SubElement(canvas, tag)
+                                           for tag in ('nodes', 'edges', 'parts', 'components')]
+        group = ElementTree.SubElement(components, 'component', id=identity(300),
+                                       backClosed='true', backCloseDepthRatio='.5', backCloseSharpness='.4')
+        for loop, (low, high, z) in enumerate((('.1', '.9', '.5'), ('.34', '.66', '.6'))):
+            part = identity(100 + loop)
+            ElementTree.SubElement(parts, 'part', id=part, target='StitchingLoop', fillLoopInterior='true')
+            ElementTree.SubElement(group, 'component', id=identity(200 + loop), linkDataType='partId', linkData=part)
+            for corner, (x, y) in enumerate(((high, '.5'), ('.5', high), (low, '.5'), ('.5', low))):
+                node = identity(1000 + loop * 10 + corner)
+                ElementTree.SubElement(nodes, 'node', id=node, partId=part, x=x, y=y, z=z, radius='.05')
+                ElementTree.SubElement(edges, 'edge', id=identity(2000 + loop * 10 + corner), partId=part,
+                                       attrib={'from': identity(1000 + loop * 10 + (corner - 1) % 4), 'to': node})
+
+        def save_source():
+            xml = ElementTree.tostring(canvas)
+            header = f'<ds3><model name="model.xml" offset="0" size="{len(xml)}"/></ds3>'.encode()
+            prefix = b'DUST3D 1.0 xml '
+            self.source.write_bytes(prefix + f'{len(prefix) + 12 + len(header):010d}\r\n'.encode() + header + xml)
+
+        def export(destination):
+            save_source()
+            result = self.run_export(self.source, destination)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            return destination.read_bytes()
+
+        baseline = export(self.directory / 'closing-edge-first.obj')
+        edges[0].set('id', identity(2090))
+        edges[4].set('id', identity(2091))
+        reordered = export(self.directory / 'closing-edge-last.obj')
+        self.assertEqual(reordered, baseline)
+        edge = edges[1]
+        start, end = edge.get('from'), edge.get('to')
+        edge.set('from', end)
+        edge.set('to', start)
+        self.assertIn(b'\nf ', export(self.directory / 'repaired-loop.obj'))
+        edge.set('from', start)
+        edge.set('to', end)
+        for node in nodes[4:]:
+            node.set('partId', identity(100))
+        for edge in edges[4:]:
+            edge.set('partId', identity(100))
+        save_source()
+        invalid = self.directory / 'disconnected-loop.obj'
+        result = self.run_export(self.source, invalid)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('disconnected edge chains', result.stderr)
+        self.assertFalse(invalid.exists())
 
     def test_should_accept_literal_dash_filenames_after_option_terminator(self):
         source = self.directory / '-source.ds3'
