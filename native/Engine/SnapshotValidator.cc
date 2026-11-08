@@ -74,9 +74,16 @@ namespace native {
                 const auto& neighbors = part.second;
                 if (neighbors.empty())
                     continue;
+                bool preserveLoopWinding = String::valueOrEmpty(snapshot.parts.at(part.first), "target") == "StitchingLoop";
                 for (const auto& node : neighbors) {
                     if (node.second.size() > 2)
                         throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "A part contains branching edges; split it into separate parts first.");
+                    if (preserveLoopWinding) {
+                        const auto outgoing = [&](const Neighbor& neighbor) {
+                            return String::valueOrEmpty(snapshot.edges.at(neighbor.second), "from") == node.first;
+                        };
+                        preserveLoopWinding = node.second.size() == 2 && outgoing(node.second[0]) != outgoing(node.second[1]);
+                    }
                 }
                 auto current = neighbors.begin()->first;
                 for (const auto& node : neighbors) {
@@ -91,9 +98,13 @@ namespace native {
                     for (const auto& next : neighbors.at(current)) {
                         if (!visitedEdges.insert(next.second).second)
                             continue;
-                        auto& edge = snapshot.edges.at(next.second);
-                        edge["from"] = current;
-                        edge["to"] = next.first;
+                        // A coherent stitching cycle already supplies the Qt traversal direction.
+                        // Still traverse it to reject disconnected cycles.
+                        if (!preserveLoopWinding) {
+                            auto& edge = snapshot.edges.at(next.second);
+                            edge["from"] = current;
+                            edge["to"] = next.first;
+                        }
                         current = next.first;
                         advanced = true;
                         break;
