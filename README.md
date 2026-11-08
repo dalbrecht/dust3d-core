@@ -850,8 +850,12 @@ building block; the export C ABI and editor command are not yet exposed.
 
 The source-matched static FBX C API (`Dust3DFbxExportOptions` and
 `dust3d_fbx_export_load`) returns immutable owned bytes for explicit geometry or
-procedural baked-atlas modes. Copy bytes/warnings before destroy. Imported model
-assets reject before GLB decoding. ADR0089 documents limits, cancellation, the
+procedural baked-atlas modes. Copy bytes/warnings before destroy. Geometry mode
+supports imported and procedural original-double positions and triangles, retaining
+available corner normals/UVs and omission warnings under the default import limits.
+Imported assets in baked mode still reject before GLB decoding; there is no silent
+geometry downgrade. ADR0204 records the local geometry-only acceptance and its
+remaining textured-export limits. ADR0089 documents limits, cancellation, the
 real Swift6 actor-copy contract and unforced boundary coverage gaps. This does
 not expose an app command or change the production dependency pin.
 
@@ -869,7 +873,8 @@ The Unix command preserves source bytes and stages/flushes output before atomic
 replacement. Geometry is the default; baked mode supports a procedural atlas.
 See [command usage](native/ExportCli/README.md) and ADR0090 for bounds, exit codes,
 independent C API re-import, measured coverage and remaining export acceptance.
-It does not change the Apple pin or enable imported/rigged/animated/GLB export.
+It does not change the Apple pin or enable imported baked materials, rigged,
+animated or GLB export.
 
 `native/Engine/ObjDocument.h` encodes original double vertices and triangle/quad
 polygons using the reference OBJ geometry semantics. It preserves shared indices

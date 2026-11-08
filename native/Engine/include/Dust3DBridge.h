@@ -838,7 +838,9 @@ typedef struct Dust3DFbxExport Dust3DFbxExport;
 #define DUST3D_FBX_EXPORT_BAKED 1
 /** Source-matched prototype options; struct_size must equal sizeof this structure.
  * mode is GEOMETRY or BAKED. Geometry excludes materials/rig/animation; baked uses
- * one complete procedural atlas. Imported GLB assets are rejected before decoding.
+ * one complete procedural atlas. GEOMETRY supports imported GLB geometry under
+ * the default import limits and retains omission warnings; no materials are exported.
+ * BAKED rejects imported GLB assets before decoding; no silent mode downgrade.
  * Geometry quota: zero64MiB/max256MiB. PNG capacity quota: zero64MiB/max64MiB.
  * Output quota: zero64MiB/max256MiB, counting handle, complete FBX byte capacity
  * and parser warning. These independent budgets exclude source, generator,
@@ -857,7 +859,7 @@ typedef struct Dust3DFbxExportOptions {
     const Dust3DCancellationToken* cancellation;
     Dust3DBakeOptions bake;
 } Dust3DFbxExportOptions;
-/** Serialize procedural archive generation and static FBX encoding under the engine lock.
+/** Serialize archive generation and static FBX encoding under the engine lock.
  * @param bytes Complete readable archive, borrowed until return.
  * @param size Archive byte count; existing archive bounds apply.
  * @param options Required sized options and optional borrowed decoded pixels/token.
