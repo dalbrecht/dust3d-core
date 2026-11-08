@@ -61,6 +61,8 @@ namespace native {
     };
     std::unique_ptr<Snapshot> readDocument(const uint8_t* bytes, size_t size, std::string& warning,
         DocumentAssetObserver* observer = nullptr, ImportedModels* imports = nullptr, bool canReadEmptyGeometry = false);
+    /// Read an export source without emitting notices about preview display capabilities.
+    std::unique_ptr<Snapshot> readDocumentForExport(const uint8_t* bytes, size_t size, std::string& warning);
     /// Archive/snapshot inspection only: validate model declarations but never decode
     /// embedded GLB or return a generation-ready imported context. No engine generation.
     /// Observer spans remain archive-borrowed. Throws original DocumentError/parser errors.

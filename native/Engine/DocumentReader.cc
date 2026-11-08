@@ -118,8 +118,14 @@ namespace native {
         }
     }
 
-    static std::unique_ptr<Snapshot> readDocumentInternal(const uint8_t* bytes, size_t size, std::string& warning, DocumentAssetObserver* observer, ImportedModels* imports, bool canReadEmptyGeometry, bool metadataOnly)
+    enum class DocumentReadPurpose { preview,
+        metadata,
+        exportOutput };
+
+    static std::unique_ptr<Snapshot> readDocumentInternal(const uint8_t* bytes, size_t size, std::string& warning, DocumentAssetObserver* observer, ImportedModels* imports, bool canReadEmptyGeometry, DocumentReadPurpose purpose)
     {
+        const bool metadataOnly = purpose == DocumentReadPurpose::metadata;
+        const bool includePreviewWarnings = purpose != DocumentReadPurpose::exportOutput;
         if (!bytes || !size)
             throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Choose a nonempty .ds3 document.");
         if (size > 256 * 1024 * 1024)
@@ -168,7 +174,7 @@ namespace native {
                     throw DocumentError(DUST3D_STATUS_UNSUPPORTED_ASSET, "This operation does not yet support imported GLB materials and UVs.");
                 if (imports)
                     modelAssets.push_back({ name, bytes + binaryOffset + offset, itemSize });
-            } else if (type == "asset" && name.compare(0, 7, "images/") == 0) {
+            } else if (includePreviewWarnings && type == "asset" && name.compare(0, 7, "images/") == 0) {
                 warning = "Untextured preview: image textures are not yet displayed.";
             }
             if (observer && type != "model") {
@@ -192,11 +198,13 @@ namespace native {
         auto snapshot = std::make_unique<Snapshot>();
         loadSnapshotFromXmlString(snapshot.get(), reinterpret_cast<char*>(modelBytes.data()));
         validateSnapshot(*snapshot, imports != nullptr || metadataOnly, canReadEmptyGeometry);
-        for (const auto& component : snapshot->components) {
-            if (!String::valueOrEmpty(component.second, "colorImageId").empty()
-                || !String::valueOrEmpty(component.second, "wrapPattern").empty()
-                || !String::valueOrEmpty(component.second, "wrapWrinkles").empty())
-                warning = "Untextured preview: image textures and procedural surface details are not yet displayed.";
+        if (includePreviewWarnings) {
+            for (const auto& component : snapshot->components) {
+                if (!String::valueOrEmpty(component.second, "colorImageId").empty()
+                    || !String::valueOrEmpty(component.second, "wrapPattern").empty()
+                    || !String::valueOrEmpty(component.second, "wrapWrinkles").empty())
+                    warning = "Untextured preview: image textures and procedural surface details are not yet displayed.";
+            }
         }
         if (imports)
             imports->load(*snapshot, modelAssets, warning);
@@ -205,11 +213,16 @@ namespace native {
 
     std::unique_ptr<Snapshot> readDocument(const uint8_t* bytes, size_t size, std::string& warning, DocumentAssetObserver* observer, ImportedModels* imports, bool canReadEmptyGeometry)
     {
-        return readDocumentInternal(bytes, size, warning, observer, imports, canReadEmptyGeometry, false);
+        return readDocumentInternal(bytes, size, warning, observer, imports, canReadEmptyGeometry, DocumentReadPurpose::preview);
     }
+    std::unique_ptr<Snapshot> readDocumentForExport(const uint8_t* bytes, size_t size, std::string& warning)
+    {
+        return readDocumentInternal(bytes, size, warning, nullptr, nullptr, false, DocumentReadPurpose::exportOutput);
+    }
+
     std::unique_ptr<Snapshot> readDocumentMetadata(const uint8_t* bytes, size_t size, std::string& warning, DocumentAssetObserver* observer)
     {
-        return readDocumentInternal(bytes, size, warning, observer, nullptr, true, true);
+        return readDocumentInternal(bytes, size, warning, observer, nullptr, true, DocumentReadPurpose::metadata);
     }
 
 }
