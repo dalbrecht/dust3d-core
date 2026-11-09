@@ -28,13 +28,26 @@ int main()
 
     const AnimationParams parameters { { { "durationSeconds", "1" }, { "frameCount", "32" }, { "driftFactor", "3" } } };
     AnimationSoundData sound;
-    const auto poses = evaluateFishIdle(rig, inverse, parameters, 1024 * 1024, nullptr,
+    std::vector<AnimationSoundData> surfaces;
+    const auto poses = evaluateFishIdle(rig, inverse, parameters, 4 * 1024 * 1024, nullptr,
         [&](const RigAnimationClip& clip, size_t remainingBytes) {
             sound = renderFishIdleSound(clip, parameters, SurfaceMaterial::Water, remainingBytes, nullptr);
-            return sound.pcmSamples.size() * sizeof(int16_t);
+            size_t retainedBytes = sound.pcmSamples.size() * sizeof(int16_t);
+            surfaces = renderFishIdleSoundSurfaces(clip, parameters, remainingBytes - retainedBytes, nullptr);
+            for (const auto& surface : surfaces)
+                retainedBytes += surface.pcmSamples.size() * sizeof(int16_t);
+            return retainedBytes;
         });
     assert(poses.loops() && poses.sampleTimes().size() == 33 && poses.sampleTimes().back() == 1);
     assert(sound.sampleRate == 44100 && sound.channels == 1 && sound.durationSeconds == poses.durationSeconds());
     assert(sound.pcmSamples.size() == 44100);
     assert(std::any_of(sound.pcmSamples.begin(), sound.pcmSamples.end(), [](int16_t value) { return value != 0; }));
+    const auto& catalog = surfaceMaterials();
+    assert(surfaces.size() == catalog.size());
+    for (size_t index = 0; index < catalog.size(); ++index) {
+        assert(surfaces[index].sampleRate == 44100 && surfaces[index].channels == 1);
+        assert(surfaces[index].pcmSamples.size() == sound.pcmSamples.size());
+        if (catalog[index] == SurfaceMaterial::Water)
+            assert(surfaces[index].pcmSamples == sound.pcmSamples);
+    }
 }

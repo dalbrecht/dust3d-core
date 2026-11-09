@@ -4,6 +4,7 @@
 
 #include "GroundedFishIdlePreview.h"
 #include <dust3d/animation/sound_generator.h>
+#include <vector>
 
 namespace dust3d::native {
     /// Stage reference mono PCM from the exact already-admitted FishIdle clip.
@@ -11,6 +12,11 @@ namespace dust3d::native {
     /// returns an empty sample vector. Cancellation polls around Qt routines.
     AnimationSoundData renderFishIdleSound(const RigAnimationClip&, const AnimationParams&,
         SurfaceMaterial, size_t remainingBytes, const Dust3DCancellationToken*);
+
+    /// Detect once and retain PCM in exact surface catalog order. The quota
+    /// includes all retained PCM and the one concurrently active float mix.
+    std::vector<AnimationSoundData> renderFishIdleSoundSurfaces(const RigAnimationClip&, const AnimationParams&,
+        size_t remainingBytes, const Dust3DCancellationToken*);
 
     struct GroundedFishIdleSoundPreview {
         GroundedFishIdleDrawPreview visual;
