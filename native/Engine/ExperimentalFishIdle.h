@@ -56,6 +56,13 @@ Dust3DExperimentalFishIdle* dust3d_experimental_fish_idle_load(const uint8_t* ar
     const Dust3DGeneratedRigBoneInput* bones, size_t bone_count,
     const Dust3DExperimentalFishIdleParameter* parameters, size_t parameter_count,
     const Dust3DExperimentalFishIdleOptions*, Dust3DError*);
+/* Resolve the exact authored ID from the archive. With PCM enabled, read
+   its authored surface or the first catalog surface when the field is absent. */
+Dust3DExperimentalFishIdle* dust3d_experimental_fish_idle_load_selected(const uint8_t* archive, size_t archive_size,
+    const Dust3DGeneratedRigBoneInput* bones, size_t bone_count, const char* animation_id, size_t animation_id_length,
+    uint32_t include_pcm, const Dust3DExperimentalFishIdleOptions*, Dust3DError*);
+/* The borrowed selected ID expires with the owner. NULL for legacy loads. */
+const char* dust3d_experimental_fish_idle_selected_id(const Dust3DExperimentalFishIdle*, size_t* length);
 /* NULL-safe. Invalidates the rest and every borrowed view. */
 void dust3d_experimental_fish_idle_destroy(Dust3DExperimentalFishIdle*);
 /* Returns 1 on success, 0 on invalid input, and clears output on failure. */

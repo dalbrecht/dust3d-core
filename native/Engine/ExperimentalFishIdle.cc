@@ -13,6 +13,7 @@ struct Dust3DExperimentalFishIdle {
     AnimationSoundData sound;
     size_t visualBytes;
     size_t outputBytes;
+    std::string selectedId;
 };
 
 Dust3DExperimentalFishIdleOptions dust3d_experimental_fish_idle_default_options(void)
@@ -25,11 +26,8 @@ Dust3DExperimentalFishIdlePCMOptions dust3d_experimental_fish_idle_default_pcm_o
     return { 2, sizeof(Dust3DExperimentalFishIdlePCMOptions), dust3d_generated_rig_default_options(), nullptr, 0 };
 }
 
-static SurfaceMaterial admitSurface(const Dust3DExperimentalFishIdlePCMOptions& options)
+static SurfaceMaterial admitSurface(std::string_view name)
 {
-    if (!options.surface || !options.surface_length || options.surface_length > 5)
-        throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Invalid experimental FishIdle surface span.");
-    const std::string name(options.surface, options.surface_length);
     for (const auto material : surfaceMaterials()) {
         if (surfaceMaterialName(material) == name)
             return material;
@@ -41,20 +39,43 @@ static Dust3DExperimentalFishIdle* loadFishIdle(const uint8_t* archive, size_t a
     const Dust3DGeneratedRigBoneInput* bones, size_t boneCount,
     const Dust3DExperimentalFishIdleParameter* parameters, size_t parameterCount,
     const Dust3DExperimentalFishIdleOptions* options, const Dust3DExperimentalFishIdlePCMOptions* pcmOptions,
-    Dust3DError* error)
+    Dust3DError* error, std::string_view selectedId = {}, bool includeSelectedPCM = false)
 {
     setError(error, DUST3D_STATUS_OK, "");
     try {
         if (!archive || !archiveSize || parameterCount > 9 || (parameterCount && !parameters)
             || (options && (options->version != 1 || options->struct_size != sizeof(*options))))
             throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Invalid experimental FishIdle request.");
-        const auto config = pcmOptions ? pcmOptions->rig
-                                       : (options ? options->rig : dust3d_generated_rig_default_options());
+        auto config = pcmOptions ? pcmOptions->rig
+                                 : (options ? options->rig : dust3d_generated_rig_default_options());
         checkCancellation(config.cancellation);
         std::optional<SurfaceMaterial> surface;
-        if (pcmOptions)
-            surface = admitSurface(*pcmOptions);
+        if (pcmOptions) {
+            if (!pcmOptions->surface || !pcmOptions->surface_length || pcmOptions->surface_length > 5)
+                throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Invalid experimental FishIdle surface span.");
+            surface = admitSurface(std::string_view(pcmOptions->surface, pcmOptions->surface_length));
+        }
         AnimationParams authored;
+        if (!selectedId.empty()) {
+            auto fields = readSelectedAnimationMetadata(archive, archiveSize, selectedId);
+            if (fields["type"] != "FishIdle")
+                throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "The selected animation is not FishIdle.");
+            if (includeSelectedPCM) {
+                const auto material = fields.find("surfaceMaterial");
+                surface = material == fields.end() ? surfaceMaterials().front() : admitSurface(material->second);
+            }
+            for (const auto* metadata : { "id", "name", "type", "surfaceMaterial" })
+                fields.erase(metadata);
+            if (fields.size() > 9 || std::any_of(fields.begin(), fields.end(), [](const auto& field) {
+                    return field.first.empty() || field.first.size() > 64 || field.second.empty() || field.second.size() > 64;
+                }))
+                throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Invalid selected FishIdle parameters.");
+            authored.values.insert(fields.begin(), fields.end());
+            if (config.maximum_output_bytes <= selectedId.size() || config.maximum_output_bytes > 256 * 1024 * 1024)
+                throw DocumentError(DUST3D_STATUS_LIMIT_EXCEEDED, "The selected FishIdle identity exceeds the output limit.");
+            config.maximum_output_bytes -= selectedId.size();
+            checkCancellation(config.cancellation);
+        }
         for (size_t i = 0; i < parameterCount; ++i) {
             const auto& entry = parameters[i];
             if (!entry.name || !entry.name_length || entry.name_length > 64
@@ -88,7 +109,7 @@ static Dust3DExperimentalFishIdle* loadFishIdle(const uint8_t* archive, size_t a
         const auto visualBytes = restBytes + poseBytes;
         auto owner = std::make_unique<Dust3DExperimentalFishIdle>(
             Dust3DExperimentalFishIdle { std::move(preview), std::move(result.sound), visualBytes,
-                visualBytes + sampleCount * sizeof(int16_t) });
+                visualBytes + sampleCount * sizeof(int16_t), std::string(selectedId) });
         checkCancellation(config.cancellation);
         return owner.release();
     } catch (const RigFinalDataError& cause) {
@@ -128,6 +149,29 @@ Dust3DExperimentalFishIdle* dust3d_experimental_fish_idle_load_pcm(const uint8_t
         return nullptr;
     }
     return loadFishIdle(archive, archiveSize, bones, boneCount, parameters, parameterCount, nullptr, options, error);
+}
+
+Dust3DExperimentalFishIdle* dust3d_experimental_fish_idle_load_selected(const uint8_t* archive, size_t archiveSize,
+    const Dust3DGeneratedRigBoneInput* bones, size_t boneCount, const char* animationId, size_t animationIdLength,
+    uint32_t includePCM, const Dust3DExperimentalFishIdleOptions* options, Dust3DError* error)
+{
+    if (!animationId || !animationIdLength || animationIdLength > 1024 || includePCM > 1) {
+        setError(error, DUST3D_STATUS_INVALID_DOCUMENT, "Invalid selected FishIdle request.");
+        return nullptr;
+    }
+    return loadFishIdle(archive, archiveSize, bones, boneCount, nullptr, 0, options, nullptr, error,
+        std::string_view(animationId, animationIdLength), includePCM != 0);
+}
+
+const char* dust3d_experimental_fish_idle_selected_id(const Dust3DExperimentalFishIdle* owner, size_t* length)
+{
+    if (!length)
+        return nullptr;
+    *length = 0;
+    if (!owner || owner->selectedId.empty())
+        return nullptr;
+    *length = owner->selectedId.size();
+    return owner->selectedId.data();
 }
 
 void dust3d_experimental_fish_idle_destroy(Dust3DExperimentalFishIdle* owner)

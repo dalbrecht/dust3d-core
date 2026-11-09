@@ -42,6 +42,20 @@ void checkFishIdlePCMOwner()
     }
     assert(info.sample_rate == 44100 && info.channel_count == 1 && info.sample_count == 44100);
     assert(info.output_bytes == info.visual.output_bytes + info.sample_count * sizeof(int16_t));
+
+    auto selectedOptions = dust3d_experimental_fish_idle_default_options();
+    std::unique_ptr<Dust3DExperimentalFishIdle, decltype(destroy)> selected(
+        dust3d_experimental_fish_idle_load_selected(fishArchive, std::size(fishArchive), fishBones, std::size(fishBones),
+            fishAnimationId, std::size(fishAnimationId) - 1, 1, &selectedOptions, &error),
+        destroy);
+    assert(selected && error.status == DUST3D_STATUS_OK);
+    size_t selectedLength = 0;
+    const auto* selectedId = dust3d_experimental_fish_idle_selected_id(selected.get(), &selectedLength);
+    assert(selectedId && std::string_view(selectedId, selectedLength) == fishAnimationId);
+    Dust3DExperimentalFishIdlePCMInfo selectedInfo {};
+    assert(dust3d_experimental_fish_idle_describe_pcm(selected.get(), &selectedInfo));
+    assert(selectedInfo.visual.frame_count == info.visual.frame_count && selectedInfo.sample_count == info.sample_count);
+
     Dust3DExperimentalFishIdleGroundMotion motion {};
     assert(dust3d_experimental_fish_idle_ground_motion(owner.get(), &motion));
     assert(std::isfinite(motion.speed) && std::isfinite(motion.direction_x) && std::isfinite(motion.direction_z));

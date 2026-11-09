@@ -86,6 +86,7 @@ print("static constexpr Dust3DGeneratedRigBoneInput fishBones[] {")
 for name, parent in bones:
     print(f"    {{ {json.dumps(name)}, {len(name)}, {json.dumps(parent)}, {len(parent)}, 0 }},")
 print("};")
+print(f'static constexpr char fishAnimationId[] = {json.dumps(animation.attrib["id"])};')
 print(f'static constexpr char fishSurface[] = {json.dumps(animation.attrib["surfaceMaterial"])};')
 print("static constexpr Dust3DExperimentalFishIdleParameter fishParameters[] {")
 for name in PARAMETERS:
