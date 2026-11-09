@@ -16,6 +16,7 @@ from dust3d_agent.spec import parse_spec
 
 EDGE_BONES = ["Head", "BodyFront", "BodyMid", "BodyRear", "TailStart", "TailEnd"]
 PARAMETERS = {"durationSeconds": "1", "frameCount": "32", "driftFactor": "3"}
+SURFACE = "Water"
 
 goldfish = json.loads((TOOLKIT / "examples" / "goldfish.json").read_text())
 body = next(part for part in goldfish["parts"] if part["name"] == "body")
@@ -33,7 +34,7 @@ spec = parse_spec({
         "rounded": False,
         "subdivided": False,
     }],
-    "animations": [{"type": "FishIdle", "params": PARAMETERS}],
+    "animations": [{"type": "FishIdle", "params": {**PARAMETERS, "surfaceMaterial": SURFACE}}],
 })
 model, assets, _ = build_document(spec)
 assert not assets
@@ -56,6 +57,7 @@ for edge, start, end, bone in zip(edges, nodes, nodes[1:], EDGE_BONES):
     assert edge.attrib["boneName"] == bone
 animation, = canvas.findall("animations/animation")
 assert animation.attrib["type"] == "FishIdle"
+assert animation.attrib["surfaceMaterial"] == SURFACE
 assert all(float(animation.attrib[name]) == float(value) for name, value in PARAMETERS.items())
 
 template = ET.parse(ROOT / "application" / "resources" / "rig_fish.xml").getroot()
@@ -84,6 +86,7 @@ print("static constexpr Dust3DGeneratedRigBoneInput fishBones[] {")
 for name, parent in bones:
     print(f"    {{ {json.dumps(name)}, {len(name)}, {json.dumps(parent)}, {len(parent)}, 0 }},")
 print("};")
+print(f'static constexpr char fishSurface[] = {json.dumps(animation.attrib["surfaceMaterial"])};')
 print("static constexpr Dust3DExperimentalFishIdleParameter fishParameters[] {")
 for name in PARAMETERS:
     value = animation.attrib[name]

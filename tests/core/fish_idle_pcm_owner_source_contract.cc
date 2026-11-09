@@ -18,7 +18,8 @@ void checkFishIdlePCMOwner()
         fishParameters, std::size(fishParameters), &options, &error));
     assert(error.status == DUST3D_STATUS_INVALID_DOCUMENT);
 
-    options.surface = "Water";
+    options.surface = fishSurface;
+    options.surface_length = std::size(fishSurface) - 1;
     auto destroy = &dust3d_experimental_fish_idle_destroy;
     std::unique_ptr<Dust3DExperimentalFishIdle, decltype(destroy)> owner(
         dust3d_experimental_fish_idle_load_pcm(fishArchive, std::size(fishArchive), fishBones, std::size(fishBones),

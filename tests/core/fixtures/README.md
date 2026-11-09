@@ -109,8 +109,9 @@ clang++ -std=c++17 -fsyntax-only -Inative/Engine -I"$fixture_dir" tests/core/fis
 
 The Python generator verifies archive round-trip, exact Model linkage, the six
 ordered bone assignments, the bundled template hierarchy, and the authored
-FishIdle settings (one second, 32 requested frames, drift factor 3). The
-contract requests the exact Water surface. It expects a nonempty grounded draw
+FishIdle settings (one second, 32 requested frames, drift factor 3, and Water
+as the sound surface). The contract uses the surface read from the archive
+as the separate PCM request field. It expects a nonempty grounded draw
 mesh, 33 pose samples including the loop endpoint, and 44,100 mono PCM samples
 with at least one nonzero value. The geometry and sound expectations require a
 future authorized native run of the unregistered contract.
