@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Preserve authored edge directions for valid chains and loops so tube texture placement survives loading. Inconsistent legacy directions are still repaired.
+
 - Preflight interpolation node/edge identities before mutation, preserving original records and collision-free deterministic chains for shared-prefix UUIDs (#315).
 
 - Generate hollow tubes for thicknesses strictly between 0 and 1. Both endpoints use the ordinary solid tube (Apple #96).
