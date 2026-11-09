@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Match Qt source texel selection within packed image and seam-gradient charts, including rotated charts and wide sampling spans.
+
 - Preflight interpolation node/edge identities before mutation, preserving original records and collision-free deterministic chains for shared-prefix UUIDs (#315).
 
 - Generate hollow tubes for thicknesses strictly between 0 and 1. Both endpoints use the ordinary solid tube (Apple #96).

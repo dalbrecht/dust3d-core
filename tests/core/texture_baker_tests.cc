@@ -207,7 +207,7 @@ void gradientQuantization()
     gradient.smallColor = dust3d::Color(0, 0, 1);
     fixture.atlas.gradients = { gradient };
     const auto result = fixture.bake();
-    require(result.color.pixels[4] == 191 && result.color.pixels[6] == 63, "Seam gradient samples a quantized 512-wide source with truncated channel interpolation");
+    require(result.color.pixels[4] == 159 && result.color.pixels[6] == 95, "Seam gradient samples a quantized 512-wide source with truncated channel interpolation");
     fixture.atlas.layouts[0].flipped = true;
     const auto transposed = fixture.bake();
     require(transposed.color.pixels[0] == transposed.color.pixels[12] && transposed.color.pixels[0] != transposed.color.pixels[48], "Flipped seam gradient transposes its source axis");
@@ -322,12 +322,56 @@ void fractionalMultiTexelSources()
         inputs.images[imageId] = { 512, 1, 2048, pixels.size(), pixels.data() };
         const auto image = fixture.bake(inputs);
         const size_t interior = (11 * 128 + 11) * 4;
-        require(image.color.pixels[interior] == (flipped ? 63 : 178) && image.color.pixels[interior + 2] == (flipped ? 191 : 76), "Flipped charts must retain the independently observed Qt rotated pixel-center phase");
+        require(image.color.pixels[interior] == 63 && image.color.pixels[interior + 2] == 191, "The Qt two-pixel scale selects source texel 383 in either chart orientation");
         const size_t edge = (13 * 128 + 13) * 4;
         require(image.color.pixels[edge] == 0 && image.color.pixels[edge + 2] == 255, "Image bleed must clamp after fractional-origin correction to retain the final source texel");
         require(result.color.pixels == image.color.pixels, "Multi-texel fractional gradients must match equivalent image charts including gutters");
     }
 }
+void imageChartSourceTexelBoundaries()
+{
+    Fixture fixture;
+    fixture.options.colorSize = 1024;
+    auto& layout = fixture.atlas.layouts[0];
+    layout.left = 100.5792236328125 / 1024;
+    layout.top = 100.25 / 1024;
+    layout.width = 767.0896606445312 / 1024;
+    layout.height = 8.25 / 1024;
+    layout.id = imageId;
+
+    std::vector<uint8_t> pixels(512 * 4);
+    for (size_t source = 0; source < 512; ++source) {
+        pixels[source * 4] = static_cast<uint8_t>(source / 256);
+        pixels[source * 4 + 1] = static_cast<uint8_t>(source % 256);
+        pixels[source * 4 + 3] = 255;
+    }
+    dust3d::TextureBakeInputs inputs;
+    inputs.images[imageId] = { 512, 1, pixels.size(), pixels.size(), pixels.data() };
+    const auto baked = fixture.bake(inputs);
+    const auto sourceAt = [&](size_t column) {
+        const auto offset = (104 * 1024 + 100 + column) * 4;
+        return baked.color.pixels[offset] * 256 + baked.color.pixels[offset + 1];
+    };
+    require(sourceAt(192) == 128 && sourceAt(383) == 255 && sourceAt(575) == 384,
+        "An image chart must sample the Qt source texels at quarter and midpoint boundaries");
+
+    fixture.options.colorSize = 2176;
+    layout.left = layout.top = 24.25 / 2176;
+    layout.width = 2150.25 / 2176;
+    layout.height = 8.25 / 2176;
+    const auto wide = fixture.bake(inputs);
+    const size_t horizontal = (28 * 2176 + 24 + 2053) * 4;
+    require(wide.color.pixels[horizontal] == 1 && wide.color.pixels[horizontal + 1] == 233,
+        "The wide Qt chart restarts its horizontal fixed-point span");
+
+    std::swap(layout.width, layout.height);
+    layout.flipped = true;
+    const auto rotated = fixture.bake(inputs);
+    const size_t vertical = ((24 + 2053) * 2176 + 28) * 4;
+    require(rotated.color.pixels[vertical] == 1 && rotated.color.pixels[vertical + 1] == 233,
+        "A rotated chart follows the horizontal source span on its vertical atlas axis");
+}
+
 void clippedColorChartOrigins()
 {
     const std::vector<uint8_t> pixels {
@@ -1015,6 +1059,7 @@ int main(int argc, char* argv[])
         gradientQuantization();
         fractionalSubTexelGradients();
         fractionalMultiTexelSources();
+        imageChartSourceTexelBoundaries();
         clippedColorChartOrigins();
         sourceLessSeamsIgnoreSurfaceDetails();
         sourceLessSeamsIgnoreMaterials();
