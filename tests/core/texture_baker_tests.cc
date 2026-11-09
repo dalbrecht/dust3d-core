@@ -325,6 +325,8 @@ void fractionalMultiTexelSources()
         require(image.color.pixels[interior] == 63 && image.color.pixels[interior + 2] == 191, "The Qt two-pixel scale selects source texel 383 in either chart orientation");
         const size_t edge = (13 * 128 + 13) * 4;
         require(image.color.pixels[edge] == 0 && image.color.pixels[edge + 2] == 255, "Image bleed must clamp after fractional-origin correction to retain the final source texel");
+        const size_t firstPixelAlpha = (10 * 128 + 10) * 4 + 3;
+        require(result.color.pixels[firstPixelAlpha] == 255, "Opaque gradient endpoints must stay opaque after interpolation");
         require(result.color.pixels == image.color.pixels, "Multi-texel fractional gradients must match equivalent image charts including gutters");
     }
 }

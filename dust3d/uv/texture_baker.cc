@@ -899,7 +899,8 @@ TextureBakeResult TextureBaker::bake(const Object& object, const UvAtlas& atlas,
             for (size_t channel = 0; channel < 4; ++channel) {
                 const auto large = static_cast<uint8_t>(gradient->largeColor[channel] * 255);
                 const auto small = static_cast<uint8_t>(gradient->smallColor[channel] * 255);
-                pixel[channel] = static_cast<uint8_t>(large * (1 - amount) + small * amount);
+                // A constant channel must not lose one byte to rounding, especially alpha.
+                pixel[channel] = large == small ? large : static_cast<uint8_t>(large * (1 - amount) + small * amount);
             }
             return pixel;
         }
