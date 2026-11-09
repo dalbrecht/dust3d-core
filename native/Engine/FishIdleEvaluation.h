@@ -12,9 +12,9 @@ namespace dust3d::native {
     /// Returns its retained logical bytes. Must not publish output or reacquire engineMutex.
     using FishIdleClipHandoff = std::function<size_t(const RigAnimationClip&, size_t remainingBytes)>;
 
-    inline bool supportsFishLoop(std::string_view type)
+    inline constexpr bool supportsFishLoop(std::string_view type)
     {
-        return type == "FishIdle" || type == "FishSwim";
+        return type == "FishIdle" || type == "FishSwim" || type == "FishForward";
     }
 
     /// Source-only prototype for bounded reference Fish loop clips.
