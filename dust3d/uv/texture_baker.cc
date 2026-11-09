@@ -224,7 +224,7 @@ namespace {
     {
         return std::max(1, static_cast<int>(std::ceil(origin + extent)) - static_cast<int>(std::floor(origin)));
     }
-    double chartImageCoordinate(double normalized, double origin, double extent, bool flipped)
+    double chartImageCoordinate(double normalized, double origin, double extent, int bleed, bool flipped)
     {
         if (extent < 1) {
             const auto offset = std::floor(origin) + normalized * chartPixelSpan(origin, extent) - origin;
@@ -234,6 +234,10 @@ namespace {
                 return 1;
             return offset / extent;
         }
+        // Qt truncates the padded pixmap origin toward zero. When the bleed
+        // crosses the atlas edge, the inner chart starts one texel later.
+        const auto rasterOffset = std::trunc(origin - bleed) + bleed - std::floor(origin);
+        normalized -= rasterOffset / static_cast<int>(extent);
         // The reference rotates the scaled image, then draws through the integer
         // QPainter overload. Preserve that transposed pixel-center phase.
         if (flipped)
@@ -877,11 +881,13 @@ TextureBakeResult TextureBaker::bake(const Object& object, const UvAtlas& atlas,
         if (chart.folds)
             normalSkipped.insert(chart.layoutIndex);
     }
-    auto colorCoverage = rectangles(result.color, atlas, 32.0 / 4096, options, [&](size_t ordinal, const UvMapPacker::Layout& layout, double u, double v) {
+    constexpr double colorBleedFraction = 32.0 / 4096;
+    const auto colorBleed = static_cast<int>(colorBleedFraction * options.colorSize);
+    auto colorCoverage = rectangles(result.color, atlas, colorBleedFraction, options, [&](size_t ordinal, const UvMapPacker::Layout& layout, double u, double v) {
         if (const auto* gradient = colorSources[ordinal].gradient) {
             const auto extent = (layout.flipped ? layout.height : layout.width) * options.colorSize;
             const auto origin = (layout.flipped ? layout.top : layout.left) * options.colorSize;
-            const auto coordinate = chartImageCoordinate(layout.flipped ? v : u, origin, extent, layout.flipped);
+            const auto coordinate = chartImageCoordinate(layout.flipped ? v : u, origin, extent, colorBleed, layout.flipped);
             const auto sample = std::min(gradient->resolution - 1, static_cast<size_t>(coordinate * gradient->resolution));
             const auto amount = static_cast<double>(sample) / (gradient->resolution - 1);
             Pixel pixel;
@@ -899,8 +905,8 @@ TextureBakeResult TextureBaker::bake(const Object& object, const UvAtlas& atlas,
         // Sample that translated pixel lattice rather than snapping the origin down.
         const auto left = layout.left * options.colorSize;
         const auto top = layout.top * options.colorSize;
-        u = chartImageCoordinate(u, left, layout.width * options.colorSize, layout.flipped);
-        v = chartImageCoordinate(v, top, layout.height * options.colorSize, layout.flipped);
+        u = chartImageCoordinate(u, left, layout.width * options.colorSize, colorBleed, layout.flipped);
+        v = chartImageCoordinate(v, top, layout.height * options.colorSize, colorBleed, layout.flipped);
         if (layout.flipped)
             std::swap(u, v);
         const auto x = std::min(source.width - 1, static_cast<size_t>(u * source.width));
