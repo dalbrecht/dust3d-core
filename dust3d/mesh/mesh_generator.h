@@ -27,6 +27,7 @@
 #include <dust3d/base/object.h>
 #include <dust3d/base/position_key.h>
 #include <dust3d/base/snapshot.h>
+#include <dust3d/base/snapshot_identity.h>
 #include <dust3d/base/uuid.h>
 #include <dust3d/mesh/mesh_combiner.h>
 #include <dust3d/mesh/mesh_node.h>
@@ -191,6 +192,8 @@ private:
     GenerationMetrics m_generationMetrics;
     Color m_defaultPartColor = Color::createWhite();
     Snapshot* m_snapshot = nullptr;
+    SnapshotIdentityIndex m_nodeIdentityIndex { SnapshotIdentityIndex::Elements {} };
+    SnapshotIdentityIndex m_componentIdentityIndex { SnapshotIdentityIndex::Elements {} };
     GeneratedCacheContext* m_cacheContext = nullptr;
     std::map<std::string, std::string> m_pendingInterpolationIdentityPlans;
     std::set<std::string> m_dirtyComponentIds;

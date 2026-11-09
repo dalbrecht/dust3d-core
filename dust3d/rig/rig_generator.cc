@@ -27,6 +27,7 @@
 #include <dust3d/base/part_target.h>
 #include <dust3d/base/position_key.h>
 #include <dust3d/base/quaternion.h>
+#include <dust3d/base/snapshot_identity.h>
 #include <dust3d/base/string.h>
 #include <dust3d/base/vector3.h>
 #include <dust3d/rig/rig_generator.h>
@@ -35,12 +36,24 @@
 
 namespace dust3d {
 
-static bool targetPartIsModel(const Snapshot* snapshot, const std::string& partIdString)
+struct RigSnapshotIndexes {
+    explicit RigSnapshotIndexes(const Snapshot& snapshot)
+        : nodes(snapshot.nodes)
+        , parts(snapshot.parts)
+        , components(snapshot.components)
+    {
+    }
+    SnapshotIdentityIndex nodes;
+    SnapshotIdentityIndex parts;
+    SnapshotIdentityIndex components;
+};
+
+static bool targetPartIsModel(const Snapshot* snapshot, const RigSnapshotIndexes& indexes, const std::string& partIdString)
 {
     if (!snapshot || partIdString.empty())
         return false;
 
-    auto partIt = snapshot->parts.find(partIdString);
+    auto partIt = indexes.parts.find(snapshot->parts, partIdString).element;
     if (partIt == snapshot->parts.end())
         return false;
 
@@ -49,19 +62,19 @@ static bool targetPartIsModel(const Snapshot* snapshot, const std::string& partI
     return PartTarget::Model == target || PartTarget::StitchingLine == target || PartTarget::StitchingLoop == target || PartTarget::ImportedModel == target;
 }
 
-static bool nodeBelongsToModelPart(const Snapshot* snapshot, const Uuid& nodeId)
+static bool nodeBelongsToModelPart(const Snapshot* snapshot, const RigSnapshotIndexes& indexes, const std::string& nodeId)
 {
     if (!snapshot)
         return false;
 
-    auto it = snapshot->nodes.find(nodeId.toString());
+    auto it = indexes.nodes.find(snapshot->nodes, nodeId).element;
     if (it == snapshot->nodes.end())
         return false;
 
-    return targetPartIsModel(snapshot, String::valueOrEmpty(it->second, "partId"));
+    return targetPartIsModel(snapshot, indexes, String::valueOrEmpty(it->second, "partId"));
 }
 
-static bool edgeBelongsToModelPart(const Snapshot* snapshot,
+static bool edgeBelongsToModelPart(const Snapshot* snapshot, const RigSnapshotIndexes& indexes,
     const std::map<std::string, std::string>& edgeAttributes)
 {
     if (!snapshot)
@@ -72,15 +85,13 @@ static bool edgeBelongsToModelPart(const Snapshot* snapshot,
     if (fromNode.empty() || toNode.empty())
         return false;
 
-    Uuid fromId(fromNode);
-    Uuid toId(toNode);
-    return nodeBelongsToModelPart(snapshot, fromId)
-        && nodeBelongsToModelPart(snapshot, toId);
+    return nodeBelongsToModelPart(snapshot, indexes, fromNode)
+        && nodeBelongsToModelPart(snapshot, indexes, toNode);
 }
 
 // Parts that are not unioned into the body: the children of an Uncombined component (or of
 // a group under one). These are held props, clothes, hair and decorations.
-static std::set<std::string> collectDetachedParts(const Snapshot* snapshot)
+static std::set<std::string> collectDetachedParts(const Snapshot* snapshot, const RigSnapshotIndexes& indexes)
 {
     std::set<std::string> detached;
     if (!snapshot)
@@ -95,13 +106,16 @@ static std::set<std::string> collectDetachedParts(const Snapshot* snapshot)
         stack.pop_back();
         if (!visited.insert(id).second)
             continue;
-        auto it = snapshot->components.find(id);
+        auto it = indexes.components.find(snapshot->components, id).element;
         if (it == snapshot->components.end())
             continue;
         bool isDetached = inherited || "Uncombined" == String::valueOrEmpty(it->second, "combineMode");
         if ("partId" == String::valueOrEmpty(it->second, "linkDataType")) {
-            if (isDetached)
-                detached.insert(String::valueOrEmpty(it->second, "linkData"));
+            if (isDetached) {
+                const auto part = indexes.parts.find(snapshot->parts, String::valueOrEmpty(it->second, "linkData")).element;
+                if (part != snapshot->parts.end())
+                    detached.insert(part->first);
+            }
             continue;
         }
         for (const auto& child : String::split(String::valueOrEmpty(it->second, "children"), ','))
@@ -131,6 +145,7 @@ bool RigGenerator::generateRig(const Snapshot* snapshot, const RigStructure& tem
         m_errorMessage = "Snapshot not initialized";
         return false;
     }
+    const RigSnapshotIndexes indexes(*snapshot);
 
     actualRig = templateRig; // Copy template structure
 
@@ -164,7 +179,7 @@ bool RigGenerator::generateRig(const Snapshot* snapshot, const RigStructure& tem
     std::set<Uuid> nodesWithAnyEdge;
     for (const auto& edgePair : snapshot->edges) {
         const auto& edgeAttributes = edgePair.second;
-        if (!edgeBelongsToModelPart(snapshot, edgeAttributes))
+        if (!edgeBelongsToModelPart(snapshot, indexes, edgeAttributes))
             continue;
         std::string fromNode = String::valueOrEmpty(edgeAttributes, "from");
         std::string toNode = String::valueOrEmpty(edgeAttributes, "to");
@@ -194,10 +209,13 @@ bool RigGenerator::generateRig(const Snapshot* snapshot, const RigStructure& tem
     // edge assigned to the hand or the chest only rides on that bone: when the bone also has
     // body parts, those detached parts are left out, or the hand bone would run down the whole
     // spear and every animation that aims the hand would aim the spear's far end instead.
-    std::set<std::string> detachedParts = collectDetachedParts(snapshot);
+    std::set<std::string> detachedParts = collectDetachedParts(snapshot, indexes);
     auto chainIsDetached = [&](const std::vector<Uuid>& chain) {
-        auto nodeIt = snapshot->nodes.find(chain.front().toString());
-        return nodeIt != snapshot->nodes.end() && detachedParts.count(String::valueOrEmpty(nodeIt->second, "partId")) > 0;
+        auto nodeIt = indexes.nodes.find(snapshot->nodes, chain.front()).element;
+        if (nodeIt == snapshot->nodes.end())
+            return false;
+        const auto part = indexes.parts.find(snapshot->parts, String::valueOrEmpty(nodeIt->second, "partId")).element;
+        return part != snapshot->parts.end() && detachedParts.count(part->first) > 0;
     };
 
     // Process bones in topological order (parents before children)
@@ -232,7 +250,7 @@ bool RigGenerator::generateRig(const Snapshot* snapshot, const RigStructure& tem
         auto& bone = actualRig.bones[boneIdx];
 
         std::vector<std::vector<Uuid>> nodeChains;
-        if (!extractNodeChainsForBone(snapshot, bone.name, nodeChains)) {
+        if (!extractNodeChainsForBone(snapshot, indexes, bone.name, nodeChains)) {
             dust3dDebug << "No edges assigned to bone:" << bone.name;
             if (bone.parent.empty()) {
                 // Root bone with no bindings: give it a tiny upward tail so it has
@@ -258,7 +276,7 @@ bool RigGenerator::generateRig(const Snapshot* snapshot, const RigStructure& tem
         // Attach truly isolated nodes (no edges at all) to this bone
         // if they are nearest to this bone's edge-connected nodes.
         if (!boneEdgeNodesMap[bone.name].empty()) {
-            attachSingleNodesToBone(snapshot, bone.name,
+            attachSingleNodesToBone(snapshot, indexes, bone.name,
                 boneEdgeNodesMap[bone.name], allEdgeNodes, nodesWithAnyEdge, nodeChains);
         }
 
@@ -285,15 +303,15 @@ bool RigGenerator::generateRig(const Snapshot* snapshot, const RigStructure& tem
 
         // Orient each chain so its end closest to the reference comes first
         for (auto& chain : nodeChains) {
-            orientChainTowardPoint(snapshot, chain, refX, refY, refZ);
+            orientChainTowardPoint(snapshot, indexes, chain, refX, refY, refZ);
         }
 
         // Sort chains by distance of their front node to the reference
         std::sort(nodeChains.begin(), nodeChains.end(),
             [&](const std::vector<Uuid>& a, const std::vector<Uuid>& b) {
                 float ax = 0, ay = 0, az = 0, bx = 0, by = 0, bz = 0;
-                getNodePosition(snapshot, a.front(), ax, ay, az);
-                getNodePosition(snapshot, b.front(), bx, by, bz);
+                getNodePosition(snapshot, indexes, a.front(), ax, ay, az);
+                getNodePosition(snapshot, indexes, b.front(), bx, by, bz);
                 float da = (ax - refX) * (ax - refX) + (ay - refY) * (ay - refY) + (az - refZ) * (az - refZ);
                 float db = (bx - refX) * (bx - refX) + (by - refY) * (by - refY) + (bz - refZ) * (bz - refZ);
                 return da < db;
@@ -313,7 +331,7 @@ bool RigGenerator::generateRig(const Snapshot* snapshot, const RigStructure& tem
 
         for (const auto& chain : nodeChains) {
             float fx, fy, fz, bx, by, bz;
-            if (getNodePosition(snapshot, chain.front(), fx, fy, fz) && getNodePosition(snapshot, chain.back(), bx, by, bz)) {
+            if (getNodePosition(snapshot, indexes, chain.front(), fx, fy, fz) && getNodePosition(snapshot, indexes, chain.back(), bx, by, bz)) {
                 sumBeginX += fx;
                 sumBeginY += fy;
                 sumBeginZ += fz;
@@ -348,7 +366,7 @@ bool RigGenerator::generateRig(const Snapshot* snapshot, const RigStructure& tem
                 for (const auto& chain : nodeChains) {
                     float px, py, pz;
                     for (const Uuid& endNode : { chain.front(), chain.back() }) {
-                        if (!getNodePosition(snapshot, endNode, px, py, pz))
+                        if (!getNodePosition(snapshot, indexes, endNode, px, py, pz))
                             continue;
                         float t = (px - avgBeginX) * dx + (py - avgBeginY) * dy + (pz - avgBeginZ) * dz;
                         if (firstProjection) {
@@ -804,7 +822,7 @@ bool RigGenerator::generateRig(const Snapshot* snapshot, const RigStructure& tem
         }
         if (headBone && jawBone) {
             std::vector<std::vector<Uuid>> jawChains;
-            if (extractNodeChainsForBone(snapshot, jawBone->name, jawChains)) {
+            if (extractNodeChainsForBone(snapshot, indexes, jawBone->name, jawChains)) {
                 float startX = headBone->posX;
                 float startY = headBone->posY;
                 float startZ = headBone->posZ;
@@ -816,7 +834,7 @@ bool RigGenerator::generateRig(const Snapshot* snapshot, const RigStructure& tem
                 for (const auto& chain : jawChains) {
                     for (const auto& nodeId : chain) {
                         float nx = 0, ny = 0, nz = 0;
-                        if (!getNodePosition(snapshot, nodeId, nx, ny, nz))
+                        if (!getNodePosition(snapshot, indexes, nodeId, nx, ny, nz))
                             continue;
                         float dx = nx - startX;
                         float dy = ny - startY;
@@ -893,12 +911,12 @@ bool RigGenerator::generateRig(const Snapshot* snapshot, const RigStructure& tem
         std::vector<std::vector<Uuid>> nodeChains;
         float radiusMax = 0.0f;
         size_t radiusCount = 0;
-        if (extractNodeChainsForBone(snapshot, bone.name, nodeChains)) {
+        if (extractNodeChainsForBone(snapshot, indexes, bone.name, nodeChains)) {
             for (const auto& chain : nodeChains) {
                 for (const auto& nodeId : chain) {
                     float nx = 0, ny = 0, nz = 0;
-                    if (getNodePosition(snapshot, nodeId, nx, ny, nz)) {
-                        auto it = snapshot->nodes.find(nodeId.toString());
+                    if (getNodePosition(snapshot, indexes, nodeId, nx, ny, nz)) {
+                        auto it = indexes.nodes.find(snapshot->nodes, nodeId).element;
                         if (it != snapshot->nodes.end()) {
                             float nodeRadius = String::toFloat(String::valueOrEmpty(it->second, "radius"));
                             if (nodeRadius > 1e-6f) {
@@ -1124,6 +1142,7 @@ bool RigGenerator::computeNodeBoneInfluences(const Snapshot* snapshot,
         m_errorMessage = "Snapshot not initialized";
         return false;
     }
+    const RigSnapshotIndexes indexes(*snapshot);
 
     nodeBoneInfluences.clear();
 
@@ -1131,17 +1150,19 @@ bool RigGenerator::computeNodeBoneInfluences(const Snapshot* snapshot,
     std::map<std::string, std::set<std::string>> nodeToBoneNames;
     for (const auto& edgePair : snapshot->edges) {
         const auto& edgeAttributes = edgePair.second;
-        if (!edgeBelongsToModelPart(snapshot, edgeAttributes))
+        if (!edgeBelongsToModelPart(snapshot, indexes, edgeAttributes))
             continue;
         std::string boneName = String::valueOrEmpty(edgeAttributes, "boneName");
         if (boneName.empty())
             continue;
         std::string fromNode = String::valueOrEmpty(edgeAttributes, "from");
         std::string toNode = String::valueOrEmpty(edgeAttributes, "to");
-        if (!fromNode.empty())
-            nodeToBoneNames[fromNode].insert(boneName);
-        if (!toNode.empty())
-            nodeToBoneNames[toNode].insert(boneName);
+        const auto from = indexes.nodes.find(snapshot->nodes, fromNode).element;
+        const auto to = indexes.nodes.find(snapshot->nodes, toNode).element;
+        if (from != snapshot->nodes.end())
+            nodeToBoneNames[from->first].insert(boneName);
+        if (to != snapshot->nodes.end())
+            nodeToBoneNames[to->first].insert(boneName);
     }
 
     // For each node in the snapshot, determine which bones influence it
@@ -1149,7 +1170,7 @@ bool RigGenerator::computeNodeBoneInfluences(const Snapshot* snapshot,
         const std::string& nodeIdString = nodePair.first;
         Uuid nodeId(nodeIdString);
 
-        if (!nodeBelongsToModelPart(snapshot, nodeId))
+        if (!nodeBelongsToModelPart(snapshot, indexes, nodePair.first))
             continue;
 
         const auto& boneNamesIt = nodeToBoneNames.find(nodeIdString);
@@ -1318,7 +1339,7 @@ bool RigGenerator::computeVertexBoneBindings(Object* object,
     return true;
 }
 
-void RigGenerator::attachSingleNodesToBone(const Snapshot* snapshot,
+void RigGenerator::attachSingleNodesToBone(const Snapshot* snapshot, const RigSnapshotIndexes& indexes,
     const std::string& boneName,
     const std::set<Uuid>& boneEdgeNodes,
     const std::set<Uuid>& allEdgeNodes,
@@ -1328,7 +1349,7 @@ void RigGenerator::attachSingleNodesToBone(const Snapshot* snapshot,
     for (const auto& nodePair : snapshot->nodes) {
         Uuid nodeId(nodePair.first);
 
-        if (!nodeBelongsToModelPart(snapshot, nodeId))
+        if (!nodeBelongsToModelPart(snapshot, indexes, nodePair.first))
             continue;
 
         // Only attach nodes that have NO edges at all (truly isolated).
@@ -1341,7 +1362,7 @@ void RigGenerator::attachSingleNodesToBone(const Snapshot* snapshot,
             continue;
 
         float nx = 0, ny = 0, nz = 0;
-        if (!getNodePosition(snapshot, nodeId, nx, ny, nz))
+        if (!getNodePosition(snapshot, indexes, nodeId, nx, ny, nz))
             continue;
 
         // Find nearest node among this bone's edge-connected nodes
@@ -1349,7 +1370,7 @@ void RigGenerator::attachSingleNodesToBone(const Snapshot* snapshot,
         bool foundNearest = false;
         for (const auto& candidateId : boneEdgeNodes) {
             float cx = 0, cy = 0, cz = 0;
-            if (!getNodePosition(snapshot, candidateId, cx, cy, cz))
+            if (!getNodePosition(snapshot, indexes, candidateId, cx, cy, cz))
                 continue;
             float dx = nx - cx, dy = ny - cy, dz = nz - cz;
             float dist = dx * dx + dy * dy + dz * dz;
@@ -1366,7 +1387,7 @@ void RigGenerator::attachSingleNodesToBone(const Snapshot* snapshot,
                 if (boneEdgeNodes.count(candidateId))
                     continue;
                 float cx = 0, cy = 0, cz = 0;
-                if (!getNodePosition(snapshot, candidateId, cx, cy, cz))
+                if (!getNodePosition(snapshot, indexes, candidateId, cx, cy, cz))
                     continue;
                 float dx = nx - cx, dy = ny - cy, dz = nz - cz;
                 float dist = dx * dx + dy * dy + dz * dz;
@@ -1385,7 +1406,7 @@ void RigGenerator::attachSingleNodesToBone(const Snapshot* snapshot,
     }
 }
 
-bool RigGenerator::extractNodeChainsForBone(const Snapshot* snapshot,
+bool RigGenerator::extractNodeChainsForBone(const Snapshot* snapshot, const RigSnapshotIndexes& indexes,
     const std::string& boneName,
     std::vector<std::vector<Uuid>>& nodeChains)
 {
@@ -1393,7 +1414,7 @@ bool RigGenerator::extractNodeChainsForBone(const Snapshot* snapshot,
 
     std::map<Uuid, std::vector<Uuid>> adjacency;
     std::set<Uuid> allNodes;
-    buildNodeAdjacency(snapshot, boneName, adjacency, allNodes);
+    buildNodeAdjacency(snapshot, indexes, boneName, adjacency, allNodes);
 
     if (allNodes.empty()) {
         return false;
@@ -1461,7 +1482,7 @@ bool RigGenerator::extractNodeChainsForBone(const Snapshot* snapshot,
     return !nodeChains.empty();
 }
 
-void RigGenerator::orientChainTowardPoint(const Snapshot* snapshot,
+void RigGenerator::orientChainTowardPoint(const Snapshot* snapshot, const RigSnapshotIndexes& indexes,
     std::vector<Uuid>& chain,
     float refX, float refY, float refZ)
 {
@@ -1471,9 +1492,9 @@ void RigGenerator::orientChainTowardPoint(const Snapshot* snapshot,
     float frontX, frontY, frontZ;
     float backX, backY, backZ;
 
-    if (!getNodePosition(snapshot, chain.front(), frontX, frontY, frontZ))
+    if (!getNodePosition(snapshot, indexes, chain.front(), frontX, frontY, frontZ))
         return;
-    if (!getNodePosition(snapshot, chain.back(), backX, backY, backZ))
+    if (!getNodePosition(snapshot, indexes, chain.back(), backX, backY, backZ))
         return;
 
     float distFront = (frontX - refX) * (frontX - refX)
@@ -1488,51 +1509,66 @@ void RigGenerator::orientChainTowardPoint(const Snapshot* snapshot,
     }
 }
 
-bool RigGenerator::getNodePositionInternal(const Snapshot* snapshot, const Uuid& nodeId,
+bool RigGenerator::getNodePositionInternal(const Snapshot* snapshot, const RigSnapshotIndexes& indexes, const Uuid& nodeId,
     float& x, float& y, float& z, std::set<std::string>& visited)
 {
     if (!snapshot)
         return false;
 
-    std::string nodeIdString = nodeId.toString();
-    if (visited.count(nodeIdString))
-        return false; // cycle detected
-
-    visited.insert(nodeIdString);
-
-    auto it = snapshot->nodes.find(nodeIdString);
-    if (it == snapshot->nodes.end())
-        return false;
-
-    std::string mirrorFromNodeId = String::valueOrEmpty(it->second, "__mirrorFromNodeId");
-    if (!mirrorFromNodeId.empty()) {
-        Uuid mirrorNode(mirrorFromNodeId);
-        float mx = 0, my = 0, mz = 0;
-        if (getNodePositionInternal(snapshot, mirrorNode, mx, my, mz, visited)) {
-            x = -mx;
-            y = my;
-            z = mz;
-            return true;
+    std::string current = nodeId.toString();
+    const std::map<std::string, std::string>* attributes = nullptr;
+    size_t reflections = 0;
+    while (true) {
+        const auto found = indexes.nodes.find(snapshot->nodes, current).element;
+        const std::string currentId = found == snapshot->nodes.end() ? current : found->first;
+        if (visited.count(currentId)) {
+            if (!attributes)
+                return false;
+            // A failed child falls back to its immediate parent's own coordinates.
+            --reflections;
+            break;
         }
-
-        // Fall back to this node when mirror source fails
+        visited.insert(currentId);
+        if (found == snapshot->nodes.end()) {
+            if (!attributes)
+                return false;
+            --reflections;
+            break;
+        }
+        attributes = &found->second;
+        const std::string mirror = String::valueOrEmpty(*attributes, "__mirrorFromNodeId");
+        if (mirror.empty())
+            break;
+        current = mirror;
+        ++reflections;
     }
 
-    // Apply same coordinate transformation as MeshGenerator uses
-    x = (String::toFloat(String::valueOrEmpty(it->second, "x")) - m_mainProfileMiddleX);
-    y = (m_mainProfileMiddleY - String::toFloat(String::valueOrEmpty(it->second, "y")));
-    z = (m_sideProfileMiddleX - String::toFloat(String::valueOrEmpty(it->second, "z")));
+    // Parse only the terminal/fallback node, as successful recursive mirrors did.
+    // Keeping the walk iterative avoids consuming call stack per mirror source.
+    if (reflections == 0) {
+        x = String::toFloat(String::valueOrEmpty(*attributes, "x")) - m_mainProfileMiddleX;
+        y = m_mainProfileMiddleY - String::toFloat(String::valueOrEmpty(*attributes, "y"));
+        z = m_sideProfileMiddleX - String::toFloat(String::valueOrEmpty(*attributes, "z"));
+    } else {
+        // Recursive ancestors published only after the child's complete parse succeeded.
+        const float mx = String::toFloat(String::valueOrEmpty(*attributes, "x")) - m_mainProfileMiddleX;
+        const float my = m_mainProfileMiddleY - String::toFloat(String::valueOrEmpty(*attributes, "y"));
+        const float mz = m_sideProfileMiddleX - String::toFloat(String::valueOrEmpty(*attributes, "z"));
+        x = reflections % 2 ? -mx : mx;
+        y = my;
+        z = mz;
+    }
     return true;
 }
 
-bool RigGenerator::getNodePosition(const Snapshot* snapshot, const Uuid& nodeId,
+bool RigGenerator::getNodePosition(const Snapshot* snapshot, const RigSnapshotIndexes& indexes, const Uuid& nodeId,
     float& x, float& y, float& z)
 {
     std::set<std::string> visited;
-    return getNodePositionInternal(snapshot, nodeId, x, y, z, visited);
+    return getNodePositionInternal(snapshot, indexes, nodeId, x, y, z, visited);
 }
 
-void RigGenerator::buildNodeAdjacency(const Snapshot* snapshot,
+void RigGenerator::buildNodeAdjacency(const Snapshot* snapshot, const RigSnapshotIndexes& indexes,
     const std::string& boneName,
     std::map<Uuid, std::vector<Uuid>>& adjacency,
     std::set<Uuid>& allNodes)
@@ -1540,7 +1576,7 @@ void RigGenerator::buildNodeAdjacency(const Snapshot* snapshot,
     adjacency.clear();
     allNodes.clear();
 
-    auto edgesForBone = getEdgesWithBoneName(snapshot, boneName);
+    auto edgesForBone = getEdgesWithBoneName(snapshot, indexes, boneName);
 
     for (const auto* edge : edgesForBone) {
         if (!edge)
@@ -1564,7 +1600,7 @@ void RigGenerator::buildNodeAdjacency(const Snapshot* snapshot,
 }
 
 std::vector<const std::map<std::string, std::string>*> RigGenerator::getEdgesWithBoneName(
-    const Snapshot* snapshot,
+    const Snapshot* snapshot, const RigSnapshotIndexes& indexes,
     const std::string& boneName)
 {
     std::vector<const std::map<std::string, std::string>*> result;
@@ -1572,7 +1608,7 @@ std::vector<const std::map<std::string, std::string>*> RigGenerator::getEdgesWit
     for (const auto& edgePair : snapshot->edges) {
         const auto& edgeAttributes = edgePair.second;
         std::string edgeBoneName = String::valueOrEmpty(edgeAttributes, "boneName");
-        if (edgeBoneName == boneName && edgeBelongsToModelPart(snapshot, edgeAttributes)) {
+        if (edgeBoneName == boneName && edgeBelongsToModelPart(snapshot, indexes, edgeAttributes)) {
             result.push_back(&edgeAttributes);
         }
     }
@@ -1580,19 +1616,20 @@ std::vector<const std::map<std::string, std::string>*> RigGenerator::getEdgesWit
     return result;
 }
 
-bool RigGenerator::nodeHasEdgeWithBoneName(const Snapshot* snapshot,
+bool RigGenerator::nodeHasEdgeWithBoneName(const Snapshot* snapshot, const RigSnapshotIndexes& indexes,
     const Uuid& nodeId,
     const std::string& boneName)
 {
-    std::string nodeIdString = nodeId.toString();
-
     for (const auto& edgePair : snapshot->edges) {
         const auto& edgeAttributes = edgePair.second;
         std::string fromNode = String::valueOrEmpty(edgeAttributes, "from");
         std::string toNode = String::valueOrEmpty(edgeAttributes, "to");
         std::string edgeBoneName = String::valueOrEmpty(edgeAttributes, "boneName");
 
-        if ((fromNode == nodeIdString || toNode == nodeIdString) && edgeBoneName == boneName) {
+        const auto node = indexes.nodes.find(snapshot->nodes, nodeId).element;
+        const auto from = indexes.nodes.find(snapshot->nodes, fromNode).element;
+        const auto to = indexes.nodes.find(snapshot->nodes, toNode).element;
+        if (node != snapshot->nodes.end() && (from == node || to == node) && edgeBoneName == boneName) {
             return true;
         }
     }

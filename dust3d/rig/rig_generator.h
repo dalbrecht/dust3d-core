@@ -35,6 +35,8 @@
 
 namespace dust3d {
 
+struct RigSnapshotIndexes;
+
 // RigStructure: Defines a skeletal rig with bones and hierarchy
 struct RigNode {
     std::string name;
@@ -115,36 +117,36 @@ private:
     // Helper: Extract all connected chains of nodes for a given bone name
     // Each chain is an ordered list of node UUIDs.
     // Multiple disconnected groups of edges produce multiple chains.
-    bool extractNodeChainsForBone(const Snapshot* snapshot,
+    bool extractNodeChainsForBone(const Snapshot* snapshot, const RigSnapshotIndexes& indexes,
         const std::string& boneName,
         std::vector<std::vector<Uuid>>& nodeChains);
 
     // Helper: Build node connectivity graph from edges with a given bone name
-    void buildNodeAdjacency(const Snapshot* snapshot,
+    void buildNodeAdjacency(const Snapshot* snapshot, const RigSnapshotIndexes& indexes,
         const std::string& boneName,
         std::map<Uuid, std::vector<Uuid>>& adjacency,
         std::set<Uuid>& allNodes);
 
     // Helper: Orient a chain so its end closest to refPoint comes first
-    void orientChainTowardPoint(const Snapshot* snapshot,
+    void orientChainTowardPoint(const Snapshot* snapshot, const RigSnapshotIndexes& indexes,
         std::vector<Uuid>& chain,
         float refX, float refY, float refZ);
 
     // Helper: Get position of a single node from the snapshot
-    bool getNodePosition(const Snapshot* snapshot, const Uuid& nodeId,
+    bool getNodePosition(const Snapshot* snapshot, const RigSnapshotIndexes& indexes, const Uuid& nodeId,
         float& x, float& y, float& z);
 
     // Internal helper that tracks visited node ids to prevent mirror loops
-    bool getNodePositionInternal(const Snapshot* snapshot, const Uuid& nodeId,
+    bool getNodePositionInternal(const Snapshot* snapshot, const RigSnapshotIndexes& indexes, const Uuid& nodeId,
         float& x, float& y, float& z, std::set<std::string>& visited);
 
     // Helper: Get all edges with a specific bone name
     std::vector<const std::map<std::string, std::string>*> getEdgesWithBoneName(
-        const Snapshot* snapshot,
+        const Snapshot* snapshot, const RigSnapshotIndexes& indexes,
         const std::string& boneName);
 
     // Helper: Check if node has edge with given boneName
-    bool nodeHasEdgeWithBoneName(const Snapshot* snapshot,
+    bool nodeHasEdgeWithBoneName(const Snapshot* snapshot, const RigSnapshotIndexes& indexes,
         const Uuid& nodeId,
         const std::string& boneName);
 
@@ -160,7 +162,7 @@ private:
     // Helper: Find truly isolated nodes (no edges at all) that are nearest
     // to the given bone's edge-connected nodes, and append them as single-node chains.
     // Also records the mapping in m_singleNodeBoneMap for use by computeNodeBoneInfluences.
-    void attachSingleNodesToBone(const Snapshot* snapshot,
+    void attachSingleNodesToBone(const Snapshot* snapshot, const RigSnapshotIndexes& indexes,
         const std::string& boneName,
         const std::set<Uuid>& boneEdgeNodes,
         const std::set<Uuid>& allEdgeNodes,
