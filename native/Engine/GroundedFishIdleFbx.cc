@@ -143,7 +143,7 @@ namespace dust3d::native {
                         || (bake->options.cancellation ? &bake->options.cancellation->cancelled : nullptr) != options.cancellation))
             throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Animated FBX requires explicit bake budgets and a matching cancellation token.");
         for (const auto& request : requests) {
-            if (request.name.empty() || request.name.size() > 1024 || request.name.find('\0') != std::string::npos)
+            if (!supportsFishLoop(request.clipType) || request.name.empty() || request.name.size() > 1024 || request.name.find('\0') != std::string::npos)
                 throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Animated FishIdle FBX requires bounded clip names.");
         }
 
@@ -167,7 +167,7 @@ namespace dust3d::native {
                             remainingJointKeys -= evaluated.frames.size() * grounded.bones.size();
                             stagedBytes = stageClip(evaluated, request.name, availableForKeys, options.cancellation, clips);
                             return stagedBytes;
-                        });
+                        }, request.clipType);
                     charge(remainingBytes, stagedBytes);
                 }
             });

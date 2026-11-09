@@ -59,17 +59,19 @@ static Dust3DExperimentalFishIdle* loadFishIdle(const uint8_t* archive, size_t a
             surface = admitSurface(std::string_view(pcmOptions->surface, pcmOptions->surface_length));
         }
         AnimationParams authored;
+        std::string clipType = "FishIdle";
         if (!selectedId.empty()) {
             auto fields = readSelectedAnimationMetadata(archive, archiveSize, selectedId);
-            if (fields["type"] != "FishIdle")
-                throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "The selected animation is not FishIdle.");
+            clipType = fields["type"];
+            if (!supportsFishLoop(clipType))
+                throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "The selected animation is not a supported Fish loop.");
             if (includeSelectedPCM) {
                 const auto material = fields.find("surfaceMaterial");
                 surface = material == fields.end() ? surfaceMaterials().front() : admitSurface(material->second);
             }
             for (const auto* metadata : { "id", "name", "type", "surfaceMaterial" })
                 fields.erase(metadata);
-            if (fields.size() > 9 || std::any_of(fields.begin(), fields.end(), [](const auto& field) {
+            if (fields.size() > (clipType == "FishIdle" ? 9 : 16) || std::any_of(fields.begin(), fields.end(), [](const auto& field) {
                     return field.first.empty() || field.first.size() > 64 || field.second.empty() || field.second.size() > 64;
                 }))
                 throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Invalid selected FishIdle parameters.");
@@ -108,10 +110,10 @@ static Dust3DExperimentalFishIdle* loadFishIdle(const uint8_t* archive, size_t a
         auto source = prepareGeneratedRigSource(archive, archiveSize, "Fish", 4, bones, boneCount, config);
         auto result = surface
             ? generateGroundedFishIdleSoundPreview(*source.input, std::move(source.metadata), source.rig,
-                authored, *surface, source.options, config.maximum_draw_vertices, config.cancellation)
+                authored, *surface, source.options, config.maximum_draw_vertices, config.cancellation, clipType)
             : GroundedFishIdleSoundPreview { generateGroundedFishIdleDrawPreview(*source.input,
                   std::move(source.metadata), source.rig, authored, source.options,
-                  config.maximum_draw_vertices, config.cancellation, surfaceHandoff),
+                  config.maximum_draw_vertices, config.cancellation, surfaceHandoff, clipType),
                 {} };
         auto& preview = result.visual;
         const auto frames = preview.clip.sampleTimes().size();

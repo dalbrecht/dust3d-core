@@ -7,7 +7,7 @@
 namespace dust3d::native {
     GroundedFishIdlePreview generateGroundedFishIdlePreview(const GeneratedRigInput& input,
         const RigStructure& templateRig, const AnimationParams& parameters, const RigFinalDataOptions& options,
-        const FishIdleClipHandoff& handoff)
+        const FishIdleClipHandoff& handoff, const std::string& clipType)
     {
         if (templateRig.type != "Fish")
             throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "FishIdle preview requires a Fish rig template.");
@@ -23,7 +23,7 @@ namespace dust3d::native {
         }
         auto rest = generateFinalRigWithGroundedHandoff(input, templateRig, options,
             [&](const RigStructure& grounded, const std::map<std::string, Matrix4x4>& inverse, size_t remainingBytes) {
-                auto evaluated = evaluateFishIdle(grounded, inverse, parameters, remainingBytes, options.cancellation, stageDerived);
+                auto evaluated = evaluateFishIdle(grounded, inverse, parameters, remainingBytes, options.cancellation, stageDerived, clipType);
                 for (const auto& matrix : evaluated.modelFromJoint()) {
                     if (options.cancellation && options.cancellation->load(std::memory_order_relaxed))
                         throw DocumentError(DUST3D_STATUS_CANCELLED, "FishIdle preview was cancelled.");
@@ -39,7 +39,7 @@ namespace dust3d::native {
     GroundedFishIdleDrawPreview generateGroundedFishIdleDrawPreview(const GeneratedRigInput& input,
         std::unique_ptr<Dust3DMesh> metadata, const RigStructure& templateRig,
         const AnimationParams& parameters, const RigFinalDataOptions& options,
-        size_t maximumDrawVertices, const Dust3DCancellationToken* token, const FishIdleClipHandoff& handoff)
+        size_t maximumDrawVertices, const Dust3DCancellationToken* token, const FishIdleClipHandoff& handoff, const std::string& clipType)
     {
         auto sharedOptions = options;
         sharedOptions.cancellation = token ? &token->cancelled : nullptr;
@@ -47,7 +47,7 @@ namespace dust3d::native {
             || (options.cancellation && options.cancellation != sharedOptions.cancellation))
             throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Invalid grounded FishIdle draw inputs.");
         checkCancellation(token);
-        auto preview = generateGroundedFishIdlePreview(input, templateRig, parameters, sharedOptions, handoff);
+        auto preview = generateGroundedFishIdlePreview(input, templateRig, parameters, sharedOptions, handoff, clipType);
         const auto limit = sharedOptions.maximumPayloadBytes;
         const auto poseBytes = preview.clip.logicalPayloadBytes();
         if (preview.rest.payloadBytes > limit || poseBytes > limit - preview.rest.payloadBytes)

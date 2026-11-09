@@ -2,6 +2,7 @@
 #include "ExperimentalFishIdleFbx.h"
 #include "BakedMesh.h"
 #include "Cancellation.h"
+#include "FishIdleEvaluation.h"
 #include "GeneratedRigDrawOwner.h"
 #include "GroundedFishIdleFbx.h"
 #include <algorithm>
@@ -46,20 +47,22 @@ static Dust3DExperimentalFishIdleFbx* createFishIdleFbx(
         for (size_t index = 0; index < records.size(); ++index) {
             checkCancellation(config.cancellation);
             auto& fields = records[index];
-            if (fields["type"] != "FishIdle")
-                throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "The selected FBX clip is not FishIdle.");
+            const auto clipType = fields["type"];
+            if (!supportsFishLoop(clipType))
+                throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "The selected FBX clip is not a supported Fish loop.");
             const auto name = fields.find("name");
             auto title = name == fields.end() || name->second.empty() ? std::string(requested[index]) : std::move(name->second);
             if (title.size() > 1024 || title.find('\0') != std::string::npos)
                 throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Invalid animated FishIdle FBX clip name.");
             for (const auto* field : { "id", "name", "type", "surfaceMaterial" })
                 fields.erase(field);
-            if (fields.size() > 9 || std::any_of(fields.begin(), fields.end(), [](const auto& field) {
+            if (fields.size() > (clipType == "FishIdle" ? 9 : 16) || std::any_of(fields.begin(), fields.end(), [](const auto& field) {
                     return field.first.empty() || field.first.size() > 64 || field.second.empty() || field.second.size() > 64;
                 }))
                 throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Invalid selected FishIdle FBX parameters.");
             FishIdleFbxClipInput input;
             input.name = std::move(title);
+            input.clipType = clipType;
             input.parameters.values.insert(fields.begin(), fields.end());
             clips.push_back(std::move(input));
         }

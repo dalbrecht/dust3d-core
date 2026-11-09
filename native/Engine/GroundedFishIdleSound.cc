@@ -23,7 +23,7 @@ namespace dust3d::native {
         // at most one underwater event per adjacent sample pair, including the seam.
         constexpr size_t maximumEvents = 128;
         constexpr std::array<const char*, 5> trackedBones { "BodyFront", "BodyMid", "BodyRear", "TailStart", "TailEnd" };
-        if (clip.animationType != "FishIdle" || !clip.loop || !std::isfinite(clip.durationSeconds)
+        if (!supportsFishLoop(clip.animationType) || !clip.loop || !std::isfinite(clip.durationSeconds)
             || clip.durationSeconds < 0.001f || clip.durationSeconds > 30.0f
             || clip.frames.size() < 2 || clip.frames.size() > maximumEvents + 1)
             throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "FishIdle sound is outside its bounded clip range.");
@@ -101,14 +101,14 @@ namespace dust3d::native {
     GroundedFishIdleSoundPreview generateGroundedFishIdleSoundPreview(const GeneratedRigInput& input,
         std::unique_ptr<Dust3DMesh> metadata, const RigStructure& templateRig, const AnimationParams& parameters,
         SurfaceMaterial material, const RigFinalDataOptions& options, size_t maximumDrawVertices,
-        const Dust3DCancellationToken* cancellation)
+        const Dust3DCancellationToken* cancellation, const std::string& clipType)
     {
         AnimationSoundData sound;
         auto visual = generateGroundedFishIdleDrawPreview(input, std::move(metadata), templateRig, parameters,
             options, maximumDrawVertices, cancellation, [&](const RigAnimationClip& clip, size_t remainingBytes) {
                 sound = renderFishIdleSound(clip, parameters, material, remainingBytes, cancellation);
                 return sound.pcmSamples.size() * sizeof(int16_t);
-            });
+            }, clipType);
         checkCancellation(cancellation);
         return { std::move(visual), std::move(sound) };
     }

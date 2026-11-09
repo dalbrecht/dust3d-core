@@ -27,6 +27,7 @@ namespace dust3d::native {
     /// one evaluation; no native playback or WAV writer is invoked.
     GroundedFishIdleSoundPreview generateGroundedFishIdleSoundPreview(const GeneratedRigInput&,
         std::unique_ptr<Dust3DMesh> metadata, const RigStructure&, const AnimationParams&,
-        SurfaceMaterial, const RigFinalDataOptions&, size_t maximumDrawVertices, const Dust3DCancellationToken*);
+        SurfaceMaterial, const RigFinalDataOptions&, size_t maximumDrawVertices, const Dust3DCancellationToken*,
+        const std::string& clipType = "FishIdle");
 }
 #endif

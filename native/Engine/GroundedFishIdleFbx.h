@@ -10,6 +10,7 @@ namespace dust3d::native {
     struct FishIdleFbxClipInput {
         std::string name;
         AnimationParams parameters;
+        std::string clipType = "FishIdle";
     };
 
     struct FishIdleFbxBakeInput {
