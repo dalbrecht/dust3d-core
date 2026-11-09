@@ -48,8 +48,8 @@ static Dust3DExperimentalFishIdleFbx* createFishIdleFbx(
             checkCancellation(config.cancellation);
             auto& fields = records[index];
             const auto clipType = fields["type"];
-            if (!supportsFishLoop(clipType))
-                throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "The selected FBX clip is not a supported Fish loop.");
+            if (!supportsFishClip(clipType))
+                throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "The selected FBX clip is not a supported Fish clip.");
             const auto name = fields.find("name");
             auto title = name == fields.end() || name->second.empty() ? std::string(requested[index]) : std::move(name->second);
             if (title.size() > 1024 || title.find('\0') != std::string::npos)

@@ -22,21 +22,26 @@ namespace dust3d::native {
         // Mirror the bounded audio branch's limits. A complete Fish track can emit
         // at most one underwater event per adjacent sample pair, including the seam.
         constexpr size_t maximumEvents = 128;
-        constexpr std::array<const char*, 5> trackedBones { "BodyFront", "BodyMid", "BodyRear", "TailStart", "TailEnd" };
-        if (!supportsFishLoop(clip.animationType) || !clip.loop || !std::isfinite(clip.durationSeconds)
+        constexpr std::array<const char*, 5> trackedBones { "BodyMid", "BodyFront", "BodyRear", "TailStart", "TailEnd" };
+        if (!supportsFishClip(clip.animationType) || clip.loop != supportsFishLoop(clip.animationType)
+            || !std::isfinite(clip.durationSeconds)
             || clip.durationSeconds < 0.001f || clip.durationSeconds > 30.0f
             || clip.frames.size() < 2 || clip.frames.size() > maximumEvents + 1)
-            throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "FishIdle sound is outside its bounded clip range.");
+            throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Fish clip sound is outside its bounded clip range.");
+        // Qt emits no FishAttack or FishHurt events. FishDie detects impact on BodyMid.
+        if (clip.animationType == "FishAttack" || clip.animationType == "FishHurt")
+            return { {}, clip.durationSeconds, 0 };
+        const size_t trackCount = clip.loop ? trackedBones.size() : 1;
         for (const auto& frame : clip.frames) {
             checkCancellation(cancellation);
-            for (const auto* name : trackedBones) {
-                const auto bone = frame.boneWorldTransforms.find(name);
+            for (size_t index = 0; index < trackCount; ++index) {
+                const auto bone = frame.boneWorldTransforms.find(trackedBones[index]);
                 if (bone == frame.boneWorldTransforms.end())
-                    throw DocumentError(DUST3D_STATUS_GENERATION_FAILED, "FishIdle sound requires complete body and tail tracks.");
+                    throw DocumentError(DUST3D_STATUS_GENERATION_FAILED, "Fish clip sound requires complete detector tracks.");
                 const auto* values = bone->second.constData();
                 for (const auto axis : { Matrix4x4::M30, Matrix4x4::M31, Matrix4x4::M32 }) {
                     if (!std::isfinite(values[axis]) || std::abs(values[axis]) > 1e6)
-                        throw DocumentError(DUST3D_STATUS_GENERATION_FAILED, "FishIdle sound track coordinates are invalid.");
+                        throw DocumentError(DUST3D_STATUS_GENERATION_FAILED, "Fish clip sound track coordinates are invalid.");
                 }
             }
         }
@@ -55,7 +60,7 @@ namespace dust3d::native {
                        && event.timeSeconds >= 0 && event.timeSeconds <= clip.durationSeconds
                        && std::isfinite(event.intensity) && event.intensity > 0 && event.intensity <= 1;
                }))
-            throw DocumentError(DUST3D_STATUS_GENERATION_FAILED, "FishIdle sound events are outside the bounded underwater contract.");
+            throw DocumentError(DUST3D_STATUS_GENERATION_FAILED, "Fish clip sound events are outside the bounded underwater contract.");
         return { std::move(events), clip.durationSeconds, sampleCount };
     }
 
@@ -79,7 +84,7 @@ namespace dust3d::native {
         checkCancellation(cancellation);
         const auto& surfaces = surfaceMaterials();
         if (std::find(surfaces.begin(), surfaces.end(), material) == surfaces.end())
-            throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "FishIdle sound surface is invalid.");
+            throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Fish clip sound surface is invalid.");
         return renderPreparedSound(prepareFishIdleSound(clip, parameters, remainingBytes, cancellation), material, cancellation);
     }
 

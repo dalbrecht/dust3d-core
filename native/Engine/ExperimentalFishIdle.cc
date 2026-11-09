@@ -63,8 +63,8 @@ static Dust3DExperimentalFishIdle* loadFishIdle(const uint8_t* archive, size_t a
         if (!selectedId.empty()) {
             auto fields = readSelectedAnimationMetadata(archive, archiveSize, selectedId);
             clipType = fields["type"];
-            if (!supportsFishLoop(clipType))
-                throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "The selected animation is not a supported Fish loop.");
+            if (!supportsFishClip(clipType))
+                throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "The selected animation is not a supported Fish clip.");
             if (includeSelectedPCM) {
                 const auto material = fields.find("surfaceMaterial");
                 surface = material == fields.end() ? surfaceMaterials().front() : admitSurface(material->second);
