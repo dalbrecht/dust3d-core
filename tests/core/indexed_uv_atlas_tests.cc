@@ -191,8 +191,10 @@ void explicitGeneratedGradient()
     require(atlas.triangleUvKnown[2] == 1 && atlas.triangleComponentIds[2].isNull(),
         "Generated gradient is mapped without inventing single-component source ownership");
     const auto& gradient = atlas.gradients[0];
-    require(gradient.layoutIndex < atlas.layouts.size() && atlas.layouts[gradient.layoutIndex].sourceId.isNull(),
-        "Generated gradient layout must remain distinct from a same-ID source chart");
+    require(gradient.layoutIndex == 0 && atlas.layouts[gradient.layoutIndex].sourceId.isNull(),
+        "The indexed gradient chart must precede ordinary charts, as in the Qt atlas");
+    require(atlas.layouts[1].sourceId == first && atlas.layouts[2].sourceId == second,
+        "Ordinary indexed chart order must remain stable after the gradient");
     require(gradient.largeColor.r() == 1 && gradient.largeColor.b() == 0
             && gradient.smallColor.r() == 0 && gradient.smallColor.b() == 1,
         "Explicit topology-derived endpoint owners determine gradient colors");
