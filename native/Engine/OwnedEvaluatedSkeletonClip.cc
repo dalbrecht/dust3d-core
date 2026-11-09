@@ -22,6 +22,8 @@ namespace native {
         const auto jointCount = rig.bones.size();
         if (frameCount < 2 || jointCount == 0 || clip.animationType.empty()
             || !std::isfinite(clip.durationSeconds) || clip.durationSeconds <= 0
+            || !std::isfinite(clip.movementSpeed) || !std::isfinite(clip.movementDirectionX)
+            || !std::isfinite(clip.movementDirectionZ)
             || clip.frames.front().time != 0
             || (clip.loop && clip.frames.back().time != clip.durationSeconds))
             throw DocumentError(DUST3D_STATUS_GENERATION_FAILED, "Invalid evaluated skeleton clip metadata.");
@@ -52,6 +54,7 @@ namespace native {
         result.m_animationType = clip.animationType;
         result.m_durationSeconds = clip.durationSeconds;
         result.m_loops = clip.loop;
+        result.m_groundMotion = { clip.movementSpeed, clip.movementDirectionX, clip.movementDirectionZ };
         result.m_jointCount = jointCount;
         result.m_sampleTimes.reserve(frameCount);
         result.m_modelFromJoint.reserve(matrixCount);

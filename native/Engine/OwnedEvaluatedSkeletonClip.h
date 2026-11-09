@@ -15,6 +15,12 @@ struct RigStructure;
 namespace native {
     class OwnedEvaluatedSkeletonClip {
     public:
+        struct GroundMotion {
+            float speed = 0;
+            float directionX = 0;
+            float directionZ = 0;
+        };
+
         /// Copy an already evaluated clip for its matching checked source rig.
         /// Limits apply to logical copied bytes, including names, times and matrices.
         /// Throws DocumentError on invalid output, limit violation or cancellation.
@@ -26,6 +32,8 @@ namespace native {
         const std::string& animationType() const { return m_animationType; }
         double durationSeconds() const { return m_durationSeconds; }
         bool loops() const { return m_loops; }
+        /// Preview ground travel in the producer’s coordinate system.
+        GroundMotion groundMotion() const { return m_groundMotion; }
         size_t jointCount() const { return m_jointCount; }
         size_t logicalPayloadBytes() const
         {
@@ -43,6 +51,7 @@ namespace native {
         std::string m_animationType;
         double m_durationSeconds = 0;
         bool m_loops = false;
+        GroundMotion m_groundMotion;
         size_t m_jointCount = 0;
         std::vector<double> m_sampleTimes;
         std::vector<RigMatrix> m_modelFromJoint;
