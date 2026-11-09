@@ -164,6 +164,16 @@ int dust3d_experimental_fish_idle_matrix_at(const Dust3DExperimentalFishIdle* ow
     return 1;
 }
 
+int dust3d_experimental_fish_idle_ground_motion(const Dust3DExperimentalFishIdle* owner,
+    Dust3DExperimentalFishIdleGroundMotion* output)
+{
+    if (!owner || !output)
+        return 0;
+    const auto motion = owner->preview.clip.groundMotion();
+    *output = { motion.speed, motion.directionX, motion.directionZ };
+    return 1;
+}
+
 int dust3d_experimental_fish_idle_describe_pcm(const Dust3DExperimentalFishIdle* owner,
     Dust3DExperimentalFishIdlePCMInfo* output)
 {

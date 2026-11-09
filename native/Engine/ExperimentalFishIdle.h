@@ -65,6 +65,16 @@ int dust3d_experimental_fish_idle_describe(const Dust3DExperimentalFishIdle*, Du
 int dust3d_experimental_fish_idle_matrix_at(const Dust3DExperimentalFishIdle*, size_t frame, size_t joint,
     Dust3DExperimentalFishIdleMatrix*);
 
+/* Ground travel in the same producer space as the poses. Invalid owner or
+   destination returns 0 and leaves any destination unchanged. */
+typedef struct Dust3DExperimentalFishIdleGroundMotion {
+    float speed;
+    float direction_x;
+    float direction_z;
+} Dust3DExperimentalFishIdleGroundMotion;
+int dust3d_experimental_fish_idle_ground_motion(const Dust3DExperimentalFishIdle*,
+    Dust3DExperimentalFishIdleGroundMotion*);
+
 /* V2 opt-in PCM request. The surface must be an exact reference catalog name.
    The default options require the caller to supply a surface span. */
 typedef struct Dust3DExperimentalFishIdlePCMOptions {

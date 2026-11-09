@@ -3,6 +3,7 @@
 #include "ExperimentalFishIdle.h"
 #include "fish_idle_pcm_fixture.h"
 #include <cassert>
+#include <cmath>
 #include <iterator>
 #include <limits>
 #include <memory>
@@ -41,6 +42,13 @@ void checkFishIdlePCMOwner()
     }
     assert(info.sample_rate == 44100 && info.channel_count == 1 && info.sample_count == 44100);
     assert(info.output_bytes == info.visual.output_bytes + info.sample_count * sizeof(int16_t));
+    Dust3DExperimentalFishIdleGroundMotion motion {};
+    assert(dust3d_experimental_fish_idle_ground_motion(owner.get(), &motion));
+    assert(std::isfinite(motion.speed) && std::isfinite(motion.direction_x) && std::isfinite(motion.direction_z));
+    const auto savedMotion = motion;
+    assert(!dust3d_experimental_fish_idle_ground_motion(nullptr, &motion));
+    assert(motion.speed == savedMotion.speed && motion.direction_x == savedMotion.direction_x
+        && motion.direction_z == savedMotion.direction_z);
     Dust3DExperimentalFishIdleMatrix matrix {};
     assert(dust3d_experimental_fish_idle_matrix_at(owner.get(), 0, 0, &matrix));
 
