@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Honor legacy part inversion when opening older Dust3D documents.
+
 - Reject invalid numeric XML character references before reading DS3 documents (#103).
 - Keep the authored starting endpoint when repairing mixed edge directions in a legacy chain.
 

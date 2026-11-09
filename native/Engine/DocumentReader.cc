@@ -163,7 +163,7 @@ namespace native {
         reader.loadItem(modelName, &modelBytes);
         validateModelXml(modelBytes);
         auto snapshot = std::make_unique<Snapshot>();
-        loadSnapshotFromXmlString(snapshot.get(), reinterpret_cast<char*>(modelBytes.data()));
+        loadNativeSnapshotFromXmlString(snapshot.get(), reinterpret_cast<char*>(modelBytes.data()));
         validateSnapshot(*snapshot, imports != nullptr || metadataOnly, canReadEmptyGeometry);
         for (const auto& component : snapshot->components) {
             if (!String::valueOrEmpty(component.second, "colorImageId").empty()
