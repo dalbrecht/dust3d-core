@@ -56,6 +56,38 @@ void checkFishIdlePCMOwner()
     assert(dust3d_experimental_fish_idle_describe_pcm(selected.get(), &selectedInfo));
     assert(selectedInfo.visual.frame_count == info.visual.frame_count && selectedInfo.sample_count == info.sample_count);
 
+    std::unique_ptr<Dust3DExperimentalFishIdle, decltype(destroy)> batch(
+        dust3d_experimental_fish_idle_load_selected_surfaces(
+            fishArchive, std::size(fishArchive), fishBones, std::size(fishBones),
+            fishAnimationId, std::size(fishAnimationId) - 1, &selectedOptions, &error),
+        destroy);
+    assert(batch && error.status == DUST3D_STATUS_OK);
+    assert(dust3d_experimental_fish_idle_surface_count(batch.get()) == 8);
+    assert(dust3d_experimental_fish_idle_surface_count(selected.get()) == 0);
+    const auto* batchId = dust3d_experimental_fish_idle_selected_id(batch.get(), &selectedLength);
+    assert(batchId && std::string_view(batchId, selectedLength) == fishAnimationId);
+    const char* expectedNames[] { "Stone", "Wood", "Sand", "Metal", "Grass", "Water", "Dirt", "Snow" };
+    size_t batchBytes = 0;
+    for (size_t index = 0; index < std::size(expectedNames); ++index) {
+        Dust3DExperimentalFishIdleSurfacePCMInfo row {};
+        assert(dust3d_experimental_fish_idle_describe_surface_pcm(batch.get(), index, &row));
+        assert(std::string_view(row.surface_name, row.surface_name_length) == expectedNames[index]);
+        assert(row.sample_rate == 44100 && row.channel_count == 1 && row.sample_count == 44100 && row.samples);
+        batchBytes += row.surface_name_length + row.sample_count * sizeof(int16_t);
+        if (index == 5) {
+            for (size_t frame = 0; frame < row.sample_count; ++frame) {
+                int16_t reference = 0;
+                assert(dust3d_experimental_fish_idle_pcm_at(selected.get(), frame, &reference));
+                assert(row.samples[frame] == reference);
+            }
+        }
+    }
+    assert(dust3d_experimental_fish_idle_surface_output_bytes(batch.get()) == batchBytes);
+    assert(dust3d_experimental_fish_idle_surface_output_bytes(selected.get()) == 0);
+    Dust3DExperimentalFishIdleSurfacePCMInfo missing {};
+    assert(!dust3d_experimental_fish_idle_describe_surface_pcm(batch.get(), 8, &missing));
+    assert(!missing.samples && missing.sample_count == 0);
+
     Dust3DExperimentalFishIdleGroundMotion motion {};
     assert(dust3d_experimental_fish_idle_ground_motion(owner.get(), &motion));
     assert(std::isfinite(motion.speed) && std::isfinite(motion.direction_x) && std::isfinite(motion.direction_z));

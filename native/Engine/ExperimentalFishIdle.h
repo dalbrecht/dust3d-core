@@ -61,6 +61,11 @@ Dust3DExperimentalFishIdle* dust3d_experimental_fish_idle_load(const uint8_t* ar
 Dust3DExperimentalFishIdle* dust3d_experimental_fish_idle_load_selected(const uint8_t* archive, size_t archive_size,
     const Dust3DGeneratedRigBoneInput* bones, size_t bone_count, const char* animation_id, size_t animation_id_length,
     uint32_t include_pcm, const Dust3DExperimentalFishIdleOptions*, Dust3DError*);
+/* Resolve one exact authored clip and retain the surface catalog batch from
+   that evaluation. The authored preview surface does not narrow the batch. */
+Dust3DExperimentalFishIdle* dust3d_experimental_fish_idle_load_selected_surfaces(const uint8_t* archive, size_t archive_size,
+    const Dust3DGeneratedRigBoneInput* bones, size_t bone_count, const char* animation_id, size_t animation_id_length,
+    const Dust3DExperimentalFishIdleOptions*, Dust3DError*);
 /* The borrowed selected ID expires with the owner. NULL for legacy loads. */
 const char* dust3d_experimental_fish_idle_selected_id(const Dust3DExperimentalFishIdle*, size_t* length);
 /* NULL-safe. Invalidates the rest and every borrowed view. */
@@ -114,6 +119,25 @@ int dust3d_experimental_fish_idle_describe_pcm(const Dust3DExperimentalFishIdle*
 /* Copies one signed mono PCM sample. Invalid owner/index/destination returns
    0 and leaves any destination unchanged. */
 int dust3d_experimental_fish_idle_pcm_at(const Dust3DExperimentalFishIdle*, size_t sample, int16_t*);
+
+typedef struct Dust3DExperimentalFishIdleSurfacePCMInfo {
+    /* Borrow the exact catalog name and contiguous samples until owner destruction.
+       Silent rows retain the name and have null samples and zero audio fields. */
+    const char* surface_name;
+    const int16_t* samples;
+    size_t surface_name_length;
+    size_t sample_count;
+    uint32_t sample_rate;
+    uint32_t channel_count;
+} Dust3DExperimentalFishIdleSurfacePCMInfo;
+
+/* Batch rows use reference catalog order; zero for null or a single-track owner. */
+size_t dust3d_experimental_fish_idle_surface_count(const Dust3DExperimentalFishIdle*);
+/* Retained surface-name and PCM bytes, exclusive of visual data and selected ID. */
+size_t dust3d_experimental_fish_idle_surface_output_bytes(const Dust3DExperimentalFishIdle*);
+/* Returns 1 for a valid row. Clears output and returns 0 for an invalid row. */
+int dust3d_experimental_fish_idle_describe_surface_pcm(const Dust3DExperimentalFishIdle*, size_t index,
+    Dust3DExperimentalFishIdleSurfacePCMInfo*);
 
 #ifdef __cplusplus
 }

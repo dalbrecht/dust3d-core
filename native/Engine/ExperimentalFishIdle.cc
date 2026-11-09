@@ -14,6 +14,9 @@ struct Dust3DExperimentalFishIdle {
     size_t visualBytes;
     size_t outputBytes;
     std::string selectedId;
+    std::vector<std::string> surfaceNames;
+    std::vector<AnimationSoundData> surfaceSounds;
+    size_t surfaceBytes;
 };
 
 Dust3DExperimentalFishIdleOptions dust3d_experimental_fish_idle_default_options(void)
@@ -39,7 +42,7 @@ static Dust3DExperimentalFishIdle* loadFishIdle(const uint8_t* archive, size_t a
     const Dust3DGeneratedRigBoneInput* bones, size_t boneCount,
     const Dust3DExperimentalFishIdleParameter* parameters, size_t parameterCount,
     const Dust3DExperimentalFishIdleOptions* options, const Dust3DExperimentalFishIdlePCMOptions* pcmOptions,
-    Dust3DError* error, std::string_view selectedId = {}, bool includeSelectedPCM = false)
+    Dust3DError* error, std::string_view selectedId = {}, bool includeSelectedPCM = false, bool includeAllSurfaces = false)
 {
     setError(error, DUST3D_STATUS_OK, "");
     try {
@@ -84,13 +87,31 @@ static Dust3DExperimentalFishIdle* loadFishIdle(const uint8_t* archive, size_t a
                     std::string(entry.value, entry.value_length)).second)
                 throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Invalid or duplicate experimental FishIdle parameter span.");
         }
+        std::vector<std::string> surfaceNames;
+        std::vector<AnimationSoundData> surfaceSounds;
+        size_t surfaceBytes = 0;
+        FishIdleClipHandoff surfaceHandoff;
+        if (includeAllSurfaces) {
+            surfaceHandoff = [&](const RigAnimationClip& clip, size_t remainingBytes) {
+                for (const auto material : surfaceMaterials()) {
+                    surfaceNames.push_back(surfaceMaterialName(material));
+                    surfaceBytes += surfaceNames.back().size();
+                }
+                if (surfaceBytes > remainingBytes)
+                    throw DocumentError(DUST3D_STATUS_LIMIT_EXCEEDED, "FishIdle surface names exceed their staging quota.");
+                surfaceSounds = renderFishIdleSoundSurfaces(clip, authored, remainingBytes - surfaceBytes, config.cancellation);
+                for (const auto& track : surfaceSounds)
+                    surfaceBytes += track.pcmSamples.size() * sizeof(int16_t);
+                return surfaceBytes;
+            };
+        }
         auto source = prepareGeneratedRigSource(archive, archiveSize, "Fish", 4, bones, boneCount, config);
         auto result = surface
             ? generateGroundedFishIdleSoundPreview(*source.input, std::move(source.metadata), source.rig,
                 authored, *surface, source.options, config.maximum_draw_vertices, config.cancellation)
             : GroundedFishIdleSoundPreview { generateGroundedFishIdleDrawPreview(*source.input,
                   std::move(source.metadata), source.rig, authored, source.options,
-                  config.maximum_draw_vertices, config.cancellation),
+                  config.maximum_draw_vertices, config.cancellation, surfaceHandoff),
                 {} };
         auto& preview = result.visual;
         const auto frames = preview.clip.sampleTimes().size();
@@ -104,12 +125,14 @@ static Dust3DExperimentalFishIdle* loadFishIdle(const uint8_t* archive, size_t a
         const auto limit = config.maximum_output_bytes;
         const auto sampleCount = result.sound.pcmSamples.size();
         if (restBytes > limit || poseBytes > limit - restBytes
-            || sampleCount > (limit - restBytes - poseBytes) / sizeof(int16_t))
+            || surfaceBytes > limit - restBytes - poseBytes
+            || sampleCount > (limit - restBytes - poseBytes - surfaceBytes) / sizeof(int16_t))
             throw DocumentError(DUST3D_STATUS_LIMIT_EXCEEDED, "Experimental FishIdle output exceeds its aggregate quota.");
         const auto visualBytes = restBytes + poseBytes;
         auto owner = std::make_unique<Dust3DExperimentalFishIdle>(
             Dust3DExperimentalFishIdle { std::move(preview), std::move(result.sound), visualBytes,
-                visualBytes + sampleCount * sizeof(int16_t), std::string(selectedId) });
+                visualBytes + sampleCount * sizeof(int16_t), std::string(selectedId),
+                std::move(surfaceNames), std::move(surfaceSounds), surfaceBytes });
         checkCancellation(config.cancellation);
         return owner.release();
     } catch (const RigFinalDataError& cause) {
@@ -161,6 +184,18 @@ Dust3DExperimentalFishIdle* dust3d_experimental_fish_idle_load_selected(const ui
     }
     return loadFishIdle(archive, archiveSize, bones, boneCount, nullptr, 0, options, nullptr, error,
         std::string_view(animationId, animationIdLength), includePCM != 0);
+}
+
+Dust3DExperimentalFishIdle* dust3d_experimental_fish_idle_load_selected_surfaces(const uint8_t* archive,
+    size_t archiveSize, const Dust3DGeneratedRigBoneInput* bones, size_t boneCount, const char* animationId,
+    size_t animationIdLength, const Dust3DExperimentalFishIdleOptions* options, Dust3DError* error)
+{
+    if (!animationId || !animationIdLength || animationIdLength > 1024) {
+        setError(error, DUST3D_STATUS_INVALID_DOCUMENT, "Invalid selected FishIdle surface request.");
+        return nullptr;
+    }
+    return loadFishIdle(archive, archiveSize, bones, boneCount, nullptr, 0, options, nullptr, error,
+        std::string_view(animationId, animationIdLength), false, true);
 }
 
 const char* dust3d_experimental_fish_idle_selected_id(const Dust3DExperimentalFishIdle* owner, size_t* length)
@@ -241,5 +276,36 @@ int dust3d_experimental_fish_idle_pcm_at(const Dust3DExperimentalFishIdle* owner
     if (!owner || !output || sample >= owner->sound.pcmSamples.size())
         return 0;
     *output = owner->sound.pcmSamples[sample];
+    return 1;
+}
+
+size_t dust3d_experimental_fish_idle_surface_count(const Dust3DExperimentalFishIdle* owner)
+{
+    return owner ? owner->surfaceSounds.size() : 0;
+}
+
+size_t dust3d_experimental_fish_idle_surface_output_bytes(const Dust3DExperimentalFishIdle* owner)
+{
+    return owner ? owner->surfaceBytes : 0;
+}
+
+int dust3d_experimental_fish_idle_describe_surface_pcm(const Dust3DExperimentalFishIdle* owner, size_t index,
+    Dust3DExperimentalFishIdleSurfacePCMInfo* output)
+{
+    if (!output)
+        return 0;
+    *output = {};
+    if (!owner || index >= owner->surfaceSounds.size())
+        return 0;
+    const auto& name = owner->surfaceNames[index];
+    const auto& track = owner->surfaceSounds[index];
+    output->surface_name = name.data();
+    output->surface_name_length = name.size();
+    if (!track.pcmSamples.empty()) {
+        output->samples = track.pcmSamples.data();
+        output->sample_count = track.pcmSamples.size();
+        output->sample_rate = static_cast<uint32_t>(track.sampleRate);
+        output->channel_count = static_cast<uint32_t>(track.channels);
+    }
     return 1;
 }
