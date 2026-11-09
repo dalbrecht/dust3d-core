@@ -187,6 +187,7 @@ let package = Package(
                 "RetainedPayload.cc",
                 "SnapshotInvalidation.cc", "SourceProvenance.cc", "UvMetadata.cc",
                 "DocumentReader.cc",
+                "SnapshotReferences.cc",
                 "SnapshotValidator.cc",
             ],
             publicHeadersPath: "include",

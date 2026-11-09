@@ -1,5 +1,6 @@
 #include "EngineInternal.h"
 #include "ImportedModels.h"
+#include "SnapshotReferences.h"
 #include <algorithm>
 #include <charconv>
 #include <dust3d/base/ds3_file.h>
@@ -191,6 +192,7 @@ namespace native {
         validateModelXml(modelBytes);
         auto snapshot = std::make_unique<Snapshot>();
         loadSnapshotFromXmlString(snapshot.get(), reinterpret_cast<char*>(modelBytes.data()));
+        resolveSnapshotReferences(*snapshot);
         validateSnapshot(*snapshot, imports != nullptr || metadataOnly, canReadEmptyGeometry);
         for (const auto& component : snapshot->components) {
             if (!String::valueOrEmpty(component.second, "colorImageId").empty()

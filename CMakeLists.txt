@@ -68,6 +68,7 @@ add_library(dust3d_engine STATIC
     native/Engine/RetainedPayload.cc
     native/Engine/SnapshotInvalidation.cc
     native/Engine/DocumentReader.cc
+    native/Engine/SnapshotReferences.cc
     native/Engine/SnapshotValidator.cc)
 target_include_directories(dust3d_engine PUBLIC native/Engine/include)
 target_link_libraries(dust3d_engine PRIVATE dust3d_core ZLIB::ZLIB)
@@ -1320,6 +1321,10 @@ if(BUILD_TESTING)
     target_link_libraries(dust3d_source_texture_mip_tests PRIVATE dust3d_core)
     add_test(NAME source_texture_mip_contracts COMMAND dust3d_source_texture_mip_tests)
     set_tests_properties(source_texture_mip_contracts PROPERTIES TIMEOUT 60)
+    add_executable(dust3d_snapshot_reference_tests tests/core/snapshot_reference_tests.cc native/Engine/SnapshotValidator.cc dust3d/base/string.cc native/Engine/SnapshotReferences.cc dust3d/base/snapshot_xml.cc dust3d/base/uuid.cc)
+    target_include_directories(dust3d_snapshot_reference_tests PRIVATE . native/Engine native/Engine/include third_party/rapidxml-1.13)
+    add_test(NAME contract_snapshot_references COMMAND dust3d_snapshot_reference_tests)
+    set_tests_properties(contract_snapshot_references PROPERTIES TIMEOUT 30)
     add_executable(dust3d_snapshot_numeric_tests tests/core/snapshot_numeric_tests.cc native/Engine/SnapshotValidator.cc)
     target_include_directories(dust3d_snapshot_numeric_tests PRIVATE . native/Engine native/Engine/include)
     add_test(NAME contract_snapshot_numeric COMMAND dust3d_snapshot_numeric_tests)
