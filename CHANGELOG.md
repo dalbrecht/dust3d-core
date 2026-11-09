@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Give legacy flat part lists stable component identities during native loading, and give explicit component hierarchies precedence over stale flat entries.
+
 - Resolve unambiguous braced and bare UUID references during native document loading while preserving authored entity keys and exact reference precedence.
 
 - Preflight interpolation node/edge identities before mutation, preserving original records and collision-free deterministic chains for shared-prefix UUIDs (#315).

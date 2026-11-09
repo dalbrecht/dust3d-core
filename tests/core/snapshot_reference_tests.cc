@@ -145,6 +145,54 @@ void resolvesOnlyExistingTypedOptionalReferences()
     require(snapshot.components.at(component).at("wrapBindTo") == braces(unresolved), "Missing wrap binding was silently replaced");
 }
 
+dust3d::Snapshot nativeSnapshot(const std::string& source)
+{
+    std::vector<char> bytes(source.begin(), source.end());
+    bytes.push_back(0);
+    dust3d::Snapshot snapshot;
+    dust3d::loadSnapshotFromXmlString(&snapshot, bytes.data(), dust3d::SnapshotXmlMode::NativeExecution);
+    dust3d::native::resolveSnapshotReferences(snapshot);
+    return snapshot;
+}
+
+void nativeFlatHierarchyKeepsOrderDuplicatesAndStableCollisionFreeKeys()
+{
+    const std::string reserved = "00000000-0000-8000-8000-000000000001";
+    const std::string firstLeaf = "{00000000-0000-8000-8000-000000000002}";
+    const std::string secondLeaf = "{00000000-0000-8000-8000-000000000003}";
+    const std::string thirdLeaf = "{00000000-0000-8000-8000-000000000004}";
+    const auto source = "<canvas><parts><part id='" + braces(part) + "'/><part id='" + reserved
+        + "'/></parts><partIdList><part id='" + part + "'/><part id='" + braces(reserved)
+        + "'/><part id='" + braces(part) + "'/></partIdList></canvas>";
+    const auto snapshot = nativeSnapshot(source);
+    const auto repeated = nativeSnapshot(source);
+    require(snapshot.components == repeated.components && snapshot.rootComponent == repeated.rootComponent,
+        "Repeated reads must synthesize the same legacy hierarchy");
+    require(snapshot.components.size() == 3 && !snapshot.components.count(braces(reserved)),
+        "Synthetic keys must skip a reserved UUID alias and retain each flat entry");
+    require(snapshot.rootComponent.at("children") == firstLeaf + "," + secondLeaf + "," + thirdLeaf,
+        "Legacy entries must retain authored order including repeats");
+    require(snapshot.components.at(firstLeaf).at("linkData") == braces(part)
+            && snapshot.components.at(secondLeaf).at("linkData") == reserved
+            && snapshot.components.at(thirdLeaf).at("linkData") == braces(part),
+        "Each flat component must resolve to its actual authored part key");
+}
+
+void nativeModernHierarchySuppressesStaleLegacyEntries()
+{
+    const auto prefix = "<canvas><parts><part id='" + part + "'/></parts><partIdList><part id='"
+        + absent + "'/></partIdList>";
+    const auto empty = nativeSnapshot(prefix + "<components/></canvas>");
+    const auto emptyChildren = empty.rootComponent.find("children");
+    require(empty.components.empty() && (emptyChildren == empty.rootComponent.end() || emptyChildren->second.empty()),
+        "An explicit empty hierarchy must suppress stale flat entries");
+    const auto modern = nativeSnapshot(prefix + "<components><component id='" + component
+        + "' linkDataType='partId' linkData='" + braces(part) + "'/></components></canvas>");
+    require(modern.components.size() == 1 && modern.rootComponent.at("children") == component,
+        "Modern hierarchy must exclude stale synthesized leaves");
+    require(modern.components.at(component).at("linkData") == part, "Modern typed owner alias must still resolve");
+}
+
 void composesWithTheRealXmlReader()
 {
     const auto source = "<canvas><nodes><node id='" + braces(first)
@@ -188,6 +236,8 @@ int main()
         resolvesOnlyExistingTypedOptionalReferences();
         rejectsNonExactAmbiguousAliasWithFieldCause();
         composesWithTheRealXmlReader();
+        nativeFlatHierarchyKeepsOrderDuplicatesAndStableCollisionFreeKeys();
+        nativeModernHierarchySuppressesStaleLegacyEntries();
         return 0;
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';

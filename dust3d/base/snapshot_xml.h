@@ -31,6 +31,11 @@
 namespace dust3d {
 
 void loadSnapshotFromXmlString(Snapshot* snapshot, char* xmlString);
+
+enum class SnapshotXmlMode { Qt,
+    NativeExecution };
+/// Native execution creates stable flat hierarchy IDs and defers inversion until references resolve.
+void loadSnapshotFromXmlString(Snapshot* snapshot, char* xmlString, SnapshotXmlMode mode);
 enum class SnapshotXmlWriteErrorCode { invalidLimits,
     invalidHierarchy,
     limitExceeded };

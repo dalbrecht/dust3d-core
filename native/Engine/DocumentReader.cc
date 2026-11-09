@@ -191,7 +191,7 @@ namespace native {
         reader.loadItem(modelName, &modelBytes);
         validateModelXml(modelBytes);
         auto snapshot = std::make_unique<Snapshot>();
-        loadSnapshotFromXmlString(snapshot.get(), reinterpret_cast<char*>(modelBytes.data()));
+        loadSnapshotFromXmlString(snapshot.get(), reinterpret_cast<char*>(modelBytes.data()), SnapshotXmlMode::NativeExecution);
         resolveSnapshotReferences(*snapshot);
         validateSnapshot(*snapshot, imports != nullptr || metadataOnly, canReadEmptyGeometry);
         for (const auto& component : snapshot->components) {
