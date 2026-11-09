@@ -23,6 +23,9 @@ namespace native {
     /// translation <=128M. Throws typed INVALID_DOCUMENT/LIMIT_EXCEEDED without
     /// modifying input or engine globals. Example: auto angles = fbxEulerAngles(world).
     FbxEulerAngles fbxEulerAngles(const RigMatrix& matrix);
+    /// Select the equivalent XYZ rotation nearest the preceding key, preserving
+    /// continuity at angle wraps and at the reference gimbal threshold.
+    FbxEulerAngles continuousFbxEulerAngles(FbxEulerAngles current, FbxEulerAngles previous);
     /// Normalize degrees into (-180, 180], preserving the reference -180 tie.
     /// Inputs must be finite with absolute value <=1M. Throws DocumentError
     /// INVALID_DOCUMENT for nonfinite values or LIMIT_EXCEEDED for bounds.
