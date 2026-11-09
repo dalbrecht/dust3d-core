@@ -4,6 +4,7 @@
 #include "EngineSupport.h"
 #include "include/Dust3DBridge.h"
 #include <dust3d/base/snapshot.h>
+#include <map>
 #include <memory>
 #include <stdexcept>
 #include <string>
@@ -67,6 +68,9 @@ namespace native {
     /// Example: auto snapshot = readDocumentMetadata(bytes, size, warning, &observer);
     std::unique_ptr<Snapshot> readDocumentMetadata(const uint8_t* bytes, size_t size, std::string& warning,
         DocumentAssetObserver* observer = nullptr);
+    /// Read one exact authored record before legacy snapshot conversion can merge duplicate rows.
+    std::map<std::string, std::string> readSelectedAnimationMetadata(
+        const uint8_t* bytes, size_t size, std::string_view animationId);
     void validateSnapshot(Snapshot& snapshot, bool canImportModels = false, bool canReadEmptyGeometry = false);
 
 }
