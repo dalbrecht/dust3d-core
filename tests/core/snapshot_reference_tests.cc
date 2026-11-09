@@ -193,6 +193,22 @@ void nativeModernHierarchySuppressesStaleLegacyEntries()
     require(modern.components.at(component).at("linkData") == part, "Modern typed owner alias must still resolve");
 }
 
+void nativeLegacyInversionUsesEachExactAuthoredOwner()
+{
+    for (bool bareInverted : { false, true }) {
+        const auto source = "<canvas><parts><part id='" + part + "' inverse='" + (bareInverted ? "true" : "false")
+            + "'/><part id='" + braces(part) + "' inverse='" + (bareInverted ? "false" : "true")
+            + "'/></parts><components><component id='" + component + "' linkDataType='partId' linkData='"
+            + part + "' combineMode='Uncombined'/><component id='" + braces(component)
+            + "' linkDataType='partId' linkData='" + braces(part) + "' combineMode='Uncombined'/></components></canvas>";
+        const auto snapshot = nativeSnapshot(source);
+        require(snapshot.parts.size() == 2 && snapshot.components.size() == 2, "Exact authored aliases must remain distinct");
+        require(snapshot.components.at(component).at("combineMode") == (bareInverted ? "Inversion" : "Uncombined")
+                && snapshot.components.at(braces(component)).at("combineMode") == (bareInverted ? "Uncombined" : "Inversion"),
+            "Legacy inversion must use the exact linked owner instead of a canonical alias winner");
+    }
+}
+
 void composesWithTheRealXmlReader()
 {
     const auto source = "<canvas><nodes><node id='" + braces(first)
@@ -206,11 +222,12 @@ void composesWithTheRealXmlReader()
     bytes.push_back(0);
     dust3d::Snapshot snapshot;
     dust3d::loadSnapshotFromXmlString(&snapshot, bytes.data());
+    require(snapshot.components.at(braces(component)).at("combineMode") == "Uncombined", "The shared XML reader changed the authored combine mode");
     dust3d::native::resolveSnapshotReferences(snapshot);
     dust3d::native::validateSnapshot(snapshot);
     require(snapshot.nodes.at(braces(first)).at("partId") == braces(part), "XML node owner did not resolve before validation");
     require(snapshot.components.at(braces(component)).at("linkData") == braces(part), "XML component owner did not resolve before validation");
-    require(snapshot.components.at(braces(component)).at("combineMode") == "Uncombined", "Reference resolution changed the authored combine mode");
+    require(snapshot.components.at(braces(component)).at("combineMode") == "Inversion", "Native reference resolution lost inherited inversion");
     require(snapshot.parts.at(braces(part)).at("inverse") == "True" && snapshot.parts.at(braces(part)).at("future") == "keep", "XML source attributes changed");
 }
 
@@ -238,6 +255,7 @@ int main()
         composesWithTheRealXmlReader();
         nativeFlatHierarchyKeepsOrderDuplicatesAndStableCollisionFreeKeys();
         nativeModernHierarchySuppressesStaleLegacyEntries();
+        nativeLegacyInversionUsesEachExactAuthoredOwner();
         return 0;
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';

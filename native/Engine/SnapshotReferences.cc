@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 #include "SnapshotReferences.h"
 #include "EngineInternal.h"
+#include <dust3d/base/string.h>
 #include <dust3d/base/uuid.h>
 #include <map>
 #include <string>
@@ -100,8 +101,13 @@ namespace native {
             resolveAttribute(part.second, "cutFace", parts, true);
         for (auto& component : snapshot.components) {
             const auto type = component.second.find("linkDataType");
-            if (type != component.second.end() && type->second == "partId")
+            if (type != component.second.end() && type->second == "partId") {
                 resolveAttribute(component.second, "linkData", parts);
+                // Apply the inherited mode to the selected authored owner, including exact UUID aliases.
+                const auto part = snapshot.parts.find(String::valueOrEmpty(component.second, "linkData"));
+                if (part != snapshot.parts.end() && String::isTrue(String::valueOrEmpty(part->second, "inverse")))
+                    component.second["combineMode"] = "Inversion";
+            }
             resolveAttribute(component.second, "wrapBindTo", components, true);
             resolveChildren(component.second, components);
         }

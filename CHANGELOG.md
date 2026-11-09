@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Apply legacy part inversion to the exact resolved component owner during native loading.
+
 - Give legacy flat part lists stable component identities during native loading, and give explicit component hierarchies precedence over stale flat entries.
 
 - Resolve unambiguous braced and bare UUID references during native document loading while preserving authored entity keys and exact reference precedence.
