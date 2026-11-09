@@ -1,8 +1,13 @@
 // SPDX-License-Identifier: MIT
 #include "GroundedFishIdleFbx.h"
+#include "BakedMesh.h"
 #include "EngineInternal.h"
+#include "FbxBakedMaterial.h"
+#include "FbxGeometrySelection.h"
+#include "GenerationPipeline.h"
 #include "FishIdleEvaluation.h"
 #include <algorithm>
+#include <dust3d/base/retained_payload_budget.h>
 
 namespace dust3d::native {
     namespace {
@@ -29,6 +34,66 @@ namespace dust3d::native {
                 charge(remaining, joint.parent.size());
             }
             return remaining;
+        }
+
+        struct PreparedFishIdleMaterial {
+            std::unique_ptr<FbxGeometrySelection> geometry;
+            FbxSceneMaterial material;
+        };
+
+        PreparedFishIdleMaterial prepareFishIdleMaterial(const Object& grounded, const Snapshot& generated,
+            const FishIdleFbxBakeInput& input, size_t& remainingBytes)
+        {
+            auto available = remainingBytes;
+            // Reserve both concurrent preparation budgets before entering the bake.
+            charge(available, input.options.maximum_uv_payload_bytes);
+            charge(available, input.options.maximum_bake_payload_bytes);
+            if (!available)
+                throw DocumentError(DUST3D_STATUS_LIMIT_EXCEEDED, "Animated FBX has no atlas geometry budget.");
+            BakedMeshData bake(input.options);
+            bake.validateVisuals(input.authored);
+            UvMetadata uv(input.authored, bake.uvBudget());
+            Dust3DMesh receipt;
+            PreparedFishIdleMaterial prepared;
+            GenerationOutputs outputs;
+            outputs.purpose = GenerationPurpose::originalExport;
+            outputs.uvs = &uv;
+            outputs.baked = &bake;
+            outputs.images = &bake.images();
+            outputs.textureSize = bake.textureSize();
+            outputs.fbxGeometry = &prepared.geometry;
+            outputs.maximumFbxGeometryBytes = available;
+            outputs.useFbxAtlasUvs = true;
+            outputs.cancellation = bake.cancellation();
+            {
+                std::lock_guard<std::mutex> lock(engineMutex());
+                prepareGeneratedObject(grounded, &generated, receipt, outputs);
+            }
+
+            const auto& geometry = prepared.geometry->object();
+            const auto samePosition = [](const Vector3& first, const Vector3& second) {
+                return first.x() == second.x() && first.y() == second.y() && first.z() == second.z();
+            };
+            if (!std::equal(geometry.vertices.begin(), geometry.vertices.end(),
+                    grounded.vertices.begin(), grounded.vertices.end(), samePosition)
+                || geometry.triangles != grounded.triangles)
+                throw DocumentError(DUST3D_STATUS_GENERATION_FAILED, "Animated FBX atlas changed skin control-point order.");
+            charge(available, prepared.geometry->payloadBytes());
+            if (available < 57)
+                throw DocumentError(DUST3D_STATUS_LIMIT_EXCEEDED, "Animated FBX has no material PNG budget.");
+            FbxBakedImageViews images {};
+            for (size_t channel = 0; channel < bake.maps.size(); ++channel)
+                images[channel] = bake.maps[channel] ? &*bake.maps[channel] : nullptr;
+            prepared.material = makeFbxBakedMaterial(images, std::min(available, size_t { 64 * 1024 * 1024 }));
+
+            RetainedPayloadBudget retained(remainingBytes);
+            retained.tryAdd(prepared.geometry->payloadBytes());
+            for (const auto& map : prepared.material.pngMaps)
+                retained.accountDynamic(map);
+            if (retained.isExceeded())
+                throw DocumentError(DUST3D_STATUS_LIMIT_EXCEEDED, "Animated FBX atlas and PNGs exceed their retained quota.");
+            charge(remainingBytes, retained.usedBytes());
+            return prepared;
         }
 
         size_t stageClip(const RigAnimationClip& evaluated, const std::string& name, size_t remaining,
@@ -65,7 +130,7 @@ namespace dust3d::native {
 
     OwnedFbxDocument encodeGroundedFishIdleFbx(const GeneratedRigInput& input, const RigStructure& templateRig,
         const std::vector<FishIdleFbxClipInput>& requests, const FbxSceneMaterial* material,
-        const RigFinalDataOptions& options, FbxDocumentLimits limits)
+        const RigFinalDataOptions& options, FbxDocumentLimits limits, const FishIdleFbxBakeInput* bake)
     {
         checkExportCancellation(options.cancellation);
         if (templateRig.type != "Fish" || requests.empty())
@@ -74,6 +139,9 @@ namespace dust3d::native {
             || (limits.maximumPayloadBytes && limits.maximumPayloadBytes <= sizeof(OwnedFbxDocument))
             || !limits.maximumNodes || limits.maximumNodes > 65536)
             throw DocumentError(DUST3D_STATUS_LIMIT_EXCEEDED, "Animated FishIdle FBX exceeds its clip or writer quota.");
+        if (bake && (material || !bake->options.maximum_uv_payload_bytes || !bake->options.maximum_bake_payload_bytes
+                        || (bake->options.cancellation ? &bake->options.cancellation->cancelled : nullptr) != options.cancellation))
+            throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Animated FBX requires explicit bake budgets and a matching cancellation token.");
         for (const auto& request : requests) {
             if (request.name.empty() || request.name.size() > 1024 || request.name.find('\0') != std::string::npos)
                 throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Animated FishIdle FBX requires bounded clip names.");
@@ -121,11 +189,15 @@ namespace dust3d::native {
             }
             bindings.push_back(binding);
         }
+        PreparedFishIdleMaterial prepared;
+        if (bake)
+            prepared = prepareFishIdleMaterial(*final.object, input.snapshot(), *bake, remainingBytes);
         if (!remainingBytes)
             throw DocumentError(DUST3D_STATUS_LIMIT_EXCEEDED, "Animated FishIdle FBX has no remaining output budget.");
         const auto writerLimit = limits.maximumPayloadBytes ? limits.maximumPayloadBytes : size_t { 64 * 1024 * 1024 };
         limits.maximumPayloadBytes = std::min(writerLimit, remainingBytes);
-        auto output = encodeFbxRestMeshScene(*final.object, material, groundedRig, bindings, limits, clips);
+        const auto& geometry = prepared.geometry ? prepared.geometry->object() : *final.object;
+        auto output = encodeFbxRestMeshScene(geometry, bake ? &prepared.material : material, groundedRig, bindings, limits, clips);
         checkExportCancellation(options.cancellation);
         return output;
     }

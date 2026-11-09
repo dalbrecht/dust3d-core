@@ -4,11 +4,17 @@
 
 #include "FbxMeshScene.h"
 #include "FinalRigGeneration.h"
+#include "include/Dust3DBridge.h"
 
 namespace dust3d::native {
     struct FishIdleFbxClipInput {
         std::string name;
         AnimationParams parameters;
+    };
+
+    struct FishIdleFbxBakeInput {
+        const Snapshot& authored;
+        Dust3DBakeOptions options;
     };
 
     /// Source-only route for authored FishIdle clips. The final grounded original
@@ -17,6 +23,6 @@ namespace dust3d::native {
     /// the writer's transient node tree or evaluator workspace.
     OwnedFbxDocument encodeGroundedFishIdleFbx(const GeneratedRigInput&, const RigStructure&,
         const std::vector<FishIdleFbxClipInput>&, const FbxSceneMaterial*, const RigFinalDataOptions&,
-        FbxDocumentLimits = {});
+        FbxDocumentLimits = {}, const FishIdleFbxBakeInput* = nullptr);
 }
 #endif
