@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Match Qt’s independently scaled image and seam-gradient gutters around packed texture charts.
+
 - Match Qt source texel selection within packed image and seam-gradient charts, including rotated charts and wide sampling spans.
 
 - Preflight interpolation node/edge identities before mutation, preserving original records and collision-free deterministic chains for shared-prefix UUIDs (#315).

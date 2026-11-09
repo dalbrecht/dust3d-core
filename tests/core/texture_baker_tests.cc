@@ -374,6 +374,35 @@ void imageChartSourceTexelBoundaries()
         "A rotated chart follows the horizontal source span on its vertical atlas axis");
 }
 
+void imageChartPaddedScale()
+{
+    Fixture fixture;
+    fixture.options.colorSize = 4096;
+    auto& layout = fixture.atlas.layouts[0];
+    layout.left = layout.top = 0.004999999888241291;
+    layout.width = 0.95346438884735107;
+    layout.height = 8.25 / 4096;
+    layout.id = imageId;
+    std::vector<uint8_t> pixels(32 * 4);
+    for (size_t x = 0; x < 32; ++x) {
+        pixels[x * 4] = x < 16 ? 240 : 25;
+        pixels[x * 4 + 3] = 255;
+    }
+    dust3d::TextureBakeInputs inputs;
+    inputs.images[imageId] = { 32, 1, pixels.size(), pixels.size(), pixels.data() };
+    const auto result = fixture.bake(inputs);
+    const auto redAt = [&](size_t row) { return result.color.pixels[(row * 4096 + 1974) * 4]; };
+    require(redAt(21) == 25, "The inner chart must retain the exact Qt source scale");
+    require(redAt(20) == 240, "The top gutter must follow the independently scaled Qt padded image");
+
+    std::swap(layout.width, layout.height);
+    layout.flipped = true;
+    const auto rotated = fixture.bake(inputs);
+    const auto rotatedRedAt = [&](size_t column) { return rotated.color.pixels[(1974 * 4096 + column) * 4]; };
+    require(rotatedRedAt(21) == 25, "The rotated inner chart must retain the exact Qt source scale");
+    require(rotatedRedAt(20) == 240, "The rotated gutter must follow the transposed Qt padded image");
+}
+
 void clippedColorChartOrigins()
 {
     const std::vector<uint8_t> pixels {
@@ -1062,6 +1091,7 @@ int main(int argc, char* argv[])
         fractionalSubTexelGradients();
         fractionalMultiTexelSources();
         imageChartSourceTexelBoundaries();
+        imageChartPaddedScale();
         clippedColorChartOrigins();
         sourceLessSeamsIgnoreSurfaceDetails();
         sourceLessSeamsIgnoreMaterials();
