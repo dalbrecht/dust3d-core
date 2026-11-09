@@ -84,8 +84,8 @@ namespace native {
         }
 
         struct AnimationSelection {
-            std::string_view id;
-            std::map<std::string, std::string> fields;
+            std::map<std::string_view, size_t> indexes;
+            std::vector<std::map<std::string, std::string>> records;
         };
 
         void selectAnimationMetadata(rapidxml::xml_node<>* canvas, AnimationSelection& selection)
@@ -103,16 +103,18 @@ namespace native {
                     throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Invalid or duplicate animation identity.");
                 if (ids.size() > 10000)
                     throw DocumentError(DUST3D_STATUS_LIMIT_EXCEEDED, "The document exceeds the animation record limit.");
-                if (id != selection.id)
+                const auto selected = selection.indexes.find(id);
+                if (selected == selection.indexes.end())
                     continue;
+                auto& fields = selection.records[selected->second];
                 for (auto* field = row->first_attribute(); field; field = field->next_attribute()) {
-                    if (!selection.fields.emplace(std::string(field->name(), field->name_size()),
+                    if (!fields.emplace(std::string(field->name(), field->name_size()),
                             std::string(field->value(), field->value_size())).second)
                         throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Duplicate selected animation attribute.");
                 }
             }
-            if (selection.fields.empty())
-                throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "The selected animation is missing.");
+            if (std::any_of(selection.records.begin(), selection.records.end(), [](const auto& fields) { return fields.empty(); }))
+                throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "A selected animation is missing.");
         }
 
         void validateModelXml(std::vector<uint8_t>& bytes, AnimationSelection* animation)
@@ -249,12 +251,26 @@ namespace native {
     std::map<std::string, std::string> readSelectedAnimationMetadata(
         const uint8_t* bytes, size_t size, std::string_view animationId)
     {
-        if (animationId.empty() || animationId.size() > 1024 || animationId.find('\0') != std::string_view::npos)
-            throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Invalid selected animation identity.");
-        AnimationSelection animation { animationId, {} };
+        auto records = readSelectedAnimationMetadataBatch(bytes, size, { animationId });
+        return std::move(records.front());
+    }
+
+    std::vector<std::map<std::string, std::string>> readSelectedAnimationMetadataBatch(
+        const uint8_t* bytes, size_t size, const std::vector<std::string_view>& ids)
+    {
+        if (ids.empty() || ids.size() > 128)
+            throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Invalid selected animation count.");
+        AnimationSelection animation;
+        animation.records.resize(ids.size());
+        for (size_t index = 0; index < ids.size(); ++index) {
+            const auto id = ids[index];
+            if (id.empty() || id.size() > 1024 || id.find('\0') != std::string_view::npos
+                || !animation.indexes.emplace(id, index).second)
+                throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Invalid or duplicate selected animation identity.");
+        }
         std::string warning;
         (void)readDocumentInternal(bytes, size, warning, nullptr, nullptr, true, true, &animation);
-        return std::move(animation.fields);
+        return std::move(animation.records);
     }
 
 }
