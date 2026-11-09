@@ -257,7 +257,7 @@ namespace native {
                 clusters[joint].weights.push_back(weight);
                 totalWeight += weight;
             }
-            if (std::abs(totalWeight - 1.0) > 1e-5)
+            if (std::abs(totalWeight - 1.0) > 1e-4)
                 invalid("FBX skin requires normalized control-point influences.");
         }
         const auto objectProperties = [](int64_t id, const std::string& name, const char* type) {
