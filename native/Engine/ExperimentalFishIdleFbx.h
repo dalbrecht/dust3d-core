@@ -22,6 +22,12 @@ Dust3DExperimentalFishIdleFbx* dust3d_experimental_fish_idle_fbx_create(
     const uint8_t* archive, size_t archive_size, const Dust3DGeneratedRigBoneInput* bones, size_t bone_count,
     const Dust3DExperimentalFishIdleFbxClipID* ids, size_t clip_count, const Dust3DGeneratedRigOptions*,
     size_t maximum_fbx_bytes, Dust3DError*);
+/* Textured variant borrows explicit UV/bake limits and image inputs for the
+   same archive. A failed bake fails export rather than returning plain FBX. */
+Dust3DExperimentalFishIdleFbx* dust3d_experimental_fish_idle_fbx_create_baked(
+    const uint8_t* archive, size_t archive_size, const Dust3DGeneratedRigBoneInput* bones, size_t bone_count,
+    const Dust3DExperimentalFishIdleFbxClipID* ids, size_t clip_count, const Dust3DGeneratedRigOptions*,
+    const Dust3DBakeOptions*, size_t maximum_fbx_bytes, Dust3DError*);
 /* Borrow bytes until destruction; null owner returns null/zero. */
 const uint8_t* dust3d_experimental_fish_idle_fbx_bytes(const Dust3DExperimentalFishIdleFbx*);
 size_t dust3d_experimental_fish_idle_fbx_size(const Dust3DExperimentalFishIdleFbx*);
