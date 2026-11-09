@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Preserve authored direction for coherently directed open chains.
+- Preserve authored open-chain direction and use an unambiguous authored endpoint to repair legacy chains.
 
 - Keep authored stitching-loop winding when the closed edge cycle is already consistent.
 

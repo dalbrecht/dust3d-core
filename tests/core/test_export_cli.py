@@ -262,6 +262,40 @@ class ExportCliTests(unittest.TestCase):
         self.assertIn(b'\nf ', baseline)
         self.assertEqual(export(second, first, 'descending'), baseline)
 
+    def test_should_repair_legacy_open_chain_from_authored_endpoint(self):
+        def identity(number):
+            return f'{{{number:08d}-0000-4000-8000-{number:012d}}}'
+
+        canvas = ElementTree.Element('canvas', originX='.5', originY='.5', originZ='.5')
+        nodes, edges, parts, components = [ElementTree.SubElement(canvas, tag)
+                                           for tag in ('nodes', 'edges', 'parts', 'components')]
+        part = identity(100)
+        ElementTree.SubElement(parts, 'part', id=part, cutFace='Triangle', cutRotation='.17', rounded='true')
+        ElementTree.SubElement(components, 'component', id=identity(101), linkDataType='partId', linkData=part)
+        ids = list(map(identity, (4, 1, 3, 2)))
+        for node, (x, y, z, radius) in zip(ids, (('.24', '.52', '.52', '.075'), ('.39', '.41', '.47', '.11'),
+                                                 ('.58', '.48', '.42', '.09'), ('.76', '.55', '.58', '.055'))):
+            ElementTree.SubElement(nodes, 'node', id=node, partId=part, x=x, y=y, z=z, radius=radius)
+        for i, (start, end) in enumerate(zip(ids, ids[1:])):
+            ElementTree.SubElement(edges, 'edge', id=identity(120 + i), partId=part,
+                                   attrib={'from': start, 'to': end})
+
+        def export(name):
+            xml = ElementTree.tostring(canvas)
+            header = f'<ds3><model name="model.xml" offset="0" size="{len(xml)}"/></ds3>'.encode()
+            prefix = b'DUST3D 1.0 xml '
+            self.source.write_bytes(prefix + f'{len(prefix) + 12 + len(header):010d}\r\n'.encode() + header + xml)
+            destination = self.directory / f'{name}.obj'
+            result = self.run_export(self.source, destination)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            return destination.read_bytes()
+
+        authored = export('authored')
+        self.assertIn(b'\nf ', authored)
+        edges[1].set('from', ids[2])
+        edges[1].set('to', ids[1])
+        self.assertEqual(export('legacy'), authored)
+
     def test_should_keep_stitching_loop_geometry_independent_of_edge_ids(self):
         def identity(number):
             return f'{{{number:08d}-0000-4000-8000-{number:012d}}}'

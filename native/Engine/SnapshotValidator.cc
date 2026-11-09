@@ -74,29 +74,36 @@ namespace native {
                 const auto& neighbors = part.second;
                 if (neighbors.empty())
                     continue;
-                bool hasEndpoint = false;
+                auto firstEndpoint = neighbors.end();
+                auto authoredStart = neighbors.end();
+                size_t outgoingEndpoints = 0;
                 bool coherentDirection = true;
-                for (const auto& node : neighbors) {
-                    if (node.second.size() > 2)
+                for (auto node = neighbors.begin(); node != neighbors.end(); ++node) {
+                    const auto& incident = node->second;
+                    if (incident.size() > 2)
                         throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "A part contains branching edges; split it into separate parts first.");
-                    if (node.second.size() == 1) {
-                        hasEndpoint = true;
+                    const auto outgoing = [&](const Neighbor& neighbor) {
+                        return String::valueOrEmpty(snapshot.edges.at(neighbor.second), "from") == node->first;
+                    };
+                    if (incident.size() == 1) {
+                        if (firstEndpoint == neighbors.end())
+                            firstEndpoint = node;
+                        if (outgoing(incident.front())) {
+                            authoredStart = node;
+                            ++outgoingEndpoints;
+                        }
                     } else if (coherentDirection) {
-                        const auto outgoing = [&](const Neighbor& neighbor) {
-                            return String::valueOrEmpty(snapshot.edges.at(neighbor.second), "from") == node.first;
-                        };
-                        coherentDirection = outgoing(node.second[0]) != outgoing(node.second[1]);
+                        coherentDirection = outgoing(incident[0]) != outgoing(incident[1]);
                     }
                 }
+                const bool isOpen = firstEndpoint != neighbors.end();
                 const bool preserveDirection = coherentDirection
-                    && (hasEndpoint || String::valueOrEmpty(snapshot.parts.at(part.first), "target") == "StitchingLoop");
-                auto current = neighbors.begin()->first;
-                for (const auto& node : neighbors) {
-                    if (node.second.size() == 1) {
-                        current = node.first;
-                        break;
-                    }
-                }
+                    && (isOpen || String::valueOrEmpty(snapshot.parts.at(part.first), "target") == "StitchingLoop");
+                auto start = isOpen ? firstEndpoint : neighbors.begin();
+                // Qt prefers an endpoint with an outgoing edge when repairing a legacy chain.
+                if (outgoingEndpoints == 1)
+                    start = authoredStart;
+                auto current = start->first;
                 std::set<std::string> visitedEdges;
                 for (;;) {
                     bool advanced = false;
