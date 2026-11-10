@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Composite overlapping texture-chart padding in atlas paint order.
+
 - Store straight-alpha color in embedded FBX PNGs after chart compositing.
 
 - Honor 16-bit RGB PNG transparency keys when compositing texture charts.

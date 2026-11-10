@@ -301,28 +301,52 @@ namespace {
             return std::nullopt;
         return PaddedImageSample { column, row, paddedWidth, paddedHeight, inChart };
     }
+    uint32_t roundProduct8(uint32_t value)
+    {
+        return (value + (value >> 8) + 128) >> 8;
+    }
+
     Pixel compositeChartPixel(const Pixel& inset, const Pixel& padded, bool inputPremultiplied)
     {
-        const auto roundProduct = [](unsigned int value) {
-            return (value + (value >> 8) + 128) >> 8;
-        };
         const auto remainder = 255u - inset[3];
-        const auto alpha = inset[3] + roundProduct(padded[3] * remainder);
+        const auto alpha = inset[3] + roundProduct8(padded[3] * remainder);
         Pixel result {};
         if (alpha == 0)
             return result;
         const auto inverseAlpha = 0x00ff00ffu / alpha;
         for (size_t channel = 0; channel < 3; ++channel) {
-            const auto foreground = inputPremultiplied ? inset[channel] : roundProduct(inset[channel] * inset[3]);
-            const auto background = inputPremultiplied ? padded[channel] : roundProduct(padded[channel] * padded[3]);
-            const auto premultiplied = foreground + roundProduct(background * remainder);
+            const auto foreground = inputPremultiplied ? inset[channel] : roundProduct8(inset[channel] * inset[3]);
+            const auto background = inputPremultiplied ? padded[channel] : roundProduct8(padded[channel] * padded[3]);
+            const auto premultiplied = foreground + roundProduct8(background * remainder);
             result[channel] = static_cast<uint8_t>((premultiplied * inverseAlpha + 32768) >> 16);
         }
         result[3] = static_cast<uint8_t>(alpha);
         return result;
     }
+    // The associated 8-bit brush is drawn over a straight-alpha atlas. Qt's
+    // destination conversion and SourceOver keep 16-bit precision until storage.
+    Pixel compositeAtlasPixel(const Pixel& source, const uint8_t* destination)
+    {
+        const auto roundProduct16 = [](uint32_t value) {
+            return (value + (value >> 16) + 32768) >> 16;
+        };
+        const uint32_t sourceAlpha = source[3] * 257u;
+        const uint32_t destinationAlpha = destination[3] * 257u;
+        const auto remainder = 65535u - sourceAlpha;
+        const auto alpha = sourceAlpha + roundProduct16(destinationAlpha * remainder);
+        Pixel result {};
+        for (size_t channel = 0; channel < 3; ++channel) {
+            const auto foreground = roundProduct8(source[channel] * source[3]) * 257u;
+            const auto background = roundProduct16(destination[channel] * 257u * destinationAlpha);
+            const auto associated = foreground + roundProduct16(background * remainder);
+            result[channel] = static_cast<uint8_t>((associated * 255u + alpha / 2) / alpha);
+        }
+        result[3] = static_cast<uint8_t>((alpha + 128) / 257);
+        return result;
+    }
+
     template <typename Paint>
-    std::vector<uint8_t> rectangles(TextureImage& output, const UvAtlas& atlas, double bleedFraction, const TextureBakeOptions& options, Paint paint, const std::set<size_t>& skipped = {})
+    std::vector<uint8_t> rectangles(TextureImage& output, const UvAtlas& atlas, double bleedFraction, const TextureBakeOptions& options, Paint paint, const std::set<size_t>& skipped = {}, bool blendOverlaps = false)
     {
         std::vector<uint8_t> covered(output.width * output.height);
         const auto size = static_cast<int>(output.width);
@@ -348,7 +372,13 @@ namespace {
                     const auto index = static_cast<size_t>(y) * output.width + x;
                     const double u = (x - left + 0.5) / sampleWidth;
                     const double v = (y - top + 0.5) / sampleHeight;
-                    put(output, index, paint(ordinal, layout, u, v));
+                    const auto pixel = paint(ordinal, layout, u, v);
+                    if (blendOverlaps && covered[index] && pixel[3] < 255) {
+                        if (pixel[3] != 0)
+                            put(output, index, compositeAtlasPixel(pixel, output.pixels.data() + index * 4));
+                    } else {
+                        put(output, index, pixel);
+                    }
                     covered[index] = 1;
                 }
             }
@@ -1038,7 +1068,7 @@ TextureBakeResult TextureBaker::bake(const Object& object, const UvAtlas& atlas,
             const auto paddedY = scaledImageSample(layout.flipped ? padded->column : padded->row, paddedHeight, source.height, yPhase);
             std::copy_n(source.pixels + paddedY * source.rowStride + paddedX * 4, 4, background.begin());
         }
-        return compositeChartPixel(pixel, background, inputPremultiplied); }, colorSkipped);
+        return compositeChartPixel(pixel, background, inputPremultiplied); }, colorSkipped, true);
     for (const auto& chart : charts)
         paintSurface(result.color, colorCoverage, chart, atlas.layouts[chart.layoutIndex].color, false, options, result.rasterTriangleVisits);
     dilate(result.color, colorCoverage, options);
