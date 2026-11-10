@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Allow static FBX callers to supply premultiplied texture samples prepared before 16-to-8-bit reduction.
+
 - Match Qt chart compositing for 16-bit grayscale PNG transparency keys.
 
 - Match Qt texture sampling and transparency for 1-bit grayscale and indexed PNGs.

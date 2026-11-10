@@ -10,7 +10,7 @@ namespace dust3d {
 namespace native {
     class BakedMeshData : public DocumentAssetObserver {
     public:
-        explicit BakedMeshData(const Dust3DBakeOptions& options);
+        explicit BakedMeshData(const Dust3DBakeOptions& options, const size_t* premultipliedIndices = nullptr, size_t premultipliedCount = 0);
         void item(std::string_view type, std::string_view name, const uint8_t* data, size_t size) noexcept override;
         void attribute(std::string_view, std::string_view) noexcept override { }
         void validateVisuals(const Snapshot& snapshot) const;

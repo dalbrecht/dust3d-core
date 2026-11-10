@@ -69,6 +69,34 @@ int main(int argc, char** argv)
         settings.bake.image_count = 1;
         rejected(DUST3D_STATUS_INVALID_DOCUMENT);
         settings = options();
+        const size_t firstImage = 0;
+        const auto exportPrepared = [&](const size_t* indices, size_t count) {
+            return Owner(dust3d_fbx_export_load_with_premultiplied_images(
+                             bytes.data(), bytes.size(), &settings, indices, count, &error),
+                dust3d_fbx_export_destroy);
+        };
+        require(!exportPrepared(&firstImage, 1) && error.status == DUST3D_STATUS_INVALID_DOCUMENT,
+            "Prepared image flags must be rejected in geometry mode");
+        settings.mode = DUST3D_FBX_EXPORT_BAKED;
+        Dust3DBakeImage prepared {};
+        std::strcpy(prepared.image_id, "{f0000000-0000-4000-8000-000000000002}");
+        prepared.width = prepared.height = 1;
+        prepared.row_stride = prepared.byte_count = 4;
+        uint8_t channels[] { 128, 0, 0, 127 };
+        prepared.pixels = channels;
+        settings.bake.images = &prepared;
+        settings.bake.image_count = 1;
+        const size_t pastEnd = 1;
+        require(!exportPrepared(nullptr, 1) && error.status == DUST3D_STATUS_INVALID_DOCUMENT,
+            "Prepared image index buffer must be present");
+        require(!exportPrepared(&pastEnd, 1) && error.status == DUST3D_STATUS_INVALID_DOCUMENT,
+            "Prepared image index must be in range");
+        require(!exportPrepared(&firstImage, 1) && error.status == DUST3D_STATUS_INVALID_DOCUMENT,
+            "Prepared RGB must not exceed alpha");
+        channels[0] = 126;
+        require(exportPrepared(&firstImage, 1) && error.status == DUST3D_STATUS_OK,
+            "Prepared image export must accept valid associated pixels");
+        settings = options();
         Owner geometry(dust3d_fbx_export_load(bytes.data(), bytes.size(), &settings, &error), dust3d_fbx_export_destroy);
         require(geometry && error.status == DUST3D_STATUS_OK, "Ordinary geometry FBX export failed");
         const auto count = dust3d_fbx_export_byte_count(geometry.get());
