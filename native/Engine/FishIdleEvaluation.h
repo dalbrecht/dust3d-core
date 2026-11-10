@@ -22,6 +22,16 @@ namespace dust3d::native {
         return supportsFishLoop(type) || type == "FishAttack" || type == "FishHurt" || type == "FishDie";
     }
 
+    inline constexpr bool isEvaluatedDirectionalGait(std::string_view type, std::string_view gait)
+    {
+        if (type.substr(0, gait.size()) != gait)
+            return false;
+        const auto direction = type.substr(gait.size());
+        return direction.empty() || direction == "Left" || direction == "Right" || direction == "Backward"
+            || direction == "ForwardLeft" || direction == "ForwardRight"
+            || direction == "BackwardLeft" || direction == "BackwardRight";
+    }
+
     inline constexpr std::string_view evaluatedClipRig(std::string_view type)
     {
         if (supportsFishClip(type))
@@ -29,17 +39,13 @@ namespace dust3d::native {
         if (type == "SnakeForward" || type == "SnakeSlither" || type == "SnakeIdle"
             || type == "SnakeHurt" || type == "SnakeStrike" || type == "SnakeDie")
             return "Snake";
-        if (type == "SpiderAttack" || type == "SpiderDie" || type == "SpiderHurt" || type == "SpiderIdle")
+        if (type == "SpiderAttack" || type == "SpiderDie" || type == "SpiderHurt" || type == "SpiderIdle"
+            || isEvaluatedDirectionalGait(type, "SpiderWalk") || isEvaluatedDirectionalGait(type, "SpiderRun"))
             return "Spider";
-        for (const std::string_view gait : { "SpiderWalk", "SpiderRun" }) {
-            if (type.substr(0, gait.size()) != gait)
-                continue;
-            const auto direction = type.substr(gait.size());
-            if (direction.empty() || direction == "Left" || direction == "Right" || direction == "Backward"
-                || direction == "ForwardLeft" || direction == "ForwardRight"
-                || direction == "BackwardLeft" || direction == "BackwardRight")
-                return "Spider";
-        }
+        if (type == "InsectAttack" || type == "InsectBite" || type == "InsectDie" || type == "InsectFly"
+            || type == "InsectForward" || type == "InsectHurt" || type == "InsectIdle" || type == "InsectRubHands"
+            || isEvaluatedDirectionalGait(type, "InsectWalk"))
+            return "Insect";
         return {};
     }
 

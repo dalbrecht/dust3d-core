@@ -19,6 +19,12 @@ static_assert(dust3d::native::evaluatedClipRig("SpiderWalkForward").empty());
 static_assert(groundedClipSound("SpiderWalk") == GroundedClipSound::surface);
 static_assert(groundedClipSound("SpiderDie") == GroundedClipSound::surface);
 static_assert(groundedClipSound("SpiderRunBackwardRight") == GroundedClipSound::silent);
+static_assert(dust3d::native::evaluatedClipRig("InsectWalkForwardLeft") == "Insect");
+static_assert(dust3d::native::evaluatedClipRig("InsectForward") == "Insect");
+static_assert(dust3d::native::evaluatedClipRig("InsectFlyLeft").empty());
+static_assert(groundedClipSound("InsectFly") == GroundedClipSound::surface);
+static_assert(groundedClipSound("InsectRubHands") == GroundedClipSound::surface);
+static_assert(groundedClipSound("InsectWalkForwardLeft") == GroundedClipSound::silent);
 
 int main()
 {
