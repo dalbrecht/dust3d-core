@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Match Qt texture sampling and transparency for 1-bit grayscale and indexed PNGs.
+
 - Match Qt texture sampling and transparency for 2-bit and 4-bit indexed and grayscale PNGs.
 
 - Match Qt texture sampling for 8-bit indexed and alpha-capable grayscale PNGs.
