@@ -18,27 +18,33 @@ namespace native {
         {
             return (uint32_t(bytes[0]) << 24) | (uint32_t(bytes[1]) << 16) | (uint32_t(bytes[2]) << 8) | bytes[3];
         }
-        bool isRgb32Png(const uint8_t* data, size_t size, const TextureImageView& image)
+        TextureImageRaster pngRaster(const uint8_t* data, size_t size, const TextureImageView& image)
         {
             constexpr uint8_t signature[] { 137, 80, 78, 71, 13, 10, 26, 10 };
             if (size < 33 || std::memcmp(data, signature, sizeof(signature)) || pngInteger(data + 8) != 13
                 || std::memcmp(data + 12, "IHDR", 4) || pngInteger(data + 16) != image.width
-                || pngInteger(data + 20) != image.height || data[24] != 8 || data[25] != 2
+                || pngInteger(data + 20) != image.height || data[24] != 8 || (data[25] != 2 && data[25] != 6)
                 || data[26] != 0 || data[27] != 0 || data[28] > 1)
-                return false;
+                return TextureImageRaster::decoded;
+            bool keyed = false;
             // PNG requires the transparency key to precede the first image data chunk.
             for (size_t offset = 33; size - offset >= 12;) {
                 const auto length = pngInteger(data + offset);
                 if (length > size - offset - 12)
-                    return false;
+                    break;
                 const auto* kind = data + offset + 4;
                 if (!std::memcmp(kind, "IDAT", 4))
-                    return true;
-                if (!std::memcmp(kind, "tRNS", 4) || !std::memcmp(kind, "IEND", 4) || !std::memcmp(kind, "IHDR", 4))
-                    return false;
+                    return keyed || data[25] == 6 ? TextureImageRaster::alphaComposite : TextureImageRaster::rgb32;
+                if (!std::memcmp(kind, "IEND", 4) || !std::memcmp(kind, "IHDR", 4))
+                    break;
+                if (!std::memcmp(kind, "tRNS", 4)) {
+                    if (keyed || data[25] != 2 || length != 6)
+                        break;
+                    keyed = true;
+                }
                 offset += size_t(length) + 12;
             }
-            return false;
+            return TextureImageRaster::decoded;
         }
         size_t dimension(size_t value, size_t fallback)
         {
@@ -118,8 +124,8 @@ namespace native {
             const auto image = m_pixels.find(identity);
             if (image == m_pixels.end())
                 return;
-            auto [mode, inserted] = m_archiveImageModes.emplace(identity, false);
-            mode->second = inserted && isRgb32Png(data, size, image->second);
+            auto [mode, inserted] = m_archiveImageModes.emplace(identity, TextureImageRaster::decoded);
+            mode->second = inserted ? pngRaster(data, size, image->second) : TextureImageRaster::decoded;
         } catch (...) {
             // The archive observer is noexcept. Report the original cause when resolving the bake.
             m_imageMetadataFailure = std::current_exception();
@@ -132,8 +138,8 @@ namespace native {
             std::rethrow_exception(m_imageMetadataFailure);
         TextureBakeInputs result;
         result.images = m_pixels;
-        for (const auto& [identity, rgb32] : m_archiveImageModes)
-            result.images.at(identity).rgb32Raster = rgb32;
+        for (const auto& [identity, raster] : m_archiveImageModes)
+            result.images.at(identity).raster = raster;
         std::map<Uuid, std::map<std::string, std::string>> definitions;
         for (const auto& [key, attributes] : snapshot.components) {
             checkCancellation(cancellation());
@@ -184,7 +190,7 @@ namespace native {
         (void)resolvedInputs(snapshot);
     }
 
-    void BakedMeshData::prepare(const Object& object, const Snapshot& snapshot, const UvAtlas& atlas)
+    void BakedMeshData::prepare(const Object& object, const Snapshot& snapshot, const UvAtlas& atlas, bool premultipliedFbxColor)
     {
         checkCancellation(cancellation());
         const auto quota = m_options.maximum_bake_payload_bytes;
@@ -199,6 +205,7 @@ namespace native {
         const auto temporaryTangents = object.triangles.size() * sizeof(TextureTangent);
         TextureBakeOptions options;
         options.colorSize = m_options.color_size;
+        options.premultipliedArchiveColor = premultipliedFbxColor;
         options.normalSize = m_options.normal_size;
         options.materialSize = m_options.material_size;
         options.maximumSpatialGridEntries = m_options.maximum_spatial_grid_entries;

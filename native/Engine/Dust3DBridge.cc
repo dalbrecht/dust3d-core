@@ -173,7 +173,7 @@ namespace native {
         if (baked) {
             if (!uvs || !generated)
                 throw DocumentError(DUST3D_STATUS_GENERATION_FAILED, "Baking requires locally retained UV generation metadata.");
-            baked->prepare(*object, *generated, uvs->atlas());
+            baked->prepare(*object, *generated, uvs->atlas(), outputs.useFbxAtlasUvs);
         }
         if (surfaces)
             surfaces->finish(*mesh);

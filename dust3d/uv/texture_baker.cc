@@ -272,8 +272,9 @@ namespace {
         int row;
         int width;
         int height;
+        bool inset;
     };
-    std::optional<PaddedImageSample> chartGutterSample(double u, double v, double left, double top, double width, double height, int bleed)
+    std::optional<PaddedImageSample> chartPaddedSample(double u, double v, double left, double top, double width, double height, int bleed)
     {
         if (bleed == 0 || width < 1 || height < 1)
             return std::nullopt;
@@ -289,9 +290,29 @@ namespace {
         const auto paddedHeight = innerHeight + 2 * bleed;
         const bool inPaddedImage = column >= 0 && column < paddedWidth && row >= 0 && row < paddedHeight;
         const bool inChart = column >= bleed && column < bleed + innerWidth && row >= bleed && row < bleed + innerHeight;
-        if (!inPaddedImage || inChart)
+        if (!inPaddedImage)
             return std::nullopt;
-        return PaddedImageSample { column, row, paddedWidth, paddedHeight };
+        return PaddedImageSample { column, row, paddedWidth, paddedHeight, inChart };
+    }
+    Pixel compositeChartPixel(const Pixel& inset, const Pixel& padded, bool keepPremultiplied)
+    {
+        const auto roundProduct = [](unsigned int value) {
+            return (value + (value >> 8) + 128) >> 8;
+        };
+        const auto remainder = 255u - inset[3];
+        const auto alpha = inset[3] + roundProduct(padded[3] * remainder);
+        Pixel result {};
+        if (alpha == 0)
+            return result;
+        const auto inverseAlpha = 0x00ff00ffu / alpha;
+        for (size_t channel = 0; channel < 3; ++channel) {
+            const auto foreground = roundProduct(inset[channel] * inset[3]);
+            const auto background = roundProduct(padded[channel] * padded[3]);
+            const auto premultiplied = foreground + roundProduct(background * remainder);
+            result[channel] = static_cast<uint8_t>(keepPremultiplied ? premultiplied : (premultiplied * inverseAlpha + 32768) >> 16);
+        }
+        result[3] = static_cast<uint8_t>(alpha);
+        return result;
     }
     template <typename Paint>
     std::vector<uint8_t> rectangles(TextureImage& output, const UvAtlas& atlas, double bleedFraction, const TextureBakeOptions& options, Paint paint, const std::set<size_t>& skipped = {})
@@ -941,7 +962,8 @@ TextureBakeResult TextureBaker::bake(const Object& object, const UvAtlas& atlas,
         if (!colorSource.gradient && layout.id.isNull())
             return colorPixel(layout.color);
         // Qt stretches the background image across the padded chart before drawing the inset.
-        const auto gutter = chartGutterSample(u, v, left, top, width, height, colorBleed);
+        const auto padded = chartPaddedSample(u, v, left, top, width, height, colorBleed);
+        const auto* gutter = padded && !padded->inset ? &*padded : nullptr;
         const auto sourceWidth = colorSource.gradient ? colorSource.gradient->resolution : colorSource.image->width;
         const auto sourceHeight = colorSource.gradient ? colorSource.gradient->resolution : colorSource.image->height;
         const auto pixelWidth = gutter ? gutter->width : static_cast<int>(width);
@@ -949,7 +971,7 @@ TextureBakeResult TextureBaker::bake(const Object& object, const UvAtlas& atlas,
         const auto targetWidth = static_cast<size_t>(layout.flipped ? pixelHeight : pixelWidth);
         const auto targetHeight = static_cast<size_t>(layout.flipped ? pixelWidth : pixelHeight);
         // Qt's RGB32 fast blitter advances from the origin on both axes.
-        const bool wholeAxis = !colorSource.gradient && colorSource.image->rgb32Raster
+        const bool wholeAxis = !colorSource.gradient && colorSource.image->raster == TextureImageRaster::rgb32
             && targetWidth < sourceWidth * 512 && targetHeight < sourceHeight * 512;
         const auto xPhase = wholeAxis ? ImageScalePhase::wholeAxis
             : allowsFixedImageScale(sourceWidth, sourceHeight, targetWidth, targetHeight)
@@ -988,7 +1010,20 @@ TextureBakeResult TextureBaker::bake(const Object& object, const UvAtlas& atlas,
         }
         Pixel pixel;
         std::copy_n(source.pixels + y * source.rowStride + x * 4, 4, pixel.begin());
-        return pixel; }, colorSkipped);
+        if (source.raster != TextureImageRaster::alphaComposite || pixel[3] == 255)
+            return pixel;
+        Pixel background {};
+        if (padded && padded->inset) {
+            const auto paddedWidth = layout.flipped ? padded->height : padded->width;
+            const auto paddedHeight = layout.flipped ? padded->width : padded->height;
+            const auto paddedPhase = allowsFixedImageScale(source.width, source.height, paddedWidth, paddedHeight)
+                ? ImageScalePhase::spans
+                : ImageScalePhase::direct;
+            const auto paddedX = scaledImageSample(layout.flipped ? padded->row : padded->column, paddedWidth, source.width, paddedPhase);
+            const auto paddedY = scaledImageSample(layout.flipped ? padded->column : padded->row, paddedHeight, source.height, ImageScalePhase::direct);
+            std::copy_n(source.pixels + paddedY * source.rowStride + paddedX * 4, 4, background.begin());
+        }
+        return compositeChartPixel(pixel, background, options.premultipliedArchiveColor); }, colorSkipped);
     for (const auto& chart : charts)
         paintSurface(result.color, colorCoverage, chart, atlas.layouts[chart.layoutIndex].color, false, options, result.rasterTriangleVisits);
     dilate(result.color, colorCoverage, options);

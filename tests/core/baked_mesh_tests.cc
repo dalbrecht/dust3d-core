@@ -179,7 +179,12 @@ void archivedImageEncodingSelectsTheRaster()
     const std::vector<uint8_t> rgb { 137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 8, 0, 0, 0, 8, 8, 2, 0, 0, 0, 75, 109, 41, 220, 0, 0, 0, 12, 73, 68, 65, 84, 120, 156, 99, 96, 24, 30, 0, 0, 0, 200, 0, 1, 173, 64, 118, 34, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130 };
     const std::vector<uint8_t> rgba { 137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 8, 0, 0, 0, 8, 8, 6, 0, 0, 0, 196, 15, 190, 139, 0, 0, 0, 17, 73, 68, 65, 84, 120, 156, 99, 96, 96, 96, 248, 79, 0, 143, 4, 5, 0, 130, 72, 63, 193, 232, 155, 203, 121, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130 };
     const std::vector<uint8_t> keyed { 137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 8, 0, 0, 0, 8, 8, 2, 0, 0, 0, 75, 109, 41, 220, 0, 0, 0, 6, 116, 82, 78, 83, 0, 1, 0, 0, 0, 0, 83, 198, 46, 33, 0, 0, 0, 12, 73, 68, 65, 84, 120, 156, 99, 96, 24, 30, 0, 0, 0, 200, 0, 1, 173, 64, 118, 34, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130 };
-    const auto sample = [&](const std::vector<uint8_t>* image, bool alias = false) {
+    struct Samples {
+        std::array<uint8_t, 2> scale;
+        std::array<uint8_t, 4> overlap;
+        std::array<uint8_t, 4> clear;
+    };
+    const auto sample = [&](const std::vector<uint8_t>* image, bool alias = false, bool fbx = false) {
         dust3d::native::BakedMeshData bake(fixture.options);
         if (image) {
             const auto key = "images/" + fixture.image.toString() + ".png";
@@ -188,15 +193,29 @@ void archivedImageEncodingSelectsTheRaster()
                 bake.item("asset", "images/eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee.png", image->data(), image->size());
         }
         bake.appendTriangle(1);
-        bake.prepare(fixture.object, fixture.snapshot, fixture.atlas);
+        bake.prepare(fixture.object, fixture.snapshot, fixture.atlas, fbx);
         const auto& output = bake.maps[0]->pixels;
-        return std::array<uint8_t, 2> { output[(100 * 384 + 297) * 4],
-            output[(297 * 384 + 100) * 4 + 1] };
+        Samples result {};
+        result.scale = { output[(100 * 384 + 297) * 4], output[(297 * 384 + 100) * 4 + 1] };
+        std::copy_n(output.data() + (35 * 384 + 58) * 4, 4, result.overlap.begin());
+        std::copy_n(output.data() + (35 * 384 + 35) * 4, 4, result.clear.begin());
+        return result;
     };
-    require(sample(&rgb) == std::array<uint8_t, 2> { 6, 6 }, "RGB32 must advance fixed-point sampling on both axes");
+    require(sample(&rgb).scale == std::array<uint8_t, 2> { 6, 6 }, "RGB32 must advance fixed-point sampling on both axes");
     for (const auto* image : { &rgba, &keyed, static_cast<const std::vector<uint8_t>*>(nullptr) })
-        require(sample(image) == std::array<uint8_t, 2> { 6, 7 }, "Alpha-capable and caller-only images must use the transformed raster");
-    require(sample(&rgb, true) == std::array<uint8_t, 2> { 6, 7 }, "Ambiguous image keys must not select RGB32");
+        require(sample(image).scale == std::array<uint8_t, 2> { 6, 7 }, "Alpha-capable and caller-only images must use the transformed raster");
+    require(sample(&rgb, true).scale == std::array<uint8_t, 2> { 6, 7 }, "Ambiguous image keys must not select RGB32");
+    pixels[3] = 0;
+    const auto transparent = sample(&keyed);
+    require(transparent.overlap == std::array<uint8_t, 4> { 1, 0, 255, 255 }, "The keyed inset must reveal the padded layer");
+    require(transparent.clear == std::array<uint8_t, 4> {}, "Fully transparent chart output must clear hidden RGB");
+    require(sample(nullptr).clear == std::array<uint8_t, 4> { 0, 0, 255, 0 }, "Caller-only straight-alpha samples must retain hidden RGB");
+
+    const std::array<uint8_t, 8> partial { 20, 15, 25, 127, 49, 15, 106, 91 };
+    std::copy(partial.begin(), partial.end(), pixels.begin());
+    require(sample(&rgba, false, true).overlap == std::array<uint8_t, 4> { 19, 10, 31, 173 }, "FBX stores Qt's premultiplied color bytes");
+    require(sample(nullptr, false, true).overlap == std::array<uint8_t, 4> { 20, 15, 25, 127 }, "FBX must preserve caller-only pixels");
+    require(sample(&rgba).overlap == std::array<uint8_t, 4> { 28, 15, 46, 173 }, "The inset and padding must use Qt's premultiplied rounding");
 }
 void analyticMaterialsImagesAndTangents()
 {
