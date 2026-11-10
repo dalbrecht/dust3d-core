@@ -179,7 +179,13 @@ void archivedImageEncodingSelectsTheRaster()
     const std::vector<uint8_t> rgb { 137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 8, 0, 0, 0, 8, 8, 2, 0, 0, 0, 75, 109, 41, 220, 0, 0, 0, 12, 73, 68, 65, 84, 120, 156, 99, 96, 24, 30, 0, 0, 0, 200, 0, 1, 173, 64, 118, 34, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130 };
     const std::vector<uint8_t> rgba { 137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 8, 0, 0, 0, 8, 8, 6, 0, 0, 0, 196, 15, 190, 139, 0, 0, 0, 17, 73, 68, 65, 84, 120, 156, 99, 96, 96, 96, 248, 79, 0, 143, 4, 5, 0, 130, 72, 63, 193, 232, 155, 203, 121, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130 };
     const std::vector<uint8_t> keyed { 137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 8, 0, 0, 0, 8, 8, 2, 0, 0, 0, 75, 109, 41, 220, 0, 0, 0, 6, 116, 82, 78, 83, 0, 1, 0, 0, 0, 0, 83, 198, 46, 33, 0, 0, 0, 12, 73, 68, 65, 84, 120, 156, 99, 96, 24, 30, 0, 0, 0, 200, 0, 1, 173, 64, 118, 34, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130 };
+    const std::vector<uint8_t> indexed { 137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 8, 0, 0, 0, 8, 8, 3, 0, 0, 0, 243, 209, 78, 185, 0, 0, 0, 6, 80, 76, 84, 69, 0, 0, 0, 255, 255, 255, 165, 217, 159, 221, 0, 0, 0, 12, 73, 68, 65, 84, 120, 156, 99, 96, 160, 14, 0, 0, 0, 72, 0, 1, 46, 184, 60, 126, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130 };
+    const std::vector<uint8_t> indexedAlpha { 137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 8, 0, 0, 0, 8, 8, 3, 0, 0, 0, 243, 209, 78, 185, 0, 0, 0, 6, 80, 76, 84, 69, 0, 0, 0, 255, 255, 255, 165, 217, 159, 221, 0, 0, 0, 2, 116, 82, 78, 83, 0, 255, 91, 145, 34, 181, 0, 0, 0, 12, 73, 68, 65, 84, 120, 156, 99, 96, 160, 14, 0, 0, 0, 72, 0, 1, 46, 184, 60, 126, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130 };
+    const std::vector<uint8_t> grayKey { 137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 8, 0, 0, 0, 8, 8, 0, 0, 0, 0, 225, 100, 225, 87, 0, 0, 0, 2, 116, 82, 78, 83, 0, 0, 118, 147, 205, 56, 0, 0, 0, 12, 73, 68, 65, 84, 120, 156, 99, 96, 160, 14, 0, 0, 0, 72, 0, 1, 46, 184, 60, 126, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130 };
+    const std::vector<uint8_t> grayAlpha { 137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 8, 0, 0, 0, 8, 8, 4, 0, 0, 0, 110, 6, 118, 0, 0, 0, 0, 15, 73, 68, 65, 84, 120, 156, 99, 96, 248, 143, 6, 7, 70, 0, 0, 208, 152, 63, 193, 184, 135, 215, 6, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130 };
+    const std::vector<uint8_t> gray { 137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 8, 0, 0, 0, 8, 8, 0, 0, 0, 0, 225, 100, 225, 87, 0, 0, 0, 12, 73, 68, 65, 84, 120, 156, 99, 96, 160, 14, 0, 0, 0, 72, 0, 1, 46, 184, 60, 126, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130 };
     struct Samples {
+        uint8_t indexedTransition;
         std::array<uint8_t, 2> scale;
         std::array<uint8_t, 4> overlap;
         std::array<uint8_t, 4> clear;
@@ -196,6 +202,7 @@ void archivedImageEncodingSelectsTheRaster()
         bake.prepare(fixture.object, fixture.snapshot, fixture.atlas, fbx);
         const auto& output = bake.maps[0]->pixels;
         Samples result {};
+        result.indexedTransition = output[(100 * 384 + 99) * 4];
         result.scale = { output[(100 * 384 + 297) * 4], output[(297 * 384 + 100) * 4 + 1] };
         std::copy_n(output.data() + (35 * 384 + 58) * 4, 4, result.overlap.begin());
         std::copy_n(output.data() + (35 * 384 + 35) * 4, 4, result.clear.begin());
@@ -205,7 +212,14 @@ void archivedImageEncodingSelectsTheRaster()
     for (const auto* image : { &rgba, &keyed, static_cast<const std::vector<uint8_t>*>(nullptr) })
         require(sample(image).scale == std::array<uint8_t, 2> { 6, 7 }, "Alpha-capable and caller-only images must use the transformed raster");
     require(sample(&rgb, true).scale == std::array<uint8_t, 2> { 6, 7 }, "Ambiguous image keys must not select RGB32");
+    require(sample(&indexed).indexedTransition == 1, "Indexed images must keep Qt's 12-bit scale step");
+    require(sample(&gray).indexedTransition == 2, "Opaque grayscale must keep the transformed raster");
     pixels[3] = 0;
+    for (const auto* image : { &indexedAlpha, &grayKey, &grayAlpha }) {
+        const auto result = sample(image);
+        require(result.overlap == std::array<uint8_t, 4> { 1, 0, 255, 255 }, "Alpha-capable indexed and grayscale PNGs must reveal the padded layer");
+        require(result.clear == std::array<uint8_t, 4> {}, "Fully transparent PNG samples must clear hidden RGB");
+    }
     const auto transparent = sample(&keyed);
     require(transparent.overlap == std::array<uint8_t, 4> { 1, 0, 255, 255 }, "The keyed inset must reveal the padded layer");
     require(transparent.clear == std::array<uint8_t, 4> {}, "Fully transparent chart output must clear hidden RGB");

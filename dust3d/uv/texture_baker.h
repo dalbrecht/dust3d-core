@@ -40,7 +40,9 @@ struct TextureImage {
 /// rowStride includes padding, byteCount bounds all readable rows.
 enum class TextureImageRaster { decoded,
     rgb32,
-    alphaComposite };
+    alphaComposite,
+    indexed,
+    indexedAlpha };
 
 struct TextureImageView {
     size_t width = 0;

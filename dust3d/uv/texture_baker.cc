@@ -234,9 +234,16 @@ namespace {
     }
     enum class ImageScalePhase { direct,
         spans,
-        wholeAxis };
+        wholeAxis,
+        indexed };
     size_t scaledImageSample(int destination, int destinationSize, size_t sourceSize, ImageScalePhase phase)
     {
+        if (phase == ImageScalePhase::indexed) {
+            // Indexed images truncate the 12-bit increment before finding the first pixel center.
+            constexpr uint64_t indexScale = 4096;
+            const auto step = sourceSize * indexScale / destinationSize;
+            return (destination * step + step / 2) / indexScale;
+        }
         // Qt selects the lower source texel on a pixel-center tie. Its horizontal
         // raster uses 16-bit fractional steps and starts a new span every 2048 pixels.
         constexpr int rasterSpanWidth = 2048;
@@ -973,11 +980,16 @@ TextureBakeResult TextureBaker::bake(const Object& object, const UvAtlas& atlas,
         // Qt's RGB32 fast blitter advances from the origin on both axes.
         const bool wholeAxis = !colorSource.gradient && colorSource.image->raster == TextureImageRaster::rgb32
             && targetWidth < sourceWidth * 512 && targetHeight < sourceHeight * 512;
-        const auto xPhase = wholeAxis ? ImageScalePhase::wholeAxis
+        const auto raster = colorSource.gradient ? TextureImageRaster::decoded : colorSource.image->raster;
+        const bool indexed = raster == TextureImageRaster::indexed || raster == TextureImageRaster::indexedAlpha;
+        const auto xPhase = indexed ? ImageScalePhase::indexed
+            : wholeAxis             ? ImageScalePhase::wholeAxis
             : allowsFixedImageScale(sourceWidth, sourceHeight, targetWidth, targetHeight)
             ? ImageScalePhase::spans
             : ImageScalePhase::direct;
-        const auto yPhase = wholeAxis ? ImageScalePhase::wholeAxis : ImageScalePhase::direct;
+        const auto yPhase = indexed ? ImageScalePhase::indexed
+            : wholeAxis             ? ImageScalePhase::wholeAxis
+                                    : ImageScalePhase::direct;
         if (const auto* gradient = colorSource.gradient) {
             const auto extent = (layout.flipped ? layout.height : layout.width) * options.colorSize;
             const auto origin = (layout.flipped ? layout.top : layout.left) * options.colorSize;
@@ -1010,17 +1022,19 @@ TextureBakeResult TextureBaker::bake(const Object& object, const UvAtlas& atlas,
         }
         Pixel pixel;
         std::copy_n(source.pixels + y * source.rowStride + x * 4, 4, pixel.begin());
-        if (source.raster != TextureImageRaster::alphaComposite || pixel[3] == 255)
+        const bool compositeAlpha = raster == TextureImageRaster::alphaComposite || raster == TextureImageRaster::indexedAlpha;
+        if (!compositeAlpha || pixel[3] == 255)
             return pixel;
         Pixel background {};
         if (padded && padded->inset) {
             const auto paddedWidth = layout.flipped ? padded->height : padded->width;
             const auto paddedHeight = layout.flipped ? padded->width : padded->height;
-            const auto paddedPhase = allowsFixedImageScale(source.width, source.height, paddedWidth, paddedHeight)
+            const auto paddedPhase = indexed ? ImageScalePhase::indexed
+                : allowsFixedImageScale(source.width, source.height, paddedWidth, paddedHeight)
                 ? ImageScalePhase::spans
                 : ImageScalePhase::direct;
             const auto paddedX = scaledImageSample(layout.flipped ? padded->row : padded->column, paddedWidth, source.width, paddedPhase);
-            const auto paddedY = scaledImageSample(layout.flipped ? padded->column : padded->row, paddedHeight, source.height, ImageScalePhase::direct);
+            const auto paddedY = scaledImageSample(layout.flipped ? padded->column : padded->row, paddedHeight, source.height, yPhase);
             std::copy_n(source.pixels + paddedY * source.rowStride + paddedX * 4, 4, background.begin());
         }
         return compositeChartPixel(pixel, background, options.premultipliedArchiveColor); }, colorSkipped);
