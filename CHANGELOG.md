@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Seed color-atlas dilation from the exact padded chart draw bounds.
+
 - Composite overlapping texture-chart padding in atlas paint order.
 
 - Store straight-alpha color in embedded FBX PNGs after chart compositing.
