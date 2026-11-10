@@ -38,13 +38,17 @@ struct TextureImage {
 
 /// Borrowed straight-alpha RGBA8. Bytes must remain valid throughout bake();
 /// rowStride includes padding, byteCount bounds all readable rows.
+enum class TextureImageRaster { decoded,
+    rgb32,
+    alphaComposite };
+
 struct TextureImageView {
     size_t width = 0;
     size_t height = 0;
     size_t rowStride = 0;
     size_t byteCount = 0;
     const uint8_t* pixels = nullptr;
-    bool rgb32Raster = false;
+    TextureImageRaster raster = TextureImageRaster::decoded;
 };
 
 struct TextureMaterial {
@@ -73,6 +77,7 @@ struct TextureBakeOptions {
     size_t maximumSpatialGridEntries = 1000000; // Conservative cumulative fold-grid insertion bound, 1..16000000.
     size_t maximumPayloadBytes = 0; // Zero selects 256 MiB; not a process-memory cap.
     const std::atomic_bool* cancellation = nullptr; // Borrowed for this call only.
+    bool premultipliedArchiveColor = false; // Qt FBX embeds the composited RGB bytes with alpha.
 };
 
 /// Unit tangent and explicit handedness, in original triangle order. Unknown or
