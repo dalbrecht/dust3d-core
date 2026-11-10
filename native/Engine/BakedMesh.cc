@@ -23,10 +23,14 @@ namespace native {
             constexpr uint8_t signature[] { 137, 80, 78, 71, 13, 10, 26, 10 };
             if (size < 33 || std::memcmp(data, signature, sizeof(signature)) || pngInteger(data + 8) != 13
                 || std::memcmp(data + 12, "IHDR", 4) || pngInteger(data + 16) != image.width
-                || pngInteger(data + 20) != image.height || data[24] != 8
+                || pngInteger(data + 20) != image.height
                 || data[26] != 0 || data[27] != 0 || data[28] > 1)
                 return TextureImageRaster::decoded;
+            const auto depth = data[24];
             const auto colorType = data[25];
+            const bool packedIndexed = (depth == 2 || depth == 4) && (colorType == 0 || colorType == 3);
+            if (depth != 8 && !packedIndexed)
+                return TextureImageRaster::decoded;
             size_t paletteSize = 0;
             bool keyed = false;
             // PNG requires the transparency key to precede the first image data chunk.
@@ -38,7 +42,9 @@ namespace native {
                 if (!std::memcmp(kind, "IDAT", 4)) {
                     switch (colorType) {
                     case 0:
-                        return keyed ? TextureImageRaster::indexedAlpha : TextureImageRaster::decoded;
+                        return keyed        ? TextureImageRaster::indexedAlpha
+                            : packedIndexed ? TextureImageRaster::indexed
+                                            : TextureImageRaster::decoded;
                     case 2:
                         return keyed ? TextureImageRaster::alphaComposite : TextureImageRaster::rgb32;
                     case 3:
@@ -55,7 +61,7 @@ namespace native {
                 if (!std::memcmp(kind, "IEND", 4) || !std::memcmp(kind, "IHDR", 4))
                     break;
                 if (colorType == 3 && !std::memcmp(kind, "PLTE", 4)) {
-                    if (paletteSize || length == 0 || length % 3 || length > 256 * 3)
+                    if (paletteSize || length == 0 || length % 3 || length > (1u << depth) * 3)
                         break;
                     paletteSize = length / 3;
                 }
