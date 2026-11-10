@@ -41,7 +41,7 @@ Dust3DFbxExport* dust3d_fbx_export_load(const uint8_t* bytes, size_t size, const
         checkCancellation(options->cancellation);
         std::string warning;
         // No import owner is supplied: model assets reject before GLB decoding.
-        auto snapshot = readDocument(bytes, size, warning);
+        auto snapshot = readDocument(bytes, size, warning, bake.get());
         RetainedPayloadBudget overhead(maximumOutput);
         overhead.tryAdd(sizeof(Dust3DFbxExport));
         overhead.accountDynamic(warning);

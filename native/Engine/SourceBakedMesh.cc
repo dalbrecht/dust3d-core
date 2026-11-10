@@ -461,7 +461,7 @@ static Dust3DSourceBakedMesh* loadSourceBakedMesh(const uint8_t* bytes, size_t s
         auto owner = std::make_unique<Dust3DSourceBakedMesh>();
         owner->data = std::make_unique<SourceBakedData>(*options, imports, maximumLevels);
         std::string warning;
-        auto snapshot = readDocument(bytes, size, warning, nullptr, &imports);
+        auto snapshot = readDocument(bytes, size, warning, owner->data->imageEncodingObserver(), &imports);
         owner->data->validateVisuals(*snapshot);
         owner->source = std::make_unique<Dust3DImportedSurfaceMesh>();
         owner->source->data = std::make_unique<ImportedSurfaceData>(*snapshot, imports, owner->data->maximumOutputBytes());

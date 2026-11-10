@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Preserve Qt RGB32 texture sampling for unkeyed 8-bit RGB PNG assets.
+
 - Match Qt's direct texture sampling for extreme chart scales.
 
 - Match Qt’s independently scaled image and seam-gradient gutters around packed texture charts.
