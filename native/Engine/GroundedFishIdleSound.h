@@ -14,6 +14,10 @@ namespace dust3d::native {
         const auto rig = evaluatedClipRig(type);
         if (rig.empty())
             return GroundedClipSound::unsupported;
+        if (rig == "Spider")
+            return type == "SpiderWalk" || type == "SpiderRun" || type == "SpiderDie"
+                ? GroundedClipSound::surface
+                : GroundedClipSound::silent;
         if (type == "FishAttack" || type == "FishHurt" || type == "SnakeHurt" || type == "SnakeStrike")
             return GroundedClipSound::silent;
         return rig == "Fish" ? GroundedClipSound::underwater : GroundedClipSound::surface;

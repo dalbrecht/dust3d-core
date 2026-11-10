@@ -14,6 +14,11 @@ static_assert(groundedClipSound("SnakeDie") == GroundedClipSound::surface);
 static_assert(groundedClipSound("SnakeHurt") == GroundedClipSound::silent);
 static_assert(groundedClipSound("SnakeStrike") == GroundedClipSound::silent);
 static_assert(groundedClipSound("SnakeWalk") == GroundedClipSound::unsupported);
+static_assert(dust3d::native::evaluatedClipRig("SpiderRunBackwardRight") == "Spider");
+static_assert(dust3d::native::evaluatedClipRig("SpiderWalkForward").empty());
+static_assert(groundedClipSound("SpiderWalk") == GroundedClipSound::surface);
+static_assert(groundedClipSound("SpiderDie") == GroundedClipSound::surface);
+static_assert(groundedClipSound("SpiderRunBackwardRight") == GroundedClipSound::silent);
 
 int main()
 {

@@ -20,7 +20,7 @@ namespace dust3d::native {
         size_t remainingBytes, const Dust3DCancellationToken* cancellation)
     {
         checkCancellation(cancellation);
-        // Complete tracks use at most one event per adjacent sample pair.
+        // Keep the existing retained event and PCM work budgets.
         constexpr size_t maximumEvents = 128;
         constexpr std::array fishBones { "BodyMid", "BodyFront", "BodyRear", "TailStart", "TailEnd" };
         constexpr std::array snakeBones { "Spine3", "Spine1", "Spine2", "Spine4", "Spine5", "Spine6",
@@ -36,20 +36,32 @@ namespace dust3d::native {
         if (sound == GroundedClipSound::silent)
             return { {}, clip.durationSeconds, 0 };
         const bool underwater = sound == GroundedClipSound::underwater;
+        const bool spider = definition->second.rig == "Spider";
         const auto tracks = underwater ? fishBones.data() : snakeBones.data();
         // Impact detection uses only BodyMid or Spine3, the first bone in each list.
         const size_t trackCount = clip.loop ? (underwater ? fishBones.size() : snakeBones.size()) : 1;
+        const auto validateCoordinates = [](const Matrix4x4& transform) {
+            const auto* values = transform.constData();
+            for (const auto axis : { Matrix4x4::M30, Matrix4x4::M31, Matrix4x4::M32 }) {
+                if (!std::isfinite(values[axis]) || std::abs(values[axis]) > 1e6)
+                    throw DocumentError(DUST3D_STATUS_GENERATION_FAILED, "Animation sound track coordinates are invalid.");
+            }
+        };
         for (const auto& frame : clip.frames) {
             checkCancellation(cancellation);
+            // The Spider detector discovers leg tips by name and tries root aliases on impact.
+            if (spider) {
+                if (frame.boneWorldTransforms.empty() || frame.boneWorldTransforms.size() > 256)
+                    throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Spider sound exceeds its detector track limits.");
+                for (const auto& track : frame.boneWorldTransforms)
+                    validateCoordinates(track.second);
+                continue;
+            }
             for (size_t index = 0; index < trackCount; ++index) {
                 const auto bone = frame.boneWorldTransforms.find(tracks[index]);
                 if (bone == frame.boneWorldTransforms.end())
                     throw DocumentError(DUST3D_STATUS_GENERATION_FAILED, "Animation sound requires complete detector tracks.");
-                const auto* values = bone->second.constData();
-                for (const auto axis : { Matrix4x4::M30, Matrix4x4::M31, Matrix4x4::M32 }) {
-                    if (!std::isfinite(values[axis]) || std::abs(values[axis]) > 1e6)
-                        throw DocumentError(DUST3D_STATUS_GENERATION_FAILED, "Animation sound track coordinates are invalid.");
-                }
+                validateCoordinates(bone->second);
             }
         }
         const auto sampleCount = static_cast<size_t>(clip.durationSeconds * fishIdleSampleRate);

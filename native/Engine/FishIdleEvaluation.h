@@ -29,6 +29,17 @@ namespace dust3d::native {
         if (type == "SnakeForward" || type == "SnakeSlither" || type == "SnakeIdle"
             || type == "SnakeHurt" || type == "SnakeStrike" || type == "SnakeDie")
             return "Snake";
+        if (type == "SpiderAttack" || type == "SpiderDie" || type == "SpiderHurt" || type == "SpiderIdle")
+            return "Spider";
+        for (const std::string_view gait : { "SpiderWalk", "SpiderRun" }) {
+            if (type.substr(0, gait.size()) != gait)
+                continue;
+            const auto direction = type.substr(gait.size());
+            if (direction.empty() || direction == "Left" || direction == "Right" || direction == "Backward"
+                || direction == "ForwardLeft" || direction == "ForwardRight"
+                || direction == "BackwardLeft" || direction == "BackwardRight")
+                return "Spider";
+        }
         return {};
     }
 
