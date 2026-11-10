@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Honor 16-bit RGB PNG transparency keys when compositing texture charts.
+
 - Allow static FBX callers to supply premultiplied texture samples prepared before 16-to-8-bit reduction.
 
 - Match Qt chart compositing for 16-bit grayscale PNG transparency keys.
