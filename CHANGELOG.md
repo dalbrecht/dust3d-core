@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Match Qt’s inset and padding compositing for alpha-capable truecolor PNG textures.
+
 - Preserve Qt RGB32 texture sampling for unkeyed 8-bit RGB PNG assets.
 
 - Match Qt's direct texture sampling for extreme chart scales.
