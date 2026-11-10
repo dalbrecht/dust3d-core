@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Match Qt's direct texture sampling for extreme chart scales.
+
 - Match Qt’s independently scaled image and seam-gradient gutters around packed texture charts.
 
 - Match Qt source texel selection within packed image and seam-gradient charts, including rotated charts and wide sampling spans.
