@@ -154,10 +154,12 @@ struct AnalyticBake {
 void archivedImageEncodingSelectsTheRaster()
 {
     AnalyticBake fixture;
-    fixture.options.color_size = 4096;
+    // This extent separates the fixed RGB32 and transformed vertical samples
+    // without building multiple production-size atlases under sanitizers.
+    fixture.options.color_size = 384;
     auto& layout = fixture.atlas.layouts[0];
-    layout.left = layout.top = 0.004999999888241291;
-    layout.width = layout.height = 0.95346438884735107;
+    layout.left = layout.top = 20.25 / 384;
+    layout.width = layout.height = 317.25 / 384;
     layout.id = fixture.image;
     std::vector<uint8_t> pixels(8 * 8 * 4, 255);
     for (int y = 0; y < 8; ++y) {
@@ -194,15 +196,15 @@ void archivedImageEncodingSelectsTheRaster()
         bake.prepare(fixture.object, fixture.snapshot, fixture.atlas, fbx);
         const auto& output = bake.maps[0]->pixels;
         Samples result {};
-        result.scale = { output[(2048 * 4096 + 509) * 4], output[(509 * 4096 + 2048) * 4 + 1] };
-        std::copy_n(output.data() + (100 * 4096 + 490) * 4, 4, result.overlap.begin());
-        std::copy_n(output.data() + (100 * 4096 + 100) * 4, 4, result.clear.begin());
+        result.scale = { output[(100 * 384 + 297) * 4], output[(297 * 384 + 100) * 4 + 1] };
+        std::copy_n(output.data() + (35 * 384 + 58) * 4, 4, result.overlap.begin());
+        std::copy_n(output.data() + (35 * 384 + 35) * 4, 4, result.clear.begin());
         return result;
     };
-    require(sample(&rgb).scale == std::array<uint8_t, 2> { 0, 0 }, "RGB32 must advance fixed-point sampling on both axes");
+    require(sample(&rgb).scale == std::array<uint8_t, 2> { 6, 6 }, "RGB32 must advance fixed-point sampling on both axes");
     for (const auto* image : { &rgba, &keyed, static_cast<const std::vector<uint8_t>*>(nullptr) })
-        require(sample(image).scale == std::array<uint8_t, 2> { 1, 1 }, "Alpha-capable and caller-only images must use the transformed raster");
-    require(sample(&rgb, true).scale == std::array<uint8_t, 2> { 1, 1 }, "Ambiguous image keys must not select RGB32");
+        require(sample(image).scale == std::array<uint8_t, 2> { 6, 7 }, "Alpha-capable and caller-only images must use the transformed raster");
+    require(sample(&rgb, true).scale == std::array<uint8_t, 2> { 6, 7 }, "Ambiguous image keys must not select RGB32");
     pixels[3] = 0;
     const auto transparent = sample(&keyed);
     require(transparent.overlap == std::array<uint8_t, 4> { 1, 0, 255, 255 }, "The keyed inset must reveal the padded layer");
