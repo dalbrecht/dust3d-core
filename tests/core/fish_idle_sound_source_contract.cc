@@ -35,6 +35,12 @@ static_assert(dust3d::native::evaluatedClipRig("QuadrupedRunBackwardLeft") == "Q
 static_assert(dust3d::native::evaluatedClipRig("QuadrupedEatLeft").empty());
 static_assert(groundedClipSound("QuadrupedRoar") == GroundedClipSound::surface);
 static_assert(groundedClipSound("QuadrupedRunBackwardLeft") == GroundedClipSound::silent);
+static_assert(dust3d::native::evaluatedClipRig("BipedCrouchEnter") == "Biped");
+static_assert(dust3d::native::evaluatedClipRig("BipedWalkForwardRight") == "Biped");
+static_assert(dust3d::native::evaluatedClipRig("BipedWalkRight").empty());
+static_assert(groundedClipSound("BipedSprint") == GroundedClipSound::surface);
+static_assert(groundedClipSound("BipedCast") == GroundedClipSound::surface);
+static_assert(groundedClipSound("BipedCrouchEnter") == GroundedClipSound::silent);
 
 int main()
 {

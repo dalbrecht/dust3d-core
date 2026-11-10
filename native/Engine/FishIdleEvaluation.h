@@ -22,12 +22,12 @@ namespace dust3d::native {
         return supportsFishLoop(type) || type == "FishAttack" || type == "FishHurt" || type == "FishDie";
     }
 
-    inline constexpr bool isEvaluatedDirectionalGait(std::string_view type, std::string_view gait)
+    inline constexpr bool isEvaluatedDirectionalGait(std::string_view type, std::string_view gait, bool diagonalsOnly = false)
     {
         if (type.substr(0, gait.size()) != gait)
             return false;
         const auto direction = type.substr(gait.size());
-        return direction.empty() || direction == "Left" || direction == "Right" || direction == "Backward"
+        return direction.empty() || (!diagonalsOnly && (direction == "Left" || direction == "Right" || direction == "Backward"))
             || direction == "ForwardLeft" || direction == "ForwardRight"
             || direction == "BackwardLeft" || direction == "BackwardRight";
     }
@@ -55,8 +55,25 @@ namespace dust3d::native {
             || type == "QuadrupedHurt" || type == "QuadrupedIdle" || type == "QuadrupedRoar"
             || isEvaluatedDirectionalGait(type, "QuadrupedWalk") || isEvaluatedDirectionalGait(type, "QuadrupedRun"))
             return "Quadruped";
+        if (isEvaluatedDirectionalGait(type, "BipedWalk", true) || isEvaluatedDirectionalGait(type, "BipedRun")
+            || type == "BipedBlock" || type == "BipedCast" || type == "BipedChannel"
+            || type == "BipedCombatIdle" || type == "BipedDie" || type == "BipedDodge"
+            || type == "BipedFall" || type == "BipedHop" || type == "BipedHurt"
+            || type == "BipedIdle" || type == "BipedJump" || type == "BipedJumpStart"
+            || type == "BipedKick" || type == "BipedLand" || type == "BipedRoar"
+            || type == "BipedSlam" || type == "BipedSlash" || type == "BipedStab"
+            || type == "BipedStrafeLeft" || type == "BipedStrafeRight" || type == "BipedThrow"
+            || type == "BipedTurnLeft" || type == "BipedTurnRight" || type == "BipedWalkBackward")
+            return "Biped";
+#define DUST3D_BIPED_CLIP(name, duration, samples, loop, entryPose, exitPose, generator) \
+        if (type == name)                                                              \
+            return "Biped";
+#include <dust3d/animation/biped/clip_definitions.inc>
+#undef DUST3D_BIPED_CLIP
         return {};
     }
+
+    size_t evaluatedClipParameterLimit(const std::string& clipType);
 
     /// Source-only prototype for bounded reference animation clips.
     /// The caller must keep the grounded rig and its matching inverse binds immutable for the call.

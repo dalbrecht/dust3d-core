@@ -26,6 +26,12 @@ namespace dust3d::native {
         }
     }
 
+    size_t evaluatedClipParameterLimit(const std::string& clipType)
+    {
+        // Authored parameters include two timing fields alongside the pinned controls.
+        return animation::parameterDefinitions(clipType).size() + 2;
+    }
+
     OwnedEvaluatedSkeletonClip evaluateFishIdle(const RigStructure& groundedRig,
         const std::map<std::string, Matrix4x4>& inverseBindMatrices,
         const AnimationParams& authoredParameters, size_t maximumPayloadBytes,

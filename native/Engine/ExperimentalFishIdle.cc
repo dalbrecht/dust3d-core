@@ -72,7 +72,7 @@ static Dust3DExperimentalFishIdle* loadFishIdle(const uint8_t* archive, size_t a
             }
             for (const auto* metadata : { "id", "name", "type", "surfaceMaterial" })
                 fields.erase(metadata);
-            if (fields.size() > (clipType == "FishIdle" ? 9 : 17) || std::any_of(fields.begin(), fields.end(), [](const auto& field) {
+            if (fields.size() > evaluatedClipParameterLimit(clipType) || std::any_of(fields.begin(), fields.end(), [](const auto& field) {
                     return field.first.empty() || field.first.size() > 64 || field.second.empty() || field.second.size() > 64;
                 }))
                 throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Invalid selected FishIdle parameters.");

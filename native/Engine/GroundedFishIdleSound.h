@@ -34,6 +34,14 @@ namespace dust3d::native {
                     || type == "QuadrupedWalk" || type == "QuadrupedRun"
                 ? GroundedClipSound::surface
                 : GroundedClipSound::silent;
+        if (rig == "Biped")
+            return type == "BipedWalk" || type == "BipedRun" || type == "BipedSprint" || type == "BipedSneak"
+                    || type == "BipedStrafeLeft" || type == "BipedStrafeRight" || type == "BipedWalkBackward"
+                    || type == "BipedTurnLeft" || type == "BipedTurnRight" || type == "BipedJump" || type == "BipedLand"
+                    || type == "BipedThrow" || type == "BipedStab" || type == "BipedSlam" || type == "BipedCast"
+                    || type == "BipedChannel" || type == "BipedRoar" || type == "BipedDie" || type == "BipedHurt"
+                ? GroundedClipSound::surface
+                : GroundedClipSound::silent;
         if (type == "FishAttack" || type == "FishHurt" || type == "SnakeHurt" || type == "SnakeStrike")
             return GroundedClipSound::silent;
         return rig == "Fish" ? GroundedClipSound::underwater : GroundedClipSound::surface;
