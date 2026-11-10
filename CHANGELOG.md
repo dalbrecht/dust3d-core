@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Store straight-alpha color in embedded FBX PNGs after chart compositing.
+
 - Honor 16-bit RGB PNG transparency keys when compositing texture charts.
 
 - Allow static FBX callers to supply premultiplied texture samples prepared before 16-to-8-bit reduction.
