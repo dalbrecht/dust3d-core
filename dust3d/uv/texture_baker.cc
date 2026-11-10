@@ -232,19 +232,24 @@ namespace {
         };
         return axisFits(sourceWidth, targetWidth) && axisFits(sourceHeight, targetHeight);
     }
-    size_t scaledImageSample(int destination, int destinationSize, size_t sourceSize, bool fixedHorizontal)
+    enum class ImageScalePhase { direct,
+        spans,
+        wholeAxis };
+    size_t scaledImageSample(int destination, int destinationSize, size_t sourceSize, ImageScalePhase phase)
     {
         // Qt selects the lower source texel on a pixel-center tie. Its horizontal
         // raster uses 16-bit fractional steps and starts a new span every 2048 pixels.
         constexpr int rasterSpanWidth = 2048;
         constexpr uint64_t fixedScale = 1 << 16;
-        const auto spanStart = fixedHorizontal ? destination / rasterSpanWidth * rasterSpanWidth : destination;
+        const auto spanStart = phase == ImageScalePhase::spans ? destination / rasterSpanWidth * rasterSpanWidth
+            : phase == ImageScalePhase::wholeAxis              ? 0
+                                                               : destination;
         const auto scaledSource = static_cast<uint64_t>(sourceSize) * fixedScale;
         const auto initial = ((2 * spanStart + 1) * scaledSource - 1) / (2 * destinationSize);
         const auto advance = (destination - spanStart) * (scaledSource / destinationSize);
         return static_cast<size_t>((initial + advance) / fixedScale);
     }
-    size_t chartImageSample(double normalized, double origin, double extent, int bleed, size_t sourceSize, bool fixedHorizontal)
+    size_t chartImageSample(double normalized, double origin, double extent, int bleed, size_t sourceSize, ImageScalePhase phase)
     {
         if (extent < 1) {
             const auto offset = std::floor(origin) + normalized * chartPixelSpan(origin, extent) - origin;
@@ -260,7 +265,7 @@ namespace {
         if (destination >= destinationSize)
             return sourceSize - 1;
 
-        return scaledImageSample(destination, destinationSize, sourceSize, fixedHorizontal);
+        return scaledImageSample(destination, destinationSize, sourceSize, phase);
     }
     struct PaddedImageSample {
         int column;
@@ -941,15 +946,23 @@ TextureBakeResult TextureBaker::bake(const Object& object, const UvAtlas& atlas,
         const auto sourceHeight = colorSource.gradient ? colorSource.gradient->resolution : colorSource.image->height;
         const auto pixelWidth = gutter ? gutter->width : static_cast<int>(width);
         const auto pixelHeight = gutter ? gutter->height : static_cast<int>(height);
-        const bool fixedHorizontal = allowsFixedImageScale(sourceWidth, sourceHeight,
-            layout.flipped ? pixelHeight : pixelWidth, layout.flipped ? pixelWidth : pixelHeight);
+        const auto targetWidth = static_cast<size_t>(layout.flipped ? pixelHeight : pixelWidth);
+        const auto targetHeight = static_cast<size_t>(layout.flipped ? pixelWidth : pixelHeight);
+        // Qt's RGB32 fast blitter advances from the origin on both axes.
+        const bool wholeAxis = !colorSource.gradient && colorSource.image->rgb32Raster
+            && targetWidth < sourceWidth * 512 && targetHeight < sourceHeight * 512;
+        const auto xPhase = wholeAxis ? ImageScalePhase::wholeAxis
+            : allowsFixedImageScale(sourceWidth, sourceHeight, targetWidth, targetHeight)
+            ? ImageScalePhase::spans
+            : ImageScalePhase::direct;
+        const auto yPhase = wholeAxis ? ImageScalePhase::wholeAxis : ImageScalePhase::direct;
         if (const auto* gradient = colorSource.gradient) {
             const auto extent = (layout.flipped ? layout.height : layout.width) * options.colorSize;
             const auto origin = (layout.flipped ? layout.top : layout.left) * options.colorSize;
             const auto sample = gutter
                 ? scaledImageSample(layout.flipped ? gutter->row : gutter->column,
-                      layout.flipped ? gutter->height : gutter->width, gradient->resolution, fixedHorizontal)
-                : chartImageSample(layout.flipped ? v : u, origin, extent, colorBleed, gradient->resolution, fixedHorizontal);
+                      layout.flipped ? gutter->height : gutter->width, gradient->resolution, xPhase)
+                : chartImageSample(layout.flipped ? v : u, origin, extent, colorBleed, gradient->resolution, xPhase);
             const auto amount = static_cast<double>(sample) / (gradient->resolution - 1);
             Pixel pixel;
             for (size_t channel = 0; channel < 4; ++channel) {
@@ -962,16 +975,16 @@ TextureBakeResult TextureBaker::bake(const Object& object, const UvAtlas& atlas,
         }
         const auto& source = *colorSource.image;
         auto x = layout.flipped
-            ? chartImageSample(v, top, height, colorBleed, source.width, fixedHorizontal)
-            : chartImageSample(u, left, width, colorBleed, source.width, fixedHorizontal);
+            ? chartImageSample(v, top, height, colorBleed, source.width, xPhase)
+            : chartImageSample(u, left, width, colorBleed, source.width, xPhase);
         auto y = layout.flipped
-            ? chartImageSample(u, left, width, colorBleed, source.height, false)
-            : chartImageSample(v, top, height, colorBleed, source.height, false);
+            ? chartImageSample(u, left, width, colorBleed, source.height, yPhase)
+            : chartImageSample(v, top, height, colorBleed, source.height, yPhase);
         if (gutter) {
-            x = layout.flipped ? scaledImageSample(gutter->row, gutter->height, source.width, fixedHorizontal)
-                               : scaledImageSample(gutter->column, gutter->width, source.width, fixedHorizontal);
-            y = layout.flipped ? scaledImageSample(gutter->column, gutter->width, source.height, false)
-                               : scaledImageSample(gutter->row, gutter->height, source.height, false);
+            x = layout.flipped ? scaledImageSample(gutter->row, gutter->height, source.width, xPhase)
+                               : scaledImageSample(gutter->column, gutter->width, source.width, xPhase);
+            y = layout.flipped ? scaledImageSample(gutter->column, gutter->width, source.height, yPhase)
+                               : scaledImageSample(gutter->row, gutter->height, source.height, yPhase);
         }
         Pixel pixel;
         std::copy_n(source.pixels + y * source.rowStride + x * 4, 4, pixel.begin());

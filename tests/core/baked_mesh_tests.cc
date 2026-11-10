@@ -151,6 +151,53 @@ struct AnalyticBake {
         atlas.layouts.push_back(layout);
     }
 };
+void archivedImageEncodingSelectsTheRaster()
+{
+    AnalyticBake fixture;
+    // This extent separates the fixed RGB32 and transformed vertical samples
+    // without building multiple production-size atlases under sanitizers.
+    fixture.options.color_size = 384;
+    auto& layout = fixture.atlas.layouts[0];
+    layout.left = layout.top = 20.25 / 384;
+    layout.width = layout.height = 317.25 / 384;
+    layout.id = fixture.image;
+    std::vector<uint8_t> pixels(8 * 8 * 4, 255);
+    for (int y = 0; y < 8; ++y) {
+        for (int x = 0; x < 8; ++x) {
+            pixels[(y * 8 + x) * 4] = static_cast<uint8_t>(x);
+            pixels[(y * 8 + x) * 4 + 1] = static_cast<uint8_t>(y);
+        }
+    }
+    Dust3DBakeImage source {};
+    std::strcpy(source.image_id, fixture.image.toString().c_str());
+    source.width = source.height = 8;
+    source.row_stride = 32;
+    source.byte_count = pixels.size();
+    source.pixels = pixels.data();
+    fixture.options.images = &source;
+    fixture.options.image_count = 1;
+    const std::vector<uint8_t> rgb { 137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 8, 0, 0, 0, 8, 8, 2, 0, 0, 0, 75, 109, 41, 220, 0, 0, 0, 12, 73, 68, 65, 84, 120, 156, 99, 96, 24, 30, 0, 0, 0, 200, 0, 1, 173, 64, 118, 34, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130 };
+    const std::vector<uint8_t> rgba { 137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 8, 0, 0, 0, 8, 8, 6, 0, 0, 0, 196, 15, 190, 139, 0, 0, 0, 17, 73, 68, 65, 84, 120, 156, 99, 96, 96, 96, 248, 79, 0, 143, 4, 5, 0, 130, 72, 63, 193, 232, 155, 203, 121, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130 };
+    const std::vector<uint8_t> keyed { 137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 8, 0, 0, 0, 8, 8, 2, 0, 0, 0, 75, 109, 41, 220, 0, 0, 0, 6, 116, 82, 78, 83, 0, 1, 0, 0, 0, 0, 83, 198, 46, 33, 0, 0, 0, 12, 73, 68, 65, 84, 120, 156, 99, 96, 24, 30, 0, 0, 0, 200, 0, 1, 173, 64, 118, 34, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130 };
+    const auto sample = [&](const std::vector<uint8_t>* image, bool alias = false) {
+        dust3d::native::BakedMeshData bake(fixture.options);
+        if (image) {
+            const auto key = "images/" + fixture.image.toString() + ".png";
+            bake.item("asset", key, image->data(), image->size());
+            if (alias)
+                bake.item("asset", "images/eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee.png", image->data(), image->size());
+        }
+        bake.appendTriangle(1);
+        bake.prepare(fixture.object, fixture.snapshot, fixture.atlas);
+        const auto& output = bake.maps[0]->pixels;
+        return std::array<uint8_t, 2> { output[(100 * 384 + 297) * 4],
+            output[(297 * 384 + 100) * 4 + 1] };
+    };
+    require(sample(&rgb) == std::array<uint8_t, 2> { 6, 6 }, "RGB32 must advance fixed-point sampling on both axes");
+    for (const auto* image : { &rgba, &keyed, static_cast<const std::vector<uint8_t>*>(nullptr) })
+        require(sample(image) == std::array<uint8_t, 2> { 6, 7 }, "Alpha-capable and caller-only images must use the transformed raster");
+    require(sample(&rgb, true) == std::array<uint8_t, 2> { 6, 7 }, "Ambiguous image keys must not select RGB32");
+}
 void analyticMaterialsImagesAndTangents()
 {
     AnalyticBake fixture;
@@ -429,6 +476,7 @@ int main(int argc, char** argv)
         nullBakedOwners();
         invalidBakeInputs();
         visualResolutionBoundaries();
+        archivedImageEncodingSelectsTheRaster();
         analyticMaterialsImagesAndTangents();
         proceduralSnapshotInputs();
         actualFilteredTriangles();
