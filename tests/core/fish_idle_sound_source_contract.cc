@@ -31,6 +31,10 @@ static_assert(dust3d::native::evaluatedClipRig("BirdGlideLeft").empty());
 static_assert(groundedClipSound("BirdForward") == GroundedClipSound::surface);
 static_assert(groundedClipSound("BirdEat") == GroundedClipSound::surface);
 static_assert(groundedClipSound("BirdRunBackwardLeft") == GroundedClipSound::silent);
+static_assert(dust3d::native::evaluatedClipRig("QuadrupedRunBackwardLeft") == "Quadruped");
+static_assert(dust3d::native::evaluatedClipRig("QuadrupedEatLeft").empty());
+static_assert(groundedClipSound("QuadrupedRoar") == GroundedClipSound::surface);
+static_assert(groundedClipSound("QuadrupedRunBackwardLeft") == GroundedClipSound::silent);
 
 int main()
 {

@@ -57,7 +57,7 @@ static Dust3DExperimentalFishIdleFbx* createFishIdleFbx(
                 throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Invalid animated FishIdle FBX clip name.");
             for (const auto* field : { "id", "name", "type", "surfaceMaterial" })
                 fields.erase(field);
-            if (fields.size() > (clipType == "FishIdle" ? 9 : 16) || std::any_of(fields.begin(), fields.end(), [](const auto& field) {
+            if (fields.size() > (clipType == "FishIdle" ? 9 : 17) || std::any_of(fields.begin(), fields.end(), [](const auto& field) {
                     return field.first.empty() || field.first.size() > 64 || field.second.empty() || field.second.size() > 64;
                 }))
                 throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Invalid selected FishIdle FBX parameters.");

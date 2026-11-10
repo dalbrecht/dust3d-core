@@ -76,11 +76,17 @@ namespace dust3d::native {
         // The reference detector computes its final event time in float as
         // frameIndex * (duration / intervals), which can round one ULP past duration.
         const auto lastEventTime = std::nextafter(clip.durationSeconds, INFINITY);
+        const bool allowsWhoosh = clip.animationType == "QuadrupedAttack" || clip.animationType == "QuadrupedRoar";
+        // The Roar detector retains muted impact events when the Stomp control is zero.
+        const bool allowsMutedImpact = clip.animationType == "QuadrupedRoar";
         if (events.size() > maximumEvents
             || !std::all_of(events.begin(), events.end(), [&](const auto& event) {
-                   return event.isUnderwater == underwater && !event.isWhoosh && std::isfinite(event.timeSeconds)
-                       && event.timeSeconds >= 0 && event.timeSeconds <= lastEventTime
-                       && std::isfinite(event.intensity) && event.intensity > 0 && event.intensity <= 1;
+                   const bool validWhoosh = !event.isWhoosh || (allowsWhoosh && std::isfinite(event.whooshDuration)
+                       && event.whooshDuration > 0 && event.whooshDuration <= lastEventTime);
+                   const bool validIntensity = std::isfinite(event.intensity) && event.intensity <= 1
+                       && (event.intensity > 0 || (allowsMutedImpact && !event.isWhoosh && event.intensity == 0));
+                   return event.isUnderwater == underwater && validWhoosh && validIntensity && std::isfinite(event.timeSeconds)
+                       && event.timeSeconds >= 0 && event.timeSeconds <= lastEventTime;
                }))
             throw DocumentError(DUST3D_STATUS_GENERATION_FAILED, "Animation sound events are outside the bounded detector contract.");
         return { std::move(events), clip.durationSeconds, sampleCount };
