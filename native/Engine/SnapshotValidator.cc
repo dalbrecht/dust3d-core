@@ -75,24 +75,29 @@ namespace native {
                 if (neighbors.empty())
                     continue;
                 bool needsOrientationRepair = false;
+                const std::string* firstEndpoint = nullptr;
+                const std::string* authoredStart = nullptr;
+                size_t outgoingEndpoints = 0;
                 for (const auto& node : neighbors) {
                     if (node.second.size() > 2)
                         throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "A part contains branching edges; split it into separate parts first.");
-                    if (node.second.size() == 2) {
-                        const auto startsAtNode = [&](const Neighbor& neighbor) {
-                            return snapshot.edges.at(neighbor.second).at("from") == node.first;
-                        };
-                        if (startsAtNode(node.second[0]) == startsAtNode(node.second[1]))
-                            needsOrientationRepair = true;
-                    }
-                }
-                auto current = neighbors.begin()->first;
-                for (const auto& node : neighbors) {
+                    const auto startsAtNode = [&](const Neighbor& neighbor) {
+                        return snapshot.edges.at(neighbor.second).at("from") == node.first;
+                    };
                     if (node.second.size() == 1) {
-                        current = node.first;
-                        break;
+                        if (firstEndpoint == nullptr)
+                            firstEndpoint = &node.first;
+                        if (startsAtNode(node.second.front())) {
+                            authoredStart = &node.first;
+                            ++outgoingEndpoints;
+                        }
+                    } else if (startsAtNode(node.second[0]) == startsAtNode(node.second[1])) {
+                        needsOrientationRepair = true;
                     }
                 }
+                // A sole outgoing endpoint is Qt's unambiguous start for legacy repair.
+                const auto* start = needsOrientationRepair && outgoingEndpoints == 1 ? authoredStart : firstEndpoint;
+                auto current = start != nullptr ? *start : neighbors.begin()->first;
                 std::set<std::string> visitedEdges;
                 for (;;) {
                     bool advanced = false;

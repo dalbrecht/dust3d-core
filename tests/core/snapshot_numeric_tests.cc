@@ -56,6 +56,17 @@ void validateEdgeDirections()
     require(legacy.edges.at(first).at("from") == middle && legacy.edges.at(first).at("to") == high
             && legacy.edges.at(second).at("from") == low && legacy.edges.at(second).at("to") == middle,
         "Validation stopped repairing inconsistent legacy directions");
+    const std::string fourth = "{20000000-0000-4000-8000-000000000004}";
+    auto inconsistent = chain;
+    inconsistent.nodes[fourth] = inconsistent.nodes.at(high);
+    inconsistent.edges[first] = { { "partId", part }, { "from", fourth }, { "to", low } };
+    inconsistent.edges[second] = { { "partId", part }, { "from", middle }, { "to", low } };
+    inconsistent.edges[closing] = { { "partId", part }, { "from", middle }, { "to", high } };
+    dust3d::native::validateSnapshot(inconsistent, false, false);
+    require(inconsistent.edges.at(first).at("from") == fourth && inconsistent.edges.at(first).at("to") == low
+            && inconsistent.edges.at(second).at("from") == low && inconsistent.edges.at(second).at("to") == middle
+            && inconsistent.edges.at(closing).at("from") == middle && inconsistent.edges.at(closing).at("to") == high,
+        "Legacy repair ignored the sole outgoing endpoint");
 }
 }
 
