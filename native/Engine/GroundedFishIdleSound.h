@@ -7,7 +7,19 @@
 #include <vector>
 
 namespace dust3d::native {
-    /// Stage reference mono PCM from the exact already-admitted FishIdle clip.
+    enum class GroundedClipSound { unsupported, silent, underwater, surface };
+
+    inline constexpr GroundedClipSound groundedClipSound(std::string_view type)
+    {
+        const auto rig = evaluatedClipRig(type);
+        if (rig.empty())
+            return GroundedClipSound::unsupported;
+        if (type == "FishAttack" || type == "FishHurt" || type == "SnakeHurt" || type == "SnakeStrike")
+            return GroundedClipSound::silent;
+        return rig == "Fish" ? GroundedClipSound::underwater : GroundedClipSound::surface;
+    }
+
+    /// Stage reference mono PCM from the exact already-admitted animation clip.
     /// The quota includes the PCM and temporary float mix. A valid silent clip
     /// returns an empty sample vector. Cancellation polls around Qt routines.
     AnimationSoundData renderFishIdleSound(const RigAnimationClip&, const AnimationParams&,

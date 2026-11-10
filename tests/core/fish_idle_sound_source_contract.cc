@@ -4,6 +4,17 @@
 #include <algorithm>
 #include <cassert>
 
+using dust3d::native::GroundedClipSound;
+using dust3d::native::groundedClipSound;
+static_assert(groundedClipSound("FishSwim") == GroundedClipSound::underwater);
+static_assert(groundedClipSound("SnakeSlither") == GroundedClipSound::surface);
+static_assert(groundedClipSound("SnakeForward") == GroundedClipSound::surface);
+static_assert(groundedClipSound("SnakeIdle") == GroundedClipSound::surface);
+static_assert(groundedClipSound("SnakeDie") == GroundedClipSound::surface);
+static_assert(groundedClipSound("SnakeHurt") == GroundedClipSound::silent);
+static_assert(groundedClipSound("SnakeStrike") == GroundedClipSound::silent);
+static_assert(groundedClipSound("SnakeWalk") == GroundedClipSound::unsupported);
+
 int main()
 {
     using namespace dust3d;
