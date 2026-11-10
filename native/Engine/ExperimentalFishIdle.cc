@@ -60,11 +60,12 @@ static Dust3DExperimentalFishIdle* loadFishIdle(const uint8_t* archive, size_t a
         }
         AnimationParams authored;
         std::string clipType = "FishIdle";
+        std::string rigType = "Fish";
         if (!selectedId.empty()) {
-            auto fields = readSelectedAnimationMetadata(archive, archiveSize, selectedId);
+            auto fields = readSelectedAnimationMetadata(archive, archiveSize, selectedId, &rigType);
             clipType = fields["type"];
-            if (!supportsFishClip(clipType))
-                throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "The selected animation is not a supported Fish clip.");
+            if (rigType.empty() || evaluatedClipRig(clipType) != rigType)
+                throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "The selected animation does not match its authored rig.");
             if (includeSelectedPCM) {
                 const auto material = fields.find("surfaceMaterial");
                 surface = material == fields.end() ? surfaceMaterials().front() : admitSurface(material->second);
@@ -107,7 +108,7 @@ static Dust3DExperimentalFishIdle* loadFishIdle(const uint8_t* archive, size_t a
                 return surfaceBytes;
             };
         }
-        auto source = prepareGeneratedRigSource(archive, archiveSize, "Fish", 4, bones, boneCount, config);
+        auto source = prepareGeneratedRigSource(archive, archiveSize, rigType.data(), rigType.size(), bones, boneCount, config);
         auto result = surface
             ? generateGroundedFishIdleSoundPreview(*source.input, std::move(source.metadata), source.rig,
                 authored, *surface, source.options, config.maximum_draw_vertices, config.cancellation, clipType)

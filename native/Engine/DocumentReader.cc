@@ -84,12 +84,18 @@ namespace native {
         }
 
         struct AnimationSelection {
+            std::string rigType;
             std::map<std::string_view, size_t> indexes;
             std::vector<std::map<std::string, std::string>> records;
         };
 
         void selectAnimationMetadata(rapidxml::xml_node<>* canvas, AnimationSelection& selection)
         {
+            if (auto* rigType = canvas->first_attribute("rigType")) {
+                if (rigType->next_attribute("rigType") || rigType->value_size() > 32)
+                    throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Invalid authored animation rig type.");
+                selection.rigType.assign(rigType->value(), rigType->value_size());
+            }
             auto* section = canvas->first_node("animations");
             if (!section || section->next_sibling("animations"))
                 throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Expected exactly one animation container.");
@@ -249,14 +255,14 @@ namespace native {
     }
 
     std::map<std::string, std::string> readSelectedAnimationMetadata(
-        const uint8_t* bytes, size_t size, std::string_view animationId)
+        const uint8_t* bytes, size_t size, std::string_view animationId, std::string* authoredRigType)
     {
-        auto records = readSelectedAnimationMetadataBatch(bytes, size, { animationId });
+        auto records = readSelectedAnimationMetadataBatch(bytes, size, { animationId }, authoredRigType);
         return std::move(records.front());
     }
 
     std::vector<std::map<std::string, std::string>> readSelectedAnimationMetadataBatch(
-        const uint8_t* bytes, size_t size, const std::vector<std::string_view>& ids)
+        const uint8_t* bytes, size_t size, const std::vector<std::string_view>& ids, std::string* authoredRigType)
     {
         if (ids.empty() || ids.size() > 128)
             throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Invalid selected animation count.");
@@ -270,6 +276,8 @@ namespace native {
         }
         std::string warning;
         (void)readDocumentInternal(bytes, size, warning, nullptr, nullptr, true, true, &animation);
+        if (authoredRigType)
+            *authoredRigType = std::move(animation.rigType);
         return std::move(animation.records);
     }
 

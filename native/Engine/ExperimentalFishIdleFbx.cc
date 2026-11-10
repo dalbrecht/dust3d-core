@@ -41,15 +41,16 @@ static Dust3DExperimentalFishIdleFbx* createFishIdleFbx(
                 throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Invalid animated FishIdle clip identity span.");
             requested.emplace_back(ids[index].id, ids[index].length);
         }
-        auto records = readSelectedAnimationMetadataBatch(archive, archiveSize, requested);
+        std::string rigType;
+        auto records = readSelectedAnimationMetadataBatch(archive, archiveSize, requested, &rigType);
         std::vector<FishIdleFbxClipInput> clips;
         clips.reserve(records.size());
         for (size_t index = 0; index < records.size(); ++index) {
             checkCancellation(config.cancellation);
             auto& fields = records[index];
             const auto clipType = fields["type"];
-            if (!supportsFishClip(clipType))
-                throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "The selected FBX clip is not a supported Fish clip.");
+            if (rigType.empty() || evaluatedClipRig(clipType) != rigType)
+                throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "The selected FBX clip does not match its authored rig.");
             const auto name = fields.find("name");
             auto title = name == fields.end() || name->second.empty() ? std::string(requested[index]) : std::move(name->second);
             if (title.size() > 1024 || title.find('\0') != std::string::npos)
@@ -74,7 +75,7 @@ static Dust3DExperimentalFishIdleFbx* createFishIdleFbx(
             authored = readDocumentMetadata(archive, archiveSize, warning);
             bake.emplace(FishIdleFbxBakeInput { *authored, *bakeOptions });
         }
-        auto source = prepareGeneratedRigSource(archive, archiveSize, "Fish", 4, bones, boneCount, config);
+        auto source = prepareGeneratedRigSource(archive, archiveSize, rigType.data(), rigType.size(), bones, boneCount, config);
         auto document = encodeGroundedFishIdleFbx(*source.input, source.rig, clips, nullptr,
             source.options, { maximumFbxBytes, 65536 }, bake ? &*bake : nullptr);
         checkCancellation(config.cancellation);

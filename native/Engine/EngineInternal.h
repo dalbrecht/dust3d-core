@@ -70,10 +70,11 @@ namespace native {
         DocumentAssetObserver* observer = nullptr);
     /// Read one exact authored record before legacy snapshot conversion can merge duplicate rows.
     std::map<std::string, std::string> readSelectedAnimationMetadata(
-        const uint8_t* bytes, size_t size, std::string_view animationId);
+        const uint8_t* bytes, size_t size, std::string_view animationId, std::string* authoredRigType = nullptr);
     /// Read exact selected records in caller order through one strict archive traversal.
+    /// Optionally return the authored canvas rig type from that same traversal.
     std::vector<std::map<std::string, std::string>> readSelectedAnimationMetadataBatch(
-        const uint8_t* bytes, size_t size, const std::vector<std::string_view>& ids);
+        const uint8_t* bytes, size_t size, const std::vector<std::string_view>& ids, std::string* authoredRigType = nullptr);
     void validateSnapshot(Snapshot& snapshot, bool canImportModels = false, bool canReadEmptyGeometry = false);
 
 }
