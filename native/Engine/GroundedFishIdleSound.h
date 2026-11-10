@@ -23,6 +23,11 @@ namespace dust3d::native {
                     || type == "InsectAttack" || type == "InsectDie" || type == "InsectRubHands"
                 ? GroundedClipSound::surface
                 : GroundedClipSound::silent;
+        if (rig == "Bird")
+            return type == "BirdDie" || type == "BirdEat" || type == "BirdFly" || type == "BirdForward"
+                    || type == "BirdWalk" || type == "BirdRun"
+                ? GroundedClipSound::surface
+                : GroundedClipSound::silent;
         if (type == "FishAttack" || type == "FishHurt" || type == "SnakeHurt" || type == "SnakeStrike")
             return GroundedClipSound::silent;
         return rig == "Fish" ? GroundedClipSound::underwater : GroundedClipSound::surface;

@@ -25,6 +25,12 @@ static_assert(dust3d::native::evaluatedClipRig("InsectFlyLeft").empty());
 static_assert(groundedClipSound("InsectFly") == GroundedClipSound::surface);
 static_assert(groundedClipSound("InsectRubHands") == GroundedClipSound::surface);
 static_assert(groundedClipSound("InsectWalkForwardLeft") == GroundedClipSound::silent);
+static_assert(dust3d::native::evaluatedClipRig("BirdRunBackwardLeft") == "Bird");
+static_assert(dust3d::native::evaluatedClipRig("BirdForward") == "Bird");
+static_assert(dust3d::native::evaluatedClipRig("BirdGlideLeft").empty());
+static_assert(groundedClipSound("BirdForward") == GroundedClipSound::surface);
+static_assert(groundedClipSound("BirdEat") == GroundedClipSound::surface);
+static_assert(groundedClipSound("BirdRunBackwardLeft") == GroundedClipSound::silent);
 
 int main()
 {

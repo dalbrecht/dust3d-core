@@ -46,6 +46,11 @@ namespace dust3d::native {
             || type == "InsectForward" || type == "InsectHurt" || type == "InsectIdle" || type == "InsectRubHands"
             || isEvaluatedDirectionalGait(type, "InsectWalk"))
             return "Insect";
+        if (type == "BirdAttack" || type == "BirdDie" || type == "BirdEat" || type == "BirdFly"
+            || type == "BirdForward" || type == "BirdGlide" || type == "BirdHurt" || type == "BirdIdle"
+            || type == "BirdStrike" || isEvaluatedDirectionalGait(type, "BirdWalk")
+            || isEvaluatedDirectionalGait(type, "BirdRun"))
+            return "Bird";
         return {};
     }
 
