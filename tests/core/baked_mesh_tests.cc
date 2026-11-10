@@ -194,6 +194,7 @@ void archivedImageEncodingSelectsTheRaster()
     const std::vector<uint8_t> monoIndexed { 137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 8, 0, 0, 0, 8, 1, 3, 0, 0, 0, 254, 193, 44, 200, 0, 0, 0, 6, 80, 76, 84, 69, 20, 15, 25, 31, 22, 38, 75, 142, 162, 225, 0, 0, 0, 14, 73, 68, 65, 84, 120, 156, 99, 8, 101, 88, 197, 128, 132, 1, 30, 156, 3, 253, 109, 125, 135, 230, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130 };
     const std::vector<uint8_t> monoGrayKey { 137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 8, 0, 0, 0, 8, 1, 0, 0, 0, 0, 236, 116, 131, 38, 0, 0, 0, 2, 116, 82, 78, 83, 0, 0, 118, 147, 205, 56, 0, 0, 0, 14, 73, 68, 65, 84, 120, 156, 99, 8, 101, 88, 197, 128, 132, 1, 30, 156, 3, 253, 109, 125, 135, 230, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130 };
     const std::vector<uint8_t> monoIndexedKey { 137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 8, 0, 0, 0, 8, 1, 3, 0, 0, 0, 254, 193, 44, 200, 0, 0, 0, 6, 80, 76, 84, 69, 20, 15, 25, 31, 22, 38, 75, 142, 162, 225, 0, 0, 0, 1, 116, 82, 78, 83, 0, 64, 230, 216, 102, 0, 0, 0, 14, 73, 68, 65, 84, 120, 156, 99, 8, 101, 88, 197, 128, 132, 1, 30, 156, 3, 253, 109, 125, 135, 230, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130 };
+    const std::vector<uint8_t> gray16Key { 137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 8, 0, 0, 0, 8, 16, 0, 0, 0, 0, 177, 244, 61, 20, 0, 0, 0, 2, 116, 82, 78, 83, 48, 57, 246, 208, 115, 195, 0, 0, 0, 147, 73, 68, 65, 84, 120, 156, 1, 136, 0, 119, 255, 0, 48, 57, 52, 30, 56, 3, 59, 232, 63, 205, 67, 178, 71, 151, 75, 124, 0, 79, 97, 83, 70, 87, 43, 91, 16, 94, 245, 98, 218, 102, 191, 106, 164, 0, 110, 137, 114, 110, 118, 83, 122, 56, 126, 29, 130, 2, 133, 231, 137, 204, 0, 141, 177, 145, 150, 149, 123, 153, 96, 157, 69, 161, 42, 165, 15, 168, 244, 0, 172, 217, 176, 190, 180, 163, 184, 136, 188, 109, 192, 82, 196, 55, 200, 28, 0, 204, 1, 207, 230, 211, 203, 215, 176, 219, 149, 223, 122, 227, 95, 231, 68, 0, 235, 41, 239, 14, 242, 243, 246, 216, 250, 189, 254, 162, 2, 135, 6, 108, 0, 10, 81, 14, 54, 18, 27, 22, 0, 25, 229, 29, 202, 33, 175, 37, 148, 42, 187, 63, 60, 89, 251, 120, 175, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130 };
     struct Samples {
         uint8_t indexedTransition;
         std::array<uint8_t, 2> scale;
@@ -234,6 +235,10 @@ void archivedImageEncodingSelectsTheRaster()
         require(result.overlap == std::array<uint8_t, 4> { 1, 0, 255, 255 }, "Alpha-capable indexed and grayscale PNGs must reveal the padded layer");
         require(result.clear == std::array<uint8_t, 4> {}, "Fully transparent PNG samples must clear hidden RGB");
     }
+    const auto gray16Transparent = sample(&gray16Key);
+    require(gray16Transparent.overlap == std::array<uint8_t, 4> { 1, 0, 255, 255 }
+            && gray16Transparent.clear == std::array<uint8_t, 4> {},
+        "16-bit grayscale key must composite binary alpha with the padded layer");
     const auto transparent = sample(&keyed);
     require(transparent.overlap == std::array<uint8_t, 4> { 1, 0, 255, 255 }, "The keyed inset must reveal the padded layer");
     require(transparent.clear == std::array<uint8_t, 4> {}, "Fully transparent chart output must clear hidden RGB");
