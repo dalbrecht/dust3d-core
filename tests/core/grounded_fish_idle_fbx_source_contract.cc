@@ -12,6 +12,14 @@ static_assert(dust3d::native::supportsFishClip("FishHurt"));
 static_assert(dust3d::native::supportsFishClip("FishDie"));
 static_assert(!dust3d::native::supportsFishLoop("FishAttack"));
 static_assert(!dust3d::native::supportsFishClip("FishDash"));
+static_assert(dust3d::native::evaluatedClipRig("SnakeForward") == "Snake");
+static_assert(dust3d::native::evaluatedClipRig("SnakeSlither") == "Snake");
+static_assert(dust3d::native::evaluatedClipRig("SnakeIdle") == "Snake");
+static_assert(dust3d::native::evaluatedClipRig("SnakeHurt") == "Snake");
+static_assert(dust3d::native::evaluatedClipRig("SnakeStrike") == "Snake");
+static_assert(dust3d::native::evaluatedClipRig("SnakeDie") == "Snake");
+static_assert(dust3d::native::evaluatedClipRig("FishSwim") == "Fish");
+static_assert(dust3d::native::evaluatedClipRig("snakeSlither").empty());
 
 void checkGroundedFishIdleFbx(const dust3d::native::GeneratedRigInput& input, const dust3d::RigStructure& rig)
 {
@@ -52,4 +60,18 @@ void checkTexturedGroundedFishIdleFbx(const dust3d::native::GeneratedRigInput& i
     assert(bytes.find("LayerElementUV") != std::string_view::npos);
     assert(bytes.find("AnimationStack") != std::string_view::npos);
     assert(bytes.find("Material") != std::string_view::npos);
+}
+
+void checkGroundedSnakeFbx(const dust3d::native::GeneratedRigInput& input, const dust3d::RigStructure& rig)
+{
+    using namespace dust3d::native;
+    const std::vector<FishIdleFbxClipInput> clips {
+        { "Legacy Slither", {}, "SnakeForward" },
+        { "Authored Strike", {}, "SnakeStrike" },
+    };
+    const auto output = encodeGroundedFishIdleFbx(input, rig, clips, nullptr, {});
+    const std::string_view bytes(reinterpret_cast<const char*>(output.bytes().data()), output.bytes().size());
+    const auto slither = bytes.find("Legacy Slither");
+    const auto strike = bytes.find("Authored Strike");
+    assert(slither != std::string_view::npos && strike != std::string_view::npos && slither < strike);
 }

@@ -9,8 +9,8 @@ namespace dust3d::native {
         const RigStructure& templateRig, const AnimationParams& parameters, const RigFinalDataOptions& options,
         const FishIdleClipHandoff& handoff, const std::string& clipType)
     {
-        if (templateRig.type != "Fish")
-            throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "FishIdle preview requires a Fish rig template.");
+        if (evaluatedClipRig(clipType).empty() || evaluatedClipRig(clipType) != templateRig.type)
+            throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Animation preview requires a matching rig template.");
 
         std::optional<OwnedEvaluatedSkeletonClip> clip;
         size_t derivedPayloadBytes = 0;

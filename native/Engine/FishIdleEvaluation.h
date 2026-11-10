@@ -22,7 +22,17 @@ namespace dust3d::native {
         return supportsFishLoop(type) || type == "FishAttack" || type == "FishHurt" || type == "FishDie";
     }
 
-    /// Source-only prototype for bounded reference Fish clips.
+    inline constexpr std::string_view evaluatedClipRig(std::string_view type)
+    {
+        if (supportsFishClip(type))
+            return "Fish";
+        if (type == "SnakeForward" || type == "SnakeSlither" || type == "SnakeIdle"
+            || type == "SnakeHurt" || type == "SnakeStrike" || type == "SnakeDie")
+            return "Snake";
+        return {};
+    }
+
+    /// Source-only prototype for bounded reference animation clips.
     /// The caller must keep the grounded rig and its matching inverse binds immutable for the call.
     /// The result owns its pose data. The payload limit covers copied output and excludes evaluator
     /// workspace. Cancellation is checked around reference evaluation and during the copy.

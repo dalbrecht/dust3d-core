@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 #include "FishIdleEvaluation.h"
 #include "EngineInternal.h"
+#include <dust3d/animation/animation_catalog.h>
 #include <dust3d/animation/parameter_catalog.h>
 #include <algorithm>
 #include <charconv>
@@ -11,7 +12,7 @@ namespace dust3d::native {
         double authoredNumber(const std::string& text)
         {
             if (text.empty() || text.size() > 64)
-                throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Fish clip parameter is not a bounded decimal.");
+                throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Animation clip parameter is not a bounded decimal.");
             auto decimal = text;
             std::replace(decimal.begin(), decimal.end(), ',', '.');
             const auto* end = decimal.data() + decimal.size();
@@ -20,7 +21,7 @@ namespace dust3d::native {
             const auto result = std::from_chars(start, end, value);
             if (result.ec != std::errc {} || result.ptr != end || !std::isfinite(value)
                 || (decimal.front() == '+' && start != end && *start == '-'))
-                throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Fish clip parameter is not a finite decimal.");
+                throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Animation clip parameter is not a finite decimal.");
             return value;
         }
     }
@@ -32,16 +33,20 @@ namespace dust3d::native {
     {
         const auto checkCancellation = [cancellation] {
             if (cancellation && cancellation->load(std::memory_order_relaxed))
-                throw DocumentError(DUST3D_STATUS_CANCELLED, "Fish clip evaluation cancelled.");
+                throw DocumentError(DUST3D_STATUS_CANCELLED, "Animation clip evaluation cancelled.");
         };
         checkCancellation();
-        if (!supportsFishClip(clipType) || groundedRig.type != "Fish" || groundedRig.bones.empty()
+        const auto expectedRig = evaluatedClipRig(clipType);
+        const auto& catalog = animation::clipCatalog();
+        const auto definition = catalog.find(clipType);
+        if (expectedRig.empty() || expectedRig != groundedRig.type || definition == catalog.end()
+            || definition->second.rig != groundedRig.type || groundedRig.bones.empty()
             || inverseBindMatrices.size() != groundedRig.bones.size())
-            throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Fish clip requires a Fish rig and its inverse binds.");
+            throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Animation clip requires its matching rig and inverse binds.");
 
         const auto& controls = animation::parameterDefinitions(clipType);
         if (authoredParameters.values.size() > controls.size() + 2)
-            throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Fish clip has unsupported parameters.");
+            throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Animation clip has unsupported parameters.");
         auto [duration, defaultFrameCount] = AnimationGenerator::defaultTiming(clipType);
         double frameCount = defaultFrameCount;
         for (const auto& [name, rawValue] : authoredParameters.values) {
@@ -56,40 +61,40 @@ namespace dust3d::native {
                 if (control == controls.end()
                     || value < animation::parameterValue(*control, control->minimumSliderValue)
                     || value > animation::parameterValue(*control, control->maximumSliderValue))
-                    throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Fish clip parameter is outside its declared range.");
+                    throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Animation clip parameter is outside its declared range.");
             }
         }
         const auto& timing = animation::commonTimingDefinition();
         if (!std::isfinite(duration) || duration < timing.minimumDurationSeconds || duration > timing.maximumDurationSeconds
             || !std::isfinite(frameCount) || frameCount < 2 || frameCount > timing.maximumFrameCount
             || std::trunc(frameCount) != frameCount)
-            throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Fish clip timing is outside its declared sampling range.");
+            throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Animation clip timing is outside its declared sampling range.");
 
         // The reference evaluator appends a closing sample only for loops.
-        const bool loops = supportsFishLoop(clipType);
+        const bool loops = definition->second.loop;
         const auto retainedFrameCount = static_cast<size_t>(frameCount) + (loops ? 1 : 0);
         const auto jointCount = groundedRig.bones.size();
         if (!animation::animationFrameWorkFits(retainedFrameCount, jointCount))
-            throw DocumentError(DUST3D_STATUS_LIMIT_EXCEEDED, "Fish clip exceeds the joint-frame limit.");
+            throw DocumentError(DUST3D_STATUS_LIMIT_EXCEEDED, "Animation clip exceeds the joint-frame limit.");
         const auto retainedBytes = clipType.size()
             + retainedFrameCount * (sizeof(double) + jointCount * sizeof(RigMatrix));
         if (retainedBytes > std::min(maximumPayloadBytes, size_t { 64 * 1024 * 1024 }))
-            throw DocumentError(DUST3D_STATUS_LIMIT_EXCEEDED, "Fish clip exceeds its copied payload limit.");
+            throw DocumentError(DUST3D_STATUS_LIMIT_EXCEEDED, "Animation clip exceeds its copied payload limit.");
 
         checkCancellation();
         RigAnimationClip clip;
         if (!AnimationGenerator::generate(groundedRig, inverseBindMatrices, clip, clipType, authoredParameters))
-            throw DocumentError(DUST3D_STATUS_GENERATION_FAILED, "Reference Fish clip evaluation rejected the rig or clip.");
+            throw DocumentError(DUST3D_STATUS_GENERATION_FAILED, "Reference animation clip evaluation rejected the rig or clip.");
         checkCancellation();
         if (clip.animationType != clipType || clip.loop != loops || clip.frames.size() != retainedFrameCount
             || clip.durationSeconds != static_cast<float>(duration) || clip.frames.back().time != clip.durationSeconds)
-            throw DocumentError(DUST3D_STATUS_GENERATION_FAILED, "Reference Fish clip returned unexpected clip timing.");
+            throw DocumentError(DUST3D_STATUS_GENERATION_FAILED, "Reference animation clip returned unexpected clip timing.");
         auto owned = OwnedEvaluatedSkeletonClip::copy(clip, groundedRig, maximumPayloadBytes, cancellation);
         if (handoff) {
             checkCancellation();
             const auto remaining = maximumPayloadBytes - owned.logicalPayloadBytes();
             if (handoff(clip, remaining) > remaining)
-                throw DocumentError(DUST3D_STATUS_LIMIT_EXCEEDED, "Fish clip derived output exceeds its retained quota.");
+                throw DocumentError(DUST3D_STATUS_LIMIT_EXCEEDED, "Animation clip derived output exceeds its retained quota.");
             checkCancellation();
         }
         return owned;

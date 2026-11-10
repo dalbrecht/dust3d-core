@@ -133,8 +133,8 @@ namespace dust3d::native {
         const RigFinalDataOptions& options, FbxDocumentLimits limits, const FishIdleFbxBakeInput* bake)
     {
         checkExportCancellation(options.cancellation);
-        if (templateRig.type != "Fish" || requests.empty())
-            throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Animated FishIdle FBX requires a Fish rig and authored clips.");
+        if (requests.empty())
+            throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Animated FBX requires authored clips.");
         if (requests.size() > 128 || limits.maximumPayloadBytes > 256 * 1024 * 1024
             || (limits.maximumPayloadBytes && limits.maximumPayloadBytes <= sizeof(OwnedFbxDocument))
             || !limits.maximumNodes || limits.maximumNodes > 65536)
@@ -143,8 +143,10 @@ namespace dust3d::native {
                         || (bake->options.cancellation ? &bake->options.cancellation->cancelled : nullptr) != options.cancellation))
             throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Animated FBX requires explicit bake budgets and a matching cancellation token.");
         for (const auto& request : requests) {
-            if (!supportsFishClip(request.clipType) || request.name.empty() || request.name.size() > 1024 || request.name.find('\0') != std::string::npos)
-                throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Animated FishIdle FBX requires bounded clip names.");
+            const auto expectedRig = evaluatedClipRig(request.clipType);
+            if (expectedRig.empty() || expectedRig != templateRig.type || request.name.empty()
+                || request.name.size() > 1024 || request.name.find('\0') != std::string::npos)
+                throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Animated FBX requires matching clip rigs and bounded names.");
         }
 
         RigStructure groundedRig;
