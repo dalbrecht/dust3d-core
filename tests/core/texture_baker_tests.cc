@@ -146,6 +146,39 @@ void surfaceDetails()
     }
     require(nonflat > 0, "Fold normal map must contain actual evaluated surface detail");
 }
+void obliqueFoldGutterKeepsTheNearestRasterSeed()
+{
+    Fixture fixture;
+    fixture.options.colorSize = 64;
+    fixture.options.normalSize = 256;
+    const dust3d::Vector2 top(40.5 / 256, 10.8 / 256), right(70.5 / 256, 40.8 / 256);
+    const dust3d::Vector2 bottom(40.5 / 256, 70.8 / 256), left(10.5 / 256, 40.8 / 256);
+    fixture.atlas.triangleUvs = { { top, right, bottom }, { top, bottom, left } };
+    auto& layout = fixture.atlas.layouts.front();
+    layout.width = layout.height = 0.5;
+    layout.globalUv.clear();
+    for (size_t index = 0; index < fixture.object.triangles.size(); ++index) {
+        const auto& triangle = fixture.object.triangles[index];
+        layout.globalUv[{ dust3d::PositionKey(fixture.object.vertices[triangle[0]]), dust3d::PositionKey(fixture.object.vertices[triangle[1]]), dust3d::PositionKey(fixture.object.vertices[triangle[2]]) }] = fixture.atlas.triangleUvs[index];
+    }
+
+    dust3d::ClothFolds::Fold fold;
+    fold.points = { { -1, 0.02, 0 }, { 1, 0.02, 0 } };
+    fold.normals = { { 0, 0, 1 }, { 0, 0, 1 } };
+    fold.width = 0.055;
+    fold.depth = 0.12;
+    dust3d::TextureBakeInputs inputs;
+    auto& surface = inputs.surfaces[componentId];
+    surface.folds = { fold };
+    surface.wrinkleStrength = 1;
+    const auto result = fixture.bake(inputs);
+    require(result.normal.has_value(), "The cloth fixture must emit a normal map");
+    const size_t edge = (10 * 256 + 40) * 4;
+    require(result.normal->pixels[edge] == 200 && result.normal->pixels[edge + 1] == 200
+            && result.normal->pixels[edge + 2] == 203,
+        "The oblique edge gutter must retain a texel within the signed edge-distance limit");
+}
+
 void malformedSurfaceInputs()
 {
     Fixture fixture;
@@ -1214,6 +1247,7 @@ int main(int argc, char* argv[])
         imageOrientation();
         boundaries();
         surfaceDetails();
+        obliqueFoldGutterKeepsTheNearestRasterSeed();
         malformedSurfaceInputs();
         gradientQuantization();
         fractionalSubTexelGradients();

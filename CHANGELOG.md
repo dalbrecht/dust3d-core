@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Match Qt wrinkle normal-map padding at oblique edges and flat chart boundaries.
+
 - Match Qt scalar material atlas draw bounds before dilating chart edges.
 
 - Seed color-atlas dilation from the exact padded chart draw bounds.
