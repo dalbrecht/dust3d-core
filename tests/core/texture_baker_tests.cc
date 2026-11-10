@@ -400,6 +400,32 @@ void fractionalColorBoundsSeedDilationAtTheDrawEdge()
         "Dilation must start at the actual color chart draw bounds");
 }
 
+void fractionalMaterialBoundsSeedDilationAtTheDrawEdge()
+{
+    Fixture fixture;
+    fixture.options.materialSize = 128;
+    auto& left = fixture.atlas.layouts.front();
+    left.left = 32.25 / 128;
+    left.top = 0.25;
+    left.width = 31.25 / 128;
+    left.height = 0.25;
+    auto right = left;
+    right.left = 69.25 / 128;
+    right.sourceId = imageId;
+    fixture.atlas.layouts.push_back(right);
+
+    dust3d::TextureBakeInputs inputs;
+    inputs.materials[componentId] = { 0.85, 0.23, 0 };
+    inputs.materials[imageId] = { 0.28, 0.75, 0 };
+    const auto result = fixture.bake(inputs);
+    require(result.metallic && result.roughness, "Authored scalar materials must produce both maps");
+    const auto sample = [](const auto& image, size_t x) { return image.pixels[(40 * 128 + x) * 4]; };
+    require(sample(*result.metallic, 65) == 217 && sample(*result.metallic, 66) == 71,
+        "Metallic dilation must seed from the truncated painted extent");
+    require(sample(*result.roughness, 65) == 59 && sample(*result.roughness, 66) == 191,
+        "Roughness dilation must seed from the truncated painted extent");
+}
+
 void overlappingChartPaddingUsesSourceOver()
 {
     Fixture fixture;
@@ -1194,6 +1220,7 @@ int main(int argc, char* argv[])
         fractionalMultiTexelSources();
         imageChartSourceTexelBoundaries();
         fractionalColorBoundsSeedDilationAtTheDrawEdge();
+        fractionalMaterialBoundsSeedDilationAtTheDrawEdge();
         overlappingChartPaddingUsesSourceOver();
         imageChartPaddedScale();
         magnifiedImageChartUsesDirectSampling();

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Match Qt scalar material atlas draw bounds before dilating chart edges.
+
 - Seed color-atlas dilation from the exact padded chart draw bounds.
 
 - Composite overlapping texture-chart padding in atlas paint order.
