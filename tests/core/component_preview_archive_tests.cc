@@ -26,6 +26,16 @@ std::vector<uint8_t> readArchive(const char* path)
     return bytes;
 }
 
+std::string modelArchive(const std::string& xml)
+{
+    const std::string prefix = "DUST3D 1.0 xml ";
+    const auto header = "<ds3><model name='model.xml' offset='0' size='" + std::to_string(xml.size()) + "'/></ds3>";
+    std::ostringstream output;
+    output << prefix << std::setfill('0') << std::setw(10) << prefix.size() + 12 + header.size() << "\r\n"
+           << header << xml;
+    return output.str();
+}
+
 std::string disabledCapsuleArchive(const std::vector<uint8_t>& capsule, const std::string& groupId)
 {
     const std::string archive(capsule.begin(), capsule.end());
@@ -42,12 +52,43 @@ std::string disabledCapsuleArchive(const std::vector<uint8_t>& capsule, const st
     require(start != std::string::npos && end != std::string::npos && start < end, "Capsule components are missing");
     xml.insert(end, "</component>");
     xml.insert(start + opening.size(), "<component id='" + groupId + "'>");
-    const std::string prefix = "DUST3D 1.0 xml ";
-    const auto header = "<ds3><model name='model.xml' offset='0' size='" + std::to_string(xml.size()) + "'/></ds3>";
-    std::ostringstream output;
-    output << prefix << std::setfill('0') << std::setw(10) << prefix.size() + 12 + header.size() << "\r\n"
-           << header << xml;
-    return output.str();
+    return modelArchive(xml);
+}
+
+void verifyIntersectingGroupUvs()
+{
+    const auto archive = modelArchive(R"(<canvas originX='.5' originY='.5' originZ='.5'>
+<nodes>
+<node id='{00000000-0000-4000-8000-000000000011}' partId='{00000000-0000-4000-8000-000000000010}' x='.3' y='0' z='0' radius='.2'/>
+<node id='{00000000-0000-4000-8000-000000000012}' partId='{00000000-0000-4000-8000-000000000010}' x='.3' y='1' z='0' radius='.2'/>
+<node id='{00000000-0000-4000-8000-000000000021}' partId='{00000000-0000-4000-8000-000000000020}' x='.4' y='.25' z='.1' radius='.2'/>
+<node id='{00000000-0000-4000-8000-000000000022}' partId='{00000000-0000-4000-8000-000000000020}' x='.4' y='1.25' z='.1' radius='.2'/>
+</nodes><edges>
+<edge id='{00000000-0000-4000-8000-000000000013}' partId='{00000000-0000-4000-8000-000000000010}' from='{00000000-0000-4000-8000-000000000011}' to='{00000000-0000-4000-8000-000000000012}'/>
+<edge id='{00000000-0000-4000-8000-000000000023}' partId='{00000000-0000-4000-8000-000000000020}' from='{00000000-0000-4000-8000-000000000021}' to='{00000000-0000-4000-8000-000000000022}'/>
+</edges><parts>
+<part id='{00000000-0000-4000-8000-000000000010}' interpolated='false' rounded='false' hard='true' cutFace='Quad'/>
+<part id='{00000000-0000-4000-8000-000000000020}' interpolated='false' rounded='false' hard='true' cutFace='Quad'/>
+</parts><components><component id='{00000000-0000-4000-8000-000000000003}' combineMode='Normal'>
+<component id='{00000000-0000-4000-8000-000000000001}' combineMode='Normal' linkDataType='partId' linkData='{00000000-0000-4000-8000-000000000010}'/>
+<component id='{00000000-0000-4000-8000-000000000002}' combineMode='Normal' linkDataType='partId' linkData='{00000000-0000-4000-8000-000000000020}'/>
+</component></components></canvas>)");
+    constexpr char groupId[] = "{00000000-0000-4000-8000-000000000003}";
+    Dust3DError error {};
+    const std::unique_ptr<Dust3DComponentPreview, decltype(&dust3d_component_preview_destroy)> preview(
+        dust3d_component_preview_load(reinterpret_cast<const uint8_t*>(archive.data()), archive.size(),
+            groupId, sizeof(groupId) - 1, 0, nullptr, &error),
+        dust3d_component_preview_destroy);
+    require(preview && error.status == DUST3D_STATUS_OK, error.message);
+    const auto count = dust3d_component_preview_triangle_count(preview.get());
+    const auto* triangles = dust3d_component_preview_triangles(preview.get());
+    if (!triangles || count <= 24)
+        throw std::runtime_error("Expected split intersection triangles, got " + std::to_string(count));
+    for (size_t index = 0; index < count; ++index) {
+        require(triangles[index].has_uv == 1, "Every union triangle must retain procedural corner UVs");
+        for (const auto& uv : triangles[index].uv)
+            require(std::isfinite(uv[0]) && std::isfinite(uv[1]), "Procedural corner UVs must be finite");
+    }
 }
 }
 
@@ -55,6 +96,7 @@ int main(int argc, char** argv)
 {
     try {
         require(argc == 4, "Expected the checked-in Capsule, ImportedSurface, and Sword archive paths");
+        verifyIntersectingGroupUvs();
         const auto archive = readArchive(argv[1]);
 
         constexpr char componentId[] = "{bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb}";

@@ -94,10 +94,12 @@ std::unique_ptr<Dust3DComponentPreview> copyComponentPreview(const MeshGenerator
 
     const bool hasVertexProperties = !source.vertexProperties.empty();
     const bool hasIndexedUvs = !source.triangleCornerUvs.empty();
+    const bool hasProceduralUvs = !source.triangleProceduralUvs.empty();
     const bool hasModelKeys = !source.triangleModelKeys.empty();
     if (source.vertices.size() > std::numeric_limits<uint32_t>::max()
         || (hasVertexProperties && source.vertexProperties.size() != source.vertices.size())
         || (hasIndexedUvs && source.triangleCornerUvs.size() != source.triangles.size())
+        || (hasProceduralUvs && source.triangleProceduralUvs.size() != source.triangles.size())
         || (hasModelKeys && source.triangleModelKeys.size() != source.triangles.size()))
         throw DocumentError(DUST3D_STATUS_GENERATION_FAILED, "The component preview attributes are not aligned with its geometry.");
 
@@ -138,6 +140,9 @@ std::unique_ptr<Dust3DComponentPreview> copyComponentPreview(const MeshGenerator
         const std::array<Vector2, 3>* uvs = nullptr;
         if (hasIndexedUvs && source.triangleCornerUvs[i]) {
             uvs = &*source.triangleCornerUvs[i];
+        } else if ((!hasModelKeys || source.triangleModelKeys[i].empty())
+            && hasProceduralUvs && source.triangleProceduralUvs[i]) {
+            uvs = &source.triangleProceduralUvs[i]->uv;
         } else if (!source.triangleUvs.empty()
             && (hasModelKeys ? source.triangleModelKeys[i].empty() : !hasIndexedUvs)) {
             const auto found = source.triangleUvs.find({ PositionKey(source.vertices[face[0]]),

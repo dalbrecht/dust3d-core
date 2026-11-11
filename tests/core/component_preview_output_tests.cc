@@ -115,6 +115,20 @@ int main()
     auto withLegacyUv = copyComponentPreview(generated, {}, {}, 4096);
     const auto* legacyFace = dust3d_component_preview_triangles(withLegacyUv.get());
     REQUIRE(legacyFace[0].has_uv && legacyFace[0].uv[2][1] == 9);
+
+    generated.triangleProceduralUvs = { ProceduralTriangleUv { first, indexedUvs, std::nullopt } };
+    auto withProceduralUv = copyComponentPreview(generated, {}, {}, 4096);
+    const auto* proceduralFace = dust3d_component_preview_triangles(withProceduralUv.get());
+    REQUIRE(proceduralFace[0].has_uv && proceduralFace[0].uv[2][1] == 1);
+    generated.triangles.push_back({ 0, 1, 2 });
+    expectStatus(DUST3D_STATUS_GENERATION_FAILED, [&] { copyComponentPreview(generated, {}, {}, 4096); });
+    generated.triangles.pop_back();
+    generated.triangleModelKeys = { "imported-model" };
+    auto withoutImportedUv = copyComponentPreview(generated, {}, {}, 4096);
+    REQUIRE(!dust3d_component_preview_triangles(withoutImportedUv.get())[0].has_uv);
+    generated.triangleModelKeys.clear();
+    generated.triangleProceduralUvs.clear();
+
     generated.vertexProperties.pop_back();
     expectStatus(DUST3D_STATUS_GENERATION_FAILED, [&] { copyComponentPreview(generated, {}, {}, 4096); });
     generated.vertexProperties.clear();
