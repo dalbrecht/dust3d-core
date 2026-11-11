@@ -64,6 +64,32 @@ void verifyThinSolidAcrossZero(size_t axis, double halfThickness)
         throw std::runtime_error("Thin-solid union volume changed across the zero bucket");
 }
 
+void verifyLargeIntersectingSolids(bool preserveThinWalls)
+{
+    auto first = box(0, 0, 1);
+    auto second = first;
+    const dust3d::Vector3 offset(7237.527980901291, 2467.478303146948, 7372.343874302768);
+    for (auto& vertex : first.vertices)
+        vertex *= 10000;
+    for (auto& vertex : second.vertices)
+        vertex = vertex * 10000 + offset;
+    dust3d::SolidMesh firstMesh;
+    dust3d::SolidMesh secondMesh;
+    firstMesh.setVertices(&first.vertices);
+    firstMesh.setTriangles(&first.triangles);
+    firstMesh.prepare();
+    secondMesh.setVertices(&second.vertices);
+    secondMesh.setTriangles(&second.triangles);
+    secondMesh.prepare();
+    dust3d::SolidMeshBooleanOperation operation(&firstMesh, &secondMesh, preserveThinWalls);
+    if (!operation.combine())
+        throw std::runtime_error("Large overlapping solids must retain connected cuts");
+    std::vector<std::vector<size_t>> triangles;
+    operation.fetchUnion(triangles);
+    if (triangles.size() != 48 || !dust3d::MeshState::isWatertight(triangles))
+        throw std::runtime_error("Large overlapping solids must retain the closed union");
+}
+
 void verifyBooleanTriangleOwnership(int mode)
 {
     const bool difference = mode == 1;
@@ -343,6 +369,8 @@ int main()
             verifyThinSolidAcrossZero(axis, 0.000009);
             verifyThinSolidAcrossZero(axis, 0.000001);
         }
+        verifyLargeIntersectingSolids(false);
+        verifyLargeIntersectingSolids(true);
         verifyBooleanTriangleOwnership(0);
         verifyBooleanTriangleOwnership(1);
         verifyBooleanTriangleOwnership(2);

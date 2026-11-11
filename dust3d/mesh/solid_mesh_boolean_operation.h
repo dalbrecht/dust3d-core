@@ -36,7 +36,7 @@ namespace dust3d {
 class SolidMeshBooleanOperation {
 public:
     SolidMeshBooleanOperation(const SolidMesh* firstMesh,
-        const SolidMesh* secondMesh);
+        const SolidMesh* secondMesh, bool preserveThinWalls = false);
     ~SolidMeshBooleanOperation();
     bool combine();
     /// Exact input triangle identity, retained through cutting and output selection.
@@ -60,6 +60,7 @@ public:
 private:
     const SolidMesh* m_firstMesh = nullptr;
     const SolidMesh* m_secondMesh = nullptr;
+    bool m_preserveThinWalls = false;
     std::vector<std::pair<size_t, size_t>> m_potentialIntersectedPairs;
     std::vector<Vector3> m_newVertices;
     std::vector<std::vector<size_t>> m_newTriangles;
@@ -92,7 +93,7 @@ private:
     bool isPointInMesh(const Vector3& testPosition,
         const SolidMesh* targetMesh,
         const AxisAlignedBoudingBoxTree* meshBoxTree,
-        const Vector3& testAxis);
+        size_t rayAxis);
     void buildFaceGroups(const std::vector<std::vector<size_t>>& intersections,
         const std::map<std::uint64_t, size_t>& halfEdges,
         const std::vector<std::vector<size_t>>& triangles,

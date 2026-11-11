@@ -31,6 +31,17 @@
 
 namespace dust3d {
 
+// Intersection duplicates differ by arithmetic roundoff, while distinct hollow walls can be closer than PositionKey buckets.
+static double intersectionTolerance(double coordinateMagnitude)
+{
+    return std::max(1e-12, coordinateMagnitude * (4 * std::numeric_limits<double>::epsilon()));
+}
+
+static double intersectionTolerance(const Vector3& point)
+{
+    return intersectionTolerance(std::max({ std::abs(point.x()), std::abs(point.y()), std::abs(point.z()) }));
+}
+
 static const std::vector<Vector3> g_testAxisList = {
     { std::numeric_limits<double>::max(), std::numeric_limits<double>::epsilon(), std::numeric_limits<double>::epsilon() },
     { std::numeric_limits<double>::epsilon(), std::numeric_limits<double>::max(), std::numeric_limits<double>::epsilon() },
@@ -38,9 +49,10 @@ static const std::vector<Vector3> g_testAxisList = {
 };
 
 SolidMeshBooleanOperation::SolidMeshBooleanOperation(const SolidMesh* m_firstMesh,
-    const SolidMesh* m_secondMesh)
+    const SolidMesh* m_secondMesh, bool preserveThinWalls)
     : m_firstMesh(m_firstMesh)
     , m_secondMesh(m_secondMesh)
+    , m_preserveThinWalls(preserveThinWalls)
 {
 }
 
@@ -51,9 +63,9 @@ SolidMeshBooleanOperation::~SolidMeshBooleanOperation()
 bool SolidMeshBooleanOperation::isPointInMesh(const Vector3& testPosition,
     const SolidMesh* targetMesh,
     const AxisAlignedBoudingBoxTree* meshBoxTree,
-    const Vector3& testAxis)
+    size_t rayAxis)
 {
-    Vector3 testEnd = testPosition + testAxis;
+    Vector3 testEnd = testPosition + g_testAxisList[rayAxis];
     bool inside = false;
     std::vector<AxisAlignedBoudingBox> rayBox(1);
     auto& box = rayBox[0];
@@ -64,7 +76,8 @@ bool SolidMeshBooleanOperation::isPointInMesh(const Vector3& testPosition,
         rayBox[0]);
     std::vector<std::pair<size_t, size_t>> pairs;
     meshBoxTree->test(meshBoxTree->root(), testTree.root(), &rayBox, &pairs);
-    std::set<PositionKey> hits;
+    std::vector<double> hits;
+    std::set<PositionKey> ordinaryHits;
 
     for (const auto& it : pairs) {
         const auto& triangle = (*targetMesh->triangles())[it.first];
@@ -81,14 +94,32 @@ bool SolidMeshBooleanOperation::isPointInMesh(const Vector3& testPosition,
             std::vector<Vector3> normals;
             for (size_t i = 0; i < 3; ++i) {
                 size_t j = (i + 1) % 3;
-                normals.push_back(Vector3::normal(intersection, trianglePositions[i], trianglePositions[j]));
+                normals.push_back(m_preserveThinWalls
+                        ? Vector3::crossProduct(trianglePositions[i] - intersection, trianglePositions[j] - intersection)
+                        : Vector3::normal(intersection, trianglePositions[i], trianglePositions[j]));
             }
             if (Vector3::dotProduct(normals[0], normals[1]) > 0 && Vector3::dotProduct(normals[0], normals[2]) > 0) {
-                hits.insert(PositionKey(intersection));
+                if (m_preserveThinWalls)
+                    hits.push_back(intersection[rayAxis]);
+                else
+                    ordinaryHits.insert(PositionKey(intersection));
             }
         }
     }
-    inside = 0 != hits.size() % 2;
+    if (!m_preserveThinWalls)
+        return 0 != ordinaryHits.size() % 2;
+
+    std::sort(hits.begin(), hits.end());
+    size_t distinctHitCount = 0;
+    double lastHit = -std::numeric_limits<double>::infinity();
+    for (const double hit : hits) {
+        const double tolerance = std::max(intersectionTolerance(testPosition), intersectionTolerance(std::abs(hit)));
+        if (hit - lastHit <= tolerance)
+            continue;
+        lastHit = hit;
+        ++distinctHitCount;
+    }
+    inside = 0 != distinctHitCount % 2;
 
     return inside;
 }
@@ -257,8 +288,7 @@ size_t SolidMeshBooleanOperation::addNewPoint(const Vector3& position, bool weld
 {
     PositionKey key(position);
     // Truncated PositionKey buckets can split numerically identical cut/original vertices at a grid boundary.
-    constexpr double weldTolerance = 0.00001;
-    const double tolerance = weldNearby ? weldTolerance : 0.0;
+    const double tolerance = weldNearby ? (m_preserveThinWalls ? intersectionTolerance(position) : 0.00001) : 0.0;
     const int neighborBuckets = weldNearby ? 1 : 0;
     size_t closestIndex = m_newVertices.size();
     double closestDistanceSquared = std::numeric_limits<double>::max();
@@ -302,8 +332,8 @@ bool SolidMeshBooleanOperation::addUnintersectedTriangles(const SolidMesh* mesh,
 {
     const auto& vertices = *mesh->vertices();
     vertexIndices.reserve(vertices.size());
-    // With no candidate cuts, weld exact duplicates only so distinct thin surfaces survive.
-    const bool weldNearby = !m_potentialIntersectedPairs.empty();
+    // Preserve distinct vertices on hollow walls and use exact welding when no cuts are possible.
+    const bool weldNearby = !m_preserveThinWalls && !m_potentialIntersectedPairs.empty();
     for (const auto& vertex : vertices)
         vertexIndices.push_back(addNewPoint(vertex, weldNearby));
     size_t triangleCount = mesh->triangles()->size();
@@ -342,18 +372,34 @@ bool SolidMeshBooleanOperation::combine()
 
     struct IntersectedContext {
         std::vector<Vector3> points;
-        std::map<PositionKey, size_t> positionMap;
+        std::multimap<double, size_t> pointIndicesByX;
+        std::map<PositionKey, size_t> ordinaryPointIndices;
         std::map<size_t, std::set<size_t>> neighborMap;
     };
 
     std::map<size_t, IntersectedContext> firstTriangleIntersectedContext;
     std::map<size_t, IntersectedContext> secondTriangleIntersectedContext;
 
-    auto addIntersectedPoint = [](IntersectedContext& context, const Vector3& position) {
-        auto insertResult = context.positionMap.insert({ PositionKey(position), context.points.size() });
-        if (insertResult.second)
+    auto addIntersectedPoint = [&](IntersectedContext& context, const Vector3& position) {
+        if (!m_preserveThinWalls) {
+            const auto inserted = context.ordinaryPointIndices.emplace(PositionKey(position), context.points.size());
+            if (inserted.second)
+                context.points.push_back(position);
+            return inserted.first->second;
+        }
+        const double tolerance = intersectionTolerance(position);
+        const auto begin = context.pointIndicesByX.lower_bound(position.x() - tolerance);
+        const auto end = context.pointIndicesByX.upper_bound(position.x() + tolerance);
+        size_t matched = context.points.size();
+        for (auto candidate = begin; candidate != end; ++candidate) {
+            if ((position - context.points[candidate->second]).lengthSquared() <= tolerance * tolerance)
+                matched = std::min(matched, candidate->second);
+        }
+        if (matched == context.points.size()) {
             context.points.push_back(position);
-        return insertResult.first->second;
+            context.pointIndicesByX.emplace(position.x(), matched);
+        }
+        return matched;
     };
 
     for (const auto& pair : m_potentialIntersectedPairs) {
@@ -405,7 +451,7 @@ bool SolidMeshBooleanOperation::combine()
                 (*mesh->triangleNormals())[contextKey]);
             reTriangulator.setEdges(it.points,
                 &it.neighborMap);
-            if (!reTriangulator.reTriangulate()) {
+            if (!reTriangulator.reTriangulate(m_preserveThinWalls)) {
                 dust3dDebug << "Retriangle failed";
                 return false;
             }
@@ -522,7 +568,7 @@ void SolidMeshBooleanOperation::decideGroupSide(const std::vector<std::vector<si
                 bool inside = isPointInMesh((m_newVertices[pickedTriangle[0]] + m_newVertices[pickedTriangle[1]] + m_newVertices[pickedTriangle[2]]) / 3.0,
                     mesh,
                     tree,
-                    g_testAxisList[axisIndex]);
+                    axisIndex);
                 if (inside)
                     ++insideCount;
                 ++totalCount;

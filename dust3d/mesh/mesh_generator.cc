@@ -1044,6 +1044,8 @@ std::unique_ptr<MeshState> MeshGenerator::combinePartMesh(const std::string& par
     float deformWidth = 1.0;
     float cutRotation = 0.0;
     auto target = PartTargetFromString(String::valueOrEmpty(part, "target").c_str());
+    const auto hollowThicknessSource = String::valueOrEmpty(part, "hollowThickness");
+    const double hollowThickness = hollowThicknessSource.empty() ? 0.0 : String::toDouble(hollowThicknessSource);
 
     std::string searchPartIdString = __mirrorFromPartId.empty() ? partIdString : __mirrorFromPartId;
 
@@ -1113,9 +1115,7 @@ std::unique_ptr<MeshState> MeshGenerator::combinePartMesh(const std::string& par
         std::unique_ptr<TubeMeshBuilder> tubeMeshBuilder;
         TubeMeshBuilder::BuildParameters buildParameters;
         buildParameters.deformThickness = deformThickness;
-        const auto hollowThickness = String::valueOrEmpty(part, "hollowThickness");
-        if (!hollowThickness.empty())
-            buildParameters.hollowThickness = String::toDouble(hollowThickness);
+        buildParameters.hollowThickness = hollowThickness;
         buildParameters.deformWidth = deformWidth;
         buildParameters.deformUnified = deformUnified;
         buildParameters.baseNormalRotation = cutRotation * Math::Pi;
@@ -1288,6 +1288,7 @@ std::unique_ptr<MeshState> MeshGenerator::combinePartMesh(const std::string& par
     std::unique_ptr<MeshState> mesh;
 
     mesh = std::make_unique<MeshState>(partCache.vertices, partCache.faces);
+    mesh->hasHollowWalls = target == PartTarget::Model && hollowThickness > 0 && hollowThickness < 1;
     if (!mesh->isNull()) {
         std::vector<Vector3> vertices;
         std::vector<std::vector<size_t>> faces;
