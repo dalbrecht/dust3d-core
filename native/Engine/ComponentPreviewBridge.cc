@@ -1,5 +1,6 @@
 #include "Cancellation.h"
 #include "ComponentPreviewOutput.h"
+#include "ImportedModels.h"
 #include <mutex>
 
 Dust3DComponentPreview* dust3d_component_preview_load(const uint8_t* bytes, size_t size,
@@ -22,7 +23,8 @@ Dust3DComponentPreview* dust3d_component_preview_load(const uint8_t* bytes, size
         checkCancellation(cancellation);
 
         std::string warning;
-        auto snapshot = readDocument(bytes, size, warning, nullptr, nullptr, true);
+        ImportedModels imports;
+        auto snapshot = readDocument(bytes, size, warning, nullptr, &imports, true);
         const auto id = resolveComponentPreviewId(*snapshot, authoredId);
         const auto& authored = snapshot->components.at(authoredId);
         const auto image = authored.find("colorImageId");
@@ -34,6 +36,7 @@ Dust3DComponentPreview* dust3d_component_preview_load(const uint8_t* bytes, size
 
         MeshGenerator generator(snapshot.get());
         snapshot.release();
+        generator.setImportedModelData(imports.takeGeometry());
         checkCancellation(cancellation);
         generator.generate();
         checkCancellation(cancellation);

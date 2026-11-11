@@ -83,6 +83,18 @@ int main()
     REQUIRE(vertexMaterials[1].color[1] == 1 && vertexMaterials[1].metalness == 0.5f);
     REQUIRE(std::string(dust3d_component_preview_warning(withMissingUv.get())) == "image unavailable");
 
+    generated.triangles.push_back({ 0, 1, 2 });
+    generated.triangleCornerUvs = { std::nullopt, std::nullopt };
+    generated.triangleModelKeys = { "", "imported-model" };
+    auto mixed = copyComponentPreview(generated, {}, {}, 4096);
+    const auto* mixedFaces = dust3d_component_preview_triangles(mixed.get());
+    REQUIRE(mixedFaces[0].has_uv && mixedFaces[0].uv[2][1] == 9);
+    REQUIRE(!mixedFaces[1].has_uv);
+    generated.triangleModelKeys.pop_back();
+    expectStatus(DUST3D_STATUS_GENERATION_FAILED, [&] { copyComponentPreview(generated, {}, {}, 4096); });
+    generated.triangleModelKeys.clear();
+    generated.triangles.pop_back();
+
     generated.triangleCornerUvs.clear();
     auto withLegacyUv = copyComponentPreview(generated, {}, {}, 4096);
     const auto* legacyFace = dust3d_component_preview_triangles(withLegacyUv.get());
