@@ -14,16 +14,22 @@ void require(bool condition, const char* message)
     if (!condition)
         throw std::runtime_error(message);
 }
+
+std::vector<uint8_t> readArchive(const char* path)
+{
+    std::ifstream file(path, std::ios::binary);
+    require(file.is_open(), "Could not open the archive fixture");
+    const std::vector<uint8_t> bytes((std::istreambuf_iterator<char>(file)), {});
+    require(!bytes.empty(), "The archive fixture is empty");
+    return bytes;
+}
 }
 
 int main(int argc, char** argv)
 {
     try {
-        require(argc == 2, "Expected the checked-in Capsule archive path");
-        std::ifstream file(argv[1], std::ios::binary);
-        require(file.is_open(), "Could not open the Capsule fixture");
-        const std::vector<uint8_t> archive((std::istreambuf_iterator<char>(file)), {});
-        require(!archive.empty(), "The Capsule fixture is empty");
+        require(argc == 3, "Expected the checked-in Capsule and ImportedSurface archive paths");
+        const auto archive = readArchive(argv[1]);
 
         constexpr char componentId[] = "{bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb}";
         const Dust3DComponentPreviewID request { componentId, sizeof(componentId) - 1 };
@@ -53,6 +59,22 @@ int main(int argc, char** argv)
             dust3d_component_preview_batch_destroy);
         require(!rejected && error.status == DUST3D_STATUS_INVALID_DOCUMENT, "Duplicate requests must fail atomically");
         require(dust3d_component_preview_triangle_count(preview) == triangleCount, "A later request must not invalidate an existing owner");
+
+        const auto importedArchive = readArchive(argv[2]);
+        constexpr char importedId[] = "{00000200-0000-4000-8000-000000000200}";
+        const Dust3DComponentPreviewID importedRequest { importedId, sizeof(importedId) - 1 };
+        const Batch imported(dust3d_component_preview_batch_load(importedArchive.data(), importedArchive.size(), &importedRequest, 1, 0, nullptr, &error),
+            dust3d_component_preview_batch_destroy);
+        require(imported && error.status == DUST3D_STATUS_OK, error.message);
+        const auto* importedPreview = dust3d_component_preview_batch_at(imported.get(), 0);
+        const auto importedTriangleCount = dust3d_component_preview_triangle_count(importedPreview);
+        const auto* importedTriangles = dust3d_component_preview_triangles(importedPreview);
+        require(importedTriangles && importedTriangleCount > 0, "The imported model must produce a mesh thumbnail");
+        for (size_t index = 0; index < importedTriangleCount; ++index) {
+            require(importedTriangles[index].has_uv == 1, "The imported model must preserve its indexed corner UVs");
+            for (const auto& uv : importedTriangles[index].uv)
+                require(std::isfinite(uv[0]) && std::isfinite(uv[1]), "The imported corner UVs must be finite");
+        }
         return 0;
     } catch (const std::exception& failure) {
         std::cerr << failure.what() << '\n';
