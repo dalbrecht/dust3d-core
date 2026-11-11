@@ -79,6 +79,7 @@ std::unique_ptr<Dust3DComponentPreview> copyComponentPreview(const MeshGenerator
         throw DocumentError(DUST3D_STATUS_LIMIT_EXCEEDED, "The component preview exceeds its output quota.");
 
     auto result = std::make_unique<Dust3DComponentPreview>();
+    result->retainedPayloadBytes = budget.usedBytes();
     result->colorImageId = colorImageId;
     result->warning = warning;
     if (isCutFace) {
@@ -163,6 +164,7 @@ std::unique_ptr<Dust3DComponentPreview> copyComponentPreview(const MeshGenerator
 }
 
 void dust3d_component_preview_destroy(Dust3DComponentPreview* preview) { delete preview; }
+size_t dust3d_component_preview_retained_payload_bytes(const Dust3DComponentPreview* preview) { return preview ? preview->retainedPayloadBytes : 0; }
 const Dust3DComponentPreviewVertex* dust3d_component_preview_vertices(const Dust3DComponentPreview* preview) { return preview ? preview->vertices.data() : nullptr; }
 size_t dust3d_component_preview_vertex_count(const Dust3DComponentPreview* preview) { return preview ? preview->vertices.size() : 0; }
 const Dust3DComponentPreviewTriangle* dust3d_component_preview_triangles(const Dust3DComponentPreview* preview) { return preview ? preview->triangles.data() : nullptr; }

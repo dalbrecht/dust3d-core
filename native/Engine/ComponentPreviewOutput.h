@@ -10,6 +10,7 @@ struct Dust3DComponentPreview {
     std::vector<Dust3DComponentPreviewPoint> cutFace;
     std::string colorImageId;
     std::string warning;
+    size_t retainedPayloadBytes = 0;
 };
 
 namespace dust3d::native {

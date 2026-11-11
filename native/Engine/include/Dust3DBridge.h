@@ -597,6 +597,8 @@ Dust3DComponentPreview* dust3d_component_preview_load(const uint8_t* bytes, size
 
 /** Release the result and invalidate its borrowed arrays and metadata. */
 void dust3d_component_preview_destroy(Dust3DComponentPreview* preview);
+/** Return the logical output quota charge, or zero for NULL. Allocator overhead is excluded. */
+size_t dust3d_component_preview_retained_payload_bytes(const Dust3DComponentPreview* preview);
 /** Array pointers are borrowed until destroy. Empty arrays have zero count. */
 const Dust3DComponentPreviewVertex* dust3d_component_preview_vertices(const Dust3DComponentPreview* preview);
 size_t dust3d_component_preview_vertex_count(const Dust3DComponentPreview* preview);

@@ -70,6 +70,11 @@ int main()
     REQUIRE(points[0].color[1] == 0.5 && points[1].roughness == 0.75f);
     REQUIRE(triangles[0].indices[2] == 2 && triangles[0].has_uv && triangles[0].uv[2][1] == 1);
     REQUIRE(std::string(dust3d_component_preview_color_image_id(output.get())) == "texture");
+    const auto retainedBytes = dust3d_component_preview_retained_payload_bytes(output.get());
+    REQUIRE(retainedBytes >= 3 * sizeof(Dust3DComponentPreviewVertex) + sizeof(Dust3DComponentPreviewTriangle));
+    REQUIRE(dust3d_component_preview_retained_payload_bytes(nullptr) == 0);
+    REQUIRE(dust3d_component_preview_retained_payload_bytes(copyComponentPreview(generated, "texture", "", retainedBytes).get()) == retainedBytes);
+    expectStatus(DUST3D_STATUS_LIMIT_EXCEEDED, [&] { copyComponentPreview(generated, "texture", "", retainedBytes - 1); });
 
     generated.triangleCornerUvs = { std::nullopt };
     generated.vertexProperties = {
@@ -117,6 +122,7 @@ int main()
     REQUIRE(dust3d_component_preview_vertex_count(cutFace.get()) == 0);
     REQUIRE(dust3d_component_preview_cut_face_count(cutFace.get()) == 3);
     REQUIRE(dust3d_component_preview_cut_face(cutFace.get())[2].y == 1);
+    REQUIRE(dust3d_component_preview_retained_payload_bytes(cutFace.get()) < retainedBytes);
     generated.cutFaceTemplate[0] = Vector2(std::numeric_limits<double>::infinity(), 0);
     expectStatus(DUST3D_STATUS_GENERATION_FAILED, [&] { copyComponentPreview(generated, {}, {}, 4096); });
 }
