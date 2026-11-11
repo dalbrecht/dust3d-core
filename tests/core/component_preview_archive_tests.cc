@@ -1,0 +1,189 @@
+// SPDX-License-Identifier: MIT
+#include "Dust3DBridge.h"
+#include <cmath>
+#include <fstream>
+#include <iomanip>
+#include <iostream>
+#include <iterator>
+#include <memory>
+#include <sstream>
+#include <stdexcept>
+#include <vector>
+
+namespace {
+void require(bool condition, const char* message)
+{
+    if (!condition)
+        throw std::runtime_error(message);
+}
+
+std::vector<uint8_t> readArchive(const char* path)
+{
+    std::ifstream file(path, std::ios::binary);
+    require(file.is_open(), "Could not open the archive fixture");
+    const std::vector<uint8_t> bytes((std::istreambuf_iterator<char>(file)), {});
+    require(!bytes.empty(), "The archive fixture is empty");
+    return bytes;
+}
+
+std::string modelArchive(const std::string& xml)
+{
+    const std::string prefix = "DUST3D 1.0 xml ";
+    const auto header = "<ds3><model name='model.xml' offset='0' size='" + std::to_string(xml.size()) + "'/></ds3>";
+    std::ostringstream output;
+    output << prefix << std::setfill('0') << std::setw(10) << prefix.size() + 12 + header.size() << "\r\n"
+           << header << xml;
+    return output.str();
+}
+
+std::string disabledCapsuleArchive(const std::vector<uint8_t>& capsule, const std::string& groupId)
+{
+    const std::string archive(capsule.begin(), capsule.end());
+    const auto canvas = archive.find("<canvas");
+    require(canvas != std::string::npos, "Capsule model XML is missing");
+    auto xml = archive.substr(canvas);
+    const std::string enabled = "disabled=\"false\"";
+    const auto disabled = xml.find(enabled);
+    require(disabled != std::string::npos, "Capsule disabled attribute is missing");
+    xml.replace(disabled, enabled.size(), "disabled=\"true\"");
+    const std::string opening = "<components>";
+    const auto start = xml.find(opening);
+    const auto end = xml.find("</components>");
+    require(start != std::string::npos && end != std::string::npos && start < end, "Capsule components are missing");
+    xml.insert(end, "</component>");
+    xml.insert(start + opening.size(), "<component id='" + groupId + "'>");
+    return modelArchive(xml);
+}
+
+void verifyIntersectingGroupUvs()
+{
+    const auto archive = modelArchive(R"(<canvas originX='.5' originY='.5' originZ='.5'>
+<nodes>
+<node id='{00000000-0000-4000-8000-000000000011}' partId='{00000000-0000-4000-8000-000000000010}' x='.3' y='0' z='0' radius='.2'/>
+<node id='{00000000-0000-4000-8000-000000000012}' partId='{00000000-0000-4000-8000-000000000010}' x='.3' y='1' z='0' radius='.2'/>
+<node id='{00000000-0000-4000-8000-000000000021}' partId='{00000000-0000-4000-8000-000000000020}' x='.4' y='.25' z='.1' radius='.2'/>
+<node id='{00000000-0000-4000-8000-000000000022}' partId='{00000000-0000-4000-8000-000000000020}' x='.4' y='1.25' z='.1' radius='.2'/>
+</nodes><edges>
+<edge id='{00000000-0000-4000-8000-000000000013}' partId='{00000000-0000-4000-8000-000000000010}' from='{00000000-0000-4000-8000-000000000011}' to='{00000000-0000-4000-8000-000000000012}'/>
+<edge id='{00000000-0000-4000-8000-000000000023}' partId='{00000000-0000-4000-8000-000000000020}' from='{00000000-0000-4000-8000-000000000021}' to='{00000000-0000-4000-8000-000000000022}'/>
+</edges><parts>
+<part id='{00000000-0000-4000-8000-000000000010}' interpolated='false' rounded='false' hard='true' cutFace='Quad'/>
+<part id='{00000000-0000-4000-8000-000000000020}' interpolated='false' rounded='false' hard='true' cutFace='Quad'/>
+</parts><components><component id='{00000000-0000-4000-8000-000000000003}' combineMode='Normal'>
+<component id='{00000000-0000-4000-8000-000000000001}' combineMode='Normal' linkDataType='partId' linkData='{00000000-0000-4000-8000-000000000010}'/>
+<component id='{00000000-0000-4000-8000-000000000002}' combineMode='Normal' linkDataType='partId' linkData='{00000000-0000-4000-8000-000000000020}'/>
+</component></components></canvas>)");
+    constexpr char groupId[] = "{00000000-0000-4000-8000-000000000003}";
+    Dust3DError error {};
+    const std::unique_ptr<Dust3DComponentPreview, decltype(&dust3d_component_preview_destroy)> preview(
+        dust3d_component_preview_load(reinterpret_cast<const uint8_t*>(archive.data()), archive.size(),
+            groupId, sizeof(groupId) - 1, 0, nullptr, &error),
+        dust3d_component_preview_destroy);
+    require(preview && error.status == DUST3D_STATUS_OK, error.message);
+    const auto count = dust3d_component_preview_triangle_count(preview.get());
+    const auto* triangles = dust3d_component_preview_triangles(preview.get());
+    if (!triangles || count <= 24)
+        throw std::runtime_error("Expected split intersection triangles, got " + std::to_string(count));
+    for (size_t index = 0; index < count; ++index) {
+        require(triangles[index].has_uv == 1, "Every union triangle must retain procedural corner UVs");
+        for (const auto& uv : triangles[index].uv)
+            require(std::isfinite(uv[0]) && std::isfinite(uv[1]), "Procedural corner UVs must be finite");
+    }
+}
+}
+
+int main(int argc, char** argv)
+{
+    try {
+        require(argc == 4, "Expected the checked-in Capsule, ImportedSurface, and Sword archive paths");
+        verifyIntersectingGroupUvs();
+        const auto archive = readArchive(argv[1]);
+
+        constexpr char componentId[] = "{bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb}";
+        const Dust3DComponentPreviewID request { componentId, sizeof(componentId) - 1 };
+        Dust3DError error {};
+        using Batch = std::unique_ptr<Dust3DComponentPreviewBatch, decltype(&dust3d_component_preview_batch_destroy)>;
+        const Batch batch(dust3d_component_preview_batch_load(archive.data(), archive.size(), &request, 1, 0, nullptr, &error),
+            dust3d_component_preview_batch_destroy);
+        require(batch && error.status == DUST3D_STATUS_OK, error.message);
+        require(dust3d_component_preview_batch_count(batch.get()) == 1, "The Capsule batch must have one slot");
+        const auto* preview = dust3d_component_preview_batch_at(batch.get(), 0);
+        require(preview && dust3d_component_preview_cut_face_count(preview) == 0, "The Capsule must produce mesh geometry");
+        const auto vertexCount = dust3d_component_preview_vertex_count(preview);
+        const auto triangleCount = dust3d_component_preview_triangle_count(preview);
+        require(vertexCount > 0 && triangleCount > 0, "The Capsule preview must have vertices and triangles");
+        const auto* vertices = dust3d_component_preview_vertices(preview);
+        const auto* triangles = dust3d_component_preview_triangles(preview);
+        require(vertices && triangles, "The owned Capsule arrays must be readable");
+        for (size_t vertex = 0; vertex < vertexCount; ++vertex)
+            for (const auto coordinate : vertices[vertex].position)
+                require(std::isfinite(coordinate), "The Capsule position must be finite");
+        for (size_t triangle = 0; triangle < triangleCount; ++triangle)
+            for (const auto index : triangles[triangle].indices)
+                require(index < vertexCount, "The Capsule triangle must reference an owned vertex");
+
+        const Dust3DComponentPreviewID duplicate[] { request, request };
+        const Batch rejected(dust3d_component_preview_batch_load(archive.data(), archive.size(), duplicate, 2, 0, nullptr, &error),
+            dust3d_component_preview_batch_destroy);
+        require(!rejected && error.status == DUST3D_STATUS_INVALID_DOCUMENT, "Duplicate requests must fail atomically");
+        require(dust3d_component_preview_triangle_count(preview) == triangleCount, "A later request must not invalidate an existing owner");
+
+        const std::string groupId = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
+        const auto disabledArchive = disabledCapsuleArchive(archive, groupId);
+        const Dust3DComponentPreviewID disabledRequests[] { { groupId.data(), groupId.size() }, request };
+        const Batch disabled(dust3d_component_preview_batch_load(
+                                 reinterpret_cast<const uint8_t*>(disabledArchive.data()), disabledArchive.size(), disabledRequests, 2, 0, nullptr, &error),
+            dust3d_component_preview_batch_destroy);
+        require(disabled && error.status == DUST3D_STATUS_OK, error.message);
+        require(dust3d_component_preview_batch_count(disabled.get()) == 2, "Disabled preview batch lost a requested slot");
+        for (size_t slot = 0; slot < 2; ++slot)
+            require(dust3d_component_preview_triangle_count(dust3d_component_preview_batch_at(disabled.get(), slot)) > 0,
+                "The disabled leaf and its bare-ID parent must both produce previews");
+
+        const auto importedArchive = readArchive(argv[2]);
+        constexpr char importedId[] = "{00000200-0000-4000-8000-000000000200}";
+        const Dust3DComponentPreviewID importedRequest { importedId, sizeof(importedId) - 1 };
+        const Batch imported(dust3d_component_preview_batch_load(importedArchive.data(), importedArchive.size(), &importedRequest, 1, 0, nullptr, &error),
+            dust3d_component_preview_batch_destroy);
+        require(imported && error.status == DUST3D_STATUS_OK, error.message);
+        const auto* importedPreview = dust3d_component_preview_batch_at(imported.get(), 0);
+        const auto importedTriangleCount = dust3d_component_preview_triangle_count(importedPreview);
+        const auto* importedTriangles = dust3d_component_preview_triangles(importedPreview);
+        require(importedTriangles && importedTriangleCount > 0, "The imported model must produce a mesh thumbnail");
+        for (size_t index = 0; index < importedTriangleCount; ++index) {
+            require(importedTriangles[index].has_uv == 1, "The imported model must preserve its indexed corner UVs");
+            for (const auto& uv : importedTriangles[index].uv)
+                require(std::isfinite(uv[0]) && std::isfinite(uv[1]), "The imported corner UVs must be finite");
+        }
+        const auto sword = readArchive(argv[3]);
+        constexpr char cutFaceId[] = "{e1d60d00-195f-5f41-9c86-da69ec8a31ff}";
+        constexpr char bladeId[] = "{38064bd9-3ce4-5f0f-a314-9670de0d9f03}";
+        const Dust3DComponentPreviewID swordRequests[] {
+            { cutFaceId, sizeof(cutFaceId) - 1 }, { bladeId, sizeof(bladeId) - 1 }
+        };
+        const Batch swordBatch(dust3d_component_preview_batch_load(
+                                   sword.data(), sword.size(), swordRequests, 2, 0, nullptr, &error),
+            dust3d_component_preview_batch_destroy);
+        require(swordBatch && error.status == DUST3D_STATUS_OK, error.message);
+        require(dust3d_component_preview_batch_count(swordBatch.get()) == 2, "The Sword batch lost a selected component");
+        const auto* cutFace = dust3d_component_preview_batch_at(swordBatch.get(), 0);
+        const auto* blade = dust3d_component_preview_batch_at(swordBatch.get(), 1);
+        require(cutFace && dust3d_component_preview_cut_face_count(cutFace) == 4, "Sword must return the four cut-face points");
+        require(dust3d_component_preview_triangle_count(cutFace) == 0, "The Cut Face component must return outline geometry");
+        require(blade && dust3d_component_preview_triangle_count(blade) > 0
+                && dust3d_component_preview_cut_face_count(blade) == 0,
+            "The blade must return mesh geometry in its own slot");
+        const auto* outline = dust3d_component_preview_cut_face(cutFace);
+        require(outline, "The Sword cut-face outline must be readable");
+        // Authored Sword cut-face nodes are 0.2 units wide and 0.036 units high.
+        constexpr double expected[][2] { { 0, -0.18 }, { 1, 0 }, { 0, 0.18 }, { -1, 0 } };
+        for (size_t index = 0; index < 4; ++index)
+            require(std::abs(outline[index].x - expected[index][0]) < 0.000001
+                    && std::abs(outline[index].y - expected[index][1]) < 0.000001,
+                "The Sword cut-face outline must preserve normalized source order");
+        return 0;
+    } catch (const std::exception& failure) {
+        std::cerr << failure.what() << '\n';
+        return 1;
+    }
+}

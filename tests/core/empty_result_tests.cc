@@ -24,7 +24,7 @@ std::string identity(unsigned int value)
 }
 
 // Synthetic isolated diamond loop. Its fill is the document's only triangle source.
-std::string loopModel(bool filled)
+std::string loopModel(bool filled, const char* target = "StitchingLoop")
 {
     std::ostringstream stream;
     stream << "<canvas originX='.5' originY='.5' originZ='.5'><nodes>";
@@ -36,7 +36,7 @@ std::string loopModel(bool filled)
     for (unsigned int index = 0; index < 4; ++index)
         stream << "<edge id='" << identity(index + 10) << "' partId='" << identity(100)
                << "' from='" << identity(index + 1) << "' to='" << identity((index + 1) % 4 + 1) << "'/>";
-    stream << "</edges><parts><part id='" << identity(100) << "' target='StitchingLoop' fillLoopInterior='" << (filled ? "true" : "false")
+    stream << "</edges><parts><part id='" << identity(100) << "' target='" << target << "' fillLoopInterior='" << (filled ? "true" : "false")
            << "'/></parts><components><component id='" << identity(300) << "'><component id='" << identity(200)
            << "' linkDataType='partId' linkData='" << identity(100) << "'/></component></components></canvas>";
     return stream.str();
@@ -138,6 +138,21 @@ int main()
         auto restored = load(filledBytes, &error);
         require(restored && error.status == DUST3D_STATUS_OK && error.message[0] == '\0', "A later success must reset the diagnostic and generate again");
         require(dust3d_mesh_vertex_count(restored.get()) == count, "Refilling must restore triangle counts");
+        const auto cutFaceBytes = archive(loopModel(false, "CutFace"));
+        auto cutFaceMesh = load(cutFaceBytes, &error);
+        require(!cutFaceMesh && error.status == DUST3D_STATUS_NO_GEOMETRY, "A Cut Face alone must not produce a combined mesh");
+        const auto cutFaceId = identity(200);
+        using PreviewOwner = std::unique_ptr<Dust3DComponentPreview, decltype(&dust3d_component_preview_destroy)>;
+        const PreviewOwner cutFace(dust3d_component_preview_load(reinterpret_cast<const uint8_t*>(cutFaceBytes.data()),
+                                       cutFaceBytes.size(), cutFaceId.data(), cutFaceId.size(), 0, nullptr, &error),
+            dust3d_component_preview_destroy);
+        require(cutFace && error.status == DUST3D_STATUS_OK, error.message);
+        require(dust3d_component_preview_triangle_count(cutFace.get()) == 0, "The Cut Face preview must contain only its outline");
+        const auto pointCount = dust3d_component_preview_cut_face_count(cutFace.get());
+        const auto* points = dust3d_component_preview_cut_face(cutFace.get());
+        require(points && pointCount == 4, "The Cut Face diamond must produce four outline points");
+        for (size_t index = 0; index < pointCount; ++index)
+            require(std::isfinite(points[index].x) && std::isfinite(points[index].y), "Cut Face preview points must be finite");
         std::cout << "Successful empty generation and ownership contracts passed\n";
         return 0;
     } catch (const std::exception& error) {

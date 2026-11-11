@@ -36,6 +36,8 @@ target_include_directories(dust3d_core PUBLIC
 target_link_libraries(dust3d_core PUBLIC dust3d_remesher dust3d_triangle Threads::Threads)
 add_library(dust3d_engine STATIC
     native/Engine/EngineSupport.cc
+    native/Engine/ComponentPreviewBridge.cc
+    native/Engine/ComponentPreviewOutput.cc
     native/Engine/AnimationCatalogBridge.cc
     native/Engine/ObjDocument.cc
     native/Engine/ObjGeometryPlan.cc
@@ -731,6 +733,18 @@ if(BUILD_TESTING)
         add_test(NAME worker_preview_archive_channel_contracts COMMAND dust3d_worker_preview_archive_channel_tests ${CMAKE_CURRENT_SOURCE_DIR}/tests/core/fixtures/Capsule.ds3)
         set_tests_properties(worker_preview_archive_channel_contracts PROPERTIES TIMEOUT 30)
     endif()
+    add_executable(dust3d_component_preview_output_tests tests/core/component_preview_output_tests.cc)
+    target_link_libraries(dust3d_component_preview_output_tests PRIVATE dust3d_engine dust3d_core)
+    add_test(NAME component_preview_output_contracts COMMAND dust3d_component_preview_output_tests)
+    add_executable(dust3d_component_preview_archive_tests tests/core/component_preview_archive_tests.cc)
+    target_link_libraries(dust3d_component_preview_archive_tests PRIVATE dust3d_engine)
+    add_test(NAME component_preview_archive_contracts
+        COMMAND dust3d_component_preview_archive_tests
+            ${CMAKE_CURRENT_SOURCE_DIR}/tests/core/fixtures/Capsule.ds3
+            ${CMAKE_CURRENT_SOURCE_DIR}/tests/core/fixtures/ImportedSurface.ds3
+            ${CMAKE_CURRENT_SOURCE_DIR}/tests/core/fixtures/Sword.ds3)
+    set_tests_properties(component_preview_archive_contracts PROPERTIES TIMEOUT 30)
+
     add_executable(dust3d_worker_preview_archive_tests tests/core/worker_preview_archive_tests.cc)
     target_link_libraries(dust3d_worker_preview_archive_tests PRIVATE dust3d_worker_protocol)
     add_test(NAME worker_preview_archive_contracts COMMAND dust3d_worker_preview_archive_tests)
