@@ -158,6 +158,19 @@ void requireObjPreservesGeometry(const dust3d::Object& object)
     require(vertex == object.vertices.size() && face == object.triangleAndQuads.size() && face > 0,
         "Hollow OBJ must preserve all original geometry");
 }
+void ordinaryRoundedCrossingRetainsTopology(const std::string& fixtures)
+{
+    std::ifstream file(fixtures + "/RoundedCrossing.ds3", std::ios::binary);
+    require(file.good(), "RoundedCrossing fixture must be readable");
+    const std::vector<uint8_t> bytes { std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>() };
+    std::string warning;
+    auto source = dust3d::native::readDocument(bytes.data(), bytes.size(), warning);
+    dust3d::MeshGenerator generator(source.release());
+    generator.generate();
+    require(generator.isSuccessful(), "Ordinary RoundedCrossing generation failed");
+    const std::unique_ptr<dust3d::Object> object(generator.takeObject());
+    require(object && object->triangles.size() == 434, "Solid RoundedCrossing must retain the established Boolean topology");
+}
 void intersectingSwordRetainsClosedHollowGeometry(const std::string& fixtures)
 {
     std::ifstream file(fixtures + "/Sword.ds3", std::ios::binary);
@@ -508,6 +521,7 @@ int main(int argc, char** argv)
 {
     try {
         require(argc == 2, "Ordinary licensed fixture directory required");
+        ordinaryRoundedCrossingRetainsTopology(argv[1]);
         intersectingSwordRetainsClosedHollowGeometry(argv[1]);
         intersectingHollowBooleanRetainsIndexedRecords("Normal");
         intersectingHollowBooleanRetainsIndexedRecords("Inversion");

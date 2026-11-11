@@ -247,9 +247,11 @@ bool ReTriangulator::buildPolygons()
     return true;
 }
 
-void ReTriangulator::triangulate()
+void ReTriangulator::triangulate(bool scaleTinyPolygons)
 {
-    const auto triangulatePolygon = [](std::vector<std::vector<std::array<double, 2>>>& rings) {
+    const auto triangulatePolygon = [scaleTinyPolygons](std::vector<std::vector<std::array<double, 2>>>& rings) {
+        if (!scaleTinyPolygons)
+            return mapbox::earcut<size_t>(rings);
         if (rings.front().empty())
             return std::vector<size_t>();
         const auto origin = rings.front().front();
@@ -354,7 +356,7 @@ void ReTriangulator::triangulate()
     }
 }
 
-bool ReTriangulator::reTriangulate()
+bool ReTriangulator::reTriangulate(bool scaleTinyPolygons)
 {
     lookupPolylinesFromNeighborMap(*m_neighborMapFrom3);
     if (!buildPolygons()) {
@@ -362,7 +364,7 @@ bool ReTriangulator::reTriangulate()
         return false;
     }
     buildPolygonHierarchy();
-    triangulate();
+    triangulate(scaleTinyPolygons);
     return true;
 }
 

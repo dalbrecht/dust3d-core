@@ -45,6 +45,7 @@ public:
     /// Account owned dynamic payload; borrowed views are excluded.
     void accountDynamicPayload(RetainedPayloadBudget& budget) const noexcept;
     std::unique_ptr<MeshCombiner::Mesh> mesh;
+    bool hasHollowWalls = false;
     std::vector<std::pair<std::set<std::array<PositionKey, 3>>, std::set<std::array<PositionKey, 3>>>> seamTriangleUvs;
     std::vector<std::array<PositionKey, 3>> brokenTriangles;
     // Parallel to fetched triangles; generated bridges have no single owning component.

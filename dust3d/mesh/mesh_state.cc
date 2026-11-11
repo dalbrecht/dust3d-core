@@ -179,6 +179,7 @@ MeshState::MeshState(const MeshState& other)
 {
     if (nullptr != other.mesh)
         mesh = std::make_unique<MeshCombiner::Mesh>(*other.mesh);
+    hasHollowWalls = other.hasHollowWalls;
     seamTriangleUvs = other.seamTriangleUvs;
     seamReports = other.seamReports;
     triangleComponentKeys = other.triangleComponentKeys;
@@ -208,6 +209,7 @@ std::unique_ptr<MeshState> MeshState::combine(const MeshState& first, const Mesh
     if (first.mesh->isNull() || second.mesh->isNull())
         return nullptr;
     auto newMeshState = std::make_unique<MeshState>();
+    newMeshState->hasHollowWalls = first.hasHollowWalls || second.hasHollowWalls;
     std::vector<std::pair<MeshCombiner::Source, size_t>> combinedVerticesSources;
     std::vector<MeshCombiner::TriangleSource> combinedTriangleSources;
     const bool shouldTrackOwners = !first.triangleComponentKeys.empty() || !second.triangleComponentKeys.empty();
@@ -219,7 +221,8 @@ std::unique_ptr<MeshState> MeshState::combine(const MeshState& first, const Mesh
     auto newMesh = std::unique_ptr<MeshCombiner::Mesh>(MeshCombiner::combine(*first.mesh,
         *second.mesh,
         method,
-        &combinedVerticesSources, (shouldTrackOwners || shouldTrackModels || shouldTrackColors || shouldTrackUvs || shouldTrackProceduralUvs || shouldTrackSources) ? &combinedTriangleSources : nullptr));
+        &combinedVerticesSources, (shouldTrackOwners || shouldTrackModels || shouldTrackColors || shouldTrackUvs || shouldTrackProceduralUvs || shouldTrackSources) ? &combinedTriangleSources : nullptr,
+        newMeshState->hasHollowWalls));
     if (nullptr == newMesh)
         return nullptr;
     if (shouldTrackOwners) {
