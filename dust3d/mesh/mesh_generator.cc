@@ -3025,11 +3025,16 @@ void MeshGenerator::generateDisabledComponentPreviews()
     for (auto& entry : m_generatedComponentPreviews) {
         if (!entry.second.triangles.empty() || !entry.second.cutFaceTemplate.empty())
             continue;
-        const auto* component = findComponent(entry.first.toString());
+        auto componentId = entry.first.toString();
+        const auto* component = findComponent(componentId);
+        if (nullptr == component && !entry.first.isNull()) {
+            componentId = componentId.substr(1, componentId.size() - 2);
+            component = findComponent(componentId);
+        }
         if (nullptr == component || "partId" == String::valueOrEmpty(*component, "linkDataType"))
             continue;
         CombineMode mode;
-        previewGenerator.combineComponentMesh(entry.first.toString(), &mode);
+        previewGenerator.combineComponentMesh(componentId, &mode);
         auto generated = previewGenerator.m_generatedComponentPreviews.find(entry.first);
         if (generated != previewGenerator.m_generatedComponentPreviews.end() && !generated->second.triangles.empty())
             entry.second = generated->second;

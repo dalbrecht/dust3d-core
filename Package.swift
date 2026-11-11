@@ -164,6 +164,7 @@ let package = Package(
             path: "native/Engine",
             sources: [
                 "EngineSupport.cc", "AnimationCatalogBridge.cc",
+                "ComponentPreviewBridge.cc", "ComponentPreviewOutput.cc",
                 "ObjDocument.cc", "ObjGeometryPlan.cc",
                 "FbxMaterialImagePlan.cc",
                 "FbxMeshScene.cc",
