@@ -8,6 +8,7 @@
 
 namespace dust3d {
 namespace native {
+    class GeneratedRigInput;
     class SourceProvenance;
     class UvMetadata;
     class BakedMeshData;
@@ -16,9 +17,21 @@ namespace native {
     class FbxGeometrySelection;
     class OwnedObjDocument;
     enum class GenerationPurpose { preview,
-        originalExport };
+        originalExport,
+        rigInputOnly };
     /// Named borrowed output hooks. All pointees outlive this synchronous generation call.
     struct GenerationOutputs {
+        /// Optional original Object vertex index for each admitted preview draw corner.
+        /// Preserves triangle/corner order after Float32 collapse filtering. Replaced only
+        /// after every requested output succeeds; caller owns storage. Preview purpose only.
+        /// At most five million triangles (15 million size_t records), like preview storage.
+        std::vector<size_t>* previewVertexIndices = nullptr;
+        /// Optional coherent generator-produced snapshot/Object retained after success.
+        /// Does not materialize Qt-equivalent UVs; no rig-readiness claim. Preview only.
+        /// Not accepted by prepareGeneratedObject, which only borrows its inputs.
+        std::unique_ptr<GeneratedRigInput>* rigInput = nullptr;
+        /// Zero64MiB, maximum256MiB; full capacity accounting, excluding allocator overhead.
+        size_t maximumRigInputBytes = 0;
         SourceProvenance* sources = nullptr;
         UvMetadata* uvs = nullptr;
         BakedMeshData* baked = nullptr;
@@ -43,6 +56,9 @@ namespace native {
         size_t maximumObjPayloadBytes = 0;
         /// Original export skips float conversion and render descriptors. Requires an export
         /// owner and rejects source/surface/source-bake outputs. UVs/bake prepare export maps only.
+        /// rigInputOnly requires rigInput, forbids other output hooks/images and skips
+        /// render/UV/export preparation. Returned Dust3DMesh contains source metadata only;
+        /// original geometry remains in the retained input, with no float filtering.
         GenerationPurpose purpose = GenerationPurpose::preview;
     };
     Color sourceCornerColor(const Object& object, size_t triangleIndex, size_t corner);

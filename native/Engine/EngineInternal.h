@@ -4,6 +4,7 @@
 #include "EngineSupport.h"
 #include "include/Dust3DBridge.h"
 #include <dust3d/base/snapshot.h>
+#include <map>
 #include <memory>
 #include <stdexcept>
 #include <string>
@@ -67,6 +68,13 @@ namespace native {
     /// Example: auto snapshot = readDocumentMetadata(bytes, size, warning, &observer);
     std::unique_ptr<Snapshot> readDocumentMetadata(const uint8_t* bytes, size_t size, std::string& warning,
         DocumentAssetObserver* observer = nullptr);
+    /// Read one exact authored record before legacy snapshot conversion can merge duplicate rows.
+    std::map<std::string, std::string> readSelectedAnimationMetadata(
+        const uint8_t* bytes, size_t size, std::string_view animationId, std::string* authoredRigType = nullptr);
+    /// Read exact selected records in caller order through one strict archive traversal.
+    /// Optionally return the authored canvas rig type from that same traversal.
+    std::vector<std::map<std::string, std::string>> readSelectedAnimationMetadataBatch(
+        const uint8_t* bytes, size_t size, const std::vector<std::string_view>& ids, std::string* authoredRigType = nullptr);
     void validateSnapshot(Snapshot& snapshot, bool canImportModels = false, bool canReadEmptyGeometry = false);
 
 }

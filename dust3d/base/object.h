@@ -66,6 +66,21 @@ struct ObjectNode {
 
 class Object {
 public:
+    /// Conservative owned dynamic payload, including populated caches even when hidden.
+    /// Container/allocator bookkeeping and temporary work are excluded.
+    void accountDynamicPayload(RetainedPayloadBudget& budget) const noexcept
+    {
+        budget.accountDynamicFields(vertices, positionToNodeIdMap, componentPositionToNodeIdMap,
+            nodeMap, triangleAndQuads, triangles, componentTriangleUvs, seamTriangleUvs,
+            triangleNormals, vertexColors, triangleVertexColors, triangleCornerUvs,
+            triangleProceduralUvs, triangleSourceCorners, vertexSmoothCutoffDegrees,
+            brokenTrianglesToComponentIdMap, componentNames, triangleComponentIds,
+            triangleComponentKeys, triangleModelKeys, positionToNodeWeights,
+            positionToVertexAttribute, vertexBone1, vertexBone2, vertexBone3, vertexBone4,
+            m_triangleSourceNodes, m_triangleVertexUvs, m_triangleVertexNormals,
+            m_triangleTangents, m_partUvRects, m_triangleLinks);
+    }
+
     std::vector<Vector3> vertices;
     std::map<PositionKey, Uuid> positionToNodeIdMap;
     // Imported source associations remain distinct even when components coincide.

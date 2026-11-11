@@ -8,6 +8,27 @@
 
 - Resolve unambiguous braced and bare UUID references during native document loading while preserving authored entity keys and exact reference precedence.
 
+- Expose a versioned owned procedural generated-rig C boundary with grounded mesh, source-order joints/rest matrices and four-slot weights aligned to admitted draw corners; add C/C++ and strict Swift ownership consumers (#330).
+
+- Add a private retained-rig generation purpose that preserves processed Snapshot/Object inputs without allocating a discarded preview buffer (#329).
+
+- Preflight finite bounded positions and valid original triangle indices before rig binding/eyelid processing, with typed geometry and cancellation errors (#328).
+
+- Include source-ordered validated rest-world/inverse-bind matrices for finalized grounded rigs and generated eyelids, within the aggregate output quota (#325).
+
+- Generate finalized actual-rig positions, bindings and grounded owned mesh data in one serialized private operation; preserve input and report optional eyelid absence (#324).
+
+- Retain bounded coherent processed snapshot/Object inputs for future generated rigs, including complete Object metadata/cache accounting (#323).
+
+- Preserve original vertex indices for optional preview corner mapping after Float32 filtering (#322).
+
+- Add a private owned final-joint/four-influence data validator with exact names, parent resolution, normalized bound weights, explicit unbound vertices, bounded retained output and cooperative cancellation; generation/C ABI/Apple adoption remain separate (#320).
+
+- Extract private portable rig-template visualization geometry with complete tapered solids/rings, normalization, exact selected-bone roles and bounded owned output; add an owned versioned C boundary with source indices, flat draw normals, exact UTF-8 names, quotas and cooperative cancellation; Apple preview adoption remains separate (#319).
+- Clear stale primary/secondary vertex weights before rebinding a reused object, so removed influences and nearest fallback use only current data (#321).
+- Walk rig mirror sources iteratively, preserving reflection parity and immediate-parent fallback without recursive call-stack growth (#326).
+- Support an optional cooperative cancellation flag inside vertex binding and nearest-bound searches; cancelled partial bindings must be discarded (#327).
+
 - Preflight interpolation node/edge identities before mutation, preserving original records and collision-free deterministic chains for shared-prefix UUIDs (#315).
 
 - Generate hollow tubes for thicknesses strictly between 0 and 1. Both endpoints use the ordinary solid tube (Apple #96).

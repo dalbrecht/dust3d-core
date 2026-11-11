@@ -28,6 +28,7 @@
 #include <dust3d/base/object.h>
 #include <dust3d/base/snapshot.h>
 #include <dust3d/base/uuid.h>
+#include <atomic>
 #include <map>
 #include <set>
 #include <string>
@@ -81,6 +82,12 @@ public:
         const RigStructure& rigStructure,
         std::map<Uuid, NodeBoneInfluence>& nodeBoneInfluences);
 
+    // Optional borrowed flag for vertex binding only. It must outlive each call;
+    // do not race this setter with generator methods. Null preserves legacy behavior.
+    // Cancellation returns false with a diagnostic; discard partial Object bindings.
+    // Containers/sorting and other rig stages have no fixed cancellation latency.
+    void setBindingCancellationFlag(const std::atomic_bool* flag) { m_bindingCancellationFlag = flag; }
+
     // Compute vertex bone bindings for a generated mesh object
     // Uses the mesh's positionToNodeIdMap to trace vertices back to nodes,
     // then applies node bone influences to create vertex bindings
@@ -108,6 +115,7 @@ public:
 
 private:
     std::string m_errorMessage;
+    const std::atomic_bool* m_bindingCancellationFlag = nullptr;
 
     // Coordinate transformation offsets (from snapshot canvas)
     float m_mainProfileMiddleX = 0.0f;

@@ -53,6 +53,12 @@ add_library(dust3d_engine STATIC
     native/Engine/FbxPropertyBlock.cc
     native/Engine/FbxAnimationMath.cc
     native/Engine/RigTransformValidation.cc
+    native/Engine/RigTemplateMesh.cc
+    native/Engine/RigTemplateBridge.cc
+    native/Engine/GeneratedRigBridge.cc
+    native/Engine/FinalRigGeneration.cc
+    native/Engine/GeneratedRigInput.cc
+    native/Engine/RigFinalData.cc
     native/Engine/SourceBakedMesh.cc
     native/Engine/ImportedSurface.cc
     native/Engine/ImportedAssets.cc
@@ -289,6 +295,107 @@ if(BUILD_TESTING)
 
 
 
+
+    # New procedural Capsule consumers only; no mixed export/pose/import suites.
+    add_executable(dust3d_generated_rig_bridge_tests tests/core/generated_rig_bridge_tests.cc)
+    add_executable(dust3d_generated_rig_c_tests tests/core/generated_rig_c_tests.c)
+    target_link_libraries(dust3d_generated_rig_bridge_tests PRIVATE dust3d_engine)
+    target_link_libraries(dust3d_generated_rig_c_tests PRIVATE dust3d_engine)
+    add_test(NAME generated_rig_bridge_contracts COMMAND dust3d_generated_rig_bridge_tests "${CMAKE_CURRENT_SOURCE_DIR}/tests/core/fixtures/Capsule.ds3")
+    add_test(NAME generated_rig_c_contracts COMMAND dust3d_generated_rig_c_tests "${CMAKE_CURRENT_SOURCE_DIR}/tests/core/fixtures/Capsule.ds3")
+    set_tests_properties(generated_rig_bridge_contracts generated_rig_c_contracts PROPERTIES TIMEOUT 30)
+
+    # One known-positive procedural Capsule load only; no exporter/pose/import runtime.
+    add_executable(dust3d_rig_input_generation_tests tests/core/rig_input_generation_tests.cc)
+    target_include_directories(dust3d_rig_input_generation_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} native/Engine)
+    target_link_libraries(dust3d_rig_input_generation_tests PRIVATE dust3d_engine)
+    add_test(NAME rig_input_generation_contracts COMMAND dust3d_rig_input_generation_tests "${CMAKE_CURRENT_SOURCE_DIR}/tests/core/fixtures/Capsule.ds3")
+    set_tests_properties(rig_input_generation_contracts PROPERTIES TIMEOUT 30)
+
+    # Geometry validation only; malformed fields never reach inherited rig methods.
+    add_executable(dust3d_rig_geometry_preflight_tests tests/core/rig_geometry_preflight_tests.cc
+        native/Engine/RigFinalData.cc dust3d/base/position_key.cc dust3d/base/vector3.cc)
+    target_include_directories(dust3d_rig_geometry_preflight_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} native/Engine)
+    add_test(NAME rig_geometry_preflight_contracts COMMAND dust3d_rig_geometry_preflight_tests)
+    set_tests_properties(rig_geometry_preflight_contracts PROPERTIES TIMEOUT 30)
+
+    # Ordinary actual rig/bind/ground fixture; no pose, animation, writer or mesh generation.
+    add_executable(dust3d_final_rig_generation_tests tests/core/final_rig_generation_tests.cc)
+    target_include_directories(dust3d_final_rig_generation_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} native/Engine)
+    target_link_libraries(dust3d_final_rig_generation_tests PRIVATE dust3d_engine)
+    add_test(NAME final_rig_generation_contracts COMMAND dust3d_final_rig_generation_tests)
+    set_tests_properties(final_rig_generation_contracts PROPERTIES TIMEOUT 30)
+
+    # Pure value ownership/accounting; no generator/pose/exporter execution.
+    add_executable(dust3d_generated_rig_input_tests tests/core/generated_rig_input_tests.cc native/Engine/GeneratedRigInput.cc)
+    target_include_directories(dust3d_generated_rig_input_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} native/Engine)
+    target_link_libraries(dust3d_generated_rig_input_tests PRIVATE dust3d_core)
+    add_test(NAME generated_rig_input_contracts COMMAND dust3d_generated_rig_input_tests)
+    set_tests_properties(generated_rig_input_contracts PROPERTIES TIMEOUT 30)
+
+    # Ordinary prepared Object only; no mesh/rig generator, writer or pose execution.
+    add_executable(dust3d_preview_vertex_mapping_tests tests/core/preview_vertex_mapping_tests.cc)
+    target_include_directories(dust3d_preview_vertex_mapping_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} native/Engine)
+    target_link_libraries(dust3d_preview_vertex_mapping_tests PRIVATE dust3d_engine)
+    add_test(NAME preview_vertex_mapping_contracts COMMAND dust3d_preview_vertex_mapping_tests)
+    set_tests_properties(preview_vertex_mapping_contracts PROPERTIES TIMEOUT 30)
+
+    # Data-copy-only contracts: no generator, Object cache materialization or pose runtime.
+    add_executable(dust3d_rig_final_data_tests
+        tests/core/rig_final_data_tests.cc native/Engine/RigFinalData.cc
+        dust3d/base/position_key.cc dust3d/base/vector3.cc)
+    target_include_directories(dust3d_rig_final_data_tests PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR} native/Engine)
+    add_test(NAME rig_final_data_contracts COMMAND dust3d_rig_final_data_tests)
+    set_tests_properties(rig_final_data_contracts PROPERTIES TIMEOUT 30)
+
+    # Pure template visualization math: no document/rig/pose generator or writer dependency.
+    add_executable(dust3d_rig_template_mesh_tests
+        tests/core/rig_template_mesh_tests.cc native/Engine/RigTemplateMesh.cc
+        dust3d/mesh/rope_mesh.cc dust3d/mesh/base_normal.cc dust3d/base/vector3.cc)
+    target_include_directories(dust3d_rig_template_mesh_tests PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR} native/Engine third_party/rapidxml-1.13)
+    add_test(NAME rig_template_mesh_contracts COMMAND dust3d_rig_template_mesh_tests
+        "${CMAKE_CURRENT_SOURCE_DIR}/application/resources")
+    set_tests_properties(rig_template_mesh_contracts PROPERTIES TIMEOUT 30)
+
+    # C boundary contracts retain the same template-only runtime closure.
+    add_library(dust3d_rig_template_test_bridge STATIC
+        native/Engine/RigTemplateBridge.cc native/Engine/RigTemplateMesh.cc
+        native/Engine/EngineSupport.cc native/Engine/Cancellation.cc
+        dust3d/mesh/rope_mesh.cc dust3d/mesh/base_normal.cc dust3d/base/vector3.cc)
+    target_include_directories(dust3d_rig_template_test_bridge PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR} native/Engine native/Engine/include)
+    add_executable(dust3d_rig_template_bridge_tests tests/core/rig_template_bridge_tests.cc)
+    target_link_libraries(dust3d_rig_template_bridge_tests PRIVATE dust3d_rig_template_test_bridge)
+    target_include_directories(dust3d_rig_template_bridge_tests PRIVATE third_party/rapidxml-1.13)
+    add_test(NAME rig_template_bridge_contracts COMMAND dust3d_rig_template_bridge_tests "${CMAKE_CURRENT_SOURCE_DIR}/application/resources")
+    add_executable(dust3d_rig_template_c_tests tests/core/rig_template_c_tests.c)
+    target_link_libraries(dust3d_rig_template_c_tests PRIVATE dust3d_rig_template_test_bridge)
+    add_test(NAME rig_template_c_contracts COMMAND dust3d_rig_template_c_tests)
+    set_tests_properties(rig_template_bridge_contracts rig_template_c_contracts PROPERTIES TIMEOUT 30)
+    # Only the vertex-weight data-binding method runs; no rig/mesh/pose generation.
+    add_executable(dust3d_rig_rebinding_tests
+        tests/core/rig_rebinding_tests.cc dust3d/rig/rig_generator.cc
+        dust3d/base/uuid.cc dust3d/base/string.cc dust3d/base/vector3.cc
+        dust3d/base/position_key.cc dust3d/base/part_target.cc)
+    target_include_directories(dust3d_rig_rebinding_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    add_test(NAME rig_rebinding_contracts COMMAND dust3d_rig_rebinding_tests)
+    set_tests_properties(rig_rebinding_contracts PROPERTIES TIMEOUT 30)
+    # Tiny ordinary rig mirror chains only; no pose/mesh/writer or depth stress.
+    add_executable(dust3d_rig_mirror_walk_tests tests/core/rig_mirror_walk_tests.cc
+        dust3d/rig/rig_generator.cc dust3d/base/uuid.cc dust3d/base/string.cc
+        dust3d/base/vector3.cc dust3d/base/position_key.cc dust3d/base/part_target.cc)
+    target_include_directories(dust3d_rig_mirror_walk_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    add_test(NAME rig_mirror_walk_contracts COMMAND dust3d_rig_mirror_walk_tests)
+    set_tests_properties(rig_mirror_walk_contracts PROPERTIES TIMEOUT 30)
+    # Ordinary vertex binding only; no rig/pose/mesh generation or cancellation races.
+    add_executable(dust3d_rig_binding_cancellation_tests tests/core/rig_binding_cancellation_tests.cc
+        dust3d/rig/rig_generator.cc dust3d/base/uuid.cc dust3d/base/string.cc
+        dust3d/base/vector3.cc dust3d/base/position_key.cc dust3d/base/part_target.cc)
+    target_include_directories(dust3d_rig_binding_cancellation_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    add_test(NAME rig_binding_cancellation_contracts COMMAND dust3d_rig_binding_cancellation_tests)
+    set_tests_properties(rig_binding_cancellation_contracts PROPERTIES TIMEOUT 30)
 
     add_executable(dust3d_original_export_preparation_tests tests/core/original_export_preparation_tests.cc)
     target_include_directories(dust3d_original_export_preparation_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} native/Engine)
