@@ -66,6 +66,11 @@ Dust3DExperimentalFishIdle* dust3d_experimental_fish_idle_load_selected(const ui
 Dust3DExperimentalFishIdle* dust3d_experimental_fish_idle_load_selected_textured(const uint8_t* archive, size_t archive_size,
     const Dust3DGeneratedRigBoneInput* bones, size_t bone_count, const char* animation_id, size_t animation_id_length,
     uint32_t include_pcm, const Dust3DExperimentalFishIdleOptions*, const Dust3DSourceBakeOptions*, Dust3DError*);
+/* Resolve the selected clip with imported geometry and vertex colors available.
+   The atlas is omitted. The selected identity and PCM contract are unchanged. */
+Dust3DExperimentalFishIdle* dust3d_experimental_fish_idle_load_selected_vertex_colors(const uint8_t* archive, size_t archive_size,
+    const Dust3DGeneratedRigBoneInput* bones, size_t bone_count, const char* animation_id, size_t animation_id_length,
+    uint32_t include_pcm, const Dust3DExperimentalFishIdleOptions*, Dust3DError*);
 /* Resolve one exact authored clip and retain the surface catalog batch from
    that evaluation. The authored preview surface does not narrow the batch. */
 Dust3DExperimentalFishIdle* dust3d_experimental_fish_idle_load_selected_surfaces(const uint8_t* archive, size_t archive_size,

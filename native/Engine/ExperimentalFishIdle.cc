@@ -45,7 +45,8 @@ static Dust3DExperimentalFishIdle* loadFishIdle(const uint8_t* archive, size_t a
     const Dust3DExperimentalFishIdleParameter* parameters, size_t parameterCount,
     const Dust3DExperimentalFishIdleOptions* options, const Dust3DExperimentalFishIdlePCMOptions* pcmOptions,
     Dust3DError* error, std::string_view selectedId = {}, bool includeSelectedPCM = false, bool includeAllSurfaces = false,
-    const Dust3DSourceBakeOptions* bakeOptions = nullptr)
+    const Dust3DSourceBakeOptions* bakeOptions = nullptr,
+    GeneratedRigImportMode importMode = GeneratedRigImportMode::proceduralOnly)
 {
     setError(error, DUST3D_STATUS_OK, "");
     try {
@@ -112,7 +113,7 @@ static Dust3DExperimentalFishIdle* loadFishIdle(const uint8_t* archive, size_t a
             };
         }
         auto source = prepareGeneratedRigSource(
-            archive, archiveSize, rigType.data(), rigType.size(), bones, boneCount, config, bakeOptions);
+            archive, archiveSize, rigType.data(), rigType.size(), bones, boneCount, config, bakeOptions, importMode);
         auto* drawBake = source.bake.get();
         auto result = surface
             ? generateGroundedFishIdleSoundPreview(*source.input, std::move(source.metadata), source.rig,
@@ -217,6 +218,19 @@ Dust3DExperimentalFishIdle* dust3d_experimental_fish_idle_load_selected_textured
     }
     return loadFishIdle(archive, archiveSize, bones, boneCount, nullptr, 0, options, nullptr, error,
         std::string_view(animationId, animationIdLength), includePCM != 0, false, bakeOptions);
+}
+
+Dust3DExperimentalFishIdle* dust3d_experimental_fish_idle_load_selected_vertex_colors(const uint8_t* archive,
+    size_t archiveSize, const Dust3DGeneratedRigBoneInput* bones, size_t boneCount, const char* animationId,
+    size_t animationIdLength, uint32_t includePCM, const Dust3DExperimentalFishIdleOptions* options, Dust3DError* error)
+{
+    if (!animationId || !animationIdLength || animationIdLength > 1024 || includePCM > 1) {
+        setError(error, DUST3D_STATUS_INVALID_DOCUMENT, "Invalid selected vertex-color FishIdle request.");
+        return nullptr;
+    }
+    return loadFishIdle(archive, archiveSize, bones, boneCount, nullptr, 0, options, nullptr, error,
+        std::string_view(animationId, animationIdLength), includePCM != 0, false, nullptr,
+        GeneratedRigImportMode::allowImportedGeometry);
 }
 
 Dust3DExperimentalFishIdle* dust3d_experimental_fish_idle_load_selected_surfaces(const uint8_t* archive,

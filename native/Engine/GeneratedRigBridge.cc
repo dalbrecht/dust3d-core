@@ -116,7 +116,7 @@ std::unique_ptr<Dust3DGeneratedRig> dust3d::native::makeGeneratedRigDrawOwner(
 }
 PreparedGeneratedRigSource dust3d::native::prepareGeneratedRigSource(const uint8_t* bytes, size_t size,
     const char* type, size_t typeSize, const Dust3DGeneratedRigBoneInput* input, size_t count,
-    const Dust3DGeneratedRigOptions& config, const Dust3DSourceBakeOptions* bakeOptions)
+    const Dust3DGeneratedRigOptions& config, const Dust3DSourceBakeOptions* bakeOptions, GeneratedRigImportMode importMode)
 {
     if (config.version != 1 || config.struct_size != sizeof(config))
         invalid("Unsupported generated rig options version/size.");
@@ -170,7 +170,10 @@ PreparedGeneratedRigSource dust3d::native::prepareGeneratedRigSource(const uint8
         std::lock_guard<std::mutex> lock(engineMutex());
         checkCancellation(config.cancellation);
         std::string warning;
+        ImportedModels vertexColorImports;
         auto* imports = bake ? &bake->imports : nullptr;
+        if (!imports && importMode == GeneratedRigImportMode::allowImportedGeometry)
+            imports = &vertexColorImports;
         if (bake)
             bake->atlas = std::make_unique<SourceBakedData>(*bakeOptions, *imports, 1, true);
         auto snapshot = readDocument(bytes, size, warning, nullptr, imports);

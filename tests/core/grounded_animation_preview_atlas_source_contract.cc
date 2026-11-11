@@ -72,3 +72,20 @@ void checkSelectedAtlasBridge(const uint8_t* archive, size_t archiveSize,
     assert(!dust3d_experimental_fish_idle_atlas_triangles(nullptr, &count) && count == 0);
     dust3d_experimental_fish_idle_destroy(owner);
 }
+
+void checkSelectedVertexColorFallback(const uint8_t* archive, size_t archiveSize,
+    const Dust3DGeneratedRigBoneInput* bones, size_t boneCount)
+{
+    auto options = dust3d_experimental_fish_idle_default_options();
+    Dust3DError error {};
+    auto* owner = dust3d_experimental_fish_idle_load_selected_vertex_colors(
+        archive, archiveSize, bones, boneCount, "selected", 8, 1, &options, &error);
+    if (owner) {
+        Dust3DExperimentalFishIdlePCMInfo info {};
+        assert(dust3d_experimental_fish_idle_describe_pcm(owner, &info));
+        assert(info.visual.rest);
+        assert(info.sample_count > 0);
+        assert(dust3d_experimental_fish_idle_atlas_payload_bytes(owner) == 0);
+    }
+    dust3d_experimental_fish_idle_destroy(owner);
+}

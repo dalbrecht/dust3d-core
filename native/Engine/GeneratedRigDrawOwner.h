@@ -37,9 +37,11 @@ namespace dust3d::native {
         std::unique_ptr<Dust3DMesh> metadata;
         std::unique_ptr<GeneratedRigDrawBakeInput> bake;
     };
+    enum class GeneratedRigImportMode { proceduralOnly, allowImportedGeometry };
     PreparedGeneratedRigSource prepareGeneratedRigSource(const uint8_t*, size_t, const char*, size_t,
         const Dust3DGeneratedRigBoneInput*, size_t, const Dust3DGeneratedRigOptions&,
-        const Dust3DSourceBakeOptions* bakeOptions = nullptr);
+        const Dust3DSourceBakeOptions* bakeOptions = nullptr,
+        GeneratedRigImportMode imports = GeneratedRigImportMode::proceduralOnly);
 
     /// Expand the exact final grounded Object and its aligned original weights.
     /// Acquires engineMutex internally. Metadata must be the fresh rig-input generation receipt.
