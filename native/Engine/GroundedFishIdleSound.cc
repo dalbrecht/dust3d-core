@@ -134,7 +134,7 @@ namespace dust3d::native {
     GroundedFishIdleSoundPreview generateGroundedFishIdleSoundPreview(const GeneratedRigInput& input,
         std::unique_ptr<Dust3DMesh> metadata, const RigStructure& templateRig, const AnimationParams& parameters,
         SurfaceMaterial material, const RigFinalDataOptions& options, size_t maximumDrawVertices,
-        const Dust3DCancellationToken* cancellation, const std::string& clipType, const GeneratedRigDrawBakeInput* bake)
+        const Dust3DCancellationToken* cancellation, const std::string& clipType, GeneratedRigDrawBakeInput* bake)
     {
         AnimationSoundData sound;
         auto visual = generateGroundedFishIdleDrawPreview(input, std::move(metadata), templateRig, parameters,

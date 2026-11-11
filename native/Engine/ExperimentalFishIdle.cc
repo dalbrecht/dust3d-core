@@ -111,18 +111,9 @@ static Dust3DExperimentalFishIdle* loadFishIdle(const uint8_t* archive, size_t a
                 return surfaceBytes;
             };
         }
-        std::unique_ptr<Snapshot> authoredSnapshot;
-        std::optional<GeneratedRigDrawBakeInput> bake;
-        if (bakeOptions) {
-            if (config.cancellation != bakeOptions->legacy.cancellation)
-                throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "FishIdle rig and bake cancellation tokens differ.");
-            std::string warning;
-            authoredSnapshot = readDocumentMetadata(archive, archiveSize, warning);
-            checkCancellation(config.cancellation);
-            bake.emplace(GeneratedRigDrawBakeInput { *authoredSnapshot, *bakeOptions });
-        }
-        const auto* drawBake = bake ? &*bake : nullptr;
-        auto source = prepareGeneratedRigSource(archive, archiveSize, rigType.data(), rigType.size(), bones, boneCount, config);
+        auto source = prepareGeneratedRigSource(
+            archive, archiveSize, rigType.data(), rigType.size(), bones, boneCount, config, bakeOptions);
+        auto* drawBake = source.bake.get();
         auto result = surface
             ? generateGroundedFishIdleSoundPreview(*source.input, std::move(source.metadata), source.rig,
                 authored, *surface, source.options, config.maximum_draw_vertices, config.cancellation, clipType, drawBake)

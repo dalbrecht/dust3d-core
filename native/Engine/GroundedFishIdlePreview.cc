@@ -40,7 +40,7 @@ namespace dust3d::native {
         std::unique_ptr<Dust3DMesh> metadata, const RigStructure& templateRig,
         const AnimationParams& parameters, const RigFinalDataOptions& options,
         size_t maximumDrawVertices, const Dust3DCancellationToken* token, const FishIdleClipHandoff& handoff, const std::string& clipType,
-        const GeneratedRigDrawBakeInput* bake)
+        GeneratedRigDrawBakeInput* bake)
     {
         auto sharedOptions = options;
         sharedOptions.cancellation = token ? &token->cancelled : nullptr;

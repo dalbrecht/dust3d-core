@@ -35,7 +35,7 @@ void charge(size_t& total, size_t count, size_t unit, size_t maximum)
 std::unique_ptr<Dust3DGeneratedRig> dust3d::native::makeGeneratedRigDrawOwner(
     const FinalRigGeneration& final, std::unique_ptr<Dust3DMesh> metadata,
     size_t maximumDrawVertices, size_t maximumOutputBytes, const Dust3DCancellationToken* cancellation,
-    const Snapshot* generated, const GeneratedRigDrawBakeInput* bake)
+    const Snapshot* generated, GeneratedRigDrawBakeInput* bake)
 {
     if (!metadata)
         invalid("Generated rig draw preparation requires mesh metadata.");
@@ -57,26 +57,16 @@ std::unique_ptr<Dust3DGeneratedRig> dust3d::native::makeGeneratedRigDrawOwner(
     std::vector<size_t> originalIndices;
     {
         std::lock_guard<std::mutex> lock(engineMutex());
-        ImportedModels imports;
         GenerationOutputs outputs;
         outputs.previewVertexIndices = &originalIndices;
         outputs.cancellation = cancellation;
         if (bake) {
-            const auto& options = bake->options;
-            if (!generated || options.legacy.cancellation != cancellation || options.model_image_count)
-                invalid("Grounded rig source baking requires a matching procedural snapshot and cancellation token.");
-            if (!options.maximum_output_payload_bytes || !options.maximum_sampler_payload_bytes
-                || !options.maximum_atlas_payload_bytes || !options.legacy.maximum_uv_payload_bytes
-                || !options.legacy.maximum_bake_payload_bytes)
-                invalid("Grounded rig source baking requires explicit payload budgets.");
-            for (const auto bytes : { options.maximum_output_payload_bytes, options.maximum_sampler_payload_bytes,
-                     options.maximum_atlas_payload_bytes, options.legacy.maximum_uv_payload_bytes,
-                     options.legacy.maximum_bake_payload_bytes })
+            if (!generated || !bake->atlas || !bake->surfaces || bake->atlas->cancellation() != cancellation)
+                invalid("Grounded rig source baking requires matching prepared materials and cancellation token.");
+            for (const auto bytes : bake->payloadLimits)
                 charge(stagingBytes, bytes, 1, maximumOutputBytes);
-            owner->sourceBake = std::make_unique<SourceBakedData>(options, imports, 1, true);
-            owner->sourceBake->validateVisuals(bake->authored);
-            owner->sourceSurfaces = std::make_unique<ImportedSurfaceData>(
-                bake->authored, imports, owner->sourceBake->maximumOutputBytes());
+            owner->sourceBake = std::move(bake->atlas);
+            owner->sourceSurfaces = std::move(bake->surfaces);
             outputs.sourceBaked = owner->sourceBake.get();
             outputs.surfaces = owner->sourceSurfaces.get();
         }
@@ -126,7 +116,7 @@ std::unique_ptr<Dust3DGeneratedRig> dust3d::native::makeGeneratedRigDrawOwner(
 }
 PreparedGeneratedRigSource dust3d::native::prepareGeneratedRigSource(const uint8_t* bytes, size_t size,
     const char* type, size_t typeSize, const Dust3DGeneratedRigBoneInput* input, size_t count,
-    const Dust3DGeneratedRigOptions& config)
+    const Dust3DGeneratedRigOptions& config, const Dust3DSourceBakeOptions* bakeOptions)
 {
     if (config.version != 1 || config.struct_size != sizeof(config))
         invalid("Unsupported generated rig options version/size.");
@@ -161,19 +151,42 @@ PreparedGeneratedRigSource dust3d::native::prepareGeneratedRigSource(const uint8
     (void)copyFinalRigData(templ, Object {}, native);
     std::unique_ptr<GeneratedRigInput> retained;
     std::unique_ptr<Dust3DMesh> metadata;
+    std::unique_ptr<GeneratedRigDrawBakeInput> bake;
+    if (bakeOptions) {
+        if (bakeOptions->legacy.cancellation != config.cancellation)
+            invalid("Grounded rig source baking requires a shared cancellation token.");
+        bake = std::make_unique<GeneratedRigDrawBakeInput>();
+        bake->payloadLimits = { bakeOptions->maximum_output_payload_bytes, bakeOptions->maximum_sampler_payload_bytes,
+            bakeOptions->maximum_atlas_payload_bytes, bakeOptions->legacy.maximum_uv_payload_bytes,
+            bakeOptions->legacy.maximum_bake_payload_bytes };
+        size_t stagingBytes = 0;
+        for (const auto bytes : bake->payloadLimits) {
+            if (!bytes)
+                invalid("Grounded rig source baking requires explicit payload budgets.");
+            charge(stagingBytes, bytes, 1, config.maximum_output_bytes);
+        }
+    }
     {
         std::lock_guard<std::mutex> lock(engineMutex());
         checkCancellation(config.cancellation);
         std::string warning;
-        auto snapshot = readDocument(bytes, size, warning);
+        auto* imports = bake ? &bake->imports : nullptr;
+        if (bake)
+            bake->atlas = std::make_unique<SourceBakedData>(*bakeOptions, *imports, 1, true);
+        auto snapshot = readDocument(bytes, size, warning, nullptr, imports);
+        checkCancellation(config.cancellation);
+        if (bake) {
+            bake->atlas->validateVisuals(*snapshot);
+            bake->surfaces = std::make_unique<ImportedSurfaceData>(*snapshot, *imports, bake->atlas->maximumOutputBytes());
+        }
         GenerationOutputs outputs;
         outputs.purpose = GenerationPurpose::rigInputOnly;
         outputs.rigInput = &retained;
         outputs.maximumRigInputBytes = config.maximum_retained_input_bytes;
         outputs.cancellation = config.cancellation;
-        metadata = generateMesh(std::move(snapshot), warning, nullptr, nullptr, nullptr, outputs);
+        metadata = generateMesh(std::move(snapshot), warning, imports, nullptr, nullptr, outputs);
     }
-    return { std::move(templ), native, std::move(retained), std::move(metadata) };
+    return { std::move(templ), native, std::move(retained), std::move(metadata), std::move(bake) };
 }
 
 Dust3DGeneratedRigOptions dust3d_generated_rig_default_options(void)

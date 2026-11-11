@@ -7,10 +7,9 @@
 
 void checkGroundedPreviewAtlas(const dust3d::native::GeneratedRigInput& input,
     std::unique_ptr<Dust3DMesh> metadata, const dust3d::RigStructure& rig,
-    const dust3d::Snapshot& authored, const Dust3DSourceBakeOptions& options)
+    dust3d::native::GeneratedRigDrawBakeInput& bake, const Dust3DSourceBakeOptions& options)
 {
     using namespace dust3d::native;
-    const GeneratedRigDrawBakeInput bake { authored, options };
     const auto preview = generateGroundedFishIdleDrawPreview(input, std::move(metadata), rig,
         {}, {}, 15000000, options.legacy.cancellation, {}, "FishIdle", &bake);
     assert(preview.rest->sourceBake);
@@ -19,6 +18,17 @@ void checkGroundedPreviewAtlas(const dust3d::native::GeneratedRigInput& input,
     assert(preview.rest->weights.size() == cornerCount);
     assert(preview.rest->sourceBake->triangles.size() == cornerCount / 3);
     assert(preview.rest->sourceSurfaces->triangles().size() == cornerCount / 3);
+}
+
+void checkPreparedAnimationMaterials(const uint8_t* archive, size_t archiveSize,
+    const Dust3DGeneratedRigBoneInput* bones, size_t boneCount, const Dust3DSourceBakeOptions& bake)
+{
+    using namespace dust3d::native;
+    auto options = dust3d_generated_rig_default_options();
+    options.cancellation = bake.legacy.cancellation;
+    const auto prepared = prepareGeneratedRigSource(
+        archive, archiveSize, "Fish", 4, bones, boneCount, options, &bake);
+    assert(prepared.bake && prepared.bake->surfaces && prepared.bake->atlas);
 }
 
 void checkSelectedAtlasBridge(const uint8_t* archive, size_t archiveSize,
