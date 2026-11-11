@@ -144,7 +144,7 @@ int main()
         const auto cutFaceId = identity(200);
         using PreviewOwner = std::unique_ptr<Dust3DComponentPreview, decltype(&dust3d_component_preview_destroy)>;
         const PreviewOwner cutFace(dust3d_component_preview_load(reinterpret_cast<const uint8_t*>(cutFaceBytes.data()),
-            cutFaceBytes.size(), cutFaceId.data(), cutFaceId.size(), 0, nullptr, &error),
+                                       cutFaceBytes.size(), cutFaceId.data(), cutFaceId.size(), 0, nullptr, &error),
             dust3d_component_preview_destroy);
         require(cutFace && error.status == DUST3D_STATUS_OK, error.message);
         require(dust3d_component_preview_triangle_count(cutFace.get()) == 0, "The Cut Face preview must contain only its outline");

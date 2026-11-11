@@ -120,7 +120,7 @@ int main(int argc, char** argv)
             { cutFaceId, sizeof(cutFaceId) - 1 }, { bladeId, sizeof(bladeId) - 1 }
         };
         const Batch swordBatch(dust3d_component_preview_batch_load(
-                                  sword.data(), sword.size(), swordRequests, 2, 0, nullptr, &error),
+                                   sword.data(), sword.size(), swordRequests, 2, 0, nullptr, &error),
             dust3d_component_preview_batch_destroy);
         require(swordBatch && error.status == DUST3D_STATUS_OK, error.message);
         require(dust3d_component_preview_batch_count(swordBatch.get()) == 2, "The Sword batch lost a selected component");
