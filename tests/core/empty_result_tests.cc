@@ -153,6 +153,17 @@ int main()
         require(points && pointCount == 4, "The Cut Face diamond must produce four outline points");
         for (size_t index = 0; index < pointCount; ++index)
             require(std::isfinite(points[index].x) && std::isfinite(points[index].y), "Cut Face preview points must be finite");
+        const Dust3DComponentPreviewID cutFaceRequest { cutFaceId.data(), cutFaceId.size() };
+        using BatchOwner = std::unique_ptr<Dust3DComponentPreviewBatch, decltype(&dust3d_component_preview_batch_destroy)>;
+        const BatchOwner withRoot(dust3d_component_preview_batch_load_with_root(
+                                      reinterpret_cast<const uint8_t*>(cutFaceBytes.data()), cutFaceBytes.size(),
+                                      &cutFaceRequest, 1, 0, nullptr, &error),
+            dust3d_component_preview_batch_destroy);
+        require(withRoot && error.status == DUST3D_STATUS_OK, error.message);
+        require(dust3d_component_preview_batch_count(withRoot.get()) == 2, "An empty root must retain its position");
+        require(dust3d_component_preview_batch_at(withRoot.get(), 0) == nullptr, "A Cut Face alone has no root mesh preview");
+        require(dust3d_component_preview_cut_face_count(dust3d_component_preview_batch_at(withRoot.get(), 1)) == pointCount,
+            "An empty root must not hide the authored outline");
         std::cout << "Successful empty generation and ownership contracts passed\n";
         return 0;
     } catch (const std::exception& error) {

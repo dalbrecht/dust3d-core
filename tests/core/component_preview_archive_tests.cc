@@ -122,6 +122,21 @@ int main(int argc, char** argv)
             for (const auto index : triangles[triangle].indices)
                 require(index < vertexCount, "The Capsule triangle must reference an owned vertex");
 
+        const Batch withRoot(dust3d_component_preview_batch_load_with_root(
+                                 archive.data(), archive.size(), &request, 1, 0, nullptr, &error),
+            dust3d_component_preview_batch_destroy);
+        require(withRoot && error.status == DUST3D_STATUS_OK, error.message);
+        require(dust3d_component_preview_batch_count(withRoot.get()) == 2, "Root and authored previews must occupy separate slots");
+        require(dust3d_component_preview_triangle_count(dust3d_component_preview_batch_at(withRoot.get(), 0)) == triangleCount,
+            "The root must include the Capsule's visible geometry");
+        require(dust3d_component_preview_triangle_count(dust3d_component_preview_batch_at(withRoot.get(), 1)) == triangleCount,
+            "The authored preview must retain its request slot after the root");
+
+        const Batch rootOnly(dust3d_component_preview_batch_load_with_root(
+                                 archive.data(), archive.size(), nullptr, 0, 0, nullptr, &error),
+            dust3d_component_preview_batch_destroy);
+        require(rootOnly && dust3d_component_preview_batch_count(rootOnly.get()) == 1, "A root-only request must need no authored ID");
+
         const Dust3DComponentPreviewID duplicate[] { request, request };
         const Batch rejected(dust3d_component_preview_batch_load(archive.data(), archive.size(), duplicate, 2, 0, nullptr, &error),
             dust3d_component_preview_batch_destroy);

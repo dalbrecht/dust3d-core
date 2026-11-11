@@ -612,6 +612,15 @@ typedef struct Dust3DComponentPreviewID {
 Dust3DComponentPreviewBatch* dust3d_component_preview_batch_load(const uint8_t* bytes, size_t size,
     const Dust3DComponentPreviewID* ids, size_t count, size_t maximum_output_bytes,
     const Dust3DCancellationToken* cancellation, Dust3DError* error);
+/**
+ * Return the document root in slot zero, followed by up to 255 authored IDs.
+ * The root is generated with the same snapshot and shares the batch quota.
+ * An empty root retains its slot as NULL. For a root-only batch, pass NULL and
+ * zero for ids and count. Other input and ownership rules match the authored batch API.
+ */
+Dust3DComponentPreviewBatch* dust3d_component_preview_batch_load_with_root(const uint8_t* bytes, size_t size,
+    const Dust3DComponentPreviewID* ids, size_t count, size_t maximum_output_bytes,
+    const Dust3DCancellationToken* cancellation, Dust3DError* error);
 /** Release the batch and all of its previews. NULL is accepted. */
 void dust3d_component_preview_batch_destroy(Dust3DComponentPreviewBatch* batch);
 /** Return the number of slots, or zero for NULL. */
