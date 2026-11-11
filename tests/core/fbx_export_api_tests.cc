@@ -91,6 +91,12 @@ int main(int argc, char** argv)
         require(std::equal(copied.begin(), copied.end(), dust3d_fbx_export_bytes(geometry.get())), "Second export invalidated earlier owner");
         geometry.reset();
         require(copied.size() == count && dust3d_fbx_export_byte_count(baked.get()) > count, "Independent copied/second owner lifetimes lost");
+        std::ifstream crossingFile(std::string(argv[1]) + "/RoundedCrossing.ds3", std::ios::binary);
+        require(bool(crossingFile), "RoundedCrossing fixture missing");
+        const std::vector<uint8_t> crossingBytes { std::istreambuf_iterator<char>(crossingFile), std::istreambuf_iterator<char>() };
+        Owner crossing(dust3d_fbx_export_load(crossingBytes.data(), crossingBytes.size(), &settings, &error), dust3d_fbx_export_destroy);
+        require(crossing && error.status == DUST3D_STATUS_OK && dust3d_fbx_export_byte_count(crossing.get()) > 100,
+            "Baked FBX must retain packed UV coverage for RoundedCrossing Boolean faces");
         settings = options();
         const uint8_t invalid[] { 1, 2, 3 };
         Owner malformed(dust3d_fbx_export_load(invalid, sizeof(invalid), &settings, &error), dust3d_fbx_export_destroy);
