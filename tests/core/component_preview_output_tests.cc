@@ -70,6 +70,27 @@ int main()
     REQUIRE(points[0].color[1] == 0.5 && points[1].roughness == 0.75f);
     REQUIRE(triangles[0].indices[2] == 2 && triangles[0].has_uv && triangles[0].uv[2][1] == 1);
     REQUIRE(std::string(dust3d_component_preview_color_image_id(output.get())) == "texture");
+
+    generated.triangleCornerUvs = { std::nullopt };
+    generated.vertexProperties = {
+        { Color(1, 0, 0), 0.0f, 1.0f },
+        { Color(0, 1, 0), 0.5f, 0.5f },
+        { Color(0, 0, 1), 1.0f, 0.0f }
+    };
+    auto withMissingUv = copyComponentPreview(generated, {}, "image unavailable", 4096);
+    REQUIRE(!dust3d_component_preview_triangles(withMissingUv.get())[0].has_uv);
+    const auto* vertexMaterials = dust3d_component_preview_vertices(withMissingUv.get());
+    REQUIRE(vertexMaterials[1].color[1] == 1 && vertexMaterials[1].metalness == 0.5f);
+    REQUIRE(std::string(dust3d_component_preview_warning(withMissingUv.get())) == "image unavailable");
+
+    generated.triangleCornerUvs.clear();
+    auto withLegacyUv = copyComponentPreview(generated, {}, {}, 4096);
+    const auto* legacyFace = dust3d_component_preview_triangles(withLegacyUv.get());
+    REQUIRE(legacyFace[0].has_uv && legacyFace[0].uv[2][1] == 9);
+    generated.vertexProperties.pop_back();
+    expectStatus(DUST3D_STATUS_GENERATION_FAILED, [&] { copyComponentPreview(generated, {}, {}, 4096); });
+    generated.vertexProperties.clear();
+
     generated.vertices[0] = Vector3(99, 99, 99);
     REQUIRE(points[0].position[0] == 1);
 
