@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Expose bounded generated geometry or Cut Face outlines for one authored component preview.
+- Expose bounded generated previews for the document root and authored components in one batch.
 
 - Preflight interpolation node/edge identities before mutation, preserving original records and collision-free deterministic chains for shared-prefix UUIDs (#315).
 

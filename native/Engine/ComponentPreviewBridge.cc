@@ -10,11 +10,12 @@ using namespace dust3d::native;
 
 template <typename Result, typename Copy>
 Result* loadComponentPreviews(const uint8_t* bytes, size_t size, const Dust3DComponentPreviewID* ids,
-    size_t count, size_t maximumBytes, const Dust3DCancellationToken* cancellation, Dust3DError* error, Copy copy)
+    size_t count, bool includeRoot, size_t maximumBytes, const Dust3DCancellationToken* cancellation, Dust3DError* error, Copy copy)
 {
     setError(error, DUST3D_STATUS_OK, "");
     try {
-        if (!ids || count == 0 || count > 256)
+        const size_t rootSlots = includeRoot ? 1 : 0;
+        if (count > 256 - rootSlots || (count != 0 && !ids) || (count == 0 && !includeRoot))
             throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Request between 1 and 256 component previews.");
         const auto limit = componentPreviewOutputLimit(maximumBytes);
         checkCancellation(cancellation);
@@ -26,7 +27,9 @@ Result* loadComponentPreviews(const uint8_t* bytes, size_t size, const Dust3DCom
         auto snapshot = readDocument(bytes, size, warning, nullptr, &imports, true);
         validateComponentPreviewHierarchy(*snapshot);
         std::vector<ComponentPreviewRequest> requests;
-        requests.reserve(count);
+        requests.reserve(count + rootSlots);
+        if (includeRoot)
+            requests.push_back({ Uuid {}, {} });
         std::set<Uuid> requestedIds;
         for (size_t index = 0; index < count; ++index) {
             checkCancellation(cancellation);
@@ -75,7 +78,7 @@ Dust3DComponentPreview* dust3d_component_preview_load(const uint8_t* bytes, size
     const Dust3DCancellationToken* cancellation, Dust3DError* error)
 {
     const Dust3DComponentPreviewID id { component_id, component_id_length };
-    return loadComponentPreviews<Dust3DComponentPreview>(bytes, size, &id, 1, maximum_output_bytes, cancellation, error,
+    return loadComponentPreviews<Dust3DComponentPreview>(bytes, size, &id, 1, false, maximum_output_bytes, cancellation, error,
         [](const auto& previews, const auto& requests, const auto& warning, auto limit, auto* token) {
             const auto& request = requests.front();
             const auto preview = previews.find(request.id);
@@ -90,5 +93,13 @@ Dust3DComponentPreviewBatch* dust3d_component_preview_batch_load(const uint8_t* 
     const Dust3DCancellationToken* cancellation, Dust3DError* error)
 {
     return loadComponentPreviews<Dust3DComponentPreviewBatch>(
-        bytes, size, ids, count, maximum_output_bytes, cancellation, error, copyComponentPreviewBatch);
+        bytes, size, ids, count, false, maximum_output_bytes, cancellation, error, copyComponentPreviewBatch);
+}
+
+Dust3DComponentPreviewBatch* dust3d_component_preview_batch_load_with_root(const uint8_t* bytes, size_t size,
+    const Dust3DComponentPreviewID* ids, size_t count, size_t maximum_output_bytes,
+    const Dust3DCancellationToken* cancellation, Dust3DError* error)
+{
+    return loadComponentPreviews<Dust3DComponentPreviewBatch>(
+        bytes, size, ids, count, true, maximum_output_bytes, cancellation, error, copyComponentPreviewBatch);
 }
