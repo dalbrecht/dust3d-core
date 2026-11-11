@@ -76,6 +76,8 @@ Dust3DExperimentalFishIdle* dust3d_experimental_fish_idle_load_selected_surfaces
    Missing or invalid maps return a zeroed view. */
 const Dust3DSourceBakedTriangle* dust3d_experimental_fish_idle_atlas_triangles(const Dust3DExperimentalFishIdle*, size_t* count);
 Dust3DTextureView dust3d_experimental_fish_idle_atlas_texture(const Dust3DExperimentalFishIdle*, uint32_t map);
+/* Logical atlas payload already included in the generated rig output bytes. */
+size_t dust3d_experimental_fish_idle_atlas_payload_bytes(const Dust3DExperimentalFishIdle*);
 /* Catalog indices match the baked triangle records. Identifiers are borrowed
    NUL-terminated strings. Invalid indices return NULL and clear optional kind. */
 size_t dust3d_experimental_fish_idle_atlas_model_count(const Dust3DExperimentalFishIdle*);

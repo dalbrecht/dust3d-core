@@ -52,6 +52,8 @@ void checkSelectedAtlasBridge(const uint8_t* archive, size_t archiveSize,
             }
         }
         assert(!dust3d_experimental_fish_idle_atlas_component_id(owner, componentCount, nullptr));
+        const auto payload = dust3d_experimental_fish_idle_atlas_payload_bytes(owner);
+        assert(payload > 0 && payload <= dust3d_generated_rig_output_bytes(info.rest));
         const auto color = dust3d_experimental_fish_idle_atlas_texture(owner, DUST3D_TEXTURE_COLOR);
         assert(color.pixels && color.width > 0);
         assert(!dust3d_experimental_fish_idle_atlas_texture(owner, UINT32_MAX).pixels);

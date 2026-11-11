@@ -260,6 +260,13 @@ Dust3DTextureView dust3d_experimental_fish_idle_atlas_texture(const Dust3DExperi
     return owner->preview.rest->sourceBake->texture(map);
 }
 
+size_t dust3d_experimental_fish_idle_atlas_payload_bytes(const Dust3DExperimentalFishIdle* owner)
+{
+    if (!owner || !owner->preview.rest->sourceBake)
+        return 0;
+    return owner->preview.rest->sourceBake->payloadBytes;
+}
+
 static const ImportedSurfaceData* atlasCatalog(const Dust3DExperimentalFishIdle* owner)
 {
     return owner ? owner->preview.rest->sourceSurfaces.get() : nullptr;
