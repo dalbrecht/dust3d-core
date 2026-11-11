@@ -4,6 +4,7 @@
 
 #include "EngineInternal.h"
 #include "FinalRigGeneration.h"
+#include "SourceBakedMesh.h"
 #include <dust3d/rig/rig_generator.h>
 
 struct Dust3DGeneratedRig {
@@ -11,6 +12,8 @@ struct Dust3DGeneratedRig {
     std::vector<Dust3DGeneratedRigJoint> joints;
     std::vector<std::string> names;
     std::vector<Dust3DGeneratedRigWeights> weights;
+    std::unique_ptr<dust3d::native::ImportedSurfaceData> sourceSurfaces;
+    std::unique_ptr<dust3d::native::SourceBakedData> sourceBake;
     size_t outputBytes = 0;
     bool eyelidsGenerated = false;
 };
@@ -26,10 +29,16 @@ namespace dust3d::native {
     PreparedGeneratedRigSource prepareGeneratedRigSource(const uint8_t*, size_t, const char*, size_t,
         const Dust3DGeneratedRigBoneInput*, size_t, const Dust3DGeneratedRigOptions&);
 
+    struct GeneratedRigDrawBakeInput {
+        const Snapshot& authored;
+        const Dust3DSourceBakeOptions& options;
+    };
+
     /// Expand the exact final grounded Object and its aligned original weights.
     /// Acquires engineMutex internally. Metadata must be the fresh rig-input generation receipt.
     std::unique_ptr<Dust3DGeneratedRig> makeGeneratedRigDrawOwner(const FinalRigGeneration&,
         std::unique_ptr<Dust3DMesh> metadata, size_t maximumDrawVertices, size_t maximumOutputBytes,
-        const Dust3DCancellationToken*);
+        const Dust3DCancellationToken*, const Snapshot* generated = nullptr,
+        const GeneratedRigDrawBakeInput* bake = nullptr);
 }
 #endif

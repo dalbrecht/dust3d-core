@@ -39,7 +39,8 @@ namespace dust3d::native {
     GroundedFishIdleDrawPreview generateGroundedFishIdleDrawPreview(const GeneratedRigInput& input,
         std::unique_ptr<Dust3DMesh> metadata, const RigStructure& templateRig,
         const AnimationParams& parameters, const RigFinalDataOptions& options,
-        size_t maximumDrawVertices, const Dust3DCancellationToken* token, const FishIdleClipHandoff& handoff, const std::string& clipType)
+        size_t maximumDrawVertices, const Dust3DCancellationToken* token, const FishIdleClipHandoff& handoff, const std::string& clipType,
+        const GeneratedRigDrawBakeInput* bake)
     {
         auto sharedOptions = options;
         sharedOptions.cancellation = token ? &token->cancelled : nullptr;
@@ -56,7 +57,7 @@ namespace dust3d::native {
         if (preview.derivedPayloadBytes > remaining)
             throw DocumentError(DUST3D_STATUS_LIMIT_EXCEEDED, "Grounded FishIdle derived output exceeds its aggregate quota.");
         auto rest = makeGeneratedRigDrawOwner(preview.rest, std::move(metadata), maximumDrawVertices,
-            remaining - preview.derivedPayloadBytes, token);
+            remaining - preview.derivedPayloadBytes, token, bake ? &input.snapshot() : nullptr, bake);
         checkCancellation(token);
         return { std::move(rest), std::move(preview.clip) };
     }

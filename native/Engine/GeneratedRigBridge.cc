@@ -2,6 +2,7 @@
 #include "Cancellation.h"
 #include "GeneratedRigDrawOwner.h"
 #include "GenerationPipeline.h"
+#include "ImportedModels.h"
 #include "WorkerUtf8.h"
 #include <algorithm>
 #include <dust3d/rig/rig_generator.h>
@@ -33,7 +34,8 @@ void charge(size_t& total, size_t count, size_t unit, size_t maximum)
 }
 std::unique_ptr<Dust3DGeneratedRig> dust3d::native::makeGeneratedRigDrawOwner(
     const FinalRigGeneration& final, std::unique_ptr<Dust3DMesh> metadata,
-    size_t maximumDrawVertices, size_t maximumOutputBytes, const Dust3DCancellationToken* cancellation)
+    size_t maximumDrawVertices, size_t maximumOutputBytes, const Dust3DCancellationToken* cancellation,
+    const Snapshot* generated, const GeneratedRigDrawBakeInput* bake)
 {
     if (!metadata)
         invalid("Generated rig draw preparation requires mesh metadata.");
@@ -55,13 +57,37 @@ std::unique_ptr<Dust3DGeneratedRig> dust3d::native::makeGeneratedRigDrawOwner(
     std::vector<size_t> originalIndices;
     {
         std::lock_guard<std::mutex> lock(engineMutex());
+        ImportedModels imports;
         GenerationOutputs outputs;
         outputs.previewVertexIndices = &originalIndices;
         outputs.cancellation = cancellation;
-        prepareGeneratedObject(*final.object, nullptr, *owner->mesh, outputs);
+        if (bake) {
+            const auto& options = bake->options;
+            if (!generated || options.legacy.cancellation != cancellation || options.model_image_count)
+                invalid("Grounded rig source baking requires a matching procedural snapshot and cancellation token.");
+            if (!options.maximum_output_payload_bytes || !options.maximum_sampler_payload_bytes
+                || !options.maximum_atlas_payload_bytes || !options.legacy.maximum_uv_payload_bytes
+                || !options.legacy.maximum_bake_payload_bytes)
+                invalid("Grounded rig source baking requires explicit payload budgets.");
+            for (const auto bytes : { options.maximum_output_payload_bytes, options.maximum_sampler_payload_bytes,
+                     options.maximum_atlas_payload_bytes, options.legacy.maximum_uv_payload_bytes,
+                     options.legacy.maximum_bake_payload_bytes })
+                charge(stagingBytes, bytes, 1, maximumOutputBytes);
+            owner->sourceBake = std::make_unique<SourceBakedData>(options, imports);
+            owner->sourceBake->validateVisuals(bake->authored);
+            owner->sourceSurfaces = std::make_unique<ImportedSurfaceData>(
+                bake->authored, imports, owner->sourceBake->maximumOutputBytes());
+            outputs.sourceBaked = owner->sourceBake.get();
+            outputs.surfaces = owner->sourceSurfaces.get();
+        }
+        prepareGeneratedObject(*final.object, generated, *owner->mesh, outputs);
     }
     if (originalIndices.size() != owner->mesh->vertices.size())
         invalid("Generated rig draw mapping count differs.");
+    if (owner->sourceBake
+        && (owner->sourceBake->triangles.size() != originalIndices.size() / 3
+            || owner->sourceSurfaces->triangles().size() != originalIndices.size() / 3))
+        invalid("Grounded rig source bake does not match the retained draw triangles.");
     owner->weights.reserve(originalIndices.size());
     for (size_t i = 0; i < originalIndices.size(); ++i) {
         if (i % 256 == 0)
@@ -93,6 +119,8 @@ std::unique_ptr<Dust3DGeneratedRig> dust3d::native::makeGeneratedRigDrawOwner(
     owner->outputBytes = baseBytes;
     charge(owner->outputBytes, owner->mesh->vertices.capacity(), sizeof(Dust3DVertex), maximumOutputBytes);
     charge(owner->outputBytes, owner->weights.size(), sizeof(Dust3DGeneratedRigWeights), maximumOutputBytes);
+    if (owner->sourceBake)
+        charge(owner->outputBytes, owner->sourceBake->payloadBytes, 1, maximumOutputBytes);
     checkCancellation(cancellation);
     return owner;
 }
