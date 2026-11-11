@@ -260,6 +260,43 @@ Dust3DTextureView dust3d_experimental_fish_idle_atlas_texture(const Dust3DExperi
     return owner->preview.rest->sourceBake->texture(map);
 }
 
+static const ImportedSurfaceData* atlasCatalog(const Dust3DExperimentalFishIdle* owner)
+{
+    return owner ? owner->preview.rest->sourceSurfaces.get() : nullptr;
+}
+
+size_t dust3d_experimental_fish_idle_atlas_model_count(const Dust3DExperimentalFishIdle* owner)
+{
+    const auto* catalog = atlasCatalog(owner);
+    return catalog ? catalog->models().size() : 0;
+}
+
+size_t dust3d_experimental_fish_idle_atlas_component_count(const Dust3DExperimentalFishIdle* owner)
+{
+    const auto* catalog = atlasCatalog(owner);
+    return catalog ? catalog->components().size() : 0;
+}
+
+const char* dust3d_experimental_fish_idle_atlas_model_id(const Dust3DExperimentalFishIdle* owner, size_t index)
+{
+    const auto* catalog = atlasCatalog(owner);
+    return catalog && index < catalog->models().size() ? catalog->models()[index].c_str() : nullptr;
+}
+
+const char* dust3d_experimental_fish_idle_atlas_component_id(const Dust3DExperimentalFishIdle* owner, size_t index,
+    Dust3DSurfaceComponentKind* kind)
+{
+    if (kind)
+        *kind = DUST3D_SURFACE_COMPONENT_UNKNOWN;
+    const auto* catalog = atlasCatalog(owner);
+    if (!catalog || index >= catalog->components().size())
+        return nullptr;
+    const auto& component = catalog->components()[index];
+    if (kind)
+        *kind = component.kind;
+    return component.identity.c_str();
+}
+
 const char* dust3d_experimental_fish_idle_selected_id(const Dust3DExperimentalFishIdle* owner, size_t* length)
 {
     if (!length)

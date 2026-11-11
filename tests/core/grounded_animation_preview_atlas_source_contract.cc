@@ -35,6 +35,23 @@ void checkSelectedAtlasBridge(const uint8_t* archive, size_t archiveSize,
         size_t triangleCount = 0;
         assert(dust3d_experimental_fish_idle_atlas_triangles(owner, &triangleCount));
         assert(triangleCount == dust3d_mesh_vertex_count(dust3d_generated_rig_mesh(info.rest)) / 3);
+        const auto modelCount = dust3d_experimental_fish_idle_atlas_model_count(owner);
+        const auto componentCount = dust3d_experimental_fish_idle_atlas_component_count(owner);
+        const auto* triangles = dust3d_experimental_fish_idle_atlas_triangles(owner, &triangleCount);
+        for (size_t index = 0; index < triangleCount; ++index) {
+            const auto& triangle = triangles[index];
+            if (triangle.model_index != SIZE_MAX) {
+                assert(triangle.model_index < modelCount);
+                assert(dust3d_experimental_fish_idle_atlas_model_id(owner, triangle.model_index));
+            }
+            if (triangle.component_index != SIZE_MAX) {
+                assert(triangle.component_index < componentCount);
+                Dust3DSurfaceComponentKind kind = DUST3D_SURFACE_COMPONENT_UNKNOWN;
+                assert(dust3d_experimental_fish_idle_atlas_component_id(owner, triangle.component_index, &kind));
+                assert(kind != DUST3D_SURFACE_COMPONENT_UNKNOWN);
+            }
+        }
+        assert(!dust3d_experimental_fish_idle_atlas_component_id(owner, componentCount, nullptr));
         const auto color = dust3d_experimental_fish_idle_atlas_texture(owner, DUST3D_TEXTURE_COLOR);
         assert(color.pixels && color.width > 0);
         assert(!dust3d_experimental_fish_idle_atlas_texture(owner, UINT32_MAX).pixels);

@@ -76,6 +76,13 @@ Dust3DExperimentalFishIdle* dust3d_experimental_fish_idle_load_selected_surfaces
    Missing or invalid maps return a zeroed view. */
 const Dust3DSourceBakedTriangle* dust3d_experimental_fish_idle_atlas_triangles(const Dust3DExperimentalFishIdle*, size_t* count);
 Dust3DTextureView dust3d_experimental_fish_idle_atlas_texture(const Dust3DExperimentalFishIdle*, uint32_t map);
+/* Catalog indices match the baked triangle records. Identifiers are borrowed
+   NUL-terminated strings. Invalid indices return NULL and clear optional kind. */
+size_t dust3d_experimental_fish_idle_atlas_model_count(const Dust3DExperimentalFishIdle*);
+size_t dust3d_experimental_fish_idle_atlas_component_count(const Dust3DExperimentalFishIdle*);
+const char* dust3d_experimental_fish_idle_atlas_model_id(const Dust3DExperimentalFishIdle*, size_t index);
+const char* dust3d_experimental_fish_idle_atlas_component_id(const Dust3DExperimentalFishIdle*, size_t index,
+    Dust3DSurfaceComponentKind* kind);
 /* The borrowed selected ID expires with the owner. NULL for legacy loads. */
 const char* dust3d_experimental_fish_idle_selected_id(const Dust3DExperimentalFishIdle*, size_t* length);
 /* NULL-safe. Invalidates the rest and every borrowed view. */
