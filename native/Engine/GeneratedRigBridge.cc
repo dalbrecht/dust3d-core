@@ -73,7 +73,7 @@ std::unique_ptr<Dust3DGeneratedRig> dust3d::native::makeGeneratedRigDrawOwner(
                      options.maximum_atlas_payload_bytes, options.legacy.maximum_uv_payload_bytes,
                      options.legacy.maximum_bake_payload_bytes })
                 charge(stagingBytes, bytes, 1, maximumOutputBytes);
-            owner->sourceBake = std::make_unique<SourceBakedData>(options, imports);
+            owner->sourceBake = std::make_unique<SourceBakedData>(options, imports, 1, true);
             owner->sourceBake->validateVisuals(bake->authored);
             owner->sourceSurfaces = std::make_unique<ImportedSurfaceData>(
                 bake->authored, imports, owner->sourceBake->maximumOutputBytes());

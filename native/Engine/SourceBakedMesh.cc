@@ -154,10 +154,11 @@ namespace native {
             return { image.width, image.height, image.width * 4, image.pixels.size(), image.pixels.data() };
         }
     }
-    SourceBakedData::SourceBakedData(const Dust3DSourceBakeOptions& options, ImportedModels& imports, size_t maximumMipLevels)
+    SourceBakedData::SourceBakedData(const Dust3DSourceBakeOptions& options, ImportedModels& imports, size_t maximumMipLevels, bool preserveVertexColors)
         : m_options(options)
         , m_maximumOutputBytes(quota(options.maximum_output_payload_bytes, maximumBytes))
         , m_maximumMipLevels(maximumMipLevels)
+        , m_preserveVertexColors(preserveVertexColors)
         , m_imports(&imports)
     {
         if (maximumMipLevels < 1 || maximumMipLevels > 14)
@@ -415,7 +416,8 @@ namespace native {
             for (size_t axis = 0; axis < 3; ++axis)
                 triangle.tangent.direction[axis] = static_cast<float>(tangents[index].direction[axis]);
             triangles.push_back(triangle);
-            if (triangle.uv_known)
+            // Animation also uses the same corners for untextured display and weight colors.
+            if (triangle.uv_known && !m_preserveVertexColors)
                 for (size_t corner = 0; corner < 3; ++corner)
                     for (size_t channel = 0; channel < 4; ++channel)
                         geometry.vertices[index * 3 + corner].color[channel] = 1;
