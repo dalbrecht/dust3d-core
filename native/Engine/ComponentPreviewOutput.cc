@@ -7,32 +7,32 @@
 #include <set>
 
 namespace dust3d::native {
-namespace {
-    void validateComponentPreviewHierarchy(const Snapshot& snapshot)
-    {
-        using Attributes = std::map<std::string, std::string>;
-        std::vector<std::pair<const Attributes*, size_t>> pending { { &snapshot.rootComponent, 0 } };
-        std::set<std::string> seen;
-        std::set<Uuid> generatedIds;
-        while (!pending.empty()) {
-            const auto [parent, depth] = pending.back();
-            pending.pop_back();
-            for (const auto& child : String::split(String::valueOrEmpty(*parent, "children"), ',')) {
-                const auto found = snapshot.components.find(child);
-                if (found == snapshot.components.end() || !seen.insert(child).second)
-                    throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "The component hierarchy contains missing or repeated children.");
-                const Uuid generatedId(child);
-                if (!generatedId.isNull() && !generatedIds.insert(generatedId).second)
-                    throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "The component hierarchy contains ambiguous generated identities.");
-                if (depth == 128)
-                    throw DocumentError(DUST3D_STATUS_LIMIT_EXCEEDED, "The component hierarchy exceeds the preview nesting limit.");
-                pending.emplace_back(&found->second, depth + 1);
-            }
+void validateComponentPreviewHierarchy(const Snapshot& snapshot)
+{
+    using Attributes = std::map<std::string, std::string>;
+    std::vector<std::pair<const Attributes*, size_t>> pending { { &snapshot.rootComponent, 0 } };
+    std::set<std::string> seen;
+    std::set<Uuid> generatedIds;
+    while (!pending.empty()) {
+        const auto [parent, depth] = pending.back();
+        pending.pop_back();
+        for (const auto& child : String::split(String::valueOrEmpty(*parent, "children"), ',')) {
+            const auto found = snapshot.components.find(child);
+            if (found == snapshot.components.end() || !seen.insert(child).second)
+                throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "The component hierarchy contains missing or repeated children.");
+            const Uuid generatedId(child);
+            if (!generatedId.isNull() && !generatedIds.insert(generatedId).second)
+                throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "The component hierarchy contains ambiguous generated identities.");
+            if (depth == 128)
+                throw DocumentError(DUST3D_STATUS_LIMIT_EXCEEDED, "The component hierarchy exceeds the preview nesting limit.");
+            pending.emplace_back(&found->second, depth + 1);
         }
-        if (seen.size() != snapshot.components.size())
-            throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "The component hierarchy contains unreachable components.");
     }
+    if (seen.size() != snapshot.components.size())
+        throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "The component hierarchy contains unreachable components.");
+}
 
+namespace {
     void requireFinite(double value)
     {
         if (!std::isfinite(value))
@@ -46,7 +46,6 @@ Uuid resolveComponentPreviewId(const Snapshot& snapshot, std::string_view author
     const Uuid id(key);
     if (id.isNull() || snapshot.components.find(key) == snapshot.components.end())
         throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "The exact component identity is unavailable.");
-    validateComponentPreviewHierarchy(snapshot);
     return id;
 }
 
@@ -161,6 +160,44 @@ std::unique_ptr<Dust3DComponentPreview> copyComponentPreview(const MeshGenerator
     checkCancellation(cancellation);
     return result;
 }
+
+std::unique_ptr<Dust3DComponentPreviewBatch> copyComponentPreviewBatch(
+    const std::map<Uuid, MeshGenerator::ComponentPreview>& source,
+    const std::vector<ComponentPreviewRequest>& requests, std::string_view warning, size_t maximumBytes,
+    const Dust3DCancellationToken* cancellation)
+{
+    const auto limit = componentPreviewOutputLimit(maximumBytes);
+    RetainedPayloadBudget budget(limit);
+    budget.tryAdd(sizeof(Dust3DComponentPreviewBatch));
+    budget.tryAdd(requests.size(), sizeof(std::unique_ptr<Dust3DComponentPreview>));
+    if (budget.isExceeded())
+        throw DocumentError(DUST3D_STATUS_LIMIT_EXCEEDED, "The component preview batch exceeds its output quota.");
+    auto result = std::make_unique<Dust3DComponentPreviewBatch>();
+    result->previews.reserve(requests.size());
+    for (const auto& request : requests) {
+        checkCancellation(cancellation);
+        const auto preview = source.find(request.id);
+        if (preview == source.end() || (preview->second.triangles.empty() && preview->second.cutFaceTemplate.empty())) {
+            result->previews.push_back(nullptr);
+            continue;
+        }
+        const auto remaining = limit - budget.usedBytes();
+        if (remaining == 0)
+            throw DocumentError(DUST3D_STATUS_LIMIT_EXCEEDED, "The component preview batch exceeds its output quota.");
+        auto owned = copyComponentPreview(preview->second, request.colorImageId, warning, remaining, cancellation);
+        budget.tryAdd(owned->retainedPayloadBytes);
+        result->previews.push_back(std::move(owned));
+    }
+    checkCancellation(cancellation);
+    return result;
+}
+}
+
+void dust3d_component_preview_batch_destroy(Dust3DComponentPreviewBatch* batch) { delete batch; }
+size_t dust3d_component_preview_batch_count(const Dust3DComponentPreviewBatch* batch) { return batch ? batch->previews.size() : 0; }
+const Dust3DComponentPreview* dust3d_component_preview_batch_at(const Dust3DComponentPreviewBatch* batch, size_t index)
+{
+    return batch && index < batch->previews.size() ? batch->previews[index].get() : nullptr;
 }
 
 void dust3d_component_preview_destroy(Dust3DComponentPreview* preview) { delete preview; }

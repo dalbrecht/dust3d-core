@@ -583,7 +583,7 @@ typedef struct Dust3DComponentPreviewPoint {
  * Generate one authored component's preview. component_id is the exact, NUL-free
  * archive identity with explicit byte length. A result owns raw generator-space
  * mesh data or a Cut Face outline. The combined scene may have no triangles.
- * Archives containing imported GLB assets return DUST3D_STATUS_UNSUPPORTED_ASSET.
+ * Referenced imported GLB geometry uses the ordinary native import path.
  *
  * maximum_output_bytes limits the retained result's logical bytes, including
  * metadata. Zero selects 16 MiB, and requests above 64 MiB fail. The optional
@@ -594,6 +594,30 @@ typedef struct Dust3DComponentPreviewPoint {
 Dust3DComponentPreview* dust3d_component_preview_load(const uint8_t* bytes, size_t size,
     const char* component_id, size_t component_id_length, size_t maximum_output_bytes,
     const Dust3DCancellationToken* cancellation, Dust3DError* error);
+
+typedef struct Dust3DComponentPreviewBatch Dust3DComponentPreviewBatch;
+typedef struct Dust3DComponentPreviewID {
+    const char* bytes;
+    size_t length;
+} Dust3DComponentPreviewID;
+
+/**
+ * Generate a document once and return up to 256 requested component previews
+ * in input order under one shared logical quota (zero selects 16 MiB).
+ * IDs and archive bytes are borrowed for the call. Invalid or duplicate IDs,
+ * cancellation and quota failures reject the whole batch with a typed error.
+ * A valid component with no generated preview retains its slot as NULL.
+ * For example, request the visible sidebar rows and inspect slots by index.
+ */
+Dust3DComponentPreviewBatch* dust3d_component_preview_batch_load(const uint8_t* bytes, size_t size,
+    const Dust3DComponentPreviewID* ids, size_t count, size_t maximum_output_bytes,
+    const Dust3DCancellationToken* cancellation, Dust3DError* error);
+/** Release the batch and all of its previews. NULL is accepted. */
+void dust3d_component_preview_batch_destroy(Dust3DComponentPreviewBatch* batch);
+/** Return the number of slots, or zero for NULL. */
+size_t dust3d_component_preview_batch_count(const Dust3DComponentPreviewBatch* batch);
+/** Borrow a preview until batch destruction. Empty and out-of-range slots return NULL. */
+const Dust3DComponentPreview* dust3d_component_preview_batch_at(const Dust3DComponentPreviewBatch* batch, size_t index);
 
 /** Release the result and invalidate its borrowed arrays and metadata. */
 void dust3d_component_preview_destroy(Dust3DComponentPreview* preview);

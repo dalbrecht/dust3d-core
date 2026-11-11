@@ -36,10 +36,10 @@ int main()
     REQUIRE(resolveComponentPreviewId(snapshot, authored) == Uuid(authored));
     expectStatus(DUST3D_STATUS_INVALID_DOCUMENT, [&] { resolveComponentPreviewId(snapshot, alias); });
     snapshot.components[authored]["children"] = authored;
-    expectStatus(DUST3D_STATUS_INVALID_DOCUMENT, [&] { resolveComponentPreviewId(snapshot, authored); });
+    expectStatus(DUST3D_STATUS_INVALID_DOCUMENT, [&] { validateComponentPreviewHierarchy(snapshot); });
     snapshot.components[authored].clear();
     snapshot.components[alias] = {};
-    expectStatus(DUST3D_STATUS_INVALID_DOCUMENT, [&] { resolveComponentPreviewId(snapshot, authored); });
+    expectStatus(DUST3D_STATUS_INVALID_DOCUMENT, [&] { validateComponentPreviewHierarchy(snapshot); });
     snapshot.components.erase(authored);
     snapshot.rootComponent["children"] = alias;
     REQUIRE(resolveComponentPreviewId(snapshot, alias) == Uuid(alias));
@@ -48,7 +48,7 @@ int main()
     snapshot.components[alias]["children"] = child + "," + childAlias;
     snapshot.components[child] = {};
     snapshot.components[childAlias] = {};
-    expectStatus(DUST3D_STATUS_INVALID_DOCUMENT, [&] { resolveComponentPreviewId(snapshot, alias); });
+    expectStatus(DUST3D_STATUS_INVALID_DOCUMENT, [&] { validateComponentPreviewHierarchy(snapshot); });
 
     MeshGenerator::ComponentPreview generated;
     generated.vertices = { Vector3(1, 2, 3), Vector3(4, 2, 3), Vector3(1, 5, 3) };
@@ -75,6 +75,17 @@ int main()
     REQUIRE(dust3d_component_preview_retained_payload_bytes(nullptr) == 0);
     REQUIRE(dust3d_component_preview_retained_payload_bytes(copyComponentPreview(generated, "texture", "", retainedBytes).get()) == retainedBytes);
     expectStatus(DUST3D_STATUS_LIMIT_EXCEEDED, [&] { copyComponentPreview(generated, "texture", "", retainedBytes - 1); });
+    const Uuid first(authored);
+    const Uuid second(child);
+    std::map<Uuid, MeshGenerator::ComponentPreview> previews { { first, generated }, { second, generated } };
+    const std::vector<ComponentPreviewRequest> requests { { second, "texture" }, { Uuid("{99999999-9999-9999-9999-999999999999}"), {} }, { first, "texture" } };
+    auto batch = copyComponentPreviewBatch(previews, requests, {}, 4096);
+    REQUIRE(dust3d_component_preview_batch_count(batch.get()) == 3);
+    REQUIRE(dust3d_component_preview_batch_at(batch.get(), 0) != nullptr);
+    REQUIRE(dust3d_component_preview_batch_at(batch.get(), 1) == nullptr);
+    REQUIRE(dust3d_component_preview_batch_at(batch.get(), 2) != nullptr);
+    REQUIRE(dust3d_component_preview_batch_at(batch.get(), 3) == nullptr);
+    expectStatus(DUST3D_STATUS_LIMIT_EXCEEDED, [&] { copyComponentPreviewBatch(previews, requests, {}, retainedBytes * 2 - 1); });
 
     generated.triangleCornerUvs = { std::nullopt };
     generated.vertexProperties = {
