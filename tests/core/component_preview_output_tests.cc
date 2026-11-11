@@ -43,6 +43,12 @@ int main()
     snapshot.components.erase(authored);
     snapshot.rootComponent["children"] = alias;
     REQUIRE(resolveComponentPreviewId(snapshot, alias) == Uuid(alias));
+    const std::string child = "{87654321-4321-4321-4321-abcdef987654}";
+    const std::string childAlias = child.substr(1, child.size() - 2);
+    snapshot.components[alias]["children"] = child + "," + childAlias;
+    snapshot.components[child] = {};
+    snapshot.components[childAlias] = {};
+    expectStatus(DUST3D_STATUS_INVALID_DOCUMENT, [&] { resolveComponentPreviewId(snapshot, alias); });
 
     MeshGenerator::ComponentPreview generated;
     generated.vertices = { Vector3(1, 2, 3), Vector3(4, 2, 3), Vector3(1, 5, 3) };

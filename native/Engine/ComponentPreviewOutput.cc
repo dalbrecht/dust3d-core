@@ -13,6 +13,7 @@ namespace {
         using Attributes = std::map<std::string, std::string>;
         std::vector<std::pair<const Attributes*, size_t>> pending { { &snapshot.rootComponent, 0 } };
         std::set<std::string> seen;
+        std::set<Uuid> generatedIds;
         while (!pending.empty()) {
             const auto [parent, depth] = pending.back();
             pending.pop_back();
@@ -20,6 +21,9 @@ namespace {
                 const auto found = snapshot.components.find(child);
                 if (found == snapshot.components.end() || !seen.insert(child).second)
                     throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "The component hierarchy contains missing or repeated children.");
+                const Uuid generatedId(child);
+                if (!generatedId.isNull() && !generatedIds.insert(generatedId).second)
+                    throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "The component hierarchy contains ambiguous generated identities.");
                 if (depth == 128)
                     throw DocumentError(DUST3D_STATUS_LIMIT_EXCEEDED, "The component hierarchy exceeds the preview nesting limit.");
                 pending.emplace_back(&found->second, depth + 1);
@@ -42,10 +46,6 @@ Uuid resolveComponentPreviewId(const Snapshot& snapshot, std::string_view author
     const Uuid id(key);
     if (id.isNull() || snapshot.components.find(key) == snapshot.components.end())
         throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "The exact component identity is unavailable.");
-    for (const auto& component : snapshot.components) {
-        if (component.first != key && Uuid(component.first) == id)
-            throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "The component identity is ambiguous after generation.");
-    }
     validateComponentPreviewHierarchy(snapshot);
     return id;
 }
