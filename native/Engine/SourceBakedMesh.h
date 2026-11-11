@@ -21,6 +21,7 @@ namespace native {
         void appendTriangle(size_t index) { m_originalIndices.push_back(index); }
         void prepare(const Object& object, const Snapshot& snapshot, Dust3DMesh& geometry, const ImportedSurfaceData& sources);
         const Dust3DCancellationToken* cancellation() const { return m_options.legacy.cancellation; }
+        Dust3DTextureView texture(uint32_t map) const;
         size_t maximumOutputBytes() const { return m_maximumOutputBytes; }
         std::array<std::optional<TextureImage>, 5> maps;
         std::array<std::vector<TextureImage>, 5> mipLevels;

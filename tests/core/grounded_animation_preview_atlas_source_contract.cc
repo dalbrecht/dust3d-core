@@ -29,5 +29,17 @@ void checkSelectedAtlasBridge(const uint8_t* archive, size_t archiveSize,
     Dust3DError error {};
     auto* owner = dust3d_experimental_fish_idle_load_selected_textured(
         archive, archiveSize, bones, boneCount, "selected", 8, 1, &options, &bake, &error);
+    if (owner) {
+        Dust3DExperimentalFishIdleInfo info {};
+        assert(dust3d_experimental_fish_idle_describe(owner, &info));
+        size_t triangleCount = 0;
+        assert(dust3d_experimental_fish_idle_atlas_triangles(owner, &triangleCount));
+        assert(triangleCount == dust3d_mesh_vertex_count(dust3d_generated_rig_mesh(info.rest)) / 3);
+        const auto color = dust3d_experimental_fish_idle_atlas_texture(owner, DUST3D_TEXTURE_COLOR);
+        assert(color.pixels && color.width > 0);
+        assert(!dust3d_experimental_fish_idle_atlas_texture(owner, UINT32_MAX).pixels);
+    }
+    size_t count = 1;
+    assert(!dust3d_experimental_fish_idle_atlas_triangles(nullptr, &count) && count == 0);
     dust3d_experimental_fish_idle_destroy(owner);
 }

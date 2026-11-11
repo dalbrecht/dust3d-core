@@ -3,6 +3,7 @@
 #include "BakedMesh.h"
 #include "Cancellation.h"
 #include "GroundedFishIdleSound.h"
+#include "SourceBakedMesh.h"
 #include <algorithm>
 #include <optional>
 
@@ -237,6 +238,26 @@ Dust3DExperimentalFishIdle* dust3d_experimental_fish_idle_load_selected_surfaces
     }
     return loadFishIdle(archive, archiveSize, bones, boneCount, nullptr, 0, options, nullptr, error,
         std::string_view(animationId, animationIdLength), false, true);
+}
+
+const Dust3DSourceBakedTriangle* dust3d_experimental_fish_idle_atlas_triangles(
+    const Dust3DExperimentalFishIdle* owner, size_t* count)
+{
+    if (!count)
+        return nullptr;
+    *count = 0;
+    if (!owner || !owner->preview.rest->sourceBake)
+        return nullptr;
+    const auto& triangles = owner->preview.rest->sourceBake->triangles;
+    *count = triangles.size();
+    return triangles.empty() ? nullptr : triangles.data();
+}
+
+Dust3DTextureView dust3d_experimental_fish_idle_atlas_texture(const Dust3DExperimentalFishIdle* owner, uint32_t map)
+{
+    if (!owner || !owner->preview.rest->sourceBake)
+        return {};
+    return owner->preview.rest->sourceBake->texture(map);
 }
 
 const char* dust3d_experimental_fish_idle_selected_id(const Dust3DExperimentalFishIdle* owner, size_t* length)

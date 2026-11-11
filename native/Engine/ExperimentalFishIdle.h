@@ -71,6 +71,11 @@ Dust3DExperimentalFishIdle* dust3d_experimental_fish_idle_load_selected_textured
 Dust3DExperimentalFishIdle* dust3d_experimental_fish_idle_load_selected_surfaces(const uint8_t* archive, size_t archive_size,
     const Dust3DGeneratedRigBoneInput* bones, size_t bone_count, const char* animation_id, size_t animation_id_length,
     const Dust3DExperimentalFishIdleOptions*, Dust3DError*);
+/* Views borrow the selected preview owner. Triangle ordinals index the
+   grounded draw corners in groups of three. Missing atlas clears count.
+   Missing or invalid maps return a zeroed view. */
+const Dust3DSourceBakedTriangle* dust3d_experimental_fish_idle_atlas_triangles(const Dust3DExperimentalFishIdle*, size_t* count);
+Dust3DTextureView dust3d_experimental_fish_idle_atlas_texture(const Dust3DExperimentalFishIdle*, uint32_t map);
 /* The borrowed selected ID expires with the owner. NULL for legacy loads. */
 const char* dust3d_experimental_fish_idle_selected_id(const Dust3DExperimentalFishIdle*, size_t* length);
 /* NULL-safe. Invalidates the rest and every borrowed view. */

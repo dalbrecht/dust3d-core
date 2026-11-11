@@ -187,6 +187,14 @@ namespace native {
         m_options.model_images = nullptr;
         m_options.model_image_count = 0;
     }
+    Dust3DTextureView SourceBakedData::texture(uint32_t map) const
+    {
+        if (map >= maps.size() || !maps[map])
+            return {};
+        const auto& image = *maps[map];
+        return { image.width, image.height, image.width * 4, image.pixels.size(), image.pixels.data() };
+    }
+
     void SourceBakedData::validateVisuals(const Snapshot& snapshot) const
     {
         for (const auto& [identity, component] : snapshot.components) {
@@ -532,8 +540,5 @@ Dust3DSurfaceComponentKind dust3d_source_baked_mesh_component_kind(const Dust3DS
 double dust3d_source_baked_mesh_maximum_sampling_lod(const Dust3DSourceBakedMesh* mesh) { return mesh ? mesh->data->maximumSamplingLod : 0; }
 Dust3DTextureView dust3d_source_baked_mesh_texture(const Dust3DSourceBakedMesh* mesh, uint32_t map)
 {
-    if (!mesh || map >= mesh->data->maps.size() || !mesh->data->maps[map])
-        return {};
-    const auto& image = *mesh->data->maps[map];
-    return { image.width, image.height, image.width * 4, image.pixels.size(), image.pixels.data() };
+    return mesh ? mesh->data->texture(map) : Dust3DTextureView {};
 }
