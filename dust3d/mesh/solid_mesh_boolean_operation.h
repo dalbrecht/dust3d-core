@@ -99,7 +99,7 @@ private:
         size_t remainingStartTriangleIndex,
         size_t remainingTriangleCount,
         std::vector<std::vector<size_t>>& triangleGroups);
-    size_t addNewPoint(const Vector3& position);
+    size_t addNewPoint(const Vector3& position, bool weldNearby = true);
     bool addUnintersectedTriangles(const SolidMesh* mesh,
         bool isFirst,
         const std::set<size_t>& usedFaces,

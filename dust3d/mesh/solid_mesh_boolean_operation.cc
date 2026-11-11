@@ -253,16 +253,18 @@ void SolidMeshBooleanOperation::buildFaceGroups(const std::vector<std::vector<si
     }
 }
 
-size_t SolidMeshBooleanOperation::addNewPoint(const Vector3& position)
+size_t SolidMeshBooleanOperation::addNewPoint(const Vector3& position, bool weldNearby)
 {
     PositionKey key(position);
     // Truncated PositionKey buckets can split numerically identical cut/original vertices at a grid boundary.
-    constexpr double tolerance = 0.00001;
+    constexpr double weldTolerance = 0.00001;
+    const double tolerance = weldNearby ? weldTolerance : 0.0;
+    const int neighborBuckets = weldNearby ? 1 : 0;
     size_t closestIndex = m_newVertices.size();
     double closestDistanceSquared = std::numeric_limits<double>::max();
-    for (int x = -1; x <= 1; ++x) {
-        for (int y = -1; y <= 1; ++y) {
-            for (int z = -1; z <= 1; ++z) {
+    for (int x = -neighborBuckets; x <= neighborBuckets; ++x) {
+        for (int y = -neighborBuckets; y <= neighborBuckets; ++y) {
+            for (int z = -neighborBuckets; z <= neighborBuckets; ++z) {
                 auto candidate = m_newPositionMap.find(PositionKey(position + Vector3(x * tolerance, y * tolerance, z * tolerance)));
                 if (candidate == m_newPositionMap.end())
                     continue;
@@ -300,9 +302,10 @@ bool SolidMeshBooleanOperation::addUnintersectedTriangles(const SolidMesh* mesh,
 {
     const auto& vertices = *mesh->vertices();
     vertexIndices.reserve(vertices.size());
-    // Original and cut vertices must share the same weld map, or cuts at existing vertices create slivers.
+    // With no candidate cuts, weld exact duplicates only so distinct thin surfaces survive.
+    const bool weldNearby = !m_potentialIntersectedPairs.empty();
     for (const auto& vertex : vertices)
-        vertexIndices.push_back(addNewPoint(vertex));
+        vertexIndices.push_back(addNewPoint(vertex, weldNearby));
     size_t triangleCount = mesh->triangles()->size();
     m_newTriangles.reserve(m_newTriangles.size() + triangleCount - usedFaces.size());
     for (size_t i = 0; i < triangleCount; ++i) {
