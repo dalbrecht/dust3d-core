@@ -61,6 +61,11 @@ Dust3DExperimentalFishIdle* dust3d_experimental_fish_idle_load(const uint8_t* ar
 Dust3DExperimentalFishIdle* dust3d_experimental_fish_idle_load_selected(const uint8_t* archive, size_t archive_size,
     const Dust3DGeneratedRigBoneInput* bones, size_t bone_count, const char* animation_id, size_t animation_id_length,
     uint32_t include_pcm, const Dust3DExperimentalFishIdleOptions*, Dust3DError*);
+/* Bake authored surfaces into the same grounded draw mesh as the selected clip.
+   Bake and rig options share a cancellation token. */
+Dust3DExperimentalFishIdle* dust3d_experimental_fish_idle_load_selected_textured(const uint8_t* archive, size_t archive_size,
+    const Dust3DGeneratedRigBoneInput* bones, size_t bone_count, const char* animation_id, size_t animation_id_length,
+    uint32_t include_pcm, const Dust3DExperimentalFishIdleOptions*, const Dust3DSourceBakeOptions*, Dust3DError*);
 /* Resolve one exact authored clip and retain the surface catalog batch from
    that evaluation. The authored preview surface does not narrow the batch. */
 Dust3DExperimentalFishIdle* dust3d_experimental_fish_idle_load_selected_surfaces(const uint8_t* archive, size_t archive_size,

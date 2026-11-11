@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 #include "ExperimentalFishIdle.h"
+#include "BakedMesh.h"
 #include "Cancellation.h"
 #include "GroundedFishIdleSound.h"
 #include <algorithm>
@@ -42,7 +43,8 @@ static Dust3DExperimentalFishIdle* loadFishIdle(const uint8_t* archive, size_t a
     const Dust3DGeneratedRigBoneInput* bones, size_t boneCount,
     const Dust3DExperimentalFishIdleParameter* parameters, size_t parameterCount,
     const Dust3DExperimentalFishIdleOptions* options, const Dust3DExperimentalFishIdlePCMOptions* pcmOptions,
-    Dust3DError* error, std::string_view selectedId = {}, bool includeSelectedPCM = false, bool includeAllSurfaces = false)
+    Dust3DError* error, std::string_view selectedId = {}, bool includeSelectedPCM = false, bool includeAllSurfaces = false,
+    const Dust3DSourceBakeOptions* bakeOptions = nullptr)
 {
     setError(error, DUST3D_STATUS_OK, "");
     try {
@@ -108,13 +110,24 @@ static Dust3DExperimentalFishIdle* loadFishIdle(const uint8_t* archive, size_t a
                 return surfaceBytes;
             };
         }
+        std::unique_ptr<Snapshot> authoredSnapshot;
+        std::optional<GeneratedRigDrawBakeInput> bake;
+        if (bakeOptions) {
+            if (config.cancellation != bakeOptions->legacy.cancellation)
+                throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "FishIdle rig and bake cancellation tokens differ.");
+            std::string warning;
+            authoredSnapshot = readDocumentMetadata(archive, archiveSize, warning);
+            checkCancellation(config.cancellation);
+            bake.emplace(GeneratedRigDrawBakeInput { *authoredSnapshot, *bakeOptions });
+        }
+        const auto* drawBake = bake ? &*bake : nullptr;
         auto source = prepareGeneratedRigSource(archive, archiveSize, rigType.data(), rigType.size(), bones, boneCount, config);
         auto result = surface
             ? generateGroundedFishIdleSoundPreview(*source.input, std::move(source.metadata), source.rig,
-                authored, *surface, source.options, config.maximum_draw_vertices, config.cancellation, clipType)
+                authored, *surface, source.options, config.maximum_draw_vertices, config.cancellation, clipType, drawBake)
             : GroundedFishIdleSoundPreview { generateGroundedFishIdleDrawPreview(*source.input,
                   std::move(source.metadata), source.rig, authored, source.options,
-                  config.maximum_draw_vertices, config.cancellation, surfaceHandoff, clipType),
+                  config.maximum_draw_vertices, config.cancellation, surfaceHandoff, clipType, drawBake),
                 {} };
         auto& preview = result.visual;
         const auto frames = preview.clip.sampleTimes().size();
@@ -147,6 +160,18 @@ static Dust3DExperimentalFishIdle* loadFishIdle(const uint8_t* archive, size_t a
         setError(error, cause.status(), cause.what());
     } catch (const PositionQuantizationError& cause) {
         setError(error, DUST3D_STATUS_LIMIT_EXCEEDED, cause.what());
+    } catch (const TextureBakeError& cause) {
+        const auto status = cause.code() == TextureBakeErrorCode::cancelled ? DUST3D_STATUS_CANCELLED
+            : cause.code() == TextureBakeErrorCode::limitExceeded ? DUST3D_STATUS_LIMIT_EXCEEDED
+            : cause.code() == TextureBakeErrorCode::invalidInput ? DUST3D_STATUS_INVALID_DOCUMENT
+                                                                : DUST3D_STATUS_GENERATION_FAILED;
+        setError(error, status, cause.what());
+    } catch (const UvAtlasError& cause) {
+        const auto status = cause.code() == UvAtlasErrorCode::cancelled ? DUST3D_STATUS_CANCELLED
+            : cause.code() == UvAtlasErrorCode::limitExceeded ? DUST3D_STATUS_LIMIT_EXCEEDED
+            : cause.code() == UvAtlasErrorCode::invalidInput ? DUST3D_STATUS_INVALID_DOCUMENT
+                                                           : DUST3D_STATUS_GENERATION_FAILED;
+        setError(error, status, cause.what());
     } catch (const std::bad_alloc& cause) {
         setError(error, DUST3D_STATUS_LIMIT_EXCEEDED, cause.what());
     } catch (const std::exception& cause) {
@@ -187,6 +212,19 @@ Dust3DExperimentalFishIdle* dust3d_experimental_fish_idle_load_selected(const ui
     }
     return loadFishIdle(archive, archiveSize, bones, boneCount, nullptr, 0, options, nullptr, error,
         std::string_view(animationId, animationIdLength), includePCM != 0);
+}
+
+Dust3DExperimentalFishIdle* dust3d_experimental_fish_idle_load_selected_textured(const uint8_t* archive,
+    size_t archiveSize, const Dust3DGeneratedRigBoneInput* bones, size_t boneCount, const char* animationId,
+    size_t animationIdLength, uint32_t includePCM, const Dust3DExperimentalFishIdleOptions* options,
+    const Dust3DSourceBakeOptions* bakeOptions, Dust3DError* error)
+{
+    if (!animationId || !animationIdLength || animationIdLength > 1024 || includePCM > 1 || !bakeOptions) {
+        setError(error, DUST3D_STATUS_INVALID_DOCUMENT, "Invalid selected textured FishIdle request.");
+        return nullptr;
+    }
+    return loadFishIdle(archive, archiveSize, bones, boneCount, nullptr, 0, options, nullptr, error,
+        std::string_view(animationId, animationIdLength), includePCM != 0, false, bakeOptions);
 }
 
 Dust3DExperimentalFishIdle* dust3d_experimental_fish_idle_load_selected_surfaces(const uint8_t* archive,

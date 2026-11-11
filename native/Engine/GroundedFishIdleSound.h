@@ -68,6 +68,6 @@ namespace dust3d::native {
     GroundedFishIdleSoundPreview generateGroundedFishIdleSoundPreview(const GeneratedRigInput&,
         std::unique_ptr<Dust3DMesh> metadata, const RigStructure&, const AnimationParams&,
         SurfaceMaterial, const RigFinalDataOptions&, size_t maximumDrawVertices, const Dust3DCancellationToken*,
-        const std::string& clipType = "FishIdle");
+        const std::string& clipType = "FishIdle", const GeneratedRigDrawBakeInput* bake = nullptr);
 }
 #endif
