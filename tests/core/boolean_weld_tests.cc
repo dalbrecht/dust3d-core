@@ -33,9 +33,9 @@ Box box(size_t axis, double minimum, double maximum)
     return result;
 }
 
-void verifyThinSolidAcrossZero(size_t axis)
+void verifyThinSolidAcrossZero(size_t axis, double halfThickness)
 {
-    auto first = box(axis, -0.000009, 0.000009);
+    auto first = box(axis, -halfThickness, halfThickness);
     auto second = box(axis, 0.1, 0.2);
     dust3d::SolidMesh firstMesh;
     dust3d::SolidMesh secondMesh;
@@ -60,7 +60,7 @@ void verifyThinSolidAcrossZero(size_t axis)
         const auto& c = vertices.at(triangle.at(2));
         volume += dust3d::Vector3::dotProduct(a, dust3d::Vector3::crossProduct(b, c)) / 6.0;
     }
-    if (std::abs(volume - 0.100018) > 0.000000000001)
+    if (std::abs(volume - (0.1 + 2 * halfThickness)) > 0.000000000001)
         throw std::runtime_error("Thin-solid union volume changed across the zero bucket");
 }
 
@@ -339,8 +339,10 @@ int main()
 {
     try {
         verifyUvOnlyAndMixedProceduralFaces();
-        for (size_t axis = 0; axis < 3; ++axis)
-            verifyThinSolidAcrossZero(axis);
+        for (size_t axis = 0; axis < 3; ++axis) {
+            verifyThinSolidAcrossZero(axis, 0.000009);
+            verifyThinSolidAcrossZero(axis, 0.000001);
+        }
         verifyBooleanTriangleOwnership(0);
         verifyBooleanTriangleOwnership(1);
         verifyBooleanTriangleOwnership(2);
