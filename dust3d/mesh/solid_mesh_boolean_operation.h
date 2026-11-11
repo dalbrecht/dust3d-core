@@ -92,7 +92,7 @@ private:
     bool isPointInMesh(const Vector3& testPosition,
         const SolidMesh* targetMesh,
         const AxisAlignedBoudingBoxTree* meshBoxTree,
-        const Vector3& testAxis);
+        size_t rayAxis);
     void buildFaceGroups(const std::vector<std::vector<size_t>>& intersections,
         const std::map<std::uint64_t, size_t>& halfEdges,
         const std::vector<std::vector<size_t>>& triangles,

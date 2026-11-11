@@ -249,6 +249,24 @@ bool ReTriangulator::buildPolygons()
 
 void ReTriangulator::triangulate()
 {
+    const auto triangulatePolygon = [](std::vector<std::vector<std::array<double, 2>>>& rings) {
+        if (rings.front().empty())
+            return std::vector<size_t>();
+        const auto origin = rings.front().front();
+        double extent = 0;
+        for (const auto& point : rings.front())
+            extent = std::max({ extent, std::abs(point[0] - origin[0]), std::abs(point[1] - origin[1]) });
+        // Earcut treats areas within machine epsilon as collinear.
+        if (extent > 0 && extent < std::sqrt(std::numeric_limits<double>::epsilon())) {
+            for (auto& ring : rings) {
+                for (auto& point : ring) {
+                    point[0] = (point[0] - origin[0]) / extent;
+                    point[1] = (point[1] - origin[1]) / extent;
+                }
+            }
+        }
+        return mapbox::earcut<size_t>(rings);
+    };
     for (size_t polygonIndex = 0; polygonIndex < m_polygons.size(); ++polygonIndex) {
         const auto& polygon = m_polygons[polygonIndex];
 
@@ -276,7 +294,7 @@ void ReTriangulator::triangulate()
             }
         }
 
-        std::vector<size_t> indices = mapbox::earcut<size_t>(polygonAndHoles);
+        std::vector<size_t> indices = triangulatePolygon(polygonAndHoles);
         m_triangles.reserve(indices.size() / 3);
         for (size_t i = 0; i < indices.size(); i += 3) {
             //auto triangleArea = Vector3::area(Vector3(m_points[pointIndices[indices[i]]]),
@@ -326,7 +344,7 @@ void ReTriangulator::triangulate()
             }
         }
 
-        std::vector<size_t> indices = mapbox::earcut<size_t>(polygonAndHoles);
+        std::vector<size_t> indices = triangulatePolygon(polygonAndHoles);
         m_triangles.reserve(indices.size() / 3);
         for (size_t i = 0; i < indices.size(); i += 3) {
             m_triangles.push_back({ pointIndices[indices[i]],

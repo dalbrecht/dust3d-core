@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Preserve thin hollow walls and cavity caps through intersecting Boolean operations.
+
 - Preserve distinct vertices in thin solids when Boolean operands have no candidate cuts.
 
 - Expose bounded generated previews for the document root and authored components in one batch.
