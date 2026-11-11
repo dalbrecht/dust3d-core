@@ -741,7 +741,8 @@ if(BUILD_TESTING)
     add_test(NAME component_preview_archive_contracts
         COMMAND dust3d_component_preview_archive_tests
             ${CMAKE_CURRENT_SOURCE_DIR}/tests/core/fixtures/Capsule.ds3
-            ${CMAKE_CURRENT_SOURCE_DIR}/tests/core/fixtures/ImportedSurface.ds3)
+            ${CMAKE_CURRENT_SOURCE_DIR}/tests/core/fixtures/ImportedSurface.ds3
+            ${CMAKE_CURRENT_SOURCE_DIR}/tests/core/fixtures/Sword.ds3)
     set_tests_properties(component_preview_archive_contracts PROPERTIES TIMEOUT 30)
 
     add_executable(dust3d_worker_preview_archive_tests tests/core/worker_preview_archive_tests.cc)

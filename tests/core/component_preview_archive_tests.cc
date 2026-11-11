@@ -54,7 +54,7 @@ std::string disabledCapsuleArchive(const std::vector<uint8_t>& capsule, const st
 int main(int argc, char** argv)
 {
     try {
-        require(argc == 3, "Expected the checked-in Capsule and ImportedSurface archive paths");
+        require(argc == 4, "Expected the checked-in Capsule, ImportedSurface, and Sword archive paths");
         const auto archive = readArchive(argv[1]);
 
         constexpr char componentId[] = "{bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb}";
@@ -113,6 +113,32 @@ int main(int argc, char** argv)
             for (const auto& uv : importedTriangles[index].uv)
                 require(std::isfinite(uv[0]) && std::isfinite(uv[1]), "The imported corner UVs must be finite");
         }
+        const auto sword = readArchive(argv[3]);
+        constexpr char cutFaceId[] = "{e1d60d00-195f-5f41-9c86-da69ec8a31ff}";
+        constexpr char bladeId[] = "{38064bd9-3ce4-5f0f-a314-9670de0d9f03}";
+        const Dust3DComponentPreviewID swordRequests[] {
+            { cutFaceId, sizeof(cutFaceId) - 1 }, { bladeId, sizeof(bladeId) - 1 }
+        };
+        const Batch swordBatch(dust3d_component_preview_batch_load(
+                                  sword.data(), sword.size(), swordRequests, 2, 0, nullptr, &error),
+            dust3d_component_preview_batch_destroy);
+        require(swordBatch && error.status == DUST3D_STATUS_OK, error.message);
+        require(dust3d_component_preview_batch_count(swordBatch.get()) == 2, "The Sword batch lost a selected component");
+        const auto* cutFace = dust3d_component_preview_batch_at(swordBatch.get(), 0);
+        const auto* blade = dust3d_component_preview_batch_at(swordBatch.get(), 1);
+        require(cutFace && dust3d_component_preview_cut_face_count(cutFace) == 4, "Sword must return the four cut-face points");
+        require(dust3d_component_preview_triangle_count(cutFace) == 0, "The Cut Face component must return outline geometry");
+        require(blade && dust3d_component_preview_triangle_count(blade) > 0
+                && dust3d_component_preview_cut_face_count(blade) == 0,
+            "The blade must return mesh geometry in its own slot");
+        const auto* outline = dust3d_component_preview_cut_face(cutFace);
+        require(outline, "The Sword cut-face outline must be readable");
+        // Authored Sword cut-face nodes are 0.2 units wide and 0.036 units high.
+        constexpr double expected[][2] { { 0, -0.18 }, { 1, 0 }, { 0, 0.18 }, { -1, 0 } };
+        for (size_t index = 0; index < 4; ++index)
+            require(std::abs(outline[index].x - expected[index][0]) < 0.000001
+                    && std::abs(outline[index].y - expected[index][1]) < 0.000001,
+                "The Sword cut-face outline must preserve normalized source order");
         return 0;
     } catch (const std::exception& failure) {
         std::cerr << failure.what() << '\n';
