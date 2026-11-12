@@ -218,11 +218,12 @@ std::unique_ptr<MeshState> MeshState::combine(const MeshState& first, const Mesh
     const bool shouldTrackProceduralUvs = !first.triangleProceduralUvs.empty() || !second.triangleProceduralUvs.empty();
     const bool shouldTrackSources = !first.triangleSourceCorners.empty() || !second.triangleSourceCorners.empty();
     const bool shouldTrackUvs = !first.triangleCornerUvs.empty() || !second.triangleCornerUvs.empty();
+    bool alreadyConforming = false;
     auto newMesh = std::unique_ptr<MeshCombiner::Mesh>(MeshCombiner::combine(*first.mesh,
         *second.mesh,
         method,
         &combinedVerticesSources, (shouldTrackOwners || shouldTrackModels || shouldTrackColors || shouldTrackUvs || shouldTrackProceduralUvs || shouldTrackSources) ? &combinedTriangleSources : nullptr,
-        newMeshState->hasHollowWalls));
+        newMeshState->hasHollowWalls, &alreadyConforming));
     if (nullptr == newMesh)
         return nullptr;
     if (shouldTrackOwners) {
@@ -291,7 +292,8 @@ std::unique_ptr<MeshState> MeshState::combine(const MeshState& first, const Mesh
             }
         }
     }
-    if (recombine && !newMesh->isNull()) {
+    // Coplanar clipping has already joined its fragment boundaries.
+    if (recombine && !alreadyConforming && !newMesh->isNull()) {
         MeshRecombiner recombiner;
         std::vector<Vector3> combinedVertices;
         std::vector<std::vector<size_t>> combinedFaces;

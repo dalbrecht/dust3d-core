@@ -23,11 +23,14 @@
 #include <GuigueDevillers03/tri_tri_intersect.h>
 #include <dust3d/base/debug.h>
 #include <dust3d/base/position_key.h>
+#include <dust3d/mesh/mesh_state.h>
 #include <dust3d/mesh/re_triangulator.h>
 #include <dust3d/mesh/solid_mesh_boolean_operation.h>
+#include <numeric>
 #include <queue>
 #include <set>
 #include <stdio.h>
+#include <utility>
 
 namespace dust3d {
 
@@ -149,8 +152,10 @@ bool SolidMeshBooleanOperation::intersectTwoFaces(size_t firstIndex, size_t seco
             (double*)newEdge.second.constData())) {
         return false;
     }
-    if (coplanar)
+    if (coplanar) {
+        m_hasCoplanarContact = true;
         return false;
+    }
     return true;
 }
 
@@ -366,6 +371,342 @@ bool SolidMeshBooleanOperation::addUnintersectedTriangles(const SolidMesh* mesh,
     return true;
 }
 
+namespace {
+
+constexpr double capTolerance = 2e-11;
+
+// Bound extra work on a failed primary Boolean without altering the primary path.
+bool chargeCapWork(size_t amount, size_t& remaining)
+{
+    if (amount > remaining)
+        return false;
+    remaining -= amount;
+    return true;
+}
+using CapPolygon = std::vector<Vector3>;
+
+struct CapPlane {
+    Vector3 normal;
+    double offset;
+};
+
+double distanceTo(const CapPlane& plane, const Vector3& point)
+{
+    return Vector3::dotProduct(plane.normal, point) - plane.offset;
+}
+
+bool convexPlanes(const std::vector<Vector3>& vertices, const std::vector<std::vector<size_t>>& faces,
+    std::vector<CapPlane>& planes, size_t& remainingWork)
+{
+    for (const auto& face : faces) {
+        if (!chargeCapWork(planes.size() + 1, remainingWork))
+            return false;
+        const auto& origin = vertices.at(face[0]);
+        auto normal = Vector3::crossProduct(vertices.at(face[1]) - origin, vertices.at(face[2]) - origin);
+        const double length = normal.length();
+        if (!(length > 0) || !std::isfinite(length))
+            return false;
+        normal = normal / length;
+        const double offset = Vector3::dotProduct(normal, origin);
+        const auto equivalent = [&](const auto& plane) {
+            return (plane.normal - normal).length() <= capTolerance && std::abs(plane.offset - offset) <= capTolerance;
+        };
+        if (std::none_of(planes.begin(), planes.end(), equivalent))
+            planes.push_back({ normal, offset });
+    }
+    if (planes.size() < 4)
+        return false;
+    for (const auto& plane : planes) {
+        if (!chargeCapWork(vertices.size(), remainingWork))
+            return false;
+        if (std::any_of(vertices.begin(), vertices.end(), [&](const auto& point) {
+                return distanceTo(plane, point) > capTolerance;
+            }))
+            return false;
+    }
+    return true;
+}
+
+Vector3 capCenter(const CapPolygon& polygon)
+{
+    Vector3 center;
+    for (const auto& point : polygon)
+        center += point;
+    return center / polygon.size();
+}
+
+CapPolygon clipCap(CapPolygon& inside, const CapPlane& plane)
+{
+    std::vector<double> distances;
+    for (const auto& point : inside) {
+        const double value = distanceTo(plane, point);
+        distances.push_back(std::abs(value) <= capTolerance ? 0 : value);
+    }
+    const auto [least, greatest] = std::minmax_element(distances.begin(), distances.end());
+    if (*greatest <= 0)
+        return {};
+    if (*least >= 0)
+        return std::exchange(inside, {});
+
+    CapPolygon kept;
+    CapPolygon outside;
+    for (size_t i = 0; i < inside.size(); ++i) {
+        const size_t j = (i + 1) % inside.size();
+        const double a = distances[i];
+        const double b = distances[j];
+        if (a <= 0)
+            kept.push_back(inside[i]);
+        if (a >= 0)
+            outside.push_back(inside[i]);
+        if (a * b < 0) {
+            const auto split = inside[i] + (inside[j] - inside[i]) * (a / (a - b));
+            kept.push_back(split);
+            outside.push_back(split);
+        }
+    }
+    inside = std::move(kept);
+    return outside;
+}
+
+bool occupiesCapSide(const std::vector<CapPlane>& planes, const Vector3& point, const Vector3& direction)
+{
+    return std::all_of(planes.begin(), planes.end(), [&](const auto& plane) {
+        const double distance = distanceTo(plane, point);
+        return distance <= capTolerance
+            && (distance < -capTolerance || Vector3::dotProduct(plane.normal, direction) <= capTolerance);
+    });
+}
+
+std::array<bool, 3> capOccupancy(bool first, bool second)
+{
+    return { first || second, first && !second, first && second };
+}
+
+struct CapFragment {
+    CapPolygon polygon;
+    SolidMeshBooleanOperation::TriangleSource source;
+};
+
+bool triangulateCaps(const std::vector<CapFragment>& fragments, std::vector<Vector3>& vertices,
+    std::vector<std::vector<size_t>>& triangles, std::vector<SolidMeshBooleanOperation::TriangleSource>& sources,
+    size_t& remainingWork)
+{
+    constexpr double squaredTolerance = capTolerance * capTolerance;
+    const size_t offset = vertices.size();
+    std::vector<std::vector<size_t>> polygons;
+    std::multimap<double, size_t> pointIndices;
+    for (const auto& fragment : fragments) {
+        if (!chargeCapWork(fragment.polygon.size(), remainingWork))
+            return false;
+        auto& polygon = polygons.emplace_back();
+        for (const auto& point : fragment.polygon) {
+            auto begin = pointIndices.lower_bound(point.x() - capTolerance);
+            auto end = pointIndices.upper_bound(point.x() + capTolerance);
+            size_t index = vertices.size();
+            for (auto match = begin; match != end; ++match) {
+                if (!chargeCapWork(1, remainingWork))
+                    return false;
+                if ((vertices[match->second] - point).lengthSquared() <= squaredTolerance)
+                    index = std::min(index, match->second);
+            }
+            if (index == vertices.size()) {
+                vertices.push_back(point);
+                pointIndices.emplace(point.x(), index);
+            }
+            if (polygon.empty() || polygon.back() != index)
+                polygon.push_back(index);
+        }
+        if (polygon.size() > 1 && polygon.front() == polygon.back())
+            polygon.pop_back();
+    }
+
+    const size_t boundaryEnd = vertices.size();
+    std::array<std::vector<size_t>, 3> byAxis;
+    for (size_t axis = 0; axis < byAxis.size(); ++axis) {
+        auto& sorted = byAxis[axis];
+        sorted.resize(boundaryEnd - offset);
+        std::iota(sorted.begin(), sorted.end(), offset);
+        std::sort(sorted.begin(), sorted.end(), [&](size_t a, size_t b) {
+            return vertices[a][axis] < vertices[b][axis];
+        });
+    }
+    auto emit = [&](const std::vector<size_t>& triangle, const auto& source) {
+        const auto& a = vertices[triangle[0]];
+        const auto& b = vertices[triangle[1]];
+        const auto& c = vertices[triangle[2]];
+        if (Vector3::crossProduct(b - a, c - a).lengthSquared() <= 0)
+            return false;
+        triangles.push_back(triangle);
+        sources.push_back(source);
+        return true;
+    };
+    for (size_t index = 0; index < polygons.size(); ++index) {
+        const auto& polygon = polygons[index];
+        if (polygon.size() < 3)
+            continue;
+        std::vector<size_t> boundary;
+        for (size_t i = 0; i < polygon.size(); ++i) {
+            const auto a = polygon[i];
+            const auto b = polygon[(i + 1) % polygon.size()];
+            const auto line = vertices[b] - vertices[a];
+            const double length = line.length();
+            if (length <= capTolerance)
+                return false;
+            const auto direction = line / length;
+            std::vector<std::pair<double, size_t>> onEdge { { 0, a } };
+            size_t axis = 0;
+            for (size_t candidate = 1; candidate < byAxis.size(); ++candidate) {
+                if (std::abs(line[candidate]) > std::abs(line[axis]))
+                    axis = candidate;
+            }
+            const auto& sorted = byAxis[axis];
+            const double minimum = std::min(vertices[a][axis], vertices[b][axis]) - capTolerance;
+            const double maximum = std::max(vertices[a][axis], vertices[b][axis]) + capTolerance;
+            const auto begin = std::lower_bound(sorted.begin(), sorted.end(), minimum, [&](size_t index, double value) {
+                return vertices[index][axis] < value;
+            });
+            const auto end = std::upper_bound(begin, sorted.end(), maximum, [&](double value, size_t index) {
+                return value < vertices[index][axis];
+            });
+            if (!chargeCapWork(static_cast<size_t>(end - begin), remainingWork))
+                return false;
+            for (auto candidate = begin; candidate != end; ++candidate) {
+                const auto point = *candidate;
+                if (point == a || point == b)
+                    continue;
+                const auto delta = vertices[point] - vertices[a];
+                const double along = Vector3::dotProduct(delta, direction);
+                if (along > capTolerance && along < length - capTolerance
+                    && Vector3::crossProduct(delta, direction).lengthSquared() <= squaredTolerance)
+                    onEdge.emplace_back(along, point);
+            }
+            std::sort(onEdge.begin(), onEdge.end());
+            for (const auto& point : onEdge)
+                boundary.push_back(point.second);
+        }
+        const auto& source = fragments[index].source;
+        if (boundary.size() == 3) {
+            if (!emit(boundary, source))
+                return false;
+            continue;
+        }
+        Vector3 center;
+        for (const auto vertex : polygon)
+            center += vertices[vertex];
+        const size_t centerIndex = vertices.size();
+        vertices.push_back(center / polygon.size());
+        for (size_t i = 0; i < boundary.size(); ++i) {
+            if (!emit({ centerIndex, boundary[i], boundary[(i + 1) % boundary.size()] }, source))
+                return false;
+        }
+    }
+    return MeshState::isWatertight(triangles);
+}
+
+}
+
+bool SolidMeshBooleanOperation::combineConvexCaps()
+{
+    size_t remainingWork = 4'000'000;
+    const std::array<const SolidMesh*, 2> meshes { m_firstMesh, m_secondMesh };
+    for (const auto* mesh : meshes) {
+        const auto& faces = *mesh->triangles();
+        if (!chargeCapWork(faces.size(), remainingWork)
+            || !chargeCapWork(mesh->vertices()->size(), remainingWork)
+            || mesh->vertices()->empty() || faces.empty()
+            || std::any_of(faces.begin(), faces.end(), [](const auto& face) { return face.size() != 3; })
+            || !MeshState::isWatertight(faces))
+            return false;
+    }
+    auto origin = meshes[0]->vertices()->front();
+    auto maximum = origin;
+    for (const auto* mesh : meshes) {
+        for (const auto& point : *mesh->vertices()) {
+            if (!std::isfinite(point.x()) || !std::isfinite(point.y()) || !std::isfinite(point.z()))
+                return false;
+            for (size_t axis = 0; axis < 3; ++axis) {
+                origin[axis] = std::min(origin[axis], point[axis]);
+                maximum[axis] = std::max(maximum[axis], point[axis]);
+            }
+        }
+    }
+    const auto span = maximum - origin;
+    const double scale = std::max({ span.x(), span.y(), span.z() });
+    if (!(scale > 0) || !std::isfinite(scale))
+        return false;
+
+    std::array<std::vector<Vector3>, 2> positions;
+    std::array<std::vector<CapPlane>, 2> planes;
+    for (size_t owner = 0; owner < meshes.size(); ++owner) {
+        for (const auto& point : *meshes[owner]->vertices())
+            positions[owner].push_back((point - origin) / scale);
+        if (!convexPlanes(positions[owner], *meshes[owner]->triangles(), planes[owner], remainingWork))
+            return false;
+    }
+
+    std::array<std::vector<CapFragment>, 3> fragments;
+    for (size_t owner = 0; owner < meshes.size(); ++owner) {
+        const auto& faces = *meshes[owner]->triangles();
+        const auto& otherPlanes = planes[1 - owner];
+        for (size_t index = 0; index < faces.size(); ++index) {
+            const auto& face = faces[index];
+            const CapPolygon triangle { positions[owner][face[0]], positions[owner][face[1]], positions[owner][face[2]] };
+            auto normal = Vector3::crossProduct(triangle[1] - triangle[0], triangle[2] - triangle[0]);
+            normal = normal / normal.length();
+            auto covered = triangle;
+            std::vector<CapPolygon> polygons;
+            for (const auto& plane : otherPlanes) {
+                if (!chargeCapWork(covered.size(), remainingWork))
+                    return false;
+                auto outside = clipCap(covered, plane);
+                if (!outside.empty())
+                    polygons.push_back(std::move(outside));
+                if (covered.empty())
+                    break;
+            }
+            if (covered.empty())
+                polygons = { triangle };
+            else
+                polygons.push_back(std::move(covered));
+
+            for (const auto& polygon : polygons) {
+                if (!chargeCapWork(polygon.size() + 2 * otherPlanes.size(), remainingWork))
+                    return false;
+                const auto center = capCenter(polygon);
+                const bool otherBelow = occupiesCapSide(otherPlanes, center, -normal);
+                const bool otherAbove = occupiesCapSide(otherPlanes, center, normal);
+                if (owner == 1 && otherBelow != otherAbove)
+                    continue;
+                const auto below = owner == 0 ? capOccupancy(true, otherBelow) : capOccupancy(otherBelow, true);
+                const auto above = owner == 0 ? capOccupancy(false, otherAbove) : capOccupancy(otherAbove, false);
+                for (size_t mode = 0; mode < fragments.size(); ++mode) {
+                    if (below[mode] == above[mode])
+                        continue;
+                    auto& fragment = fragments[mode].emplace_back(CapFragment { polygon, { owner == 0, index, !below[mode] } });
+                    if (!below[mode])
+                        std::reverse(fragment.polygon.begin(), fragment.polygon.end());
+                }
+            }
+        }
+    }
+
+    std::vector<Vector3> vertices;
+    std::array<std::vector<std::vector<size_t>>, 3> triangles;
+    std::array<std::vector<TriangleSource>, 3> sources;
+    for (size_t mode = 0; mode < fragments.size(); ++mode) {
+        if (!triangulateCaps(fragments[mode], vertices, triangles[mode], sources[mode], remainingWork))
+            return false;
+    }
+    if (triangles[0].empty())
+        return false;
+    for (auto& point : vertices)
+        point = origin + point * scale;
+    m_newVertices = std::move(vertices);
+    m_capTriangles = std::move(triangles);
+    m_capSources = std::move(sources);
+    return true;
+}
+
 bool SolidMeshBooleanOperation::combine()
 {
     searchPotentialIntersectedPairs();
@@ -521,6 +862,8 @@ bool SolidMeshBooleanOperation::combine()
     }
 
     if (!buildPolygonsFromEdges(firstEdges, firstIntersections)) {
+        if (m_hasCoplanarContact && combineConvexCaps())
+            return true;
         dust3dDebug << "Build polygons from edges failed";
         return false;
     }
@@ -581,6 +924,15 @@ void SolidMeshBooleanOperation::decideGroupSide(const std::vector<std::vector<si
 void SolidMeshBooleanOperation::fetchUnion(std::vector<std::vector<size_t>>& resultTriangles,
     std::vector<TriangleSource>* sources)
 {
+    if (!m_capTriangles[0].empty()) {
+        const auto& triangles = m_capTriangles[0];
+        resultTriangles.insert(resultTriangles.end(), triangles.begin(), triangles.end());
+        if (sources) {
+            const auto& records = m_capSources[0];
+            sources->insert(sources->end(), records.begin(), records.end());
+        }
+        return;
+    }
     for (size_t i = 0; i < m_firstGroupSides.size(); ++i) {
         if (m_firstGroupSides[i])
             continue;
@@ -605,6 +957,15 @@ void SolidMeshBooleanOperation::fetchUnion(std::vector<std::vector<size_t>>& res
 void SolidMeshBooleanOperation::fetchDiff(std::vector<std::vector<size_t>>& resultTriangles,
     std::vector<TriangleSource>* sources)
 {
+    if (!m_capTriangles[0].empty()) {
+        const auto& triangles = m_capTriangles[1];
+        resultTriangles.insert(resultTriangles.end(), triangles.begin(), triangles.end());
+        if (sources) {
+            const auto& records = m_capSources[1];
+            sources->insert(sources->end(), records.begin(), records.end());
+        }
+        return;
+    }
     for (size_t i = 0; i < m_firstGroupSides.size(); ++i) {
         if (m_firstGroupSides[i])
             continue;
@@ -633,6 +994,15 @@ void SolidMeshBooleanOperation::fetchDiff(std::vector<std::vector<size_t>>& resu
 void SolidMeshBooleanOperation::fetchIntersect(std::vector<std::vector<size_t>>& resultTriangles,
     std::vector<TriangleSource>* sources)
 {
+    if (!m_capTriangles[0].empty()) {
+        const auto& triangles = m_capTriangles[2];
+        resultTriangles.insert(resultTriangles.end(), triangles.begin(), triangles.end());
+        if (sources) {
+            const auto& records = m_capSources[2];
+            sources->insert(sources->end(), records.begin(), records.end());
+        }
+        return;
+    }
     for (size_t i = 0; i < m_firstGroupSides.size(); ++i) {
         if (!m_firstGroupSides[i])
             continue;

@@ -23,6 +23,7 @@
 #ifndef DUST3D_MESH_SOLID_MESH_BOOLEAN_OPERATION_H_
 #define DUST3D_MESH_SOLID_MESH_BOOLEAN_OPERATION_H_
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <dust3d/base/position_key.h>
@@ -56,11 +57,16 @@ public:
         std::vector<TriangleSource>* sources = nullptr);
 
     const std::vector<Vector3>& resultVertices();
+    bool usedConvexCaps() const { return !m_capTriangles[0].empty(); }
 
 private:
     const SolidMesh* m_firstMesh = nullptr;
     const SolidMesh* m_secondMesh = nullptr;
     bool m_preserveThinWalls = false;
+    bool m_hasCoplanarContact = false;
+    std::array<std::vector<std::vector<size_t>>, 3> m_capTriangles;
+    std::array<std::vector<TriangleSource>, 3> m_capSources;
+    bool combineConvexCaps();
     std::vector<std::pair<size_t, size_t>> m_potentialIntersectedPairs;
     std::vector<Vector3> m_newVertices;
     std::vector<std::vector<size_t>> m_newTriangles;

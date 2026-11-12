@@ -70,7 +70,7 @@ bool MeshCombiner::Mesh::isNull() const
 
 MeshCombiner::Mesh* MeshCombiner::combine(const Mesh& firstMesh, const Mesh& secondMesh, Method method,
     std::vector<std::pair<Source, size_t>>* combinedVerticesComeFrom,
-    std::vector<TriangleSource>* combinedTrianglesComeFrom, bool preserveThinWalls)
+    std::vector<TriangleSource>* combinedTrianglesComeFrom, bool preserveThinWalls, bool* alreadyConforming)
 {
     if (firstMesh.isNull() || secondMesh.isNull())
         return nullptr;
@@ -78,6 +78,8 @@ MeshCombiner::Mesh* MeshCombiner::combine(const Mesh& firstMesh, const Mesh& sec
     SolidMeshBooleanOperation booleanOperation(firstMesh.m_solidMesh.get(), secondMesh.m_solidMesh.get(), preserveThinWalls);
     if (!booleanOperation.combine())
         return nullptr;
+    if (alreadyConforming)
+        *alreadyConforming = booleanOperation.usedConvexCaps();
 
     std::map<PositionKey, std::pair<Source, size_t>> verticesSourceMap;
 
