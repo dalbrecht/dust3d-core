@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Reject invalid numeric XML character references before reading DS3 documents (#103).
 - Keep the authored starting endpoint when repairing mixed edge directions in a legacy chain.
 
 - Preserve authored edge directions during native loading so identifiers cannot reverse valid chains and their generated UVs.
