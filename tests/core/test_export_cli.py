@@ -235,6 +235,61 @@ class ExportCliTests(unittest.TestCase):
         self.assertIn(b'Dust3D_color.png', self.destination.read_bytes())
         self.assert_unchanged()
 
+    def make_model_chain(self, closed):
+        def identity(number):
+            return f'{{{number:08d}-0000-4000-8000-{number:012d}}}'
+
+        canvas = ElementTree.Element('canvas', originX='.5', originY='.5', originZ='.5')
+        nodes, edges, parts, components = [ElementTree.SubElement(canvas, tag)
+                                           for tag in ('nodes', 'edges', 'parts', 'components')]
+        part = identity(100)
+        model = ElementTree.SubElement(parts, 'part', id=part, cutFace='Triangle', cutRotation='.17')
+        if not closed:
+            model.set('rounded', 'true')
+        ElementTree.SubElement(components, 'component', id=identity(101), linkDataType='partId', linkData=part)
+        ids = list(map(identity, (4, 1, 3, 2)))
+        coordinates = (('.24', '.52', '.52', '.075'), ('.39', '.41', '.47', '.11'),
+                       ('.58', '.48', '.42', '.09'), ('.76', '.55', '.58', '.055'))
+        for node, (x, y, z, radius) in zip(ids, coordinates):
+            ElementTree.SubElement(nodes, 'node', id=node, partId=part, x=x, y=y, z=z, radius=radius)
+        endpoints = ids[1:] + (ids[:1] if closed else [])
+        for index, (start, end) in enumerate(zip(ids, endpoints)):
+            ElementTree.SubElement(edges, 'edge', id=identity(120 + index), partId=part,
+                                   attrib={'from': start, 'to': end})
+        return canvas, ids, edges
+
+    def export_model_chain(self, canvas, name):
+        xml = ElementTree.tostring(canvas)
+        header = f'<ds3><model name="model.xml" offset="0" size="{len(xml)}"/></ds3>'.encode()
+        prefix = b'DUST3D 1.0 xml '
+        archive = prefix + f'{len(prefix) + 12 + len(header):010d}\r\n'.encode() + header + xml
+        self.source.write_bytes(archive)
+        destination = self.directory / f'{name}.obj'
+        result = self.run_export(self.source, destination)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.source.read_bytes(), archive)
+        geometry = destination.read_bytes()
+        self.assertIn(b'\nf ', geometry)
+        return geometry
+
+    def test_should_repair_legacy_open_chain_from_authored_endpoint(self):
+        canvas, ids, edges = self.make_model_chain(closed=False)
+        authored = self.export_model_chain(canvas, 'authored')
+        edges[1].set('from', ids[2])
+        edges[1].set('to', ids[1])
+        self.assertEqual(self.export_model_chain(canvas, 'legacy'), authored)
+
+    def test_should_keep_closed_model_geometry_independent_of_edge_ids(self):
+        canvas, _, edges = self.make_model_chain(closed=True)
+        authored = self.export_model_chain(canvas, 'authored')
+        edges[0].set('id', '{00000130-0000-4000-8000-000000000130}')
+        self.assertEqual(self.export_model_chain(canvas, 'renamed-edge'), authored)
+        for edge in edges:
+            start, end = edge.get('from'), edge.get('to')
+            edge.set('from', end)
+            edge.set('to', start)
+        self.assertNotEqual(self.export_model_chain(canvas, 'reversed-cycle'), authored)
+
     def test_should_keep_stitching_loop_geometry_independent_of_edge_ids(self):
         def identity(number):
             return f'{{{number:08d}-0000-4000-8000-{number:012d}}}'
