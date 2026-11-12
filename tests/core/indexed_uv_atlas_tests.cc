@@ -261,6 +261,39 @@ void gradientChartsFollowSeamGenerationOrder()
         "Source bake retains seam order and omits a clipped chart without losing its neighbor's colors");
 }
 
+void componentChartsFollowSourceOrder()
+{
+    auto object = coincident();
+    const dust3d::Uuid removed("{cccccccc-cccc-4ccc-8ccc-cccccccccccc}");
+    object.proceduralComponentOrder = { removed, second, second, first };
+    const auto atlas = dust3d::UvAtlasBuilder::build(object, components());
+    require(atlas.layouts.size() == 2, "Removed and duplicate owners must not add charts");
+    require(atlas.layouts[0].sourceId == second && atlas.layouts[1].sourceId == first,
+        "Component packing must retain the source chart submission order");
+    require(atlas.layouts[0].indexedGlobalUv.at(1) == atlas.triangleUvs[1]
+            && atlas.layouts[1].indexedGlobalUv.at(0) == atlas.triangleUvs[0],
+        "Changing chart order must retain indexed triangle ownership for coincident faces");
+
+    dust3d::Object copy;
+    copy.triangles = object.triangles;
+    copy.copyUvFrom(object);
+    require(copy.proceduralComponentOrder == object.proceduralComponentOrder,
+        "Compatible UV copies retain component packing order");
+
+    dust3d::Snapshot snapshot;
+    dust3d::native::ImportedModels imports;
+    dust3d::native::ImportedSurfaceData sources(snapshot, imports, 1024 * 1024);
+    sources.prepare(object, "");
+    sources.appendTriangle(0);
+    sources.appendTriangle(1);
+    dust3d::Object subset;
+    std::vector<size_t> retained;
+    dust3d::native::populateProceduralSourceSubset(object, { 0, 1 }, sources, subset, retained, nullptr);
+    const auto filtered = dust3d::UvAtlasBuilder::build(subset, components());
+    require(filtered.layouts[0].sourceId == second && filtered.layouts[1].sourceId == first,
+        "Source bake subsets retain component packing order");
+}
+
 void proceduralSubsetRetainsTopology()
 {
     using namespace dust3d;
@@ -324,6 +357,7 @@ int main()
         explicitGeneratedGradient();
         gradientOrderIgnoresOpaqueIdentity();
         gradientChartsFollowSeamGenerationOrder();
+        componentChartsFollowSourceOrder();
         proceduralSubsetRetainsTopology();
         std::cout << "Indexed procedural atlas contracts passed\n";
         return 0;

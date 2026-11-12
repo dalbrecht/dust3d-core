@@ -3170,6 +3170,13 @@ void MeshGenerator::generate()
     // Recursively check uncombined components
     collectUncombinedComponent(to_string(Uuid()));
     collectBrokenTriangles(to_string(Uuid()));
+    if (!m_object->triangleProceduralUvs.empty()) {
+        // Qt submits component charts in this traversal order. Keep the
+        // sequence independently of the positional UV values in that map.
+        m_object->proceduralComponentOrder.reserve(m_object->componentTriangleUvs.size());
+        for (const auto& component : m_object->componentTriangleUvs)
+            m_object->proceduralComponentOrder.push_back(component.first);
+    }
 
     postprocessObject(m_object);
 
