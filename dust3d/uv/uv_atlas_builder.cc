@@ -200,6 +200,18 @@ namespace {
         const double scale = totalArea > 0 ? options.textureSize / std::sqrt(totalArea) : 1;
         UvMapPacker packer;
         size_t layoutOrdinal = 0;
+        if (!object.proceduralGradientOrder.empty()) {
+            std::map<Uuid, size_t> seamRanks;
+            for (size_t index = 0; index < object.proceduralGradientOrder.size(); ++index)
+                seamRanks.emplace(object.proceduralGradientOrder[index], index);
+            const auto rank = [&](const ChartKey& key) {
+                const auto found = seamRanks.find(key.second);
+                return found == seamRanks.end() ? object.proceduralGradientOrder.size() : found->second;
+            };
+            std::stable_sort(gradientOrder.begin(), gradientOrder.end(), [&](const auto& first, const auto& second) {
+                return rank(first) < rank(second);
+            });
+        }
         std::vector<ChartKey> order = gradientOrder;
         for (const auto& entry : parts)
             if (!entry.first.first)

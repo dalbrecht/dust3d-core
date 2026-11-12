@@ -84,6 +84,8 @@ public:
     // Empty selects legacy positional charts; otherwise exactly parallel to triangles.
     // Null records never borrow ownership or coordinates from coincident geometry.
     std::vector<std::optional<ProceduralTriangleUv>> triangleProceduralUvs;
+    // Gradient chart IDs in seam generation order, independent of final triangle order.
+    std::vector<Uuid> proceduralGradientOrder;
     // Empty selects legacy lookup; otherwise exact triangle/corner ownership is authoritative.
     std::vector<SourceTriangleCorners> triangleSourceCorners;
     std::vector<float> vertexSmoothCutoffDegrees;
@@ -187,12 +189,16 @@ public:
     void copyUvFrom(const Object& source)
     {
         componentTriangleUvs = source.componentTriangleUvs;
-        if (source.triangleProceduralUvs.empty())
+        if (source.triangleProceduralUvs.empty()) {
+            proceduralGradientOrder.clear();
             triangleProceduralUvs.clear();
-        else if (triangles == source.triangles && source.triangleProceduralUvs.size() == triangles.size())
+        } else if (triangles == source.triangles && source.triangleProceduralUvs.size() == triangles.size()) {
             triangleProceduralUvs = source.triangleProceduralUvs;
-        else
+            proceduralGradientOrder = source.proceduralGradientOrder;
+        } else {
+            proceduralGradientOrder.clear();
             triangleProceduralUvs.assign(triangles.size(), std::nullopt);
+        }
         seamTriangleUvs = source.seamTriangleUvs;
         brokenTrianglesToComponentIdMap = source.brokenTrianglesToComponentIdMap;
         componentNames = source.componentNames;
