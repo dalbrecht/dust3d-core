@@ -86,6 +86,8 @@ public:
     std::vector<std::optional<ProceduralTriangleUv>> triangleProceduralUvs;
     // Gradient chart IDs in seam generation order, independent of final triangle order.
     std::vector<Uuid> proceduralGradientOrder;
+    // Source component chart submission order, retained when indexed faces are filtered.
+    std::vector<Uuid> proceduralComponentOrder;
     // Empty selects legacy lookup; otherwise exact triangle/corner ownership is authoritative.
     std::vector<SourceTriangleCorners> triangleSourceCorners;
     std::vector<float> vertexSmoothCutoffDegrees;
@@ -190,12 +192,15 @@ public:
     {
         componentTriangleUvs = source.componentTriangleUvs;
         if (source.triangleProceduralUvs.empty()) {
+            proceduralComponentOrder.clear();
             proceduralGradientOrder.clear();
             triangleProceduralUvs.clear();
         } else if (triangles == source.triangles && source.triangleProceduralUvs.size() == triangles.size()) {
             triangleProceduralUvs = source.triangleProceduralUvs;
             proceduralGradientOrder = source.proceduralGradientOrder;
+            proceduralComponentOrder = source.proceduralComponentOrder;
         } else {
+            proceduralComponentOrder.clear();
             proceduralGradientOrder.clear();
             triangleProceduralUvs.assign(triangles.size(), std::nullopt);
         }

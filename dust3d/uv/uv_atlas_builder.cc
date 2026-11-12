@@ -6,6 +6,7 @@
 #include <dust3d/base/retained_payload_budget.h>
 #include <dust3d/uv/uv_atlas_builder.h>
 #include <limits>
+#include <set>
 
 namespace dust3d {
 namespace {
@@ -213,8 +214,14 @@ namespace {
             });
         }
         std::vector<ChartKey> order = gradientOrder;
+        std::set<Uuid> submittedComponents;
+        for (const auto& component : object.proceduralComponentOrder) {
+            const ChartKey key { false, component };
+            if (parts.count(key) != 0 && submittedComponents.insert(component).second)
+                order.push_back(key);
+        }
         for (const auto& entry : parts)
-            if (!entry.first.first)
+            if (!entry.first.first && submittedComponents.count(entry.first.second) == 0)
                 order.push_back(entry.first);
         for (const auto& key : order) {
             auto& part = parts.at(key);
