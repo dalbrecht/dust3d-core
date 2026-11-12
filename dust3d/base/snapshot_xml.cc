@@ -25,6 +25,7 @@
 #include <dust3d/base/string.h>
 #include <dust3d/base/uuid.h>
 #include <iostream>
+#include <optional>
 #include <rapidxml.hpp>
 #include <stack>
 
@@ -158,26 +159,29 @@ void loadNativeSnapshotFromXmlString(Snapshot* snapshot, char* xmlString)
     loadSnapshotFromXmlString(snapshot, xmlString);
     // Qt imports legacy part inversion as the linked component's effective
     // combination mode, overriding even an explicit modern mode.
-    std::map<Uuid, bool> legacyInverseParts;
+    std::map<Uuid, std::optional<bool>> legacyInverseParts;
     for (const auto& part : snapshot->parts) {
         const Uuid id(part.first);
-        if (!id.isNull())
-            legacyInverseParts[id] = String::isTrue(String::valueOrEmpty(part.second, "inverse"));
+        if (id.isNull())
+            continue;
+        const bool inverse = String::isTrue(String::valueOrEmpty(part.second, "inverse"));
+        auto [alias, unique] = legacyInverseParts.emplace(id, inverse);
+        if (!unique)
+            alias->second.reset();
     }
     for (auto& entry : snapshot->components) {
         auto& component = entry.second;
         if (String::valueOrEmpty(component, "linkDataType") != "partId")
             continue;
         const auto link = String::valueOrEmpty(component, "linkData");
-        const Uuid id(link);
+        // The native validator and generator use exact stored part identities.
+        const auto part = snapshot->parts.find(link);
         bool inverse = false;
-        if (!id.isNull()) {
-            const auto part = legacyInverseParts.find(id);
-            inverse = part != legacyInverseParts.end() && part->second;
+        if (part != snapshot->parts.end()) {
+            inverse = String::isTrue(String::valueOrEmpty(part->second, "inverse"));
         } else {
-            // Preserve exact non-UUID identities without merging null UUIDs.
-            const auto part = snapshot->parts.find(link);
-            inverse = part != snapshot->parts.end() && String::isTrue(String::valueOrEmpty(part->second, "inverse"));
+            const auto alias = legacyInverseParts.find(Uuid(link));
+            inverse = alias != legacyInverseParts.end() && alias->second.value_or(false);
         }
         if (inverse)
             component["combineMode"] = "Inversion";

@@ -117,6 +117,20 @@ void supportsUuidBraceAliasesWithoutConflatingOtherOwners()
     }
 }
 
+void exactOwnersWinWhenUuidAliasesConflict()
+{
+    const std::string bare = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    const std::string braced = "{" + bare + "}";
+    std::string xml = "<canvas><parts><part id='" + bare + "' inverse='true'/>";
+    xml += "<part id='" + braced + "' inverse='false'/></parts><components>";
+    xml += "<component id='bare' linkDataType='partId' linkData='" + bare + "' combineMode='Normal'/>";
+    xml += "<component id='braced' linkDataType='partId' linkData='" + braced + "' combineMode='Uncombined'/>";
+    xml += "</components></canvas>";
+    const auto snapshot = read(xml);
+    require(snapshot.components.at("bare").at("combineMode") == "Inversion", "Exact bare owner lost its inverse flag");
+    require(snapshot.components.at("braced").at("combineMode") == "Uncombined", "Exact braced owner inherited a different part's inverse flag");
+}
+
 void supportsLegacyFlatPartLists()
 {
     const auto snapshot = read("<canvas><parts><part id='p' inverse='true'/></parts>"
@@ -137,6 +151,7 @@ int main()
         onlyTransformsAnExplicitExistingPartLink();
         supportsLegacyFlatPartLists();
         supportsUuidBraceAliasesWithoutConflatingOtherOwners();
+        exactOwnersWinWhenUuidAliasesConflict();
         return 0;
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';
