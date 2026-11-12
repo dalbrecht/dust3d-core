@@ -66,7 +66,7 @@ private:
     bool m_hasCoplanarContact = false;
     std::array<std::vector<std::vector<size_t>>, 3> m_capTriangles;
     std::array<std::vector<TriangleSource>, 3> m_capSources;
-    bool combineConvexCaps();
+    bool combineClippedFaces(bool convex);
     std::vector<std::pair<size_t, size_t>> m_potentialIntersectedPairs;
     std::vector<Vector3> m_newVertices;
     std::vector<std::vector<size_t>> m_newTriangles;

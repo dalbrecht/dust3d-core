@@ -27,6 +27,7 @@
 #include <dust3d/mesh/re_triangulator.h>
 #include <dust3d/mesh/solid_mesh_boolean_operation.h>
 #include <numeric>
+#include <optional>
 #include <queue>
 #include <set>
 #include <stdio.h>
@@ -477,6 +478,70 @@ bool occupiesCapSide(const std::vector<CapPlane>& planes, const Vector3& point, 
     });
 }
 
+std::optional<bool> insideClippedOperand(const Vector3& point, const std::vector<Vector3>& vertices,
+    const std::vector<std::vector<size_t>>& faces, const std::vector<CapPlane>& planes, size_t& remainingWork)
+{
+    for (int y = 1; y <= 8; ++y) {
+        for (int z = 1; z <= 8; ++z) {
+            if (!chargeCapWork(faces.size(), remainingWork))
+                return std::nullopt;
+            const Vector3 ray(1, y, z);
+            size_t hits = 0;
+            bool ambiguous = false;
+            for (size_t i = 0; i < faces.size(); ++i) {
+                const auto& plane = planes[i];
+                const double projection = Vector3::dotProduct(plane.normal, ray);
+                if (std::abs(projection) <= capTolerance)
+                    continue;
+                const double distance = -distanceTo(plane, point) / projection;
+                if (distance <= capTolerance)
+                    continue;
+                const auto& face = faces[i];
+                const auto& origin = vertices[face[0]];
+                const auto u = vertices[face[1]] - origin;
+                const auto v = vertices[face[2]] - origin;
+                const auto w = (point - origin) + ray * distance;
+                const double area = Vector3::dotProduct(Vector3::crossProduct(u, v), plane.normal);
+                const double s = Vector3::dotProduct(Vector3::crossProduct(w, v), plane.normal) / area;
+                const double t = Vector3::dotProduct(Vector3::crossProduct(u, w), plane.normal) / area;
+                if (s < -capTolerance || t < -capTolerance || s + t > 1 + capTolerance)
+                    continue;
+                if (s <= capTolerance || t <= capTolerance || s + t >= 1 - capTolerance) {
+                    ambiguous = true;
+                    break;
+                }
+                ++hits;
+            }
+            if (!ambiguous)
+                return hits % 2 != 0;
+        }
+    }
+    return std::nullopt;
+}
+
+std::optional<std::pair<bool, bool>> clippedOccupancy(const Vector3& point, const Vector3& normal,
+    const std::vector<Vector3>& vertices, const std::vector<std::vector<size_t>>& faces,
+    const std::vector<CapPlane>& planes, size_t& remainingWork)
+{
+    if (!chargeCapWork(planes.size(), remainingWork))
+        return std::nullopt;
+    double step = 1;
+    for (const auto& plane : planes) {
+        const double distance = distanceTo(plane, point);
+        const double projection = Vector3::dotProduct(plane.normal, normal);
+        if (std::abs(distance) > capTolerance && std::abs(projection) > capTolerance)
+            step = std::min(step, std::abs(distance / projection));
+    }
+    step *= 0.5;
+    if (step <= 8 * capTolerance)
+        return std::nullopt;
+    const auto below = insideClippedOperand(point - normal * step, vertices, faces, planes, remainingWork);
+    const auto above = insideClippedOperand(point + normal * step, vertices, faces, planes, remainingWork);
+    if (!below || !above)
+        return std::nullopt;
+    return std::pair { *below, *above };
+}
+
 std::array<bool, 3> capOccupancy(bool first, bool second)
 {
     return { first || second, first && !second, first && second };
@@ -605,7 +670,7 @@ bool triangulateCaps(const std::vector<CapFragment>& fragments, std::vector<Vect
 
 }
 
-bool SolidMeshBooleanOperation::combineConvexCaps()
+bool SolidMeshBooleanOperation::combineClippedFaces(bool convex)
 {
     size_t remainingWork = 4'000'000;
     const std::array<const SolidMesh*, 2> meshes { m_firstMesh, m_secondMesh };
@@ -640,8 +705,32 @@ bool SolidMeshBooleanOperation::combineConvexCaps()
     for (size_t owner = 0; owner < meshes.size(); ++owner) {
         for (const auto& point : *meshes[owner]->vertices())
             positions[owner].push_back((point - origin) / scale);
-        if (!convexPlanes(positions[owner], *meshes[owner]->triangles(), planes[owner], remainingWork))
+        if (convex) {
+            if (!convexPlanes(positions[owner], *meshes[owner]->triangles(), planes[owner], remainingWork))
+                return false;
+        } else {
+            for (const auto& face : *meshes[owner]->triangles()) {
+                const auto& origin = positions[owner][face[0]];
+                auto normal = Vector3::crossProduct(positions[owner][face[1]] - origin, positions[owner][face[2]] - origin);
+                const double length = normal.length();
+                if (!(length > 0) || !std::isfinite(length))
+                    return false;
+                normal = normal / length;
+                planes[owner].push_back({ normal, Vector3::dotProduct(normal, origin) });
+            }
+        }
+    }
+
+    std::array<std::vector<std::vector<size_t>>, 2> candidates;
+    if (!convex) {
+        candidates[0].resize(meshes[0]->triangles()->size());
+        candidates[1].resize(meshes[1]->triangles()->size());
+        if (!chargeCapWork(m_potentialIntersectedPairs.size(), remainingWork))
             return false;
+        for (const auto& [first, second] : m_potentialIntersectedPairs) {
+            candidates[0][first].push_back(second);
+            candidates[1][second].push_back(first);
+        }
     }
 
     std::array<std::vector<CapFragment>, 3> fragments;
@@ -653,28 +742,53 @@ bool SolidMeshBooleanOperation::combineConvexCaps()
             const CapPolygon triangle { positions[owner][face[0]], positions[owner][face[1]], positions[owner][face[2]] };
             auto normal = Vector3::crossProduct(triangle[1] - triangle[0], triangle[2] - triangle[0]);
             normal = normal / normal.length();
-            auto covered = triangle;
             std::vector<CapPolygon> polygons;
-            for (const auto& plane : otherPlanes) {
-                if (!chargeCapWork(covered.size(), remainingWork))
-                    return false;
-                auto outside = clipCap(covered, plane);
-                if (!outside.empty())
-                    polygons.push_back(std::move(outside));
+            if (convex) {
+                auto covered = triangle;
+                for (const auto& plane : otherPlanes) {
+                    if (!chargeCapWork(covered.size(), remainingWork))
+                        return false;
+                    auto outside = clipCap(covered, plane);
+                    if (!outside.empty())
+                        polygons.push_back(std::move(outside));
+                    if (covered.empty())
+                        break;
+                }
                 if (covered.empty())
-                    break;
-            }
-            if (covered.empty())
+                    polygons = { triangle };
+                else
+                    polygons.push_back(std::move(covered));
+            } else {
                 polygons = { triangle };
-            else
-                polygons.push_back(std::move(covered));
+                for (const auto candidate : candidates[owner][index]) {
+                    const size_t count = polygons.size();
+                    for (size_t p = 0; p < count; ++p) {
+                        if (!chargeCapWork(polygons[p].size(), remainingWork))
+                            return false;
+                        auto outside = clipCap(polygons[p], otherPlanes[candidate]);
+                        if (polygons[p].empty())
+                            polygons[p] = std::move(outside);
+                        else if (!outside.empty())
+                            polygons.push_back(std::move(outside));
+                    }
+                }
+            }
 
             for (const auto& polygon : polygons) {
                 if (!chargeCapWork(polygon.size() + 2 * otherPlanes.size(), remainingWork))
                     return false;
                 const auto center = capCenter(polygon);
-                const bool otherBelow = occupiesCapSide(otherPlanes, center, -normal);
-                const bool otherAbove = occupiesCapSide(otherPlanes, center, normal);
+                std::pair<bool, bool> occupancy;
+                if (convex) {
+                    occupancy = { occupiesCapSide(otherPlanes, center, -normal), occupiesCapSide(otherPlanes, center, normal) };
+                } else {
+                    const auto classified = clippedOccupancy(center, normal, positions[1 - owner],
+                        *meshes[1 - owner]->triangles(), otherPlanes, remainingWork);
+                    if (!classified)
+                        return false;
+                    occupancy = *classified;
+                }
+                const auto [otherBelow, otherAbove] = occupancy;
                 if (owner == 1 && otherBelow != otherAbove)
                     continue;
                 const auto below = owner == 0 ? capOccupancy(true, otherBelow) : capOccupancy(otherBelow, true);
@@ -862,7 +976,7 @@ bool SolidMeshBooleanOperation::combine()
     }
 
     if (!buildPolygonsFromEdges(firstEdges, firstIntersections)) {
-        if (m_hasCoplanarContact && combineConvexCaps())
+        if (m_hasCoplanarContact && (combineClippedFaces(true) || combineClippedFaces(false)))
             return true;
         dust3dDebug << "Build polygons from edges failed";
         return false;
@@ -890,6 +1004,19 @@ bool SolidMeshBooleanOperation::combine()
         m_firstMesh->axisAlignedBoundingBoxTree(),
         m_secondGroupSides);
 
+    if (!firstEdges.empty()) {
+        std::vector<std::vector<size_t>> triangles;
+        fetchUnion(triangles);
+        bool valid = MeshState::isWatertight(triangles);
+        triangles.clear();
+        fetchDiff(triangles);
+        valid = valid && MeshState::isWatertight(triangles);
+        triangles.clear();
+        fetchIntersect(triangles);
+        valid = valid && MeshState::isWatertight(triangles);
+        if (!valid)
+            combineClippedFaces(false);
+    }
     return true;
 }
 
