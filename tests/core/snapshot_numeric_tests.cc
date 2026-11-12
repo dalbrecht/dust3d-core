@@ -56,6 +56,15 @@ void validateEdgeDirections()
     require(legacy.edges.at(first).at("from") == middle && legacy.edges.at(first).at("to") == high
             && legacy.edges.at(second).at("from") == low && legacy.edges.at(second).at("to") == middle,
         "Validation stopped repairing inconsistent legacy directions");
+
+    auto directedEndpoint = chain;
+    const std::string start = "{20000000-0000-4000-8000-000000000004}";
+    directedEndpoint.nodes[start] = chain.nodes.at(high);
+    directedEndpoint.edges[closing] = { { "partId", part }, { "from", start }, { "to", high } };
+    const auto expectedEdges = directedEndpoint.edges;
+    std::swap(directedEndpoint.edges[first]["from"], directedEndpoint.edges[first]["to"]);
+    dust3d::native::validateSnapshot(directedEndpoint, false, false);
+    require(directedEndpoint.edges == expectedEdges, "Legacy repair ignored the authored outgoing endpoint");
 }
 }
 

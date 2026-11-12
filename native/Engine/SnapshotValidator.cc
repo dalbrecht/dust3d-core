@@ -86,13 +86,19 @@ namespace native {
                             needsOrientationRepair = true;
                     }
                 }
-                auto current = neighbors.begin()->first;
+                const std::string* endpoint = nullptr;
                 for (const auto& node : neighbors) {
-                    if (node.second.size() == 1) {
-                        current = node.first;
+                    if (node.second.size() != 1)
+                        continue;
+                    if (!endpoint)
+                        endpoint = &node.first;
+                    // Qt prefers an endpoint already authored as the source of its edge.
+                    if (needsOrientationRepair && snapshot.edges.at(node.second.front().second).at("from") == node.first) {
+                        endpoint = &node.first;
                         break;
                     }
                 }
+                auto current = endpoint ? *endpoint : neighbors.begin()->first;
                 std::set<std::string> visitedEdges;
                 for (;;) {
                     bool advanced = false;
