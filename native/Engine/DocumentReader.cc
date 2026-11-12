@@ -1,3 +1,4 @@
+#include "DocumentXmlPreflight.h"
 #include "EngineInternal.h"
 #include "ImportedModels.h"
 #include <algorithm>
@@ -33,54 +34,26 @@ namespace native {
             return std::string(attribute->value(), attribute->value_size());
         }
 
-        // RapidXML is recursive. Bound depth before parsing so hostile XML cannot exhaust
-        // the stack. XML declarations/comments/CDATA do not increase depth.
         void validateXmlEnvelope(std::string_view xml)
         {
-            if (xml.find('\0') != std::string_view::npos)
+            switch (inspectDocumentXmlEnvelope(xml)) {
+            case DocumentXmlError::None:
+                return;
+            case DocumentXmlError::EmbeddedNul:
                 throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Embedded NUL bytes are not allowed in document XML.");
-            size_t depth = 0;
-            for (size_t position = 0; position < xml.size();) {
-                const auto start = xml.find('<', position);
-                if (start == std::string_view::npos)
-                    break;
-                if (xml.substr(start, 4) == "<!--" || xml.substr(start, 9) == "<![CDATA[" || xml.substr(start, 2) == "<?") {
-                    const auto terminator = xml.substr(start, 4) == "<!--" ? "-->" : (xml.substr(start, 2) == "<?" ? "?>" : "]]>");
-                    const auto end = xml.find(terminator, start + 2);
-                    if (end == std::string_view::npos)
-                        throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Unterminated XML declaration or comment.");
-                    position = end + std::char_traits<char>::length(terminator);
-                    continue;
-                }
-                if (xml.substr(start, 2) == "<!")
-                    throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "DTD declarations are not supported in .ds3 documents.");
-                char quote = 0;
-                auto end = start + 1;
-                for (; end < xml.size(); ++end) {
-                    const char character = xml[end];
-                    if (quote) {
-                        if (character == quote)
-                            quote = 0;
-                    } else if (character == '\'' || character == '"') {
-                        quote = character;
-                    } else if (character == '>') {
-                        break;
-                    }
-                }
-                if (end == xml.size())
-                    throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Unterminated XML element.");
-                if (xml[start + 1] == '/') {
-                    if (!depth)
-                        throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Unbalanced XML elements.");
-                    --depth;
-                } else if (xml[end - 1] != '/') {
-                    if (++depth > 128)
-                        throw DocumentError(DUST3D_STATUS_LIMIT_EXCEEDED, "The document exceeds the XML nesting limit (128).");
-                }
-                position = end + 1;
-            }
-            if (depth)
+            case DocumentXmlError::UnterminatedSpecial:
+                throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Unterminated XML declaration or comment.");
+            case DocumentXmlError::UnsupportedDeclaration:
+                throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "DTD declarations are not supported in .ds3 documents.");
+            case DocumentXmlError::UnterminatedElement:
+                throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Unterminated XML element.");
+            case DocumentXmlError::Unbalanced:
                 throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Unbalanced XML elements.");
+            case DocumentXmlError::DepthLimit:
+                throw DocumentError(DUST3D_STATUS_LIMIT_EXCEEDED, "The document exceeds the XML nesting limit (128).");
+            case DocumentXmlError::InvalidNumericReference:
+                throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "The document XML has an invalid numeric character reference.");
+            }
         }
 
         void validateModelXml(std::vector<uint8_t>& bytes)
