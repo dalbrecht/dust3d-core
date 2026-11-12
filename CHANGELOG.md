@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Match Qt’s independently scaled image and seam-gradient gutters around packed texture charts.
+
 - Add owned PCM16/WAV bytes with checked RIFF arithmetic, frame validation and output quotas (#318).
 
 - Match Qt source texel selection within packed image and seam-gradient charts, including rotated charts and wide sampling spans.
