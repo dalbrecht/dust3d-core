@@ -1076,6 +1076,30 @@ size_t dust3d_animation_catalog_surface_material_count(const Dust3DAnimationCata
  * NULL owner/out-of-range returns NULL. Copy before release. Does not normalize unknown document names.
  */
 const char* dust3d_animation_catalog_surface_material_name(const Dust3DAnimationCatalog* catalog, size_t index);
+/** Owned mono 44.1 kHz PCM16 RIFF/WAV bytes for explicit sound events. */
+typedef struct Dust3DSoundWav Dust3DSoundWav;
+enum {
+    DUST3D_SOUND_IMPACT = 0,
+    DUST3D_SOUND_UNDERWATER = 1,
+    DUST3D_SOUND_WHOOSH = 2
+};
+typedef struct Dust3DSoundEvent {
+    float time_seconds;
+    float intensity;
+    float whoosh_duration_seconds;
+    uint32_t kind;
+} Dust3DSoundEvent;
+/** Render at most 128 timed events using the zero-based animation catalog surface order.
+ * The caller owns the input array. No archive, animation evaluator or playback is used.
+ * Returns NULL on failure and writes the original diagnostic when error is supplied.
+ */
+Dust3DSoundWav* dust3d_sound_wav_create(const Dust3DSoundEvent* events, size_t count,
+    float duration_seconds, size_t surface_index, Dust3DError* error);
+void dust3d_sound_wav_destroy(Dust3DSoundWav* wav);
+/** Borrow the immutable bytes until the owner is destroyed. NULL returns NULL/zero. */
+const uint8_t* dust3d_sound_wav_bytes(const Dust3DSoundWav* wav);
+size_t dust3d_sound_wav_size(const Dust3DSoundWav* wav);
+
 /** Release all owned catalog storage; NULL is harmless. */
 void dust3d_animation_catalog_destroy(Dust3DAnimationCatalog* catalog);
 /** Number of lexicographically ordered type records, including legacy aliases; zero for NULL. */

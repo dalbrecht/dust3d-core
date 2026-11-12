@@ -875,12 +875,10 @@ AnimationSoundData SoundGenerator::generate(
 AnimationSoundData SoundGenerator::generateBoundedPcm(
     const std::vector<SoundEvent>& events, float durationSeconds, SurfaceMaterial material)
 {
-    constexpr float maximumDuration = 30.0f;
-    constexpr size_t maximumEvents = 128;
     constexpr float maximumWhooshDuration = 2.0f;
-    if (!std::isfinite(durationSeconds) || durationSeconds < 0.001f || durationSeconds > maximumDuration)
+    if (!std::isfinite(durationSeconds) || durationSeconds < 0.001f || durationSeconds > maximumBoundedDurationSeconds)
         throw std::invalid_argument("Sound duration must be between 1 millisecond and 30 seconds");
-    if (events.size() > maximumEvents)
+    if (events.size() > maximumBoundedEvents)
         throw std::invalid_argument("Sound synthesis accepts at most 128 events");
     const auto& surfaces = surfaceMaterials();
     if (std::find(surfaces.begin(), surfaces.end(), material) == surfaces.end())

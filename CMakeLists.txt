@@ -40,6 +40,7 @@ add_library(dust3d_engine STATIC
     native/Engine/ComponentPreviewOutput.cc
     native/Engine/AnimationCatalogBridge.cc
     native/Engine/AudioWavBridge.cc
+    native/Engine/SoundWavBridge.cc
     native/Engine/ObjDocument.cc
     native/Engine/ObjGeometryPlan.cc
     native/Engine/ObjExportBridge.cc
@@ -135,6 +136,10 @@ if(BUILD_TESTING)
     add_executable(dust3d_audio_wav_c_tests tests/core/audio_wav_c_tests.c native/Engine/AudioWavBridge.cc)
     target_include_directories(dust3d_audio_wav_c_tests PRIVATE native/Engine/include)
     add_test(NAME audio_wav_c_contracts COMMAND dust3d_audio_wav_c_tests)
+    add_executable(dust3d_sound_wav_c_tests tests/core/sound_wav_c_tests.c)
+    target_link_libraries(dust3d_sound_wav_c_tests PRIVATE dust3d_engine)
+    add_test(NAME sound_wav_c_contracts COMMAND dust3d_sound_wav_c_tests)
+    set_tests_properties(sound_wav_c_contracts PROPERTIES TIMEOUT 10)
 
     add_executable(dust3d_interpolation_identity_tests
         tests/core/interpolation_identity_tests.cc
