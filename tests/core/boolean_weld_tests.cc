@@ -90,37 +90,16 @@ void verifyLargeIntersectingSolids(bool preserveThinWalls)
         throw std::runtime_error("Large overlapping solids must retain the closed union");
 }
 
-void verifyBooleanTriangleOwnership(int mode)
+void verifyTriangleOwnership(const Box& first, const Box& second,
+    const std::vector<dust3d::Vector3>& vertices,
+    const std::vector<std::vector<size_t>>& triangles,
+    const std::vector<dust3d::SolidMeshBooleanOperation::TriangleSource>& sources,
+    bool difference)
 {
-    const bool difference = mode == 1;
-    auto first = box(0, 0, 1);
-    auto second = box(0, 0.4, 1.4);
-    for (auto& vertex : second.vertices)
-        vertex = vertex + dust3d::Vector3(0, 0.2, 0.3);
-    dust3d::SolidMesh firstMesh;
-    dust3d::SolidMesh secondMesh;
-    firstMesh.setVertices(&first.vertices);
-    firstMesh.setTriangles(&first.triangles);
-    firstMesh.prepare();
-    secondMesh.setVertices(&second.vertices);
-    secondMesh.setTriangles(&second.triangles);
-    secondMesh.prepare();
-    dust3d::SolidMeshBooleanOperation operation(&firstMesh, &secondMesh);
-    if (!operation.combine())
-        throw std::runtime_error("Intersecting ownership fixture failed");
-    std::vector<std::vector<size_t>> triangles;
-    std::vector<dust3d::SolidMeshBooleanOperation::TriangleSource> sources;
-    if (mode == 2)
-        operation.fetchIntersect(triangles, &sources);
-    else if (difference)
-        operation.fetchDiff(triangles, &sources);
-    else
-        operation.fetchUnion(triangles, &sources);
     if (triangles.empty() || sources.size() != triangles.size())
         throw std::runtime_error("Boolean triangle ownership is not aligned");
     size_t firstCount = 0;
     size_t secondCount = 0;
-    const auto& vertices = operation.resultVertices();
     for (size_t index = 0; index < triangles.size(); ++index) {
         const auto& source = sources[index];
         const auto& input = source.isFirst ? first : second;
@@ -157,6 +136,119 @@ void verifyBooleanTriangleOwnership(int mode)
     }
     if (!firstCount || !secondCount)
         throw std::runtime_error("Ownership fixture did not exercise both input meshes");
+}
+
+void verifyOverlappingBoxes(double secondBottom, double secondTop, double expectedIntersection)
+{
+    auto first = box(0, 0, 1);
+    auto second = box(2, secondBottom, secondTop);
+    for (auto& vertex : second.vertices)
+        vertex += dust3d::Vector3(0.4, 0.3, 0);
+    dust3d::SolidMesh firstMesh;
+    dust3d::SolidMesh secondMesh;
+    firstMesh.setVertices(&first.vertices);
+    firstMesh.setTriangles(&first.triangles);
+    firstMesh.prepare();
+    secondMesh.setVertices(&second.vertices);
+    secondMesh.setTriangles(&second.triangles);
+    secondMesh.prepare();
+
+    dust3d::SolidMeshBooleanOperation operation(&firstMesh, &secondMesh);
+    if (!operation.combine())
+        throw std::runtime_error("Overlapping boxes must generate Boolean results");
+    const double secondVolume = secondTop - secondBottom;
+    const auto& vertices = operation.resultVertices();
+    auto verifyVolume = [](const auto& vertices, const auto& triangles, double expected) {
+        if (triangles.empty() || !dust3d::MeshState::isWatertight(triangles))
+            throw std::runtime_error("Overlapping-box Boolean result must be watertight");
+        double volume = 0;
+        for (const auto& triangle : triangles) {
+            const auto& a = vertices.at(triangle.at(0));
+            const auto& b = vertices.at(triangle.at(1));
+            const auto& c = vertices.at(triangle.at(2));
+            volume += dust3d::Vector3::dotProduct(a, dust3d::Vector3::crossProduct(b, c)) / 6;
+        }
+        if (std::abs(volume - expected) > 1e-9)
+            throw std::runtime_error("Overlapping-box Boolean result lost or double-counted volume");
+    };
+    std::vector<std::vector<size_t>> triangles;
+    std::vector<dust3d::SolidMeshBooleanOperation::TriangleSource> sources;
+    operation.fetchUnion(triangles, &sources);
+    verifyVolume(vertices, triangles, 1 + secondVolume - expectedIntersection);
+    verifyTriangleOwnership(first, second, vertices, triangles, sources, false);
+    triangles.clear();
+    sources.clear();
+    operation.fetchDiff(triangles, &sources);
+    verifyVolume(vertices, triangles, 1 - expectedIntersection);
+    verifyTriangleOwnership(first, second, vertices, triangles, sources, true);
+    triangles.clear();
+    sources.clear();
+    operation.fetchIntersect(triangles, &sources);
+    verifyVolume(vertices, triangles, expectedIntersection);
+    verifyTriangleOwnership(first, second, vertices, triangles, sources, false);
+    if (secondBottom != 0)
+        return;
+
+    auto uvAt = [](const dust3d::Vector3& point) {
+        return dust3d::Vector2(point.x() * 0.5, point.y() * 0.5);
+    };
+    dust3d::MeshState firstState(first.vertices, first.triangles);
+    dust3d::MeshState secondState(second.vertices, second.triangles);
+    auto assignUvs = [&](dust3d::MeshState& state, const Box& input) {
+        for (const auto& face : input.triangles) {
+            state.triangleCornerUvs.push_back(std::array<dust3d::Vector2, 3> {
+                uvAt(input.vertices[face[0]]), uvAt(input.vertices[face[1]]), uvAt(input.vertices[face[2]]) });
+        }
+    };
+    assignUvs(firstState, first);
+    assignUvs(secondState, second);
+    auto combined = dust3d::MeshState::combine(firstState, secondState, dust3d::MeshCombiner::Method::Union, true);
+    if (!combined)
+        throw std::runtime_error("Coplanar union must reach the attributed mesh pipeline");
+    std::vector<dust3d::Vector3> combinedVertices;
+    std::vector<std::vector<size_t>> combinedFaces;
+    combined->mesh->fetch(combinedVertices, combinedFaces);
+    verifyVolume(combinedVertices, combinedFaces, 1 + secondVolume - expectedIntersection);
+    if (combined->triangleCornerUvs.size() != combinedFaces.size())
+        throw std::runtime_error("Coplanar union lost corner UV alignment");
+    for (size_t face = 0; face < combinedFaces.size(); ++face) {
+        const auto& uv = combined->triangleCornerUvs[face];
+        if (!uv)
+            throw std::runtime_error("Coplanar union lost a source triangle UV");
+        for (size_t corner = 0; corner < 3; ++corner) {
+            if (((*uv)[corner] - uvAt(combinedVertices[combinedFaces[face][corner]])).length() > 1e-9)
+                throw std::runtime_error("Coplanar union changed interpolated corner UVs");
+        }
+    }
+}
+
+void verifyBooleanTriangleOwnership(int mode)
+{
+    const bool difference = mode == 1;
+    auto first = box(0, 0, 1);
+    auto second = box(0, 0.4, 1.4);
+    for (auto& vertex : second.vertices)
+        vertex = vertex + dust3d::Vector3(0, 0.2, 0.3);
+    dust3d::SolidMesh firstMesh;
+    dust3d::SolidMesh secondMesh;
+    firstMesh.setVertices(&first.vertices);
+    firstMesh.setTriangles(&first.triangles);
+    firstMesh.prepare();
+    secondMesh.setVertices(&second.vertices);
+    secondMesh.setTriangles(&second.triangles);
+    secondMesh.prepare();
+    dust3d::SolidMeshBooleanOperation operation(&firstMesh, &secondMesh);
+    if (!operation.combine())
+        throw std::runtime_error("Intersecting ownership fixture failed");
+    std::vector<std::vector<size_t>> triangles;
+    std::vector<dust3d::SolidMeshBooleanOperation::TriangleSource> sources;
+    if (mode == 2)
+        operation.fetchIntersect(triangles, &sources);
+    else if (difference)
+        operation.fetchDiff(triangles, &sources);
+    else
+        operation.fetchUnion(triangles, &sources);
+    verifyTriangleOwnership(first, second, operation.resultVertices(), triangles, sources, difference);
     if (mode == 2)
         return;
     dust3d::MeshCombiner::Mesh firstCombined(first.vertices, first.triangles);
@@ -203,8 +295,6 @@ void verifyBooleanTriangleOwnership(int mode)
     }
     if (!retainedCount)
         throw std::runtime_error("Recombiner fixture exercised no retained faces");
-    if (!firstCount || !secondCount)
-        throw std::runtime_error("Ownership fixture did not exercise both input meshes");
 }
 
 size_t verifyCachedMeshTriangleOwnership(bool difference, bool recombine, bool hasOwnerAliases = false)
@@ -383,7 +473,28 @@ int main()
         }
         if (!generatedBridges)
             throw std::runtime_error("UV propagation fixtures exercised no generated bridges");
-        return 0;
+        struct CapCase {
+            const char* description;
+            double bottom;
+            double top;
+            double intersection;
+        };
+        const CapCase capCases[] = {
+            { "Displaced caps", 0.2, 1.2, 0.336 },
+            { "One coplanar cap", 0.0, 1.2, 0.42 },
+            { "Two coplanar caps", 0.0, 1.0, 0.42 },
+        };
+        bool failed = false;
+        for (const auto& fixture : capCases) {
+            try {
+                verifyOverlappingBoxes(fixture.bottom, fixture.top, fixture.intersection);
+                std::cout << fixture.description << ": passed\n";
+            } catch (const std::exception& error) {
+                std::cerr << fixture.description << ": " << error.what() << '\n';
+                failed = true;
+            }
+        }
+        return failed ? 1 : 0;
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';
         return 1;
