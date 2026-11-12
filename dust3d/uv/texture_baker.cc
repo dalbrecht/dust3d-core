@@ -224,25 +224,31 @@ namespace {
     {
         return std::max(1, static_cast<int>(std::ceil(origin + extent)) - static_cast<int>(std::floor(origin)));
     }
-    double chartImageCoordinate(double normalized, double origin, double extent, int bleed, bool flipped)
+    size_t chartImageSample(double normalized, double origin, double extent, int bleed, size_t sourceSize, bool horizontal)
     {
         if (extent < 1) {
             const auto offset = std::floor(origin) + normalized * chartPixelSpan(origin, extent) - origin;
-            if (offset <= 0)
-                return 0;
-            if (offset >= extent)
-                return 1;
-            return offset / extent;
+            const auto coordinate = std::clamp(offset / extent, 0.0, 1.0);
+            return std::min(sourceSize - 1, static_cast<size_t>(coordinate * sourceSize));
         }
-        // Qt truncates the padded pixmap origin toward zero. When the bleed
-        // crosses the atlas edge, the inner chart starts one texel later.
-        const auto rasterOffset = std::trunc(origin - bleed) + bleed - std::floor(origin);
-        normalized -= rasterOffset / static_cast<int>(extent);
-        // The reference rotates the scaled image, then draws through the integer
-        // QPainter overload. Preserve that transposed pixel-center phase.
-        if (flipped)
-            return std::clamp(normalized, 0.0, 1.0);
-        return std::clamp(normalized - (0.5 + origin - std::floor(origin)) / static_cast<int>(extent), 0.0, 1.0);
+        const auto destinationSize = static_cast<int>(extent);
+        // The padded pixmap's integer draw origin can shift the inner chart at the atlas edge.
+        const auto rasterOffset = static_cast<int>(std::trunc(origin - bleed) + bleed - std::floor(origin));
+        const auto destination = static_cast<int>(std::floor(normalized * destinationSize)) - rasterOffset;
+        if (destination < 0)
+            return 0;
+        if (destination >= destinationSize)
+            return sourceSize - 1;
+
+        // Qt selects the lower source texel on a pixel-center tie. Its horizontal
+        // raster uses 16-bit fractional steps and starts a new span every 2048 pixels.
+        constexpr int rasterSpanWidth = 2048;
+        constexpr uint64_t fixedScale = 1 << 16;
+        const auto spanStart = horizontal ? destination / rasterSpanWidth * rasterSpanWidth : destination;
+        const auto scaledSource = static_cast<uint64_t>(sourceSize) * fixedScale;
+        const auto initial = ((2 * spanStart + 1) * scaledSource - 1) / (2 * destinationSize);
+        const auto advance = (destination - spanStart) * (scaledSource / destinationSize);
+        return static_cast<size_t>((initial + advance) / fixedScale);
     }
     template <typename Paint>
     std::vector<uint8_t> rectangles(TextureImage& output, const UvAtlas& atlas, double bleedFraction, const TextureBakeOptions& options, Paint paint, const std::set<size_t>& skipped = {})
@@ -887,30 +893,30 @@ TextureBakeResult TextureBaker::bake(const Object& object, const UvAtlas& atlas,
         if (const auto* gradient = colorSources[ordinal].gradient) {
             const auto extent = (layout.flipped ? layout.height : layout.width) * options.colorSize;
             const auto origin = (layout.flipped ? layout.top : layout.left) * options.colorSize;
-            const auto coordinate = chartImageCoordinate(layout.flipped ? v : u, origin, extent, colorBleed, layout.flipped);
-            const auto sample = std::min(gradient->resolution - 1, static_cast<size_t>(coordinate * gradient->resolution));
+            const auto sample = chartImageSample(layout.flipped ? v : u, origin, extent, colorBleed, gradient->resolution, true);
             const auto amount = static_cast<double>(sample) / (gradient->resolution - 1);
             Pixel pixel;
             for (size_t channel = 0; channel < 4; ++channel) {
                 const auto large = static_cast<uint8_t>(gradient->largeColor[channel] * 255);
                 const auto small = static_cast<uint8_t>(gradient->smallColor[channel] * 255);
-                pixel[channel] = static_cast<uint8_t>(large * (1 - amount) + small * amount);
+                // A constant channel must not lose one byte to rounding, especially alpha.
+                pixel[channel] = large == small ? large : static_cast<uint8_t>(large * (1 - amount) + small * amount);
             }
             return pixel;
         }
         if (layout.id.isNull())
             return colorPixel(layout.color);
         const auto& source = *colorSources[ordinal].image;
-        // The reference draws its integer-sized pixmap at the fractional chart origin.
-        // Sample that translated pixel lattice rather than snapping the origin down.
         const auto left = layout.left * options.colorSize;
         const auto top = layout.top * options.colorSize;
-        u = chartImageCoordinate(u, left, layout.width * options.colorSize, colorBleed, layout.flipped);
-        v = chartImageCoordinate(v, top, layout.height * options.colorSize, colorBleed, layout.flipped);
-        if (layout.flipped)
-            std::swap(u, v);
-        const auto x = std::min(source.width - 1, static_cast<size_t>(u * source.width));
-        const auto y = std::min(source.height - 1, static_cast<size_t>(v * source.height));
+        const auto width = layout.width * options.colorSize;
+        const auto height = layout.height * options.colorSize;
+        const auto x = layout.flipped
+            ? chartImageSample(v, top, height, colorBleed, source.width, true)
+            : chartImageSample(u, left, width, colorBleed, source.width, true);
+        const auto y = layout.flipped
+            ? chartImageSample(u, left, width, colorBleed, source.height, false)
+            : chartImageSample(v, top, height, colorBleed, source.height, false);
         Pixel pixel;
         std::copy_n(source.pixels + y * source.rowStride + x * 4, 4, pixel.begin());
         return pixel; }, colorSkipped);
