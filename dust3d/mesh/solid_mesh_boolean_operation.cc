@@ -375,6 +375,7 @@ bool SolidMeshBooleanOperation::addUnintersectedTriangles(const SolidMesh* mesh,
 namespace {
 
 constexpr double capTolerance = 2e-11;
+constexpr double floatBoundaryTolerance = 2 * std::numeric_limits<float>::epsilon();
 
 // Bound extra work on a failed primary Boolean without altering the primary path.
 bool chargeCapWork(size_t amount, size_t& remaining)
@@ -436,12 +437,12 @@ Vector3 capCenter(const CapPolygon& polygon)
     return center / polygon.size();
 }
 
-CapPolygon clipCap(CapPolygon& inside, const CapPlane& plane)
+CapPolygon clipCap(CapPolygon& inside, const CapPlane& plane, double boundaryTolerance)
 {
     std::vector<double> distances;
     for (const auto& point : inside) {
         const double value = distanceTo(plane, point);
-        distances.push_back(std::abs(value) <= capTolerance ? 0 : value);
+        distances.push_back(std::abs(value) <= boundaryTolerance ? 0 : value);
     }
     const auto [least, greatest] = std::minmax_element(distances.begin(), distances.end());
     if (*greatest <= 0)
@@ -554,9 +555,9 @@ struct CapFragment {
 
 bool triangulateCaps(const std::vector<CapFragment>& fragments, std::vector<Vector3>& vertices,
     std::vector<std::vector<size_t>>& triangles, std::vector<SolidMeshBooleanOperation::TriangleSource>& sources,
-    size_t& remainingWork)
+    size_t& remainingWork, double boundaryTolerance)
 {
-    constexpr double squaredTolerance = capTolerance * capTolerance;
+    const double squaredTolerance = boundaryTolerance * boundaryTolerance;
     const size_t offset = vertices.size();
     std::vector<std::vector<size_t>> polygons;
     std::multimap<double, size_t> pointIndices;
@@ -565,8 +566,8 @@ bool triangulateCaps(const std::vector<CapFragment>& fragments, std::vector<Vect
             return false;
         auto& polygon = polygons.emplace_back();
         for (const auto& point : fragment.polygon) {
-            auto begin = pointIndices.lower_bound(point.x() - capTolerance);
-            auto end = pointIndices.upper_bound(point.x() + capTolerance);
+            auto begin = pointIndices.lower_bound(point.x() - boundaryTolerance);
+            auto end = pointIndices.upper_bound(point.x() + boundaryTolerance);
             size_t index = vertices.size();
             for (auto match = begin; match != end; ++match) {
                 if (!chargeCapWork(1, remainingWork))
@@ -615,7 +616,7 @@ bool triangulateCaps(const std::vector<CapFragment>& fragments, std::vector<Vect
             const auto b = polygon[(i + 1) % polygon.size()];
             const auto line = vertices[b] - vertices[a];
             const double length = line.length();
-            if (length <= capTolerance)
+            if (length <= boundaryTolerance)
                 return false;
             const auto direction = line / length;
             std::vector<std::pair<double, size_t>> onEdge { { 0, a } };
@@ -625,8 +626,8 @@ bool triangulateCaps(const std::vector<CapFragment>& fragments, std::vector<Vect
                     axis = candidate;
             }
             const auto& sorted = byAxis[axis];
-            const double minimum = std::min(vertices[a][axis], vertices[b][axis]) - capTolerance;
-            const double maximum = std::max(vertices[a][axis], vertices[b][axis]) + capTolerance;
+            const double minimum = std::min(vertices[a][axis], vertices[b][axis]) - boundaryTolerance;
+            const double maximum = std::max(vertices[a][axis], vertices[b][axis]) + boundaryTolerance;
             const auto begin = std::lower_bound(sorted.begin(), sorted.end(), minimum, [&](size_t index, double value) {
                 return vertices[index][axis] < value;
             });
@@ -641,7 +642,7 @@ bool triangulateCaps(const std::vector<CapFragment>& fragments, std::vector<Vect
                     continue;
                 const auto delta = vertices[point] - vertices[a];
                 const double along = Vector3::dotProduct(delta, direction);
-                if (along > capTolerance && along < length - capTolerance
+                if (along > boundaryTolerance && along < length - boundaryTolerance
                     && Vector3::crossProduct(delta, direction).lengthSquared() <= squaredTolerance)
                     onEdge.emplace_back(along, point);
             }
@@ -670,7 +671,7 @@ bool triangulateCaps(const std::vector<CapFragment>& fragments, std::vector<Vect
 
 }
 
-bool SolidMeshBooleanOperation::combineClippedFaces(bool convex)
+bool SolidMeshBooleanOperation::combineClippedFaces(bool convex, double boundaryTolerance)
 {
     size_t remainingWork = 4'000'000;
     const std::array<const SolidMesh*, 2> meshes { m_firstMesh, m_secondMesh };
@@ -748,7 +749,7 @@ bool SolidMeshBooleanOperation::combineClippedFaces(bool convex)
                 for (const auto& plane : otherPlanes) {
                     if (!chargeCapWork(covered.size(), remainingWork))
                         return false;
-                    auto outside = clipCap(covered, plane);
+                    auto outside = clipCap(covered, plane, boundaryTolerance);
                     if (!outside.empty())
                         polygons.push_back(std::move(outside));
                     if (covered.empty())
@@ -765,7 +766,7 @@ bool SolidMeshBooleanOperation::combineClippedFaces(bool convex)
                     for (size_t p = 0; p < count; ++p) {
                         if (!chargeCapWork(polygons[p].size(), remainingWork))
                             return false;
-                        auto outside = clipCap(polygons[p], otherPlanes[candidate]);
+                        auto outside = clipCap(polygons[p], otherPlanes[candidate], boundaryTolerance);
                         if (polygons[p].empty())
                             polygons[p] = std::move(outside);
                         else if (!outside.empty())
@@ -808,7 +809,7 @@ bool SolidMeshBooleanOperation::combineClippedFaces(bool convex)
     std::array<std::vector<std::vector<size_t>>, 3> triangles;
     std::array<std::vector<TriangleSource>, 3> sources;
     for (size_t mode = 0; mode < fragments.size(); ++mode) {
-        if (!triangulateCaps(fragments[mode], vertices, triangles[mode], sources[mode], remainingWork))
+        if (!triangulateCaps(fragments[mode], vertices, triangles[mode], sources[mode], remainingWork, boundaryTolerance))
             return false;
     }
     if (triangles[0].empty())
@@ -976,7 +977,7 @@ bool SolidMeshBooleanOperation::combine()
     }
 
     if (!buildPolygonsFromEdges(firstEdges, firstIntersections)) {
-        if ((m_hasCoplanarContact && combineClippedFaces(true)) || combineClippedFaces(false))
+        if ((m_hasCoplanarContact && combineClippedFaces(true, capTolerance)) || combineClippedFaces(false, capTolerance))
             return true;
         dust3dDebug << "Build polygons from edges failed";
         return false;
@@ -1014,8 +1015,12 @@ bool SolidMeshBooleanOperation::combine()
         triangles.clear();
         fetchIntersect(triangles);
         valid = valid && MeshState::isWatertight(triangles);
-        if (!valid)
-            combineClippedFaces(false);
+        if (!valid) {
+            // Generated solid operands can carry float-scale offsets at a shared seam.
+            // Keep thin-wall geometry on the precise path and require closed clipped results.
+            if (m_preserveThinWalls || !combineClippedFaces(false, floatBoundaryTolerance))
+                combineClippedFaces(false, capTolerance);
+        }
     }
     return true;
 }
