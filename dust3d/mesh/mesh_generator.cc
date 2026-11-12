@@ -2002,10 +2002,12 @@ void MeshGenerator::collectIncombinableMesh(const MeshState* mesh, const Generat
     else
         m_object->triangleSourceCorners.resize(m_object->triangles.size() + uncombinedFaces.size());
     m_object->triangleProceduralUvs.resize(m_object->triangles.size());
-    if (mesh->triangleProceduralUvs.size() == uncombinedFaces.size())
+    if (mesh->triangleProceduralUvs.size() == uncombinedFaces.size()) {
         m_object->triangleProceduralUvs.insert(m_object->triangleProceduralUvs.end(), mesh->triangleProceduralUvs.begin(), mesh->triangleProceduralUvs.end());
-    else
+        m_object->proceduralGradientOrder.insert(m_object->proceduralGradientOrder.end(), mesh->proceduralGradientOrder.begin(), mesh->proceduralGradientOrder.end());
+    } else {
         m_object->triangleProceduralUvs.resize(m_object->triangles.size() + uncombinedFaces.size());
+    }
     m_object->triangleCornerUvs.resize(m_object->triangles.size());
     if (mesh->triangleCornerUvs.size() == uncombinedFaces.size())
         m_object->triangleCornerUvs.insert(m_object->triangleCornerUvs.end(), mesh->triangleCornerUvs.begin(), mesh->triangleCornerUvs.end());
@@ -3160,6 +3162,7 @@ void MeshGenerator::generate()
         m_object->triangleVertexColors = combinedMesh->triangleVertexColors;
         m_object->triangleCornerUvs = combinedMesh->triangleCornerUvs;
         m_object->triangleProceduralUvs = combinedMesh->triangleProceduralUvs;
+        m_object->proceduralGradientOrder = combinedMesh->proceduralGradientOrder;
         m_object->triangleSourceCorners = combinedMesh->triangleSourceCorners;
         m_object->triangleModelKeys = combinedMesh->triangleModelKeys;
     }

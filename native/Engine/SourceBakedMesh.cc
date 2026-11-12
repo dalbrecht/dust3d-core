@@ -74,6 +74,8 @@ namespace native {
         const bool indexed = !original.triangleProceduralUvs.empty();
         if (indexed && original.triangleProceduralUvs.size() != original.triangles.size())
             throw DocumentError(DUST3D_STATUS_GENERATION_FAILED, "Procedural UV ownership is not triangle aligned.");
+        if (indexed)
+            procedural.proceduralGradientOrder = original.proceduralGradientOrder;
         std::map<TriangleKey, std::set<Uuid>> allowed;
         std::set<TriangleKey> unknownOwners;
         std::map<size_t, size_t> indexedVertices;

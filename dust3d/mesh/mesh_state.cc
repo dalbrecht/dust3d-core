@@ -28,6 +28,7 @@
 #include <dust3d/mesh/mesh_state.h>
 #include <limits>
 #include <memory>
+#include <set>
 
 namespace dust3d {
 
@@ -187,6 +188,7 @@ MeshState::MeshState(const MeshState& other)
     triangleVertexColors = other.triangleVertexColors;
     triangleCornerUvs = other.triangleCornerUvs;
     triangleProceduralUvs = other.triangleProceduralUvs;
+    proceduralGradientOrder = other.proceduralGradientOrder;
     triangleSourceCorners = other.triangleSourceCorners;
 }
 
@@ -432,6 +434,7 @@ std::unique_ptr<MeshState> MeshState::combine(const MeshState& first, const Mesh
                     const double middle = (minimum + maximum) * .5;
                     for (size_t group = 0; group < groups.size() && group < boundaries.size(); ++group) {
                         const ProceduralUvGradient gradient { Uuid::createUuid(), boundaryOwner(boundaries[group].first), boundaryOwner(boundaries[group].second) };
+                        newMeshState->proceduralGradientOrder.push_back(gradient.chartId);
                         auto assign = [&](const std::vector<size_t>& indices, const std::array<Vector2, 3>& corners) {
                             for (const auto index : indices) {
                                 if (index >= regeneratedUvs.size())
@@ -469,6 +472,21 @@ std::unique_ptr<MeshState> MeshState::combine(const MeshState& first, const Mesh
         return nullptr;
     }
     newMeshState->mesh = std::move(newMesh);
+    auto& gradientOrder = newMeshState->proceduralGradientOrder;
+    if (!gradientOrder.empty() || !first.proceduralGradientOrder.empty() || !second.proceduralGradientOrder.empty()) {
+        // Earlier joins may have been clipped away. Keep only their surviving chart IDs.
+        std::set<Uuid> retained;
+        for (const auto& record : newMeshState->triangleProceduralUvs)
+            if (record && record->gradient)
+                retained.insert(record->gradient->chartId);
+        auto createdHere = std::move(gradientOrder);
+        gradientOrder.clear();
+        for (const auto* order : std::array<const std::vector<Uuid>*, 3> { &createdHere, &first.proceduralGradientOrder, &second.proceduralGradientOrder }) {
+            for (const auto& id : *order)
+                if (retained.erase(id) != 0)
+                    gradientOrder.push_back(id);
+        }
+    }
     for (const auto& it : first.seamTriangleUvs)
         newMeshState->seamTriangleUvs.push_back(it);
     for (const auto& it : second.seamTriangleUvs)

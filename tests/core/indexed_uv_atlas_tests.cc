@@ -219,6 +219,48 @@ void gradientOrderIgnoresOpaqueIdentity()
         "Seam gradient insertion order must follow actual triangle provenance");
 }
 
+void gradientChartsFollowSeamGenerationOrder()
+{
+    auto object = coincident();
+    const auto local = object.triangleProceduralUvs[0]->uv;
+    object.triangleProceduralUvs[0] = dust3d::ProceduralTriangleUv {
+        {}, local, dust3d::ProceduralUvGradient { first, first, second }
+    };
+    object.triangleProceduralUvs[1] = dust3d::ProceduralTriangleUv {
+        {}, local, dust3d::ProceduralUvGradient { second, second, first }
+    };
+    const dust3d::Uuid removed("{cccccccc-cccc-4ccc-8ccc-cccccccccccc}");
+    object.proceduralGradientOrder = { removed, second, second, first };
+    const auto atlas = dust3d::UvAtlasBuilder::build(object, components());
+    require(atlas.gradients.size() == 2, "Removed or duplicate seams must not add charts");
+    require(atlas.layouts[0].indexedGlobalUv.count(1) == 1
+            && atlas.layouts[1].indexedGlobalUv.count(0) == 1,
+        "Seam chart packing must follow generation order even when final faces are reordered");
+    require(atlas.gradients[0].largeColor.b() == 1 && atlas.gradients[1].largeColor.r() == 1,
+        "Reordering charts must keep each indexed seam's endpoint colors");
+    dust3d::Object copy;
+    copy.triangles = object.triangles;
+    copy.copyUvFrom(object);
+    require(copy.proceduralGradientOrder == object.proceduralGradientOrder,
+        "Compatible UV copies retain indexed seam ordering");
+    copy.triangles.pop_back();
+    copy.copyUvFrom(object);
+    require(copy.proceduralGradientOrder.empty(), "An incompatible UV copy clears stale seam ordering");
+
+    dust3d::Snapshot snapshot;
+    dust3d::native::ImportedModels imports;
+    dust3d::native::ImportedSurfaceData sources(snapshot, imports, 1024 * 1024);
+    sources.prepare(object, "");
+    sources.appendTriangle(1);
+    dust3d::Object subset;
+    std::vector<size_t> retained;
+    dust3d::native::populateProceduralSourceSubset(object, { 1 }, sources, subset, retained, nullptr);
+    const auto filtered = dust3d::UvAtlasBuilder::build(subset, components());
+    require(subset.proceduralGradientOrder == object.proceduralGradientOrder
+            && filtered.gradients.size() == 1 && filtered.gradients[0].largeColor.b() == 1,
+        "Source bake retains seam order and omits a clipped chart without losing its neighbor's colors");
+}
+
 void proceduralSubsetRetainsTopology()
 {
     using namespace dust3d;
@@ -281,6 +323,7 @@ int main()
         retainedSourceBakeOrdinals();
         explicitGeneratedGradient();
         gradientOrderIgnoresOpaqueIdentity();
+        gradientChartsFollowSeamGenerationOrder();
         proceduralSubsetRetainsTopology();
         std::cout << "Indexed procedural atlas contracts passed\n";
         return 0;
