@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Omit untextured preview advisories after successful baked FBX exports. Geometry-only FBX exports continue to report their preview advisories.
+
 - Render bounded explicit sound events into owned WAV bytes through the portable C API.
 
 - Match Qt’s independently scaled image and seam-gradient gutters around packed texture charts.
