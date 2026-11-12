@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add an opt-in preview mesh load with cooperative cancellation at native phase boundaries.
+
 - Honor legacy part inversion when opening older Dust3D documents.
 
 - Reject invalid numeric XML character references before reading DS3 documents (#103).

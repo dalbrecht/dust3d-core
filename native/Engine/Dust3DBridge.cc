@@ -233,13 +233,23 @@ namespace native {
 
 Dust3DMesh* dust3d_mesh_load(const uint8_t* bytes, size_t size, Dust3DError* error)
 {
+    return dust3d_mesh_load_with_cancellation(bytes, size, nullptr, error);
+}
+
+Dust3DMesh* dust3d_mesh_load_with_cancellation(const uint8_t* bytes, size_t size,
+    const Dust3DCancellationToken* cancellation, Dust3DError* error)
+{
     dust3d::native::setError(error, DUST3D_STATUS_OK, "");
     try {
+        dust3d::native::checkCancellation(cancellation);
         std::lock_guard<std::mutex> lock(dust3d::native::engineMutex());
+        dust3d::native::checkCancellation(cancellation);
         std::string warning;
         dust3d::native::ImportedModels imports;
         auto snapshot = dust3d::native::readDocument(bytes, size, warning, nullptr, &imports);
-        return dust3d::native::generateMesh(std::move(snapshot), warning, &imports).release();
+        dust3d::native::GenerationOutputs outputs;
+        outputs.cancellation = cancellation;
+        return dust3d::native::generateMesh(std::move(snapshot), warning, &imports, nullptr, nullptr, outputs).release();
     } catch (const dust3d::native::DocumentError& exception) {
         dust3d::native::setError(error, exception.status(), exception.what());
     } catch (const std::bad_alloc&) {

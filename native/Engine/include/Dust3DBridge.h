@@ -559,6 +559,18 @@ Dust3DStatus dust3d_generation_session_get_stats(const Dust3DGenerationSession* 
  */
 Dust3DMesh* dust3d_mesh_load(const uint8_t* bytes, size_t size, Dust3DError* error);
 
+/** Same preview load with optional cooperative cancellation at phase boundaries.
+ * @param bytes Complete document bytes, borrowed until return.
+ * @param size Document byte count, subject to the ordinary preview limit.
+ * @param cancellation Optional borrowed token; keep alive until this call and concurrent token operations return.
+ * @param error Optional diagnostic, set to CANCELLED when cancellation is observed.
+ * @return An owning mesh on success or NULL with no partial mesh.
+ * Cancellation is checked around serialized admission, document read, and generation.
+ * It does not interrupt a lock wait or an inherited synchronous phase in progress.
+ */
+Dust3DMesh* dust3d_mesh_load_with_cancellation(const uint8_t* bytes, size_t size,
+    const Dust3DCancellationToken* cancellation, Dust3DError* error);
+
 typedef struct Dust3DComponentPreview Dust3DComponentPreview;
 
 typedef struct Dust3DComponentPreviewVertex {
