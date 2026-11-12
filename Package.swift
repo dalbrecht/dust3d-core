@@ -147,7 +147,7 @@ let package = Package(
             sources: [
                 "base", "mesh", "rig", "uv", "animation/animation_catalog.cc", "animation/animation_defaults.cc",
                 "animation/parameter_catalog.cc", "animation/surface_material.cc", "animation/spring_step_admission.cc",
-                "animation/biped/clip_metadata.cc",
+                "animation/biped/clip_metadata.cc", "animation/sound_generator.cc",
             ],
             publicHeadersPath: "include",
             cxxSettings: [
@@ -163,7 +163,7 @@ let package = Package(
             dependencies: ["Dust3DCore"],
             path: "native/Engine",
             sources: [
-                "EngineSupport.cc", "AnimationCatalogBridge.cc", "AudioWavBridge.cc",
+                "EngineSupport.cc", "AnimationCatalogBridge.cc", "AudioWavBridge.cc", "SoundWavBridge.cc",
                 "ComponentPreviewBridge.cc", "ComponentPreviewOutput.cc",
                 "ObjDocument.cc", "ObjGeometryPlan.cc",
                 "FbxMaterialImagePlan.cc",

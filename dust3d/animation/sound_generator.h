@@ -118,6 +118,15 @@ public:
         SurfaceMaterial material,
         float volumeScale = 1.0f);
 
+    static constexpr size_t maximumBoundedEvents = 128;
+    static constexpr int maximumBoundedDurationSeconds = 30;
+
+    /// Render explicit events to mono 44.1 kHz PCM16 using the reference synth.
+    /// Accepts 1 ms to 30 seconds, up to 128 events, and whooshes up to two seconds.
+    /// Invalid duration, surface, timing or intensity throws std::invalid_argument.
+    static AnimationSoundData generateBoundedPcm(
+        const std::vector<SoundEvent>& events, float durationSeconds, SurfaceMaterial material);
+
     static std::vector<uint8_t> encodeWav(const AnimationSoundData& data);
 
 private:
