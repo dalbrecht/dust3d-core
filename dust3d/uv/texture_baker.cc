@@ -224,6 +224,18 @@ namespace {
     {
         return std::max(1, static_cast<int>(std::ceil(origin + extent)) - static_cast<int>(std::floor(origin)));
     }
+    size_t scaledImageSample(int destination, int destinationSize, size_t sourceSize, bool horizontal)
+    {
+        // Qt selects the lower source texel on a pixel-center tie. Its horizontal
+        // raster uses 16-bit fractional steps and starts a new span every 2048 pixels.
+        constexpr int rasterSpanWidth = 2048;
+        constexpr uint64_t fixedScale = 1 << 16;
+        const auto spanStart = horizontal ? destination / rasterSpanWidth * rasterSpanWidth : destination;
+        const auto scaledSource = static_cast<uint64_t>(sourceSize) * fixedScale;
+        const auto initial = ((2 * spanStart + 1) * scaledSource - 1) / (2 * destinationSize);
+        const auto advance = (destination - spanStart) * (scaledSource / destinationSize);
+        return static_cast<size_t>((initial + advance) / fixedScale);
+    }
     size_t chartImageSample(double normalized, double origin, double extent, int bleed, size_t sourceSize, bool horizontal)
     {
         if (extent < 1) {
@@ -240,15 +252,33 @@ namespace {
         if (destination >= destinationSize)
             return sourceSize - 1;
 
-        // Qt selects the lower source texel on a pixel-center tie. Its horizontal
-        // raster uses 16-bit fractional steps and starts a new span every 2048 pixels.
-        constexpr int rasterSpanWidth = 2048;
-        constexpr uint64_t fixedScale = 1 << 16;
-        const auto spanStart = horizontal ? destination / rasterSpanWidth * rasterSpanWidth : destination;
-        const auto scaledSource = static_cast<uint64_t>(sourceSize) * fixedScale;
-        const auto initial = ((2 * spanStart + 1) * scaledSource - 1) / (2 * destinationSize);
-        const auto advance = (destination - spanStart) * (scaledSource / destinationSize);
-        return static_cast<size_t>((initial + advance) / fixedScale);
+        return scaledImageSample(destination, destinationSize, sourceSize, horizontal);
+    }
+    struct PaddedImageSample {
+        int column;
+        int row;
+        int width;
+        int height;
+    };
+    std::optional<PaddedImageSample> chartGutterSample(double u, double v, double left, double top, double width, double height, int bleed)
+    {
+        if (bleed == 0 || width < 1 || height < 1)
+            return std::nullopt;
+        const auto rasterPosition = [bleed](double normalized, double origin, int size) {
+            const auto offset = static_cast<int>(std::floor(origin) - std::trunc(origin - bleed));
+            return static_cast<int>(std::floor(normalized * size)) + offset;
+        };
+        const auto innerWidth = static_cast<int>(width);
+        const auto innerHeight = static_cast<int>(height);
+        const auto column = rasterPosition(u, left, innerWidth);
+        const auto row = rasterPosition(v, top, innerHeight);
+        const auto paddedWidth = innerWidth + 2 * bleed;
+        const auto paddedHeight = innerHeight + 2 * bleed;
+        const bool inPaddedImage = column >= 0 && column < paddedWidth && row >= 0 && row < paddedHeight;
+        const bool inChart = column >= bleed && column < bleed + innerWidth && row >= bleed && row < bleed + innerHeight;
+        if (!inPaddedImage || inChart)
+            return std::nullopt;
+        return PaddedImageSample { column, row, paddedWidth, paddedHeight };
     }
     template <typename Paint>
     std::vector<uint8_t> rectangles(TextureImage& output, const UvAtlas& atlas, double bleedFraction, const TextureBakeOptions& options, Paint paint, const std::set<size_t>& skipped = {})
@@ -890,10 +920,22 @@ TextureBakeResult TextureBaker::bake(const Object& object, const UvAtlas& atlas,
     constexpr double colorBleedFraction = 32.0 / 4096;
     const auto colorBleed = static_cast<int>(colorBleedFraction * options.colorSize);
     auto colorCoverage = rectangles(result.color, atlas, colorBleedFraction, options, [&](size_t ordinal, const UvMapPacker::Layout& layout, double u, double v) {
-        if (const auto* gradient = colorSources[ordinal].gradient) {
+        const auto left = layout.left * options.colorSize;
+        const auto top = layout.top * options.colorSize;
+        const auto width = layout.width * options.colorSize;
+        const auto height = layout.height * options.colorSize;
+        const auto& colorSource = colorSources[ordinal];
+        if (!colorSource.gradient && layout.id.isNull())
+            return colorPixel(layout.color);
+        // Qt stretches the background image across the padded chart before drawing the inset.
+        const auto gutter = chartGutterSample(u, v, left, top, width, height, colorBleed);
+        if (const auto* gradient = colorSource.gradient) {
             const auto extent = (layout.flipped ? layout.height : layout.width) * options.colorSize;
             const auto origin = (layout.flipped ? layout.top : layout.left) * options.colorSize;
-            const auto sample = chartImageSample(layout.flipped ? v : u, origin, extent, colorBleed, gradient->resolution, true);
+            const auto sample = gutter
+                ? scaledImageSample(layout.flipped ? gutter->row : gutter->column,
+                      layout.flipped ? gutter->height : gutter->width, gradient->resolution, true)
+                : chartImageSample(layout.flipped ? v : u, origin, extent, colorBleed, gradient->resolution, true);
             const auto amount = static_cast<double>(sample) / (gradient->resolution - 1);
             Pixel pixel;
             for (size_t channel = 0; channel < 4; ++channel) {
@@ -904,19 +946,19 @@ TextureBakeResult TextureBaker::bake(const Object& object, const UvAtlas& atlas,
             }
             return pixel;
         }
-        if (layout.id.isNull())
-            return colorPixel(layout.color);
-        const auto& source = *colorSources[ordinal].image;
-        const auto left = layout.left * options.colorSize;
-        const auto top = layout.top * options.colorSize;
-        const auto width = layout.width * options.colorSize;
-        const auto height = layout.height * options.colorSize;
-        const auto x = layout.flipped
+        const auto& source = *colorSource.image;
+        auto x = layout.flipped
             ? chartImageSample(v, top, height, colorBleed, source.width, true)
             : chartImageSample(u, left, width, colorBleed, source.width, true);
-        const auto y = layout.flipped
+        auto y = layout.flipped
             ? chartImageSample(u, left, width, colorBleed, source.height, false)
             : chartImageSample(v, top, height, colorBleed, source.height, false);
+        if (gutter) {
+            x = layout.flipped ? scaledImageSample(gutter->row, gutter->height, source.width, true)
+                               : scaledImageSample(gutter->column, gutter->width, source.width, true);
+            y = layout.flipped ? scaledImageSample(gutter->column, gutter->width, source.height, false)
+                               : scaledImageSample(gutter->row, gutter->height, source.height, false);
+        }
         Pixel pixel;
         std::copy_n(source.pixels + y * source.rowStride + x * 4, 4, pixel.begin());
         return pixel; }, colorSkipped);
