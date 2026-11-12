@@ -328,6 +328,33 @@ void fractionalMultiTexelSources()
         require(result.color.pixels == image.color.pixels, "Multi-texel fractional gradients must match equivalent image charts including gutters");
     }
 }
+void clippedColorChartOrigins()
+{
+    const std::vector<uint8_t> pixels {
+        255, 0, 0, 255, 0, 255, 0, 255,
+        0, 0, 255, 255, 255, 255, 255, 255
+    };
+    dust3d::TextureBakeInputs inputs;
+    inputs.images[imageId] = { 2, 2, 8, pixels.size(), pixels.data() };
+    for (const bool flipped : { false, true }) {
+        for (const double origin : { 1.25, 2.25 }) {
+            Fixture fixture;
+            fixture.options.colorSize = 256;
+            auto& layout = fixture.atlas.layouts[0];
+            layout.id = imageId;
+            layout.left = layout.top = origin / fixture.options.colorSize;
+            layout.width = layout.height = (flipped ? 102.5 : 101.5) / fixture.options.colorSize;
+            layout.flipped = flipped;
+            const auto image = fixture.bake(inputs);
+            const size_t before = (52 * 256 + 52) * 4;
+            const size_t after = (53 * 256 + 53) * 4;
+            require(image.color.pixels[before + 1] == 0 && image.color.pixels[before + 2] == 0,
+                "Clipping padded color charts must preserve the low source texel before the transition");
+            require(image.color.pixels[after + 1] == 255 && image.color.pixels[after + 2] == 255,
+                "Color charts must reach the high source texel at the Qt raster transition");
+        }
+    }
+}
 void invalidInputFamilies()
 {
     for (int variant = 0; variant < 15; ++variant) {
@@ -988,6 +1015,7 @@ int main(int argc, char* argv[])
         gradientQuantization();
         fractionalSubTexelGradients();
         fractionalMultiTexelSources();
+        clippedColorChartOrigins();
         sourceLessSeamsIgnoreSurfaceDetails();
         sourceLessSeamsIgnoreMaterials();
         unsafeProceduralCoordinates();
