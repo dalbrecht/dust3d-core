@@ -2,6 +2,7 @@
 #include <Dust3DBridge.h>
 #include <algorithm>
 #include <cstring>
+#include <dust3d/base/ds3_file.h>
 #include <fstream>
 #include <iostream>
 #include <iterator>
@@ -22,6 +23,50 @@ Dust3DFbxExportOptions options()
     result.bake.struct_size = sizeof(result.bake);
     result.bake.atlas_texture_size = result.bake.color_size = result.bake.normal_size = result.bake.material_size = 64;
     return result;
+}
+void texturedExportOmitsPreviewWarnings(const std::vector<uint8_t>& bytes)
+{
+    std::vector<uint8_t> model;
+    dust3d::Ds3FileReader(bytes.data(), bytes.size()).loadItem("model.xml", &model);
+    const std::string original(model.begin(), model.end());
+    const auto component = original.find("<component ");
+    require(component != std::string::npos, "Fixture must contain a component");
+    const char imageId[] = "{eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee}";
+    const uint8_t pixel[] { 255, 0, 0, 255 };
+    Dust3DBakeImage image {};
+    std::memcpy(image.image_id, imageId, sizeof(imageId));
+    image.width = image.height = 1;
+    image.row_stride = image.byte_count = sizeof(pixel);
+    image.pixels = pixel;
+    for (const bool assigned : { false, true }) {
+        auto xml = original;
+        if (assigned)
+            xml.insert(component + std::strlen("<component "), std::string("colorImageId=\"") + imageId + "\" ");
+        dust3d::Ds3FileWriter writer;
+        require(writer.add("model.xml", "model", xml.data(), xml.size()), "Fixture model write failed");
+        require(writer.add(std::string("images/") + imageId + ".png", "asset", pixel, sizeof(pixel)), "Fixture image write failed");
+        std::vector<uint8_t> archive;
+        writer.save(archive);
+        auto settings = options();
+        Dust3DError error {};
+        Owner geometry(dust3d_fbx_export_load(archive.data(), archive.size(), &settings, &error), dust3d_fbx_export_destroy);
+        require(geometry && std::strstr(dust3d_fbx_export_warning(geometry.get()), "Untextured preview:") != nullptr,
+            "Geometry-only export must retain the existing material warning");
+        settings.mode = DUST3D_FBX_EXPORT_BAKED;
+        settings.bake.images = &image;
+        settings.bake.image_count = 1;
+        Owner textured(dust3d_fbx_export_load(archive.data(), archive.size(), &settings, &error), dust3d_fbx_export_destroy);
+        require(bool(textured), "Textured export fixture must bake successfully");
+        require(std::strcmp(dust3d_fbx_export_warning(textured.get()), "") == 0,
+            "Successful textured FBX must omit the untextured preview warning");
+        if (assigned) {
+            settings.bake.images = nullptr;
+            settings.bake.image_count = 0;
+            Owner missing(dust3d_fbx_export_load(archive.data(), archive.size(), &settings, &error), dust3d_fbx_export_destroy);
+            require(!missing && error.status != DUST3D_STATUS_OK && *error.message,
+                "Missing decoded image pixels must still fail with the bake cause");
+        }
+    }
 }
 }
 int main(int argc, char** argv)
@@ -117,6 +162,7 @@ int main(int argc, char** argv)
         dust3d_cancellation_token_cancel(token.get());
         rejected(DUST3D_STATUS_CANCELLED);
         require(!dust3d_fbx_export_load(bytes.data(), bytes.size(), nullptr, nullptr), "Null diagnostic boundary threw or accepted options");
+        texturedExportOmitsPreviewWarnings(bytes);
         std::cout << "Owned static FBX C API contracts passed\n";
         return 0;
     } catch (const std::exception& cause) {

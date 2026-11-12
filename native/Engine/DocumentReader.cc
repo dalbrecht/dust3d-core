@@ -169,7 +169,7 @@ namespace native {
                 if (imports)
                     modelAssets.push_back({ name, bytes + binaryOffset + offset, itemSize });
             } else if (type == "asset" && name.compare(0, 7, "images/") == 0) {
-                warning = "Untextured preview: image textures are not yet displayed.";
+                warning = untexturedImagePreviewWarning;
             }
             if (observer && type != "model") {
                 observer->item(type, name, bytes + binaryOffset + offset, itemSize);
@@ -196,7 +196,7 @@ namespace native {
             if (!String::valueOrEmpty(component.second, "colorImageId").empty()
                 || !String::valueOrEmpty(component.second, "wrapPattern").empty()
                 || !String::valueOrEmpty(component.second, "wrapWrinkles").empty())
-                warning = "Untextured preview: image textures and procedural surface details are not yet displayed.";
+                warning = untexturedSurfacePreviewWarning;
         }
         if (imports)
             imports->load(*snapshot, modelAssets, warning);
