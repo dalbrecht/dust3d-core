@@ -31,7 +31,11 @@ Dust3DSoundWav* dust3d_sound_wav_create(const Dust3DSoundEvent* events, size_t c
             input.push_back({ event.time_seconds, event.intensity, {}, event.kind == DUST3D_SOUND_UNDERWATER,
                 event.kind == DUST3D_SOUND_WHOOSH, event.whoosh_duration_seconds });
         }
-        const auto pcm = dust3d::SoundGenerator::generateBoundedPcm(input, durationSeconds, surfaces[surfaceIndex]);
+        dust3d::AnimationSoundData pcm;
+        {
+            std::lock_guard<std::mutex> lock(dust3d::native::engineMutex());
+            pcm = dust3d::SoundGenerator::generateBoundedPcm(input, durationSeconds, surfaces[surfaceIndex]);
+        }
         auto owner = std::make_unique<Dust3DSoundWav>();
         constexpr uint64_t maximumWavBytes = 44 + dust3d::SoundGenerator::maximumBoundedDurationSeconds * 44100 * 2;
         Dust3DAudioWavStatus status {};
