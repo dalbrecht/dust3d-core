@@ -113,15 +113,12 @@ void cornerOrderAndQuantization()
             if (candidate.sourceId == record.componentId)
                 layout = &candidate;
         require(layout != nullptr, "Near-coincident chart owner is retained");
-        const auto& dimensions = *inputs.at(record.componentId).image;
         for (size_t corner = 0; corner < 3; ++corner) {
             const double u = layout->flipped ? record.uv[corner].y() : record.uv[corner].x();
             const double v = layout->flipped ? record.uv[corner].x() : record.uv[corner].y();
-            const double width = layout->flipped ? dimensions.height : dimensions.width;
-            const double height = layout->flipped ? dimensions.width : dimensions.height;
-            require(std::abs(atlas.triangleUvs[index][corner].x() - (layout->left + u * width / atlas.packedTextureSize)) < 1e-8,
+            require(std::abs(atlas.triangleUvs[index][corner].x() - (layout->left + u * layout->width)) < 1e-8,
                 "Cyclic/reversed/quantization-colliding U follows actual indexed corner");
-            require(std::abs(atlas.triangleUvs[index][corner].y() - (layout->top + v * height / atlas.packedTextureSize)) < 1e-8,
+            require(std::abs(atlas.triangleUvs[index][corner].y() - (layout->top + v * layout->height)) < 1e-8,
                 "Cyclic/reversed/quantization-colliding V follows actual indexed corner");
         }
     }

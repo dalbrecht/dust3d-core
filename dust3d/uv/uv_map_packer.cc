@@ -156,11 +156,10 @@ void UvMapPacker::pack()
             std::array<Vector2, 3> global;
             for (size_t corner = 0; corner < local.size(); ++corner) {
                 const auto& uv = local[corner];
-                global[corner] = flipped
-                    ? Vector2((left * m_packedTextureSize + uv.y() * part.height) / m_packedTextureSize,
-                          (top * m_packedTextureSize + uv.x() * part.width) / m_packedTextureSize)
-                    : Vector2((left * m_packedTextureSize + uv.x() * part.width) / m_packedTextureSize,
-                          (top * m_packedTextureSize + uv.y() * part.height) / m_packedTextureSize);
+                // The packed layout already accounts for integer rectangle rounding and rotation.
+                global[corner] = Vector2(
+                    layout.left + (flipped ? uv.y() : uv.x()) * layout.width,
+                    layout.top + (flipped ? uv.x() : uv.y()) * layout.height);
             }
             return global;
         };
