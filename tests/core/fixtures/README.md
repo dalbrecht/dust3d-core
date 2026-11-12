@@ -97,3 +97,11 @@ X 0.38 around origin X 0.5 with X mirror enabled, then resaved by Qt at
 The contract requires every generated UV triangle to be known and have finite
 area above `1e-14` in normalized UV space, followed by a successful baked FBX
 export. It does not pin the number or ordering of triangles or atlas coordinates.
+
+`ConcaveLinkedCoplanar.ds3` and `ConcaveLinkedDisplaced.ds3` are synthetic MIT
+fixtures for #371. Two receivers link to a closed L-shaped cut-face part.
+Coplanar caps require the complete closed union with volume 0.04280000017285407,
+derived by clipping independent receiver caps. Displaced caps preserve the
+Qt 1.1.6 final surface after seam recombination, with volume 0.0481166682563722.
+The bridge contract requires one closed consistently oriented surface and a
+volume within 1e-7 for each fixture.
