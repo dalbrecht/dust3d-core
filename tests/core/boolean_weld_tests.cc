@@ -268,7 +268,7 @@ void verifyConcavePrisms(double capOffset, bool oblique)
                 p = dust3d::Vector3(p.x() + p.y() / 3, p.y() + p.z() / 4, p.z());
         }
     }
-    verifyOverlappingSolids(first, second, 3, 3, (43.0 / 25.0) * (1 - capOffset));
+    verifyOverlappingSolids(first, second, 3, 3, (43.0 / 25.0) * (1 - std::abs(capOffset)));
 }
 
 void verifyBooleanTriangleOwnership(int mode)
@@ -544,7 +544,7 @@ int main()
             }
         }
         for (bool oblique : { false, true }) {
-            for (double offset : { 0.2, 0.0 })
+            for (double offset : { 0.2, 0.0, -0.9 })
                 verifyConcavePrisms(offset, oblique);
         }
         return failed ? 1 : 0;

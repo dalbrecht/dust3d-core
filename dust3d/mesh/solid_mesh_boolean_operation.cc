@@ -976,7 +976,7 @@ bool SolidMeshBooleanOperation::combine()
     }
 
     if (!buildPolygonsFromEdges(firstEdges, firstIntersections)) {
-        if (m_hasCoplanarContact && (combineClippedFaces(true) || combineClippedFaces(false)))
+        if ((m_hasCoplanarContact && combineClippedFaces(true)) || combineClippedFaces(false))
             return true;
         dust3dDebug << "Build polygons from edges failed";
         return false;
