@@ -200,11 +200,10 @@ namespace {
         const double scale = totalArea > 0 ? options.textureSize / std::sqrt(totalArea) : 1;
         UvMapPacker packer;
         size_t layoutOrdinal = 0;
-        std::vector<ChartKey> order;
+        std::vector<ChartKey> order = gradientOrder;
         for (const auto& entry : parts)
             if (!entry.first.first)
                 order.push_back(entry.first);
-        order.insert(order.end(), gradientOrder.begin(), gradientOrder.end());
         for (const auto& key : order) {
             auto& part = parts.at(key);
             if (key.first) {

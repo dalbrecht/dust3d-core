@@ -191,8 +191,12 @@ void explicitGeneratedGradient()
     require(atlas.triangleUvKnown[2] == 1 && atlas.triangleComponentIds[2].isNull(),
         "Generated gradient is mapped without inventing single-component source ownership");
     const auto& gradient = atlas.gradients[0];
-    require(gradient.layoutIndex < atlas.layouts.size() && atlas.layouts[gradient.layoutIndex].sourceId.isNull(),
-        "Generated gradient layout must remain distinct from a same-ID source chart");
+    require(gradient.layoutIndex == 0 && atlas.layouts[0].sourceId.isNull(),
+        "Indexed seams must precede ordinary charts as in the legacy atlas");
+    require(atlas.layouts[0].indexedGlobalUv.at(2) == atlas.triangleUvs[2],
+        "The indexed seam corners must refer to the generated gradient layout");
+    mappedCornerMatches(atlas, 0, *object.triangleProceduralUvs[0]);
+    mappedCornerMatches(atlas, 1, *object.triangleProceduralUvs[1]);
     require(gradient.largeColor.r() == 1 && gradient.largeColor.b() == 0
             && gradient.smallColor.r() == 0 && gradient.smallColor.b() == 1,
         "Explicit topology-derived endpoint owners determine gradient colors");
