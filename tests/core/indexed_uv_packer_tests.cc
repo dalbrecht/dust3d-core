@@ -17,12 +17,12 @@ TriangleKey positions()
 {
     return { dust3d::PositionKey(dust3d::Vector3(0, 0, 0)), dust3d::PositionKey(dust3d::Vector3(1, 0, 0)), dust3d::PositionKey(dust3d::Vector3(0, 1, 0)) };
 }
-void verify(const dust3d::UvMapPacker::Layout& layout, double textureSize, double width, double height, const Corners& input, const Corners& output)
+void verify(const dust3d::UvMapPacker::Layout& layout, const Corners& input, const Corners& output)
 {
     for (size_t corner = 0; corner < 3; ++corner) {
         const auto& uv = input[corner];
-        const double x = layout.left + (layout.flipped ? uv.y() * height : uv.x() * width) / textureSize;
-        const double y = layout.top + (layout.flipped ? uv.x() * width : uv.y() * height) / textureSize;
+        const double x = layout.left + (layout.flipped ? uv.y() : uv.x()) * layout.width;
+        const double y = layout.top + (layout.flipped ? uv.x() : uv.y()) * layout.height;
         require(std::abs(output[corner].x() - x) < 1e-12 && std::abs(output[corner].y() - y) < 1e-12,
             "Ordinal corner did not receive its chart transform");
     }
@@ -46,8 +46,8 @@ void coincidentOrdinals()
     require(packer.packedLayouts().size() == 1, "Packing lost a chart");
     const auto& layout = packer.packedLayouts()[0];
     require(layout.indexedGlobalUv.size() == 2 && layout.globalUv.size() == 1, "Coincident ordinals were merged or changed legacy records");
-    verify(layout, packer.packedTextureSize(), 2, 3, first, layout.indexedGlobalUv.at(7));
-    verify(layout, packer.packedTextureSize(), 2, 3, second, layout.indexedGlobalUv.at(31));
+    verify(layout, first, layout.indexedGlobalUv.at(7));
+    verify(layout, second, layout.indexedGlobalUv.at(31));
     require(layout.globalUv.at(positions()) == layout.indexedGlobalUv.at(7), "Legacy and ordinal transforms disagree");
     part.indexedLocalUv.clear();
     require(layout.indexedGlobalUv.size() == 2, "Packed records borrowed caller storage");
@@ -75,7 +75,7 @@ void chartTransforms()
         const auto& layout = layouts[index];
         flipped += layout.flipped;
         require(layout.indexedGlobalUv.size() == 1 && layout.indexedGlobalUv.count(index), "Chart reassigned a triangle ordinal");
-        verify(layout, packer.packedTextureSize(), sizes[index].first, sizes[index].second, corners, layout.indexedGlobalUv.at(index));
+        verify(layout, corners, layout.indexedGlobalUv.at(index));
         require(layout.globalUv.at(positions()) == layout.indexedGlobalUv.at(index), "Flipped ordinal and legacy corners differ");
     }
     require(flipped > 0 && flipped < sizes.size(), "Fixture did not exercise flipped and ordinary layouts");
@@ -92,7 +92,7 @@ void legacyOnly()
     require(packer.packedLayouts().size() == 1, "Legacy chart lost");
     const auto& layout = packer.packedLayouts()[0];
     require(layout.indexedGlobalUv.empty() && layout.globalUv.size() == 1, "Legacy-only chart invented ordinal metadata");
-    verify(layout, packer.packedTextureSize(), 1, 1, corners, layout.globalUv.at(positions()));
+    verify(layout, corners, layout.globalUv.at(positions()));
 }
 }
 int main()

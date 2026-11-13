@@ -103,10 +103,11 @@ void StitchLoopMeshBuilder::build()
     assignLoopNodesToCells(seedCells);
     bfsColorCells(seedCells);
     buildNodeAdjacency();
-    buildFaces();
+    const auto smallHoles = buildFaces();
     fillIsolatedLoops();
     if (m_backClosed)
         closeOuterBoundary();
+    fillSmallHoles(smallHoles);
 }
 
 void StitchLoopMeshBuilder::mirrorClosedLoops()
@@ -419,7 +420,7 @@ void StitchLoopMeshBuilder::bfsColorCells(std::vector<size_t>& seedCells)
     }
 }
 
-void StitchLoopMeshBuilder::buildFaces()
+std::vector<std::vector<size_t>> StitchLoopMeshBuilder::buildFaces()
 {
     // Map (loopIndex, nodeIndex) -> index in m_generatedVertices.
     m_loopNodeVertex.resize(m_loops.size());
@@ -600,7 +601,8 @@ void StitchLoopMeshBuilder::buildFaces()
         m_generatedFaces.push_back({ tri.v0, tri.v1, tri.v2 });
     }
 
-    // Fill small holes using earcut.
+    // Find small holes before Back Close claims the outer boundary.
+    std::vector<std::vector<size_t>> holeLoops;
     {
         constexpr size_t maxHoleSize = 8;
 
@@ -619,7 +621,6 @@ void StitchLoopMeshBuilder::buildFaces()
 
         // Find all closed boundary loops using DFS on the boundary adjacency.
         std::set<std::pair<size_t, size_t>> visitedEdges;
-        std::vector<std::vector<size_t>> holeLoops;
         size_t skippedLarge = 0;
 
         for (const auto& [start, nexts] : boundaryAdj) {
@@ -685,29 +686,8 @@ void StitchLoopMeshBuilder::buildFaces()
             }
         }
 
-        size_t filledCount = 0;
-        for (const auto& hole : holeLoops) {
-
-            // Use earcut to triangulate the hole polygon in XY.
-            std::vector<std::vector<std::array<double, 2>>> polygon;
-            std::vector<std::array<double, 2>> ring;
-            ring.reserve(hole.size());
-            for (size_t vi : hole)
-                ring.push_back({ m_generatedVertices[vi].x(), m_generatedVertices[vi].y() });
-            polygon.push_back(ring);
-            std::vector<size_t> indices = mapbox::earcut<size_t>(polygon);
-
-            for (size_t i = 0; i + 2 < indices.size(); i += 3) {
-                size_t va = hole[indices[i]];
-                size_t vb = hole[indices[i + 1]];
-                size_t vc = hole[indices[i + 2]];
-                m_generatedFaces.push_back({ va, vb, vc });
-            }
-            ++filledCount;
-            dust3dDebug << "  filled hole: " << hole.size() << " edges";
-        }
-        dust3dDebug << "buildFaces hole-fill: filled=" << filledCount
-                    << " skippedLarge=" << skippedLarge;
+        dust3dDebug << "buildFaces: small holes=" << holeLoops.size()
+                    << " skipped=" << skippedLarge;
     }
 
     // Generate UV coordinates for every face using planar XY projection.
@@ -723,13 +703,81 @@ void StitchLoopMeshBuilder::buildFaces()
             m_generatedFaceUvs[fi][vi] = Vector2(u, v);
         }
     }
+    return holeLoops;
+}
+
+void StitchLoopMeshBuilder::fillSmallHoles(const std::vector<std::vector<size_t>>& holes)
+{
+    if (holes.empty())
+        return;
+
+    std::map<std::pair<size_t, size_t>, size_t> halfEdgeCount;
+    for (const auto& face : m_generatedFaces) {
+        for (size_t i = 0; i < face.size(); ++i)
+            ++halfEdgeCount[{ face[i], face[(i + 1) % face.size()] }];
+    }
+
+    for (const auto& hole : holes) {
+        bool stillOpen = true;
+        for (size_t i = 0; i < hole.size(); ++i) {
+            size_t a = hole[i];
+            size_t b = hole[(i + 1) % hole.size()];
+            auto edge = halfEdgeCount.find({ a, b });
+            if (edge == halfEdgeCount.end() || edge->second != 1 || halfEdgeCount.count({ b, a })) {
+                stillOpen = false;
+                break;
+            }
+        }
+        if (!stillOpen)
+            continue;
+
+        std::vector<std::vector<std::array<double, 2>>> polygon(1);
+        auto& ring = polygon.front();
+        ring.reserve(hole.size());
+        for (size_t vertex : hole) {
+            const auto& position = m_generatedVertices[vertex];
+            ring.push_back({ position.x(), position.y() });
+        }
+        auto indices = mapbox::earcut<size_t>(polygon);
+
+        // Earcut uses a consistent projected winding. Reverse it if its
+        // boundary runs in the same direction as the neighboring faces.
+        double ringArea = 0.0;
+        for (size_t i = 0; i < ring.size(); ++i) {
+            const auto& a = ring[i];
+            const auto& b = ring[(i + 1) % ring.size()];
+            ringArea += (a[0] - ring.front()[0]) * (b[1] - ring.front()[1])
+                - (a[1] - ring.front()[1]) * (b[0] - ring.front()[0]);
+        }
+        for (size_t i = 0; i + 2 < indices.size(); i += 3) {
+            const auto& a = ring[indices[i]];
+            const auto& b = ring[indices[i + 1]];
+            const auto& c = ring[indices[i + 2]];
+            double triangleArea = (b[0] - a[0]) * (c[1] - a[1])
+                - (b[1] - a[1]) * (c[0] - a[0]);
+            if ((ringArea > 0.0) == (triangleArea > 0.0))
+                std::swap(indices[i + 1], indices[i + 2]);
+
+            std::vector<size_t> face;
+            std::vector<Vector2> uvs;
+            for (size_t corner = i; corner < i + 3; ++corner) {
+                size_t vertex = hole[indices[corner]];
+                face.push_back(vertex);
+                const auto& position = m_generatedVertices[vertex];
+                uvs.emplace_back(
+                    m_squareSide > 0.0 ? (position.x() - m_minX) / m_squareSide : 0.0,
+                    m_squareSide > 0.0 ? (position.y() - m_minY) / m_squareSide : 0.0);
+            }
+            m_generatedFaces.push_back(std::move(face));
+            m_generatedFaceUvs.push_back(std::move(uvs));
+        }
+    }
 }
 
 void StitchLoopMeshBuilder::fillIsolatedLoops()
 {
     // Collect all directed half-edges that appear in existing faces.
-    // A closed loop is "isolated" if none of its directed half-edges appear in any face —
-    // meaning buildFaces() produced no cross-loop connections for it.
+    // A closed loop is isolated if none of its edges appear in any face.
     std::set<std::pair<size_t, size_t>> usedHalfEdges;
     for (const auto& face : m_generatedFaces) {
         size_t fn = face.size();
@@ -748,13 +796,13 @@ void StitchLoopMeshBuilder::fillIsolatedLoops()
         if (!loop.closed || !loop.fillInterior || loop.nodes.size() < 3)
             continue;
 
-        // Check isolation: none of this loop's directed half-edges appear in any existing face.
+        // A neighboring face can use the edge in either direction.
         bool isIsolated = true;
         size_t edgeEnd = loop.nodes.size();
         for (size_t ni = 0; ni < edgeEnd; ++ni) {
             size_t va = m_loopNodeVertex[li][ni];
             size_t vb = m_loopNodeVertex[li][(ni + 1) % edgeEnd];
-            if (usedHalfEdges.count({ va, vb })) {
+            if (usedHalfEdges.count({ va, vb }) || usedHalfEdges.count({ vb, va })) {
                 isIsolated = false;
                 break;
             }
@@ -876,7 +924,7 @@ void StitchLoopMeshBuilder::closeOuterBoundary()
     // boundaryNext: for each boundary half-edge a->b, record next[a] = b.
     std::map<size_t, size_t> boundaryNext;
     for (const auto& [he, cnt] : halfEdgeCount) {
-        if (halfEdgeCount.count({ he.second, he.first }) == 0)
+        if (cnt == 1 && halfEdgeCount.count({ he.second, he.first }) == 0)
             boundaryNext[he.first] = he.second;
     }
 
@@ -896,7 +944,7 @@ void StitchLoopMeshBuilder::closeOuterBoundary()
             loop.push_back(cur);
             cur = boundaryNext[cur];
         }
-        if (loop.size() >= 3)
+        if (cur == start && loop.size() >= 3)
             boundaryLoops.push_back(std::move(loop));
     }
 

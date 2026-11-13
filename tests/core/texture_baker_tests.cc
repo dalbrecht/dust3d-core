@@ -207,7 +207,7 @@ void gradientQuantization()
     gradient.smallColor = dust3d::Color(0, 0, 1);
     fixture.atlas.gradients = { gradient };
     const auto result = fixture.bake();
-    require(result.color.pixels[4] == 191 && result.color.pixels[6] == 63, "Seam gradient samples a quantized 512-wide source with truncated channel interpolation");
+    require(result.color.pixels[4] == 159 && result.color.pixels[6] == 95, "Seam gradient samples a quantized 512-wide source with truncated channel interpolation");
     fixture.atlas.layouts[0].flipped = true;
     const auto transposed = fixture.bake();
     require(transposed.color.pixels[0] == transposed.color.pixels[12] && transposed.color.pixels[0] != transposed.color.pixels[48], "Flipped seam gradient transposes its source axis");
@@ -322,10 +322,157 @@ void fractionalMultiTexelSources()
         inputs.images[imageId] = { 512, 1, 2048, pixels.size(), pixels.data() };
         const auto image = fixture.bake(inputs);
         const size_t interior = (11 * 128 + 11) * 4;
-        require(image.color.pixels[interior] == (flipped ? 63 : 178) && image.color.pixels[interior + 2] == (flipped ? 191 : 76), "Flipped charts must retain the independently observed Qt rotated pixel-center phase");
+        require(image.color.pixels[interior] == 63 && image.color.pixels[interior + 2] == 191, "The Qt two-pixel scale selects source texel 383 in either chart orientation");
         const size_t edge = (13 * 128 + 13) * 4;
         require(image.color.pixels[edge] == 0 && image.color.pixels[edge + 2] == 255, "Image bleed must clamp after fractional-origin correction to retain the final source texel");
+        const size_t firstPixelAlpha = (10 * 128 + 10) * 4 + 3;
+        require(result.color.pixels[firstPixelAlpha] == 255, "Opaque gradient endpoints must stay opaque after interpolation");
         require(result.color.pixels == image.color.pixels, "Multi-texel fractional gradients must match equivalent image charts including gutters");
+    }
+}
+void imageChartSourceTexelBoundaries()
+{
+    Fixture fixture;
+    fixture.options.colorSize = 1024;
+    auto& layout = fixture.atlas.layouts[0];
+    layout.left = 100.5792236328125 / 1024;
+    layout.top = 100.25 / 1024;
+    layout.width = 767.0896606445312 / 1024;
+    layout.height = 8.25 / 1024;
+    layout.id = imageId;
+
+    std::vector<uint8_t> pixels(512 * 4);
+    for (size_t source = 0; source < 512; ++source) {
+        pixels[source * 4] = static_cast<uint8_t>(source / 256);
+        pixels[source * 4 + 1] = static_cast<uint8_t>(source % 256);
+        pixels[source * 4 + 3] = 255;
+    }
+    dust3d::TextureBakeInputs inputs;
+    inputs.images[imageId] = { 512, 1, pixels.size(), pixels.size(), pixels.data() };
+    const auto baked = fixture.bake(inputs);
+    const auto sourceAt = [&](size_t column) {
+        const auto offset = (104 * 1024 + 100 + column) * 4;
+        return baked.color.pixels[offset] * 256 + baked.color.pixels[offset + 1];
+    };
+    require(sourceAt(192) == 128 && sourceAt(383) == 255 && sourceAt(575) == 384,
+        "An image chart must sample the Qt source texels at quarter and midpoint boundaries");
+
+    fixture.options.colorSize = 2176;
+    layout.left = layout.top = 24.25 / 2176;
+    layout.width = 2150.25 / 2176;
+    layout.height = 8.25 / 2176;
+    const auto wide = fixture.bake(inputs);
+    const size_t horizontal = (28 * 2176 + 24 + 2053) * 4;
+    require(wide.color.pixels[horizontal] == 1 && wide.color.pixels[horizontal + 1] == 233,
+        "The wide Qt chart restarts its horizontal fixed-point span");
+
+    std::swap(layout.width, layout.height);
+    layout.flipped = true;
+    const auto rotated = fixture.bake(inputs);
+    const size_t vertical = ((24 + 2053) * 2176 + 28) * 4;
+    require(rotated.color.pixels[vertical] == 1 && rotated.color.pixels[vertical + 1] == 233,
+        "A rotated chart follows the horizontal source span on its vertical atlas axis");
+}
+
+void imageChartPaddedScale()
+{
+    Fixture fixture;
+    fixture.options.colorSize = 4096;
+    auto& layout = fixture.atlas.layouts[0];
+    layout.left = layout.top = 0.004999999888241291;
+    layout.width = 0.95346438884735107;
+    layout.height = 8.25 / 4096;
+    layout.id = imageId;
+    std::vector<uint8_t> pixels(32 * 4);
+    for (size_t x = 0; x < 32; ++x) {
+        pixels[x * 4] = x < 16 ? 240 : 25;
+        pixels[x * 4 + 3] = 255;
+    }
+    dust3d::TextureBakeInputs inputs;
+    inputs.images[imageId] = { 32, 1, pixels.size(), pixels.size(), pixels.data() };
+    const auto result = fixture.bake(inputs);
+    const auto redAt = [&](size_t row) { return result.color.pixels[(row * 4096 + 1974) * 4]; };
+    require(redAt(21) == 25, "The inner chart must retain the exact Qt source scale");
+    require(redAt(20) == 240, "The top gutter must follow the independently scaled Qt padded image");
+
+    std::swap(layout.width, layout.height);
+    layout.flipped = true;
+    const auto rotated = fixture.bake(inputs);
+    const auto rotatedRedAt = [&](size_t column) { return rotated.color.pixels[(1974 * 4096 + column) * 4]; };
+    require(rotatedRedAt(21) == 25, "The rotated inner chart must retain the exact Qt source scale");
+    require(rotatedRedAt(20) == 240, "The rotated gutter must follow the transposed Qt padded image");
+}
+
+void magnifiedImageChartUsesDirectSampling()
+{
+    Fixture fixture;
+    fixture.options.colorSize = 4096;
+    auto& layout = fixture.atlas.layouts[0];
+    layout.left = layout.top = 0.004999999888241291;
+    layout.width = layout.height = 0.95346438884735107;
+    layout.id = imageId;
+
+    constexpr int sourceSize = 8;
+    constexpr int innerOrigin = 21;
+    constexpr int innerSize = 3905;
+    constexpr int bleed = 32;
+    std::vector<uint8_t> pixels(sourceSize * sourceSize * 4);
+    for (int y = 0; y < sourceSize; ++y) {
+        for (int x = 0; x < sourceSize; ++x) {
+            const auto offset = (y * sourceSize + x) * 4;
+            pixels[offset] = static_cast<uint8_t>(x);
+            pixels[offset + 1] = static_cast<uint8_t>(y);
+            pixels[offset + 3] = 255;
+        }
+    }
+    dust3d::TextureBakeInputs inputs;
+    inputs.images[imageId] = { sourceSize, sourceSize, sourceSize * 4, pixels.size(), pixels.data() };
+    const auto image = fixture.bake(inputs);
+    const auto sourceAt = [](int coordinate, int origin, int size) {
+        const auto pixel = std::clamp(coordinate - origin, 0, size - 1);
+        return ((2 * pixel + 1) * sourceSize - 1) / (2 * size);
+    };
+    size_t differences = 0;
+    for (int y = 0; y < 4096; ++y) {
+        for (int x = 0; x < 4096; ++x) {
+            const bool inner = x >= innerOrigin && x < innerOrigin + innerSize
+                && y >= innerOrigin && y < innerOrigin + innerSize;
+            const int origin = inner ? innerOrigin : innerOrigin - bleed;
+            const int size = inner ? innerSize : innerSize + 2 * bleed;
+            const auto offset = (y * 4096 + x) * 4;
+            differences += image.color.pixels[offset] != sourceAt(x, origin, size)
+                || image.color.pixels[offset + 1] != sourceAt(y, origin, size)
+                || image.color.pixels[offset + 2] != 0 || image.color.pixels[offset + 3] != 255;
+        }
+    }
+    require(differences == 0, "A magnified image chart must match the full Qt diffuse atlas");
+}
+
+void clippedColorChartOrigins()
+{
+    const std::vector<uint8_t> pixels {
+        255, 0, 0, 255, 0, 255, 0, 255,
+        0, 0, 255, 255, 255, 255, 255, 255
+    };
+    dust3d::TextureBakeInputs inputs;
+    inputs.images[imageId] = { 2, 2, 8, pixels.size(), pixels.data() };
+    for (const bool flipped : { false, true }) {
+        for (const double origin : { 1.25, 2.25 }) {
+            Fixture fixture;
+            fixture.options.colorSize = 256;
+            auto& layout = fixture.atlas.layouts[0];
+            layout.id = imageId;
+            layout.left = layout.top = origin / fixture.options.colorSize;
+            layout.width = layout.height = (flipped ? 102.5 : 101.5) / fixture.options.colorSize;
+            layout.flipped = flipped;
+            const auto image = fixture.bake(inputs);
+            const size_t before = (52 * 256 + 52) * 4;
+            const size_t after = (53 * 256 + 53) * 4;
+            require(image.color.pixels[before + 1] == 0 && image.color.pixels[before + 2] == 0,
+                "Clipping padded color charts must preserve the low source texel before the transition");
+            require(image.color.pixels[after + 1] == 255 && image.color.pixels[after + 2] == 255,
+                "Color charts must reach the high source texel at the Qt raster transition");
+        }
     }
 }
 void invalidInputFamilies()
@@ -988,6 +1135,10 @@ int main(int argc, char* argv[])
         gradientQuantization();
         fractionalSubTexelGradients();
         fractionalMultiTexelSources();
+        imageChartSourceTexelBoundaries();
+        imageChartPaddedScale();
+        magnifiedImageChartUsesDirectSampling();
+        clippedColorChartOrigins();
         sourceLessSeamsIgnoreSurfaceDetails();
         sourceLessSeamsIgnoreMaterials();
         unsafeProceduralCoordinates();

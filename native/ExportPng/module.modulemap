@@ -1,0 +1,5 @@
+module Dust3DExportPng [system] {
+    header "shim.h"
+    link "png16"
+    export *
+}

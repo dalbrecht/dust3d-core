@@ -110,6 +110,31 @@ void nullHandles()
     dust3d_indexed_mesh_destroy(nullptr);
 }
 
+void previewCancellation()
+{
+    const auto bytes = archive();
+    const auto* data = reinterpret_cast<const uint8_t*>(bytes.data());
+    Dust3DError error {};
+    const std::unique_ptr<Dust3DCancellationToken, decltype(&dust3d_cancellation_token_destroy)> cancelled(
+        dust3d_cancellation_token_create(&error), dust3d_cancellation_token_destroy);
+    require(cancelled && error.status == DUST3D_STATUS_OK, "Create preview cancellation token");
+    dust3d_cancellation_token_cancel(cancelled.get());
+    const MeshOwner rejected(
+        dust3d_mesh_load_with_cancellation(data, bytes.size(), cancelled.get(), &error), dust3d_mesh_destroy);
+    require(!rejected && error.status == DUST3D_STATUS_CANCELLED && error.message[0] != '\0',
+        "A cancelled preview must return its cause and no mesh owner");
+
+    const std::unique_ptr<Dust3DCancellationToken, decltype(&dust3d_cancellation_token_destroy)> active(
+        dust3d_cancellation_token_create(&error), dust3d_cancellation_token_destroy);
+    require(active && error.status == DUST3D_STATUS_OK, "Create a fresh preview token");
+    const MeshOwner accepted(
+        dust3d_mesh_load_with_cancellation(data, bytes.size(), active.get(), &error), dust3d_mesh_destroy);
+    require(accepted && error.status == DUST3D_STATUS_OK && error.message[0] == '\0',
+        "An uncancelled preview must load normally after a cancelled request");
+    const auto baseline = load();
+    verify(baseline.get(), convert(accepted.get()).get());
+}
+
 void reconstruction()
 {
     auto source = load();
@@ -251,6 +276,8 @@ int main(int argc, char** argv)
             nullHandles();
         else if (scenario == "reconstruction")
             reconstruction();
+        else if (scenario == "preview_cancellation")
+            previewCancellation();
         else if (scenario == "ownership")
             ownership();
         else if (scenario == "budget")

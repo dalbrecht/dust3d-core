@@ -83,6 +83,35 @@ size_t verifyClosedEdges(const Dust3DMesh* mesh)
     return componentCount;
 }
 
+double signedVolume(const Dust3DMesh* mesh)
+{
+    const auto* vertices = dust3d_mesh_vertices(mesh);
+    const size_t count = dust3d_mesh_vertex_count(mesh);
+    require(vertices && count > 0 && count % 3 == 0, "Expected a nonempty triangle buffer");
+    double volume = 0;
+    for (size_t index = 0; index < count; index += 3) {
+        const auto& a = vertices[index].position;
+        const auto& b = vertices[index + 1].position;
+        const auto& c = vertices[index + 2].position;
+        for (size_t axis = 0; axis < 3; ++axis) {
+            const size_t next = (axis + 1) % 3;
+            const size_t last = (axis + 2) % 3;
+            volume += a[axis] * (static_cast<double>(b[next]) * c[last] - static_cast<double>(b[last]) * c[next]);
+        }
+    }
+    return volume / 6.0;
+}
+
+void verifyConcaveLinkedProfile(const std::string& path, double expectedVolume)
+{
+    auto mesh = load(path);
+    require(dust3d_mesh_node_count(mesh.get()) == 10 && dust3d_mesh_part_count(mesh.get()) == 3,
+        "Linked-profile document lost a source node or part");
+    require(std::abs(signedVolume(mesh.get()) - expectedVolume) < 1e-7,
+        "Linked-profile union has incomplete or excess volume: " + path);
+    require(verifyClosedEdges(mesh.get()) == 1, "Linked-profile union must be one closed oriented surface: " + path);
+}
+
 void verify(const Dust3DMesh* mesh, size_t nodes, size_t parts)
 {
     require(dust3d_mesh_node_count(mesh) == nodes, "Source node count mismatch");
@@ -153,6 +182,8 @@ int main(int argc, char** argv)
                 const size_t components = verifyClosedEdges(mesh.get());
                 require(components == (separate ? 2 : 1), std::string("Boolean connected-component count mismatch for ") + name + ": " + std::to_string(components));
             }
+            verifyConcaveLinkedProfile(fixtures + "/ConcaveLinkedCoplanar.ds3", 0.04280000017285407);
+            verifyConcaveLinkedProfile(fixtures + "/ConcaveLinkedDisplaced.ds3", 0.0481166682563722);
         } else if (scenario == "ownership") {
             auto first = load(fixtures + "/Capsule.ds3");
             const size_t count = dust3d_mesh_vertex_count(first.get());
