@@ -1303,3 +1303,11 @@ host identity before retaining/reading the request body or generating geometry.
 The Swift prototype adapter uses it explicitly. Transport authentication and current
 parent publication admission remain separate; see
 [ADR0165](docs/adr/0165-worker-host-request-preflight.md).
+
+### Owned PCM16/WAV encoding
+
+`native/Engine/include/Dust3DAudioWav.h` provides checked scalar planning and
+owned PCM16 WAV bytes for core #318. Caller quotas include the 44-byte header;
+empty PCM is valid, and output is immutable until owner destruction. The encoder
+performs no synthesis, native evaluation, file I/O or playback. See
+[ADR 0204](docs/adr/0204-owned-pcm-wav.md) for tests and remaining delivery gates.

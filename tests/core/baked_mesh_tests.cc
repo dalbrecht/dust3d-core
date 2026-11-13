@@ -201,7 +201,7 @@ void archivedImageEncodingSelectsTheRaster()
         std::array<uint8_t, 4> overlap;
         std::array<uint8_t, 4> clear;
     };
-    const auto sample = [&](const std::vector<uint8_t>* image, bool alias = false, bool fbx = false) {
+    const auto sample = [&](const std::vector<uint8_t>* image, bool alias = false) {
         dust3d::native::BakedMeshData bake(fixture.options);
         if (image) {
             const auto key = "images/" + fixture.image.toString() + ".png";
@@ -210,7 +210,7 @@ void archivedImageEncodingSelectsTheRaster()
                 bake.item("asset", "images/eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee.png", image->data(), image->size());
         }
         bake.appendTriangle(1);
-        bake.prepare(fixture.object, fixture.snapshot, fixture.atlas, fbx);
+        bake.prepare(fixture.object, fixture.snapshot, fixture.atlas);
         const auto& output = bake.maps[0]->pixels;
         Samples result {};
         result.indexedTransition = output[(100 * 384 + 99) * 4];
@@ -246,8 +246,7 @@ void archivedImageEncodingSelectsTheRaster()
 
     const std::array<uint8_t, 8> partial { 20, 15, 25, 127, 49, 15, 106, 91 };
     std::copy(partial.begin(), partial.end(), pixels.begin());
-    require(sample(&rgba, false, true).overlap == std::array<uint8_t, 4> { 19, 10, 31, 173 }, "FBX stores Qt's premultiplied color bytes");
-    require(sample(nullptr, false, true).overlap == std::array<uint8_t, 4> { 20, 15, 25, 127 }, "FBX must preserve caller-only pixels");
+    require(sample(nullptr).overlap == std::array<uint8_t, 4> { 20, 15, 25, 127 }, "Caller-provided straight-alpha pixels must be preserved");
     require(sample(&rgba).overlap == std::array<uint8_t, 4> { 28, 15, 46, 173 }, "The inset and padding must use Qt's premultiplied rounding");
 }
 void analyticMaterialsImagesAndTangents()
