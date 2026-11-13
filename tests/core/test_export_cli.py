@@ -1,10 +1,12 @@
 """Ordinary filesystem contracts for the Qt-free static FBX export command."""
 import json
 import os
+import struct
 from pathlib import Path
 import subprocess
 import tempfile
 import unittest
+import zlib
 from xml.etree import ElementTree
 
 
@@ -234,6 +236,52 @@ class ExportCliTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn(b'Dust3D_color.png', self.destination.read_bytes())
         self.assert_unchanged()
+
+    @staticmethod
+    def translucent_png():
+        # A 2×2 RGBA image with opaque green/blue and translucent red/yellow.
+        return bytes.fromhex(
+            '89504e470d0a1a0a0000000d494844520000000200000002080600000072b60d'
+            '240000001749444154789c63f8cfc0d0c0f01f081918fe0301830300401907ba'
+            '7d91098c0000000049454e44ae426082'
+        )
+
+    def model_with_procedural_png(self, image):
+        canvas, _, _ = self.make_model_chain(closed=False)
+        image_id = '{eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee}'
+        canvas.find('components/component').set('colorImageId', image_id)
+        model = ElementTree.tostring(canvas)
+        manifest = (
+            f'<ds3><model name="model.xml" offset="0" size="{len(model)}"/>'
+            f'<asset name="images/{image_id}.png" offset="{len(model)}" size="{len(image)}"/></ds3>'
+        ).encode()
+        prefix = b'DUST3D 1.0 xml '
+        return prefix + f'{len(prefix) + 12 + len(manifest):010d}\r\n'.encode() + manifest + model + image
+
+    def test_should_bake_a_referenced_translucent_archive_png(self):
+        archive = self.model_with_procedural_png(self.translucent_png())
+        self.source.write_bytes(archive)
+        result = self.run_export('--baked', '--texture-size', '64', self.source, self.destination)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(b'Dust3D_color.png', self.destination.read_bytes())
+        self.assertEqual(self.source.read_bytes(), archive)
+
+    def test_should_preserve_existing_output_when_archived_png_is_invalid(self):
+        image = self.translucent_png()
+        oversized_header = image[12:16] + struct.pack('>I', 8193) + image[20:29]
+        oversized = image[:12] + oversized_header + struct.pack('>I', zlib.crc32(oversized_header)) + image[33:]
+        for png, diagnostic in [(image[:40], 'decode'), (oversized, 'limit')]:
+            with self.subTest(diagnostic=diagnostic):
+                archive = self.model_with_procedural_png(png)
+                self.source.write_bytes(archive)
+                self.destination.write_bytes(b'existing output')
+                result = self.run_export('--baked', '--texture-size', '64', self.source, self.destination)
+                self.assertEqual(result.returncode, 3, result.stderr)
+                self.assertIn('procedural PNG', result.stderr)
+                self.assertIn(diagnostic, result.stderr)
+                self.assertEqual(self.destination.read_bytes(), b'existing output')
+                self.assertEqual(self.source.read_bytes(), archive)
+                self.assertEqual(list(self.directory.glob('.dust3d-export-*')), [])
 
     def make_model_chain(self, closed):
         def identity(number):

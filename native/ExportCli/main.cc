@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: MIT
 #include "ExportReceipt.h"
+#include "ProceduralPng.h"
+#include "WorkerProceduralImagesNative.h"
 #include <Dust3DBridge.h>
 #include <algorithm>
 #include <array>
@@ -8,6 +10,7 @@
 #include <csignal>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <fcntl.h>
 #include <filesystem>
 #include <iostream>
@@ -370,11 +373,36 @@ ExportResult exportFile(const Arguments& arguments, const ReceiptOutput& receipt
         return publishExport(arguments, archive.identity, dust3d_obj_export_bytes(owner.get()),
             dust3d_obj_export_byte_count(owner.get()), dust3d_obj_export_warning(owner.get()), receipt);
     }
+    std::vector<dust3d::worker::ProceduralDecodedImage> decoded;
+    std::vector<Dust3DBakeImage> images;
+    if (arguments.baked) {
+        try {
+            const dust3d::worker::LegacyProducerOptions policy;
+            const auto inputs = dust3d::worker::loadProceduralImageInputs(archive.bytes, policy.images);
+            dust3d::export_cli::ProceduralPngDecoder decoder;
+            decoded = dust3d::worker::prepareProceduralImagePixels(inputs, &decoder, policy);
+            images.reserve(inputs.size());
+            for (size_t index = 0; index < inputs.size(); ++index) {
+                Dust3DBakeImage image {};
+                std::memcpy(image.image_id, inputs[index].identity.data(), inputs[index].identity.size());
+                image.width = decoded[index].width;
+                image.height = decoded[index].height;
+                image.row_stride = size_t(image.width) * 4;
+                image.byte_count = decoded[index].pixels.size();
+                image.pixels = decoded[index].pixels.data();
+                images.push_back(image);
+            }
+        } catch (const std::exception& cause) {
+            throw ExportError(ExitCode::native, cause.what());
+        }
+    }
     Dust3DFbxExportOptions options {};
     options.struct_size = sizeof(options);
     options.mode = arguments.baked ? DUST3D_FBX_EXPORT_BAKED : DUST3D_FBX_EXPORT_GEOMETRY;
     options.maximum_output_payload_bytes = arguments.maximumOutputBytes;
     options.bake.struct_size = sizeof(options.bake);
+    options.bake.images = images.data();
+    options.bake.image_count = images.size();
     options.bake.atlas_texture_size = options.bake.color_size = options.bake.normal_size = options.bake.material_size = arguments.textureSize;
     Dust3DError error {};
     std::unique_ptr<Dust3DFbxExport, decltype(&dust3d_fbx_export_destroy)> owner(
