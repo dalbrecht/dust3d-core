@@ -79,7 +79,6 @@ struct TextureBakeOptions {
     size_t maximumSpatialGridEntries = 1000000; // Conservative cumulative fold-grid insertion bound, 1..16000000.
     size_t maximumPayloadBytes = 0; // Zero selects 256 MiB; not a process-memory cap.
     const std::atomic_bool* cancellation = nullptr; // Borrowed for this call only.
-    bool premultipliedArchiveColor = false; // Qt FBX embeds the composited RGB bytes with alpha.
 };
 
 /// Unit tangent and explicit handedness, in original triangle order. Unknown or
