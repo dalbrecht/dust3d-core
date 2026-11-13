@@ -201,8 +201,9 @@ void archivedImageEncodingSelectsTheRaster()
         std::array<uint8_t, 4> overlap;
         std::array<uint8_t, 4> clear;
     };
-    const auto sample = [&](const std::vector<uint8_t>* image, bool alias = false) {
-        dust3d::native::BakedMeshData bake(fixture.options);
+    const auto sample = [&](const std::vector<uint8_t>* image, bool alias = false, bool associated = false) {
+        const size_t first = 0;
+        dust3d::native::BakedMeshData bake(fixture.options, associated ? &first : nullptr, associated ? 1 : 0);
         if (image) {
             const auto key = "images/" + fixture.image.toString() + ".png";
             bake.item("asset", key, image->data(), image->size());
@@ -248,6 +249,12 @@ void archivedImageEncodingSelectsTheRaster()
     std::copy(partial.begin(), partial.end(), pixels.begin());
     require(sample(nullptr).overlap == std::array<uint8_t, 4> { 20, 15, 25, 127 }, "Caller-provided straight-alpha pixels must be preserved");
     require(sample(&rgba).overlap == std::array<uint8_t, 4> { 28, 15, 46, 173 }, "The inset and padding must use Qt's premultiplied rounding");
+    const std::array<uint8_t, 8> associated { 40, 30, 20, 128, 60, 50, 40, 128 };
+    std::copy(associated.begin(), associated.end(), pixels.begin());
+    require(sample(nullptr, false, true).overlap == std::array<uint8_t, 4> { 93, 73, 53, 192 },
+        "FBX must composite prepared alpha bytes without premultiplying them twice");
+    require(sample(nullptr, false, true).clear == std::array<uint8_t, 4> { 80, 60, 40, 192 },
+        "FBX must composite both layers of prepared pixels");
 }
 void analyticMaterialsImagesAndTangents()
 {

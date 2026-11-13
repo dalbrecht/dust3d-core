@@ -301,7 +301,7 @@ namespace {
             return std::nullopt;
         return PaddedImageSample { column, row, paddedWidth, paddedHeight, inChart };
     }
-    Pixel compositeChartPixel(const Pixel& inset, const Pixel& padded)
+    Pixel compositeChartPixel(const Pixel& inset, const Pixel& padded, bool inputPremultiplied)
     {
         const auto roundProduct = [](unsigned int value) {
             return (value + (value >> 8) + 128) >> 8;
@@ -313,8 +313,8 @@ namespace {
             return result;
         const auto inverseAlpha = 0x00ff00ffu / alpha;
         for (size_t channel = 0; channel < 3; ++channel) {
-            const auto foreground = roundProduct(inset[channel] * inset[3]);
-            const auto background = roundProduct(padded[channel] * padded[3]);
+            const auto foreground = inputPremultiplied ? inset[channel] : roundProduct(inset[channel] * inset[3]);
+            const auto background = inputPremultiplied ? padded[channel] : roundProduct(padded[channel] * padded[3]);
             const auto premultiplied = foreground + roundProduct(background * remainder);
             result[channel] = static_cast<uint8_t>((premultiplied * inverseAlpha + 32768) >> 16);
         }
@@ -1022,7 +1022,8 @@ TextureBakeResult TextureBaker::bake(const Object& object, const UvAtlas& atlas,
         }
         Pixel pixel;
         std::copy_n(source.pixels + y * source.rowStride + x * 4, 4, pixel.begin());
-        const bool compositeAlpha = raster == TextureImageRaster::alphaComposite || raster == TextureImageRaster::indexedAlpha;
+        const bool inputPremultiplied = raster == TextureImageRaster::premultiplied;
+        const bool compositeAlpha = inputPremultiplied || raster == TextureImageRaster::alphaComposite || raster == TextureImageRaster::indexedAlpha;
         if (!compositeAlpha || pixel[3] == 255)
             return pixel;
         Pixel background {};
@@ -1037,7 +1038,7 @@ TextureBakeResult TextureBaker::bake(const Object& object, const UvAtlas& atlas,
             const auto paddedY = scaledImageSample(layout.flipped ? padded->column : padded->row, paddedHeight, source.height, yPhase);
             std::copy_n(source.pixels + paddedY * source.rowStride + paddedX * 4, 4, background.begin());
         }
-        return compositeChartPixel(pixel, background); }, colorSkipped);
+        return compositeChartPixel(pixel, background, inputPremultiplied); }, colorSkipped);
     for (const auto& chart : charts)
         paintSurface(result.color, colorCoverage, chart, atlas.layouts[chart.layoutIndex].color, false, options, result.rasterTriangleVisits);
     dilate(result.color, colorCoverage, options);
