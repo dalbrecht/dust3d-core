@@ -224,19 +224,27 @@ namespace {
     {
         return std::max(1, static_cast<int>(std::ceil(origin + extent)) - static_cast<int>(std::floor(origin)));
     }
-    size_t scaledImageSample(int destination, int destinationSize, size_t sourceSize, bool horizontal)
+    bool allowsFixedImageScale(size_t sourceWidth, size_t sourceHeight, int targetWidth, int targetHeight)
+    {
+        // Qt's transformed raster switches both axes to direct sampling outside its fixed-point range.
+        const auto axisFits = [](size_t source, size_t target) {
+            return source * 256 > target && source < target * 100;
+        };
+        return axisFits(sourceWidth, targetWidth) && axisFits(sourceHeight, targetHeight);
+    }
+    size_t scaledImageSample(int destination, int destinationSize, size_t sourceSize, bool fixedHorizontal)
     {
         // Qt selects the lower source texel on a pixel-center tie. Its horizontal
         // raster uses 16-bit fractional steps and starts a new span every 2048 pixels.
         constexpr int rasterSpanWidth = 2048;
         constexpr uint64_t fixedScale = 1 << 16;
-        const auto spanStart = horizontal ? destination / rasterSpanWidth * rasterSpanWidth : destination;
+        const auto spanStart = fixedHorizontal ? destination / rasterSpanWidth * rasterSpanWidth : destination;
         const auto scaledSource = static_cast<uint64_t>(sourceSize) * fixedScale;
         const auto initial = ((2 * spanStart + 1) * scaledSource - 1) / (2 * destinationSize);
         const auto advance = (destination - spanStart) * (scaledSource / destinationSize);
         return static_cast<size_t>((initial + advance) / fixedScale);
     }
-    size_t chartImageSample(double normalized, double origin, double extent, int bleed, size_t sourceSize, bool horizontal)
+    size_t chartImageSample(double normalized, double origin, double extent, int bleed, size_t sourceSize, bool fixedHorizontal)
     {
         if (extent < 1) {
             const auto offset = std::floor(origin) + normalized * chartPixelSpan(origin, extent) - origin;
@@ -252,7 +260,7 @@ namespace {
         if (destination >= destinationSize)
             return sourceSize - 1;
 
-        return scaledImageSample(destination, destinationSize, sourceSize, horizontal);
+        return scaledImageSample(destination, destinationSize, sourceSize, fixedHorizontal);
     }
     struct PaddedImageSample {
         int column;
@@ -929,13 +937,19 @@ TextureBakeResult TextureBaker::bake(const Object& object, const UvAtlas& atlas,
             return colorPixel(layout.color);
         // Qt stretches the background image across the padded chart before drawing the inset.
         const auto gutter = chartGutterSample(u, v, left, top, width, height, colorBleed);
+        const auto sourceWidth = colorSource.gradient ? colorSource.gradient->resolution : colorSource.image->width;
+        const auto sourceHeight = colorSource.gradient ? colorSource.gradient->resolution : colorSource.image->height;
+        const auto pixelWidth = gutter ? gutter->width : static_cast<int>(width);
+        const auto pixelHeight = gutter ? gutter->height : static_cast<int>(height);
+        const bool fixedHorizontal = allowsFixedImageScale(sourceWidth, sourceHeight,
+            layout.flipped ? pixelHeight : pixelWidth, layout.flipped ? pixelWidth : pixelHeight);
         if (const auto* gradient = colorSource.gradient) {
             const auto extent = (layout.flipped ? layout.height : layout.width) * options.colorSize;
             const auto origin = (layout.flipped ? layout.top : layout.left) * options.colorSize;
             const auto sample = gutter
                 ? scaledImageSample(layout.flipped ? gutter->row : gutter->column,
-                      layout.flipped ? gutter->height : gutter->width, gradient->resolution, true)
-                : chartImageSample(layout.flipped ? v : u, origin, extent, colorBleed, gradient->resolution, true);
+                      layout.flipped ? gutter->height : gutter->width, gradient->resolution, fixedHorizontal)
+                : chartImageSample(layout.flipped ? v : u, origin, extent, colorBleed, gradient->resolution, fixedHorizontal);
             const auto amount = static_cast<double>(sample) / (gradient->resolution - 1);
             Pixel pixel;
             for (size_t channel = 0; channel < 4; ++channel) {
@@ -948,14 +962,14 @@ TextureBakeResult TextureBaker::bake(const Object& object, const UvAtlas& atlas,
         }
         const auto& source = *colorSource.image;
         auto x = layout.flipped
-            ? chartImageSample(v, top, height, colorBleed, source.width, true)
-            : chartImageSample(u, left, width, colorBleed, source.width, true);
+            ? chartImageSample(v, top, height, colorBleed, source.width, fixedHorizontal)
+            : chartImageSample(u, left, width, colorBleed, source.width, fixedHorizontal);
         auto y = layout.flipped
             ? chartImageSample(u, left, width, colorBleed, source.height, false)
             : chartImageSample(v, top, height, colorBleed, source.height, false);
         if (gutter) {
-            x = layout.flipped ? scaledImageSample(gutter->row, gutter->height, source.width, true)
-                               : scaledImageSample(gutter->column, gutter->width, source.width, true);
+            x = layout.flipped ? scaledImageSample(gutter->row, gutter->height, source.width, fixedHorizontal)
+                               : scaledImageSample(gutter->column, gutter->width, source.width, fixedHorizontal);
             y = layout.flipped ? scaledImageSample(gutter->column, gutter->width, source.height, false)
                                : scaledImageSample(gutter->row, gutter->height, source.height, false);
         }

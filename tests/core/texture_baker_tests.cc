@@ -403,6 +403,51 @@ void imageChartPaddedScale()
     require(rotatedRedAt(20) == 240, "The rotated gutter must follow the transposed Qt padded image");
 }
 
+void magnifiedImageChartUsesDirectSampling()
+{
+    Fixture fixture;
+    fixture.options.colorSize = 4096;
+    auto& layout = fixture.atlas.layouts[0];
+    layout.left = layout.top = 0.004999999888241291;
+    layout.width = layout.height = 0.95346438884735107;
+    layout.id = imageId;
+
+    constexpr int sourceSize = 8;
+    constexpr int innerOrigin = 21;
+    constexpr int innerSize = 3905;
+    constexpr int bleed = 32;
+    std::vector<uint8_t> pixels(sourceSize * sourceSize * 4);
+    for (int y = 0; y < sourceSize; ++y) {
+        for (int x = 0; x < sourceSize; ++x) {
+            const auto offset = (y * sourceSize + x) * 4;
+            pixels[offset] = static_cast<uint8_t>(x);
+            pixels[offset + 1] = static_cast<uint8_t>(y);
+            pixels[offset + 3] = 255;
+        }
+    }
+    dust3d::TextureBakeInputs inputs;
+    inputs.images[imageId] = { sourceSize, sourceSize, sourceSize * 4, pixels.size(), pixels.data() };
+    const auto image = fixture.bake(inputs);
+    const auto sourceAt = [](int coordinate, int origin, int size) {
+        const auto pixel = std::clamp(coordinate - origin, 0, size - 1);
+        return ((2 * pixel + 1) * sourceSize - 1) / (2 * size);
+    };
+    size_t differences = 0;
+    for (int y = 0; y < 4096; ++y) {
+        for (int x = 0; x < 4096; ++x) {
+            const bool inner = x >= innerOrigin && x < innerOrigin + innerSize
+                && y >= innerOrigin && y < innerOrigin + innerSize;
+            const int origin = inner ? innerOrigin : innerOrigin - bleed;
+            const int size = inner ? innerSize : innerSize + 2 * bleed;
+            const auto offset = (y * 4096 + x) * 4;
+            differences += image.color.pixels[offset] != sourceAt(x, origin, size)
+                || image.color.pixels[offset + 1] != sourceAt(y, origin, size)
+                || image.color.pixels[offset + 2] != 0 || image.color.pixels[offset + 3] != 255;
+        }
+    }
+    require(differences == 0, "A magnified image chart must match the full Qt diffuse atlas");
+}
+
 void clippedColorChartOrigins()
 {
     const std::vector<uint8_t> pixels {
@@ -1092,6 +1137,7 @@ int main(int argc, char* argv[])
         fractionalMultiTexelSources();
         imageChartSourceTexelBoundaries();
         imageChartPaddedScale();
+        magnifiedImageChartUsesDirectSampling();
         clippedColorChartOrigins();
         sourceLessSeamsIgnoreSurfaceDetails();
         sourceLessSeamsIgnoreMaterials();

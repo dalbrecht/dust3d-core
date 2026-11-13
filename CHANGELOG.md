@@ -15,6 +15,8 @@
 
 - Render bounded explicit sound events into owned WAV bytes through the portable C API.
 
+- Match Qt's direct texture sampling for extreme chart scales.
+
 - Match Qt’s independently scaled image and seam-gradient gutters around packed texture charts.
 
 - Add owned PCM16/WAV bytes with checked RIFF arithmetic, frame validation and output quotas (#318).
