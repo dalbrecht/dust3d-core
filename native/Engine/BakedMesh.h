@@ -5,6 +5,7 @@
 #include "UvMetadata.h"
 #include <array>
 #include <dust3d/uv/texture_baker.h>
+#include <exception>
 
 namespace dust3d {
 namespace native {
@@ -15,7 +16,7 @@ namespace native {
         void attribute(std::string_view, std::string_view) noexcept override { }
         void validateVisuals(const Snapshot& snapshot) const;
         void appendTriangle(size_t index) { m_originalIndices.push_back(index); }
-        void prepare(const Object& object, const Snapshot& snapshot, const UvAtlas& atlas, bool premultipliedFbxColor = false);
+        void prepare(const Object& object, const Snapshot& snapshot, const UvAtlas& atlas);
         const Dust3DCancellationToken* cancellation() const { return m_options.cancellation; }
         const std::map<Uuid, UvAtlasImage>& images() const { return m_images; }
         size_t textureSize() const { return m_options.atlas_texture_size; }
@@ -33,7 +34,7 @@ namespace native {
         std::map<Uuid, UvAtlasImage> m_images;
         std::map<Uuid, TextureImageView> m_pixels;
         std::map<Uuid, TextureImageRaster> m_archiveImageModes;
-        bool m_imageMetadataAvailable = true;
+        std::exception_ptr m_imageMetadataFailure;
         std::vector<size_t> m_originalIndices;
     };
 }
