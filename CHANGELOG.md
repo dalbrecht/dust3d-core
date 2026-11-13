@@ -15,6 +15,8 @@
 
 - Render bounded explicit sound events into owned WAV bytes through the portable C API.
 
+- Match Qt wrinkle normal-map padding at oblique edges and flat chart boundaries.
+
 - Match Qt scalar material atlas draw bounds before dilating chart edges.
 
 - Seed color-atlas dilation from the exact padded chart draw bounds.
