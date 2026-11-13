@@ -28,7 +28,7 @@ namespace native {
                 return TextureImageRaster::decoded;
             const auto depth = data[24];
             const auto colorType = data[25];
-            const bool packedIndexed = (depth == 2 || depth == 4) && (colorType == 0 || colorType == 3);
+            const bool packedIndexed = (depth == 1 || depth == 2 || depth == 4) && (colorType == 0 || colorType == 3);
             if (depth != 8 && !packedIndexed)
                 return TextureImageRaster::decoded;
             size_t paletteSize = 0;

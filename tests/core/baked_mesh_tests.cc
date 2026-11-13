@@ -190,6 +190,10 @@ void archivedImageEncodingSelectsTheRaster()
     const std::vector<uint8_t> gray4 { 137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 8, 0, 0, 0, 8, 4, 0, 0, 0, 0, 36, 148, 12, 86, 0, 0, 0, 41, 73, 68, 65, 84, 120, 156, 99, 96, 84, 118, 77, 103, 16, 50, 9, 171, 96, 0, 50, 58, 25, 128, 140, 89, 12, 64, 198, 106, 6, 32, 99, 15, 3, 144, 113, 150, 1, 200, 184, 7, 0, 217, 208, 13, 241, 137, 176, 75, 90, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130 };
     const std::vector<uint8_t> indexed2Key { 137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 8, 0, 0, 0, 8, 2, 3, 0, 0, 0, 185, 97, 86, 24, 0, 0, 0, 12, 80, 76, 84, 69, 20, 15, 25, 31, 22, 38, 42, 29, 51, 53, 36, 64, 110, 57, 163, 58, 0, 0, 0, 1, 116, 82, 78, 83, 0, 64, 230, 216, 102, 0, 0, 0, 23, 73, 68, 65, 84, 120, 156, 99, 144, 150, 102, 200, 201, 97, 216, 184, 145, 225, 216, 49, 6, 36, 54, 0, 82, 20, 7, 249, 58, 132, 36, 156, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130 };
     const std::vector<uint8_t> gray4Key { 137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 8, 0, 0, 0, 8, 4, 0, 0, 0, 0, 36, 148, 12, 86, 0, 0, 0, 2, 116, 82, 78, 83, 0, 0, 118, 147, 205, 56, 0, 0, 0, 41, 73, 68, 65, 84, 120, 156, 99, 96, 84, 118, 77, 103, 16, 50, 9, 171, 96, 0, 50, 58, 25, 128, 140, 89, 12, 64, 198, 106, 6, 32, 99, 15, 3, 144, 113, 150, 1, 200, 184, 7, 0, 217, 208, 13, 241, 137, 176, 75, 90, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130 };
+    const std::vector<uint8_t> monoGray { 137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 8, 0, 0, 0, 8, 1, 0, 0, 0, 0, 236, 116, 131, 38, 0, 0, 0, 14, 73, 68, 65, 84, 120, 156, 99, 8, 101, 88, 197, 128, 132, 1, 30, 156, 3, 253, 109, 125, 135, 230, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130 };
+    const std::vector<uint8_t> monoIndexed { 137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 8, 0, 0, 0, 8, 1, 3, 0, 0, 0, 254, 193, 44, 200, 0, 0, 0, 6, 80, 76, 84, 69, 20, 15, 25, 31, 22, 38, 75, 142, 162, 225, 0, 0, 0, 14, 73, 68, 65, 84, 120, 156, 99, 8, 101, 88, 197, 128, 132, 1, 30, 156, 3, 253, 109, 125, 135, 230, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130 };
+    const std::vector<uint8_t> monoGrayKey { 137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 8, 0, 0, 0, 8, 1, 0, 0, 0, 0, 236, 116, 131, 38, 0, 0, 0, 2, 116, 82, 78, 83, 0, 0, 118, 147, 205, 56, 0, 0, 0, 14, 73, 68, 65, 84, 120, 156, 99, 8, 101, 88, 197, 128, 132, 1, 30, 156, 3, 253, 109, 125, 135, 230, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130 };
+    const std::vector<uint8_t> monoIndexedKey { 137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 8, 0, 0, 0, 8, 1, 3, 0, 0, 0, 254, 193, 44, 200, 0, 0, 0, 6, 80, 76, 84, 69, 20, 15, 25, 31, 22, 38, 75, 142, 162, 225, 0, 0, 0, 1, 116, 82, 78, 83, 0, 64, 230, 216, 102, 0, 0, 0, 14, 73, 68, 65, 84, 120, 156, 99, 8, 101, 88, 197, 128, 132, 1, 30, 156, 3, 253, 109, 125, 135, 230, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130 };
     struct Samples {
         uint8_t indexedTransition;
         std::array<uint8_t, 2> scale;
@@ -221,9 +225,11 @@ void archivedImageEncodingSelectsTheRaster()
     require(sample(&indexed).indexedTransition == 1, "Indexed images must keep Qt's 12-bit scale step");
     for (const auto* image : { &indexed2, &indexed4, &gray2, &gray4 })
         require(sample(image).indexedTransition == 1, "Packed PNGs must keep Qt's Indexed8 scale step");
+    for (const auto* image : { &monoGray, &monoIndexed })
+        require(sample(image).indexedTransition == 1, "Monochrome PNGs must keep Qt’s fixed-point scale step");
     require(sample(&gray).indexedTransition == 2, "Opaque grayscale must keep the transformed raster");
     pixels[3] = 0;
-    for (const auto* image : { &indexedAlpha, &grayKey, &grayAlpha, &indexed2Key, &gray4Key }) {
+    for (const auto* image : { &indexedAlpha, &grayKey, &grayAlpha, &indexed2Key, &gray4Key, &monoGrayKey, &monoIndexedKey }) {
         const auto result = sample(image);
         require(result.overlap == std::array<uint8_t, 4> { 1, 0, 255, 255 }, "Alpha-capable indexed and grayscale PNGs must reveal the padded layer");
         require(result.clear == std::array<uint8_t, 4> {}, "Fully transparent PNG samples must clear hidden RGB");
