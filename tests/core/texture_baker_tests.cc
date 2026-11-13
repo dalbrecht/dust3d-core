@@ -324,7 +324,7 @@ void fractionalMultiTexelSources()
         const size_t interior = (11 * 128 + 11) * 4;
         require(image.color.pixels[interior] == 63 && image.color.pixels[interior + 2] == 191, "The Qt two-pixel scale selects source texel 383 in either chart orientation");
         const size_t edge = (13 * 128 + 13) * 4;
-        require(image.color.pixels[edge] == 0 && image.color.pixels[edge + 2] == 255, "Image bleed must clamp after fractional-origin correction to retain the final source texel");
+        require(image.color.pixels[edge] == 31 && image.color.pixels[edge + 2] == 223, "Dilation must copy the last painted gutter texel");
         const size_t firstPixelAlpha = (10 * 128 + 10) * 4 + 3;
         require(result.color.pixels[firstPixelAlpha] == 255, "Opaque gradient endpoints must stay opaque after interpolation");
         require(result.color.pixels == image.color.pixels, "Multi-texel fractional gradients must match equivalent image charts including gutters");
@@ -372,6 +372,32 @@ void imageChartSourceTexelBoundaries()
     const size_t vertical = ((24 + 2053) * 2176 + 28) * 4;
     require(rotated.color.pixels[vertical] == 1 && rotated.color.pixels[vertical + 1] == 233,
         "A rotated chart follows the horizontal source span on its vertical atlas axis");
+}
+
+void fractionalColorBoundsSeedDilationAtTheDrawEdge()
+{
+    Fixture fixture;
+    fixture.options.colorSize = 128;
+    auto& lower = fixture.atlas.layouts.front();
+    lower.left = 32.25 / 128;
+    lower.top = 0.25;
+    lower.width = 31.25 / 128;
+    lower.height = 0.25;
+    lower.color = dust3d::Color(1, 0, 0);
+    auto upper = lower;
+    upper.left = 69.25 / 128;
+    upper.color = dust3d::Color(0, 1, 0);
+    fixture.atlas.layouts.push_back(upper);
+
+    const auto result = fixture.bake();
+    const auto colorAt = [&](size_t x) {
+        std::array<uint8_t, 4> pixel {};
+        std::copy_n(result.color.pixels.data() + (40 * 128 + x) * 4, 4, pixel.begin());
+        return pixel;
+    };
+    require(colorAt(65) == std::array<uint8_t, 4> { 255, 0, 0, 255 }
+            && colorAt(66) == std::array<uint8_t, 4> { 0, 255, 0, 255 },
+        "Dilation must start at the actual color chart draw bounds");
 }
 
 void overlappingChartPaddingUsesSourceOver()
@@ -1167,6 +1193,7 @@ int main(int argc, char* argv[])
         fractionalSubTexelGradients();
         fractionalMultiTexelSources();
         imageChartSourceTexelBoundaries();
+        fractionalColorBoundsSeedDilationAtTheDrawEdge();
         overlappingChartPaddingUsesSourceOver();
         imageChartPaddedScale();
         magnifiedImageChartUsesDirectSampling();

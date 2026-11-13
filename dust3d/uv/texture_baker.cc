@@ -256,6 +256,11 @@ namespace {
         const auto advance = (destination - spanStart) * (scaledSource / destinationSize);
         return static_cast<size_t>((initial + advance) / fixedScale);
     }
+    int colorChartDrawOrigin(double origin, int bleed)
+    {
+        return static_cast<int>(origin - bleed);
+    }
+
     size_t chartImageSample(double normalized, double origin, double extent, int bleed, size_t sourceSize, ImageScalePhase phase)
     {
         if (extent < 1) {
@@ -265,7 +270,7 @@ namespace {
         }
         const auto destinationSize = static_cast<int>(extent);
         // The padded pixmap's integer draw origin can shift the inner chart at the atlas edge.
-        const auto rasterOffset = static_cast<int>(std::trunc(origin - bleed) + bleed - std::floor(origin));
+        const auto rasterOffset = static_cast<int>(colorChartDrawOrigin(origin, bleed) + bleed - std::floor(origin));
         const auto destination = static_cast<int>(std::floor(normalized * destinationSize)) - rasterOffset;
         if (destination < 0)
             return 0;
@@ -286,7 +291,7 @@ namespace {
         if (bleed == 0 || width < 1 || height < 1)
             return std::nullopt;
         const auto rasterPosition = [bleed](double normalized, double origin, int size) {
-            const auto offset = static_cast<int>(std::floor(origin) - std::trunc(origin - bleed));
+            const auto offset = static_cast<int>(std::floor(origin) - colorChartDrawOrigin(origin, bleed));
             return static_cast<int>(std::floor(normalized * size)) + offset;
         };
         const auto innerWidth = static_cast<int>(width);
@@ -346,7 +351,7 @@ namespace {
     }
 
     template <typename Paint>
-    std::vector<uint8_t> rectangles(TextureImage& output, const UvAtlas& atlas, double bleedFraction, const TextureBakeOptions& options, Paint paint, const std::set<size_t>& skipped = {}, bool blendOverlaps = false)
+    std::vector<uint8_t> rectangles(TextureImage& output, const UvAtlas& atlas, double bleedFraction, const TextureBakeOptions& options, Paint paint, const std::set<size_t>& skipped = {}, bool colorCharts = false)
     {
         std::vector<uint8_t> covered(output.width * output.height);
         const auto size = static_cast<int>(output.width);
@@ -366,14 +371,20 @@ namespace {
             const auto height = chartPixelSpan(layout.top * size, extentY);
             const auto sampleWidth = extentX < 1 ? width : static_cast<int>(extentX);
             const auto sampleHeight = extentY < 1 ? height : static_cast<int>(extentY);
-            for (int y = std::max(0, top - bleed); y < std::min(size, top + height + bleed); ++y) {
+            // Seed dilation from the painted pixmap, including its clipped integer origin.
+            const bool exactColorBounds = colorCharts && extentX >= 1 && extentY >= 1;
+            const auto drawLeft = exactColorBounds ? colorChartDrawOrigin(layout.left * size, bleed) : left - bleed;
+            const auto drawTop = exactColorBounds ? colorChartDrawOrigin(layout.top * size, bleed) : top - bleed;
+            const auto drawRight = drawLeft + (exactColorBounds ? sampleWidth : width) + 2 * bleed;
+            const auto drawBottom = drawTop + (exactColorBounds ? sampleHeight : height) + 2 * bleed;
+            for (int y = std::max(0, drawTop); y < std::min(size, drawBottom); ++y) {
                 checkCancellation(options);
-                for (int x = std::max(0, left - bleed); x < std::min(size, left + width + bleed); ++x) {
+                for (int x = std::max(0, drawLeft); x < std::min(size, drawRight); ++x) {
                     const auto index = static_cast<size_t>(y) * output.width + x;
                     const double u = (x - left + 0.5) / sampleWidth;
                     const double v = (y - top + 0.5) / sampleHeight;
                     const auto pixel = paint(ordinal, layout, u, v);
-                    if (blendOverlaps && covered[index] && pixel[3] < 255) {
+                    if (colorCharts && covered[index] && pixel[3] < 255) {
                         if (pixel[3] != 0)
                             put(output, index, compositeAtlasPixel(pixel, output.pixels.data() + index * 4));
                     } else {

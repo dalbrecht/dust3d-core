@@ -15,6 +15,8 @@
 
 - Render bounded explicit sound events into owned WAV bytes through the portable C API.
 
+- Seed color-atlas dilation from the exact padded chart draw bounds.
+
 - Composite overlapping texture-chart padding in atlas paint order.
 
 
