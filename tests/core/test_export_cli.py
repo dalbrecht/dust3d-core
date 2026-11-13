@@ -1,4 +1,5 @@
 """Ordinary filesystem contracts for the Qt-free static FBX export command."""
+import base64
 import json
 import os
 import struct
@@ -236,6 +237,29 @@ class ExportCliTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn(b'Dust3D_color.png', self.destination.read_bytes())
         self.assert_unchanged()
+
+    def test_should_omit_preview_only_warnings_from_fbx_receipts(self):
+        original_xml = self.original.split(b'</ds3>', 1)[1].lstrip()
+        canvas = ElementTree.fromstring(original_xml)
+        canvas.find('./components/component').set('wrapWrinkles', '0.1')
+        png = base64.b64decode(
+            'iVBORw0KGgoAAAANSUhEUgAAAAIAAAABAQMAAADO7O3JAAAABlBMVEX/AAAAAP9sof2OAAAAAnRSTlOAAToXZeUAAAAKSURBVHicY3AAAABCAEEpN/TvAAAAAElFTkSuQmCC')
+        for xml, asset in ((original_xml, png), (ElementTree.tostring(canvas), b'')):
+            assets = f'<asset name="images/unused.png" offset="{len(xml)}" size="{len(asset)}"/>' if asset else ''
+            header = f'<ds3><model name="model.xml" offset="0" size="{len(xml)}"/>{assets}</ds3>'.encode()
+            prefix = b'DUST3D 1.0 xml '
+            source = prefix + f'{len(prefix) + 12 + len(header):010d}\r\n'.encode() + header + xml + asset
+            self.source.write_bytes(source)
+            for mode in ((), ('--baked', '--texture-size', '64')):
+                with self.subTest(asset=bool(asset), mode=mode):
+                    result = self.run_export('--json', *mode, self.source, self.destination)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    receipt = json.loads(result.stdout)
+                    self.assertEqual(receipt['diagnostic'], '')
+                    self.assertNotIn('Untextured preview', result.stderr)
+                    if mode:
+                        self.assertIn(b'Dust3D_color.png', self.destination.read_bytes())
+                    self.assertEqual(self.source.read_bytes(), source)
 
     @staticmethod
     def translucent_png():

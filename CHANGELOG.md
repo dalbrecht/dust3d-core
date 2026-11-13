@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Keep preview-only texture notices out of FBX export receipts.
+
 - Bake referenced PNG images from DS3 archives in standalone FBX exports (#390).
 
 - Add an opt-in preview mesh load with cooperative cancellation at native phase boundaries.
