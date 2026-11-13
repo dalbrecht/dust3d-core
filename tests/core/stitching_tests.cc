@@ -199,9 +199,31 @@ void lines()
         load(model(false, "sideClosed='true' targetSegments='" + std::to_string(segments) + "'"), 9, 3);
 }
 
+void requireClosedOrientedEdges(const Vertices& vertices)
+{
+    std::map<std::pair<Position, Position>, std::pair<size_t, int>> edges;
+    for (size_t i = 0; i < vertices.size(); i += 3) {
+        Triangle triangle;
+        for (size_t corner = 0; corner < 3; ++corner)
+            std::copy_n(vertices[i + corner].position, 3, triangle[corner].begin());
+        for (size_t corner = 0; corner < 3; ++corner) {
+            const auto& from = triangle[corner];
+            const auto& to = triangle[(corner + 1) % 3];
+            auto& usage = edges[std::minmax(from, to)];
+            ++usage.first;
+            usage.second += from < to ? 1 : -1;
+        }
+    }
+    for (const auto& edge : edges)
+        require(edge.second.first == 2 && edge.second.second == 0,
+            "Stitched surface edge must have two oppositely oriented faces");
+}
+
 void loops()
 {
     const auto baseline = load(model(true, "backClosed='true'"), 8, 2);
+    requireClosedOrientedEdges(baseline);
+    requireClosedOrientedEdges(load(model(true, "backClosed='false'"), 8, 2));
     for (const auto& attributes : { "backClosed='false'", "backClosed='true' backCloseDepthRatio='.5'", "backClosed='true' backCloseSharpness='.8'" })
         require(!samePositions(baseline, load(model(true, attributes), 8, 2)), std::string("Loop setting did not affect geometry: ") + attributes);
     for (const auto& attributes : { "backClosed='true' backCloseDepthRatio='0'", "backClosed='true' backCloseDepthRatio='2'", "backClosed='true' backCloseSharpness='0'", "backClosed='true' backCloseSharpness='1'" })
