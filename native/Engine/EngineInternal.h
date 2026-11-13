@@ -59,10 +59,10 @@ namespace native {
         virtual void item(std::string_view type, std::string_view name, const uint8_t* data, size_t size) noexcept = 0;
         virtual void attribute(std::string_view name, std::string_view value) noexcept = 0;
     };
+    inline constexpr auto untexturedImagePreviewWarning = "Untextured preview: image textures are not yet displayed.";
+    inline constexpr auto untexturedSurfacePreviewWarning = "Untextured preview: image textures and procedural surface details are not yet displayed.";
     std::unique_ptr<Snapshot> readDocument(const uint8_t* bytes, size_t size, std::string& warning,
         DocumentAssetObserver* observer = nullptr, ImportedModels* imports = nullptr, bool canReadEmptyGeometry = false);
-    /// Read an export source without emitting notices about preview display capabilities.
-    std::unique_ptr<Snapshot> readDocumentForExport(const uint8_t* bytes, size_t size, std::string& warning);
     /// Archive/snapshot inspection only: validate model declarations but never decode
     /// embedded GLB or return a generation-ready imported context. No engine generation.
     /// Observer spans remain archive-borrowed. Throws original DocumentError/parser errors.

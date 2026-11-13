@@ -36,7 +36,11 @@ target_include_directories(dust3d_core PUBLIC
 target_link_libraries(dust3d_core PUBLIC dust3d_remesher dust3d_triangle Threads::Threads)
 add_library(dust3d_engine STATIC
     native/Engine/EngineSupport.cc
+    native/Engine/ComponentPreviewBridge.cc
+    native/Engine/ComponentPreviewOutput.cc
     native/Engine/AnimationCatalogBridge.cc
+    native/Engine/AudioWavBridge.cc
+    native/Engine/SoundWavBridge.cc
     native/Engine/ObjDocument.cc
     native/Engine/ObjGeometryPlan.cc
     native/Engine/ObjExportBridge.cc
@@ -86,9 +90,11 @@ if(APPLE OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
 endif()
 
 if(UNIX)
-    add_executable(dust3d_export native/ExportCli/main.cc)
+    find_package(PNG 1.6 REQUIRED)
+    add_executable(dust3d_export native/ExportCli/main.cc native/ExportCli/ProceduralPng.cc)
     set_target_properties(dust3d_export PROPERTIES OUTPUT_NAME dust3d-export)
-    target_link_libraries(dust3d_export PRIVATE dust3d_engine)
+    target_link_libraries(dust3d_export PRIVATE dust3d_worker_operation PNG::PNG)
+    target_include_directories(dust3d_export PRIVATE native/Engine)
     target_include_directories(dust3d_export SYSTEM PRIVATE third_party/json)
     add_library(dust3d_worker_job_io STATIC native/Engine/WorkerPreviewSessionIO.cc native/Engine/WorkerPreviewArchiveIO.cc native/Engine/WorkerJobIO.cc)
     target_link_libraries(dust3d_worker_job_io PUBLIC dust3d_worker_operation)
@@ -126,6 +132,17 @@ endif()
 
 include(CTest)
 if(BUILD_TESTING)
+    add_executable(dust3d_audio_wav_tests tests/core/audio_wav_tests.cc native/Engine/AudioWavBridge.cc)
+    target_include_directories(dust3d_audio_wav_tests PRIVATE native/Engine/include)
+    add_test(NAME audio_wav_contracts COMMAND dust3d_audio_wav_tests)
+    add_executable(dust3d_audio_wav_c_tests tests/core/audio_wav_c_tests.c native/Engine/AudioWavBridge.cc)
+    target_include_directories(dust3d_audio_wav_c_tests PRIVATE native/Engine/include)
+    add_test(NAME audio_wav_c_contracts COMMAND dust3d_audio_wav_c_tests)
+    add_executable(dust3d_sound_wav_c_tests tests/core/sound_wav_c_tests.c)
+    target_link_libraries(dust3d_sound_wav_c_tests PRIVATE dust3d_engine)
+    add_test(NAME sound_wav_c_contracts COMMAND dust3d_sound_wav_c_tests)
+    set_tests_properties(sound_wav_c_contracts PROPERTIES TIMEOUT 10)
+
     add_executable(dust3d_interpolation_identity_tests
         tests/core/interpolation_identity_tests.cc
         dust3d/mesh/interpolation_identities.cc)
@@ -143,6 +160,14 @@ if(BUILD_TESTING)
     target_include_directories(dust3d_spring_step_admission_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
     add_test(NAME spring_step_admission_contracts COMMAND dust3d_spring_step_admission_tests)
     set_tests_properties(spring_step_admission_contracts PROPERTIES TIMEOUT 10)
+    add_executable(dust3d_sound_wav_tests
+        tests/core/sound_wav_tests.cc
+        native/Engine/AudioWavBridge.cc
+        dust3d/animation/sound_generator.cc
+        dust3d/animation/surface_material.cc)
+    target_include_directories(dust3d_sound_wav_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} native/Engine/include)
+    add_test(NAME sound_wav_contract COMMAND dust3d_sound_wav_tests)
+    set_tests_properties(sound_wav_contract PROPERTIES TIMEOUT 10)
     add_executable(dust3d_animation_audio_metadata_tests
         tests/core/animation_audio_metadata_tests.cc
         native/Engine/EngineSupport.cc
@@ -294,6 +319,10 @@ if(BUILD_TESTING)
     target_link_libraries(dust3d_original_export_preparation_tests PRIVATE dust3d_engine)
     add_test(NAME original_export_preparation_contracts COMMAND dust3d_original_export_preparation_tests)
     set_tests_properties(original_export_preparation_contracts PROPERTIES TIMEOUT 30)
+    add_executable(dust3d_document_xml_preflight_tests tests/core/document_xml_preflight_tests.cc)
+    target_include_directories(dust3d_document_xml_preflight_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    add_test(NAME document_xml_preflight_contracts COMMAND dust3d_document_xml_preflight_tests)
+
     add_executable(dust3d_obj_document_tests tests/core/obj_document_tests.cc)
     target_include_directories(dust3d_obj_document_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} native/Engine)
     target_link_libraries(dust3d_obj_document_tests PRIVATE dust3d_engine)
@@ -304,6 +333,7 @@ if(BUILD_TESTING)
     add_test(NAME obj_export_api_contracts COMMAND dust3d_obj_export_api_tests ${CMAKE_CURRENT_SOURCE_DIR}/tests/core/fixtures)
     set_tests_properties(obj_export_api_contracts PROPERTIES TIMEOUT 60)
     add_executable(dust3d_fbx_export_api_tests tests/core/fbx_export_api_tests.cc)
+    target_include_directories(dust3d_fbx_export_api_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(dust3d_fbx_export_api_tests PRIVATE dust3d_engine)
     add_test(NAME fbx_export_api_contracts COMMAND dust3d_fbx_export_api_tests ${CMAKE_CURRENT_SOURCE_DIR}/tests/core/fixtures)
     set_tests_properties(fbx_export_api_contracts PROPERTIES TIMEOUT 60)
@@ -731,6 +761,18 @@ if(BUILD_TESTING)
         add_test(NAME worker_preview_archive_channel_contracts COMMAND dust3d_worker_preview_archive_channel_tests ${CMAKE_CURRENT_SOURCE_DIR}/tests/core/fixtures/Capsule.ds3)
         set_tests_properties(worker_preview_archive_channel_contracts PROPERTIES TIMEOUT 30)
     endif()
+    add_executable(dust3d_component_preview_output_tests tests/core/component_preview_output_tests.cc)
+    target_link_libraries(dust3d_component_preview_output_tests PRIVATE dust3d_engine dust3d_core)
+    add_test(NAME component_preview_output_contracts COMMAND dust3d_component_preview_output_tests)
+    add_executable(dust3d_component_preview_archive_tests tests/core/component_preview_archive_tests.cc)
+    target_link_libraries(dust3d_component_preview_archive_tests PRIVATE dust3d_engine)
+    add_test(NAME component_preview_archive_contracts
+        COMMAND dust3d_component_preview_archive_tests
+            ${CMAKE_CURRENT_SOURCE_DIR}/tests/core/fixtures/Capsule.ds3
+            ${CMAKE_CURRENT_SOURCE_DIR}/tests/core/fixtures/ImportedSurface.ds3
+            ${CMAKE_CURRENT_SOURCE_DIR}/tests/core/fixtures/Sword.ds3)
+    set_tests_properties(component_preview_archive_contracts PROPERTIES TIMEOUT 30)
+
     add_executable(dust3d_worker_preview_archive_tests tests/core/worker_preview_archive_tests.cc)
     target_link_libraries(dust3d_worker_preview_archive_tests PRIVATE dust3d_worker_protocol)
     add_test(NAME worker_preview_archive_contracts COMMAND dust3d_worker_preview_archive_tests)
@@ -1320,6 +1362,11 @@ if(BUILD_TESTING)
     target_link_libraries(dust3d_source_texture_mip_tests PRIVATE dust3d_core)
     add_test(NAME source_texture_mip_contracts COMMAND dust3d_source_texture_mip_tests)
     set_tests_properties(source_texture_mip_contracts PROPERTIES TIMEOUT 60)
+    add_executable(dust3d_snapshot_legacy_inverse_tests tests/core/snapshot_legacy_inverse_tests.cc dust3d/base/snapshot_xml.cc dust3d/base/uuid.cc dust3d/base/string.cc)
+    target_include_directories(dust3d_snapshot_legacy_inverse_tests PRIVATE . third_party/rapidxml-1.13)
+    target_link_libraries(dust3d_snapshot_legacy_inverse_tests PRIVATE Threads::Threads)
+    add_test(NAME contract_snapshot_legacy_inverse COMMAND dust3d_snapshot_legacy_inverse_tests)
+    set_tests_properties(contract_snapshot_legacy_inverse PROPERTIES TIMEOUT 30)
     add_executable(dust3d_snapshot_numeric_tests tests/core/snapshot_numeric_tests.cc native/Engine/SnapshotValidator.cc)
     target_include_directories(dust3d_snapshot_numeric_tests PRIVATE . native/Engine native/Engine/include)
     add_test(NAME contract_snapshot_numeric COMMAND dust3d_snapshot_numeric_tests)
@@ -1418,7 +1465,7 @@ if(BUILD_TESTING)
     add_executable(dust3d_indexed_source_producer_tests tests/core/indexed_source_producer_tests.cc)
     target_link_libraries(dust3d_indexed_source_producer_tests PRIVATE dust3d_engine dust3d_core)
     target_include_directories(dust3d_indexed_source_producer_tests PRIVATE native/Engine)
-    add_test(NAME indexed_source_producer_contracts COMMAND dust3d_indexed_source_producer_tests)
+    add_test(NAME indexed_source_producer_contracts COMMAND dust3d_indexed_source_producer_tests ${CMAKE_CURRENT_SOURCE_DIR}/tests/core/fixtures)
     set_tests_properties(indexed_source_producer_contracts PROPERTIES TIMEOUT 60)
     add_executable(dust3d_indexed_source_provenance_tests tests/core/indexed_source_provenance_tests.cc)
     target_link_libraries(dust3d_indexed_source_provenance_tests PRIVATE dust3d_engine dust3d_core)
@@ -1487,7 +1534,7 @@ if(BUILD_TESTING)
     add_executable(dust3d_indexed_mesh_tests tests/core/indexed_mesh_tests.cc)
     target_include_directories(dust3d_indexed_mesh_tests PRIVATE native/Engine)
     target_link_libraries(dust3d_indexed_mesh_tests PRIVATE dust3d_engine dust3d_core)
-    foreach(scenario null_handles reconstruction ownership budget attribute_seams invalid_attributes concurrent)
+    foreach(scenario null_handles reconstruction preview_cancellation ownership budget attribute_seams invalid_attributes concurrent)
         add_test(NAME contract_indexed_${scenario} COMMAND dust3d_indexed_mesh_tests ${scenario})
         set_tests_properties(contract_indexed_${scenario} PROPERTIES TIMEOUT 60)
     endforeach()

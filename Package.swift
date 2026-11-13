@@ -51,9 +51,14 @@ let package = Package(
             path: "native/AppleImages", exclude: ["README.md", "provenance.json", "Metadata"],
             linkerSettings: [.linkedFramework("CoreGraphics"), .linkedFramework("ImageIO")]
         ),
+        .systemLibrary(
+            name: "Dust3DExportPng", path: "native/ExportPng", pkgConfig: "libpng",
+            providers: [.brew(["libpng"]), .apt(["libpng-dev"])]
+        ),
         .executableTarget(
-            name: "Dust3DExport", dependencies: ["Dust3DEngine"], path: "native/ExportCli", exclude: ["README.md"],
-            cxxSettings: [.headerSearchPath("../../third_party/json")]
+            name: "Dust3DExport", dependencies: ["Dust3DEngine", "Dust3DWorkerRuntime", "Dust3DExportPng"],
+            path: "native/ExportCli", exclude: ["README.md"],
+            cxxSettings: [.headerSearchPath("../../third_party/json"), .headerSearchPath("../Engine")]
         ),
         .executableTarget(
             name: "Dust3DWorker",
@@ -147,7 +152,7 @@ let package = Package(
             sources: [
                 "base", "mesh", "rig", "uv", "animation/animation_catalog.cc", "animation/animation_defaults.cc",
                 "animation/parameter_catalog.cc", "animation/surface_material.cc", "animation/spring_step_admission.cc",
-                "animation/biped/clip_metadata.cc",
+                "animation/biped/clip_metadata.cc", "animation/sound_generator.cc",
             ],
             publicHeadersPath: "include",
             cxxSettings: [
@@ -163,7 +168,8 @@ let package = Package(
             dependencies: ["Dust3DCore"],
             path: "native/Engine",
             sources: [
-                "EngineSupport.cc", "AnimationCatalogBridge.cc",
+                "EngineSupport.cc", "AnimationCatalogBridge.cc", "AudioWavBridge.cc", "SoundWavBridge.cc",
+                "ComponentPreviewBridge.cc", "ComponentPreviewOutput.cc",
                 "ObjDocument.cc", "ObjGeometryPlan.cc",
                 "FbxMaterialImagePlan.cc",
                 "FbxMeshScene.cc",

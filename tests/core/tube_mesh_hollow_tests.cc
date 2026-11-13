@@ -2,6 +2,7 @@
 #include <algorithm>
 #include <cmath>
 #include <dust3d/base/position_key.h>
+#include <dust3d/mesh/section_remesher.h>
 #include <dust3d/mesh/tube_mesh_builder.h>
 #include <iostream>
 #include <map>
@@ -13,6 +14,44 @@ void require(bool condition, const char* message)
 {
     if (!condition)
         throw std::runtime_error(message);
+}
+
+void tiltedConcaveCapHasConformingTriangleEdges()
+{
+    // The first cap of a saved linked L-profile tilted by 14 degrees.
+    const std::vector<dust3d::Vector3> ring {
+        { -.10000000149011612, -.33895155011488937, -.44610383549011451 },
+        { -.10000000149011612, -.24192190170288086, -.47029572725296021 },
+        { 0, -.24192190170288086, -.47029572725296021 },
+        { 0, -.14489225329087235, -.49448761901580590 },
+        { .10000000149011612, -.14489225329087235, -.49448761901580590 },
+        { .10000000149011612, -.33895155011488937, -.44610383549011451 },
+    };
+    dust3d::SectionRemesher remesher(ring, 0, 1);
+    remesher.remesh();
+    const auto& triangles = remesher.generatedFaces();
+    require(triangles.size() == ring.size() - 2, "Concave cap triangulation must retain the collinear interior diagonal corner");
+    require(remesher.generatedFaceUvs().size() == triangles.size(), "Every cap triangle retains UVs");
+    std::map<std::pair<size_t, size_t>, int> edges;
+    for (const auto& triangle : triangles) {
+        const auto& a = ring.at(triangle.at(0));
+        const auto& b = ring.at(triangle.at(1));
+        const auto& c = ring.at(triangle.at(2));
+        require(dust3d::Vector3::crossProduct(b - a, c - a).lengthSquared() > 1e-12, "Cap triangles have positive area");
+        for (size_t i = 0; i < 3; ++i) {
+            const auto from = triangle[i];
+            const auto to = triangle[(i + 1) % 3];
+            ++edges[{ from, to }];
+            --edges[{ to, from }];
+        }
+    }
+    for (size_t i = 0; i < ring.size(); ++i) {
+        const size_t next = (i + 1) % ring.size();
+        --edges[{ i, next }];
+        ++edges[{ next, i }];
+    }
+    for (const auto& edge : edges)
+        require(edge.second == 0, "Cap interior edges pair exactly and the boundary follows the authored ring");
 }
 
 void customHollowProfileContainsCavity(const std::vector<dust3d::Vector2>& profile, double thickness)
@@ -109,6 +148,7 @@ void hollowTubeHasConsistentTopology(bool circular, double thickness = .5)
 int main()
 {
     try {
+        tiltedConcaveCapHasConformingTriangleEdges();
         customHollowProfileContainsCavity({ { -1, -1 }, { 1, -1 }, { -1, 1 } }, .5);
         const std::vector<dust3d::Vector2> concave { { -1, -1 }, { 1, -1 }, { 1, 1 }, { .5, 1 },
             { .5, -.5 }, { -.5, -.5 }, { -.5, 1 }, { -1, 1 } };

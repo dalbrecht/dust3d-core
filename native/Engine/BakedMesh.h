@@ -5,12 +5,15 @@
 #include "UvMetadata.h"
 #include <array>
 #include <dust3d/uv/texture_baker.h>
+#include <exception>
 
 namespace dust3d {
 namespace native {
-    class BakedMeshData {
+    class BakedMeshData : public DocumentAssetObserver {
     public:
         explicit BakedMeshData(const Dust3DBakeOptions& options);
+        void item(std::string_view type, std::string_view name, const uint8_t* data, size_t size) noexcept override;
+        void attribute(std::string_view, std::string_view) noexcept override { }
         void validateVisuals(const Snapshot& snapshot) const;
         void appendTriangle(size_t index) { m_originalIndices.push_back(index); }
         void prepare(const Object& object, const Snapshot& snapshot, const UvAtlas& atlas);
@@ -30,6 +33,8 @@ namespace native {
         Dust3DBakeOptions m_options;
         std::map<Uuid, UvAtlasImage> m_images;
         std::map<Uuid, TextureImageView> m_pixels;
+        std::map<Uuid, TextureImageRaster> m_archiveImageModes;
+        std::exception_ptr m_imageMetadataFailure;
         std::vector<size_t> m_originalIndices;
     };
 }

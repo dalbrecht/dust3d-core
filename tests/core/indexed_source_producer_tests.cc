@@ -1,15 +1,19 @@
 // SPDX-License-Identifier: MIT
+#include <algorithm>
 #include <cmath>
 #include <dust3d/base/object.h>
 #include <dust3d/mesh/mesh_generator.h>
 #include <dust3d/rig/rig_generator.h>
 #include <dust3d/uv/texture_baker.h>
 #include <dust3d/uv/uv_atlas_builder.h>
+#include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <iterator>
 #include <limits>
 #include <map>
 #include <memory>
+#include <native/Engine/EngineInternal.h>
 #include <native/Engine/ObjDocument.h>
 #include <set>
 #include <sstream>
@@ -153,6 +157,56 @@ void requireObjPreservesGeometry(const dust3d::Object& object)
     }
     require(vertex == object.vertices.size() && face == object.triangleAndQuads.size() && face > 0,
         "Hollow OBJ must preserve all original geometry");
+}
+void ordinaryRoundedCrossingRetainsTopology(const std::string& fixtures)
+{
+    std::ifstream file(fixtures + "/RoundedCrossing.ds3", std::ios::binary);
+    require(file.good(), "RoundedCrossing fixture must be readable");
+    const std::vector<uint8_t> bytes { std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>() };
+    std::string warning;
+    auto source = dust3d::native::readDocument(bytes.data(), bytes.size(), warning);
+    dust3d::MeshGenerator generator(source.release());
+    generator.generate();
+    require(generator.isSuccessful(), "Ordinary RoundedCrossing generation failed");
+    const std::unique_ptr<dust3d::Object> object(generator.takeObject());
+    require(object && object->triangles.size() == 434, "Solid RoundedCrossing must retain the established Boolean topology");
+}
+void intersectingSwordRetainsClosedHollowGeometry(const std::string& fixtures)
+{
+    std::ifstream file(fixtures + "/Sword.ds3", std::ios::binary);
+    require(file.good(), "Sword fixture must be readable");
+    const std::vector<uint8_t> bytes { std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>() };
+    for (const auto* thickness : { "0.00000001", "0.9999", "0.99999999" }) {
+        std::string warning;
+        auto source = dust3d::native::readDocument(bytes.data(), bytes.size(), warning);
+        const auto blade = std::find_if(source->parts.begin(), source->parts.end(), [](const auto& part) {
+            const auto name = part.second.find("name");
+            return name != part.second.end() && name->second == "blade";
+        });
+        require(blade != source->parts.end(), "Sword fixture must contain the linked-profile blade");
+        blade->second["hollowThickness"] = thickness;
+        dust3d::MeshGenerator generator(source.release());
+        generator.generate();
+        require(generator.isSuccessful(), "Intersecting hollow sword generation failed");
+        const std::unique_ptr<dust3d::Object> object(generator.takeObject());
+        require(object && object->triangles.size() > 320, "Intersecting sword must retain its cavity");
+        std::map<std::pair<size_t, size_t>, std::pair<size_t, int>> edges;
+        for (const auto& face : object->triangleAndQuads) {
+            for (size_t corner = 0; corner < face.size(); ++corner) {
+                const auto first = face[corner];
+                const auto second = face[(corner + 1) % face.size()];
+                require(first != second, "Sword faces must contain distinct adjacent vertices");
+                auto& edge = edges[std::minmax(first, second)];
+                ++edge.first;
+                edge.second += first < second ? 1 : -1;
+            }
+        }
+        require(!edges.empty() && std::all_of(edges.begin(), edges.end(), [](const auto& edge) {
+            return edge.second.first == 2 && edge.second.second == 0;
+        }),
+            "Intersecting hollow sword must have closed and consistently oriented edges");
+        requireObjPreservesGeometry(*object);
+    }
 }
 void nearCollapseRetainsIndexedTriangles()
 {
@@ -463,9 +517,12 @@ void importedNearestHintStaysVertexIndexed()
         }
 }
 }
-int main()
+int main(int argc, char** argv)
 {
     try {
+        require(argc == 2, "Ordinary licensed fixture directory required");
+        ordinaryRoundedCrossingRetainsTopology(argv[1]);
+        intersectingSwordRetainsClosedHollowGeometry(argv[1]);
         intersectingHollowBooleanRetainsIndexedRecords("Normal");
         intersectingHollowBooleanRetainsIndexedRecords("Inversion");
         mirroredHollowRetainsIndexedCorners();
