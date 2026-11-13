@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Bake referenced PNG images from DS3 archives in standalone FBX exports (#390).
+
 - Add an opt-in preview mesh load with cooperative cancellation at native phase boundaries.
 
 - Honor legacy part inversion when opening older Dust3D documents.
