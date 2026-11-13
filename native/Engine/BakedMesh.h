@@ -33,7 +33,7 @@ namespace native {
         Dust3DBakeOptions m_options;
         std::map<Uuid, UvAtlasImage> m_images;
         std::map<Uuid, TextureImageView> m_pixels;
-        std::map<Uuid, bool> m_archiveImageModes;
+        std::map<Uuid, TextureImageRaster> m_archiveImageModes;
         std::exception_ptr m_imageMetadataFailure;
         std::vector<size_t> m_originalIndices;
     };

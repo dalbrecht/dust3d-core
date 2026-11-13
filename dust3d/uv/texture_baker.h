@@ -38,13 +38,17 @@ struct TextureImage {
 
 /// Borrowed straight-alpha RGBA8. Bytes must remain valid throughout bake();
 /// rowStride includes padding, byteCount bounds all readable rows.
+enum class TextureImageRaster { decoded,
+    rgb32,
+    alphaComposite };
+
 struct TextureImageView {
     size_t width = 0;
     size_t height = 0;
     size_t rowStride = 0;
     size_t byteCount = 0;
     const uint8_t* pixels = nullptr;
-    bool rgb32Raster = false;
+    TextureImageRaster raster = TextureImageRaster::decoded;
 };
 
 struct TextureMaterial {
