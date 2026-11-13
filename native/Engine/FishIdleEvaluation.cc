@@ -64,9 +64,13 @@ namespace dust3d::native {
             } else {
                 const auto control = std::find_if(controls.begin(), controls.end(),
                     [&parameterName = name](const auto& candidate) { return candidate.parameterName == parameterName; });
-                if (control == controls.end()
-                    || value < animation::parameterValue(*control, control->minimumSliderValue)
-                    || value > animation::parameterValue(*control, control->maximumSliderValue))
+                if (control == controls.end())
+                    throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Animation clip has an unknown parameter.");
+                // The reference walk supports still arms, and its T. rex example
+                // authors 0.2 below the editor slider's 0.25 minimum.
+                const auto minimum = clipType == "BipedWalk" && name == "armSwingFactor"
+                    ? 0.0 : animation::parameterValue(*control, control->minimumSliderValue);
+                if (value < minimum || value > animation::parameterValue(*control, control->maximumSliderValue))
                     throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Animation clip parameter is outside its declared range.");
             }
         }
