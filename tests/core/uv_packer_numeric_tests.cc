@@ -2,6 +2,7 @@
 #include <cstdint>
 #include <dust3d/uv/chart_packer.h>
 #include <dust3d/uv/max_rectangles.h>
+#include <dust3d/uv/uv_map_packer.h>
 #include <iostream>
 #include <limits>
 #include <stdexcept>
@@ -53,6 +54,25 @@ void invalidRectangleInputs()
     require(dust3d::uv::maxRectangles(1, 1, 0, nullptr, method, false, nullptr, &occupancy) == 0 && occupancy == 0, "An empty positive bin remains well-defined");
 }
 
+void packedCornersStayInsideTheirIsland()
+{
+    dust3d::UvMapPacker packer;
+    dust3d::UvMapPacker::Part part;
+    part.width = 2;
+    part.height = 1;
+    part.indexedLocalUv[0] = { dust3d::Vector2(0, 0), dust3d::Vector2(1, 0), dust3d::Vector2(1, 1) };
+    packer.addPart(part);
+    packer.pack();
+    require(packer.packedLayouts().size() == 1, "The test island must pack");
+    const auto& island = packer.packedLayouts().front();
+    for (const auto& uv : island.indexedGlobalUv.at(0)) {
+        require(uv.x() >= island.left && uv.x() <= island.left + island.width,
+            "Packed corner must stay inside the island horizontally");
+        require(uv.y() >= island.top && uv.y() <= island.top + island.height,
+            "Packed corner must stay inside the island vertically");
+    }
+}
+
 void checkedChartConversions()
 {
     dust3d::ChartPacker packer;
@@ -82,6 +102,7 @@ int main()
     try {
         wideAreasAndScores();
         checkedChartConversions();
+        packedCornersStayInsideTheirIsland();
         invalidRectangleInputs();
         std::cout << "UV packer numeric contracts passed\n";
         return 0;
