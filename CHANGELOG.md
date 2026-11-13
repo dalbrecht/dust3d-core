@@ -17,6 +17,8 @@
 
 - Render bounded explicit sound events into owned WAV bytes through the portable C API.
 
+- Match Qt chart compositing for 16-bit grayscale PNG transparency keys.
+
 - Match Qt texture sampling and transparency for 1-bit grayscale and indexed PNGs.
 
 - Match Qt texture sampling and transparency for 2-bit and 4-bit indexed and grayscale PNGs.
