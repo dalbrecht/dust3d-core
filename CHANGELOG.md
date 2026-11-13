@@ -17,6 +17,8 @@
 
 - Render bounded explicit sound events into owned WAV bytes through the portable C API.
 
+- Match Qt texture sampling for 8-bit indexed and alpha-capable grayscale PNGs.
+
 - Match Qt’s inset and padding compositing for alpha-capable truecolor PNG textures.
 
 - Preserve Qt RGB32 texture sampling for unkeyed 8-bit RGB PNG assets.
