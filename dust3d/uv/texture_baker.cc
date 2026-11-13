@@ -301,7 +301,7 @@ namespace {
             return std::nullopt;
         return PaddedImageSample { column, row, paddedWidth, paddedHeight, inChart };
     }
-    Pixel compositeChartPixel(const Pixel& inset, const Pixel& padded, bool keepPremultiplied, bool inputPremultiplied)
+    Pixel compositeChartPixel(const Pixel& inset, const Pixel& padded, bool inputPremultiplied)
     {
         const auto roundProduct = [](unsigned int value) {
             return (value + (value >> 8) + 128) >> 8;
@@ -316,7 +316,7 @@ namespace {
             const auto foreground = inputPremultiplied ? inset[channel] : roundProduct(inset[channel] * inset[3]);
             const auto background = inputPremultiplied ? padded[channel] : roundProduct(padded[channel] * padded[3]);
             const auto premultiplied = foreground + roundProduct(background * remainder);
-            result[channel] = static_cast<uint8_t>(keepPremultiplied ? premultiplied : (premultiplied * inverseAlpha + 32768) >> 16);
+            result[channel] = static_cast<uint8_t>((premultiplied * inverseAlpha + 32768) >> 16);
         }
         result[3] = static_cast<uint8_t>(alpha);
         return result;
@@ -1038,7 +1038,7 @@ TextureBakeResult TextureBaker::bake(const Object& object, const UvAtlas& atlas,
             const auto paddedY = scaledImageSample(layout.flipped ? padded->column : padded->row, paddedHeight, source.height, yPhase);
             std::copy_n(source.pixels + paddedY * source.rowStride + paddedX * 4, 4, background.begin());
         }
-        return compositeChartPixel(pixel, background, options.premultipliedArchiveColor, inputPremultiplied); }, colorSkipped);
+        return compositeChartPixel(pixel, background, inputPremultiplied); }, colorSkipped);
     for (const auto& chart : charts)
         paintSurface(result.color, colorCoverage, chart, atlas.layouts[chart.layoutIndex].color, false, options, result.rasterTriangleVisits);
     dilate(result.color, colorCoverage, options);
