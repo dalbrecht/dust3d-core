@@ -141,8 +141,10 @@ editor/file-preview adoption and full import/export parity remain separate stage
 ## Build and test without Qt
 
 Requires CMake 3.20+, a C/C++17 compiler, platform thread support and system zlib
-headers/library (for example `zlib1g-dev` on Debian/Ubuntu; macOS SDK provides it). No Swift,
-Qt, display server or external geometry download is needed.
+headers/library (for example `zlib1g-dev` on Debian/Ubuntu. The macOS SDK provides it).
+The Unix CMake export command also requires libpng 1.6 or later
+(`libpng-dev` on Debian/Ubuntu or `brew install libpng` on macOS).
+No Swift, Qt, display server or external geometry download is needed.
 
 ```bash
 git clone --recurse-submodules https://github.com/dalbrecht/dust3d-core.git
@@ -1308,3 +1310,11 @@ host identity before retaining/reading the request body or generating geometry.
 The Swift prototype adapter uses it explicitly. Transport authentication and current
 parent publication admission remain separate; see
 [ADR0165](docs/adr/0165-worker-host-request-preflight.md).
+
+### Owned PCM16/WAV encoding
+
+`native/Engine/include/Dust3DAudioWav.h` provides checked scalar planning and
+owned PCM16 WAV bytes for core #318. Caller quotas include the 44-byte header;
+empty PCM is valid, and output is immutable until owner destruction. The encoder
+performs no synthesis, native evaluation, file I/O or playback. See
+[ADR 0204](docs/adr/0204-owned-pcm-wav.md) for tests and remaining delivery gates.

@@ -23,6 +23,7 @@
 #ifndef DUST3D_MESH_SOLID_MESH_BOOLEAN_OPERATION_H_
 #define DUST3D_MESH_SOLID_MESH_BOOLEAN_OPERATION_H_
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <dust3d/base/position_key.h>
@@ -36,7 +37,7 @@ namespace dust3d {
 class SolidMeshBooleanOperation {
 public:
     SolidMeshBooleanOperation(const SolidMesh* firstMesh,
-        const SolidMesh* secondMesh);
+        const SolidMesh* secondMesh, bool preserveThinWalls = false);
     ~SolidMeshBooleanOperation();
     bool combine();
     /// Exact input triangle identity, retained through cutting and output selection.
@@ -56,10 +57,16 @@ public:
         std::vector<TriangleSource>* sources = nullptr);
 
     const std::vector<Vector3>& resultVertices();
+    bool usedConvexCaps() const { return !m_capTriangles[0].empty(); }
 
 private:
     const SolidMesh* m_firstMesh = nullptr;
     const SolidMesh* m_secondMesh = nullptr;
+    bool m_preserveThinWalls = false;
+    bool m_hasCoplanarContact = false;
+    std::array<std::vector<std::vector<size_t>>, 3> m_capTriangles;
+    std::array<std::vector<TriangleSource>, 3> m_capSources;
+    bool combineClippedFaces(bool convex, double boundaryTolerance);
     std::vector<std::pair<size_t, size_t>> m_potentialIntersectedPairs;
     std::vector<Vector3> m_newVertices;
     std::vector<std::vector<size_t>> m_newTriangles;
@@ -92,14 +99,14 @@ private:
     bool isPointInMesh(const Vector3& testPosition,
         const SolidMesh* targetMesh,
         const AxisAlignedBoudingBoxTree* meshBoxTree,
-        const Vector3& testAxis);
+        size_t rayAxis);
     void buildFaceGroups(const std::vector<std::vector<size_t>>& intersections,
         const std::map<std::uint64_t, size_t>& halfEdges,
         const std::vector<std::vector<size_t>>& triangles,
         size_t remainingStartTriangleIndex,
         size_t remainingTriangleCount,
         std::vector<std::vector<size_t>>& triangleGroups);
-    size_t addNewPoint(const Vector3& position);
+    size_t addNewPoint(const Vector3& position, bool weldNearby = true);
     bool addUnintersectedTriangles(const SolidMesh* mesh,
         bool isFirst,
         const std::set<size_t>& usedFaces,

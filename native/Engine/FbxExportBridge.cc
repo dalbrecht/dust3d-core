@@ -45,7 +45,10 @@ Dust3DFbxExport* dust3d_fbx_export_load(const uint8_t* bytes, size_t size, const
         // rejects model assets before decoding: it has no source-aligned atlas.
         ImportedModels imports;
         auto* geometryImports = options->mode == DUST3D_FBX_EXPORT_GEOMETRY ? &imports : nullptr;
-        auto snapshot = readDocument(bytes, size, warning, nullptr, geometryImports);
+        auto snapshot = readDocument(bytes, size, warning, bake.get(), geometryImports);
+        // A successful bake supplies the material data described by these preview notices.
+        if (bake && (warning == untexturedImagePreviewWarning || warning == untexturedSurfacePreviewWarning))
+            warning.clear();
         RetainedPayloadBudget overhead(maximumOutput);
         overhead.tryAdd(sizeof(Dust3DFbxExport));
         overhead.accountDynamic(warning);
