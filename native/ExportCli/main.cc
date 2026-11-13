@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: MIT
+#include "EngineInternal.h"
 #include "ExportReceipt.h"
 #include "ProceduralPng.h"
 #include "WorkerProceduralImagesNative.h"
@@ -409,8 +410,12 @@ ExportResult exportFile(const Arguments& arguments, const ReceiptOutput& receipt
         dust3d_fbx_export_load(archive.bytes.data(), archive.bytes.size(), &options, &error), dust3d_fbx_export_destroy);
     if (!owner)
         throw ExportError(ExitCode::native, "Native export status " + std::to_string(error.status) + ": " + error.message);
+    const char* diagnostic = dust3d_fbx_export_warning(owner.get());
+    if (std::strcmp(diagnostic, dust3d::native::untexturedImagePreviewWarning) == 0
+        || std::strcmp(diagnostic, dust3d::native::untexturedSurfacePreviewWarning) == 0)
+        diagnostic = "";
     return publishExport(arguments, archive.identity, dust3d_fbx_export_bytes(owner.get()),
-        dust3d_fbx_export_byte_count(owner.get()), dust3d_fbx_export_warning(owner.get()), receipt);
+        dust3d_fbx_export_byte_count(owner.get()), diagnostic, receipt);
 }
 struct PathIdentity {
     std::filesystem::path canonical;

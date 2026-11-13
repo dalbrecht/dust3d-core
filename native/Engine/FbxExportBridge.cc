@@ -42,8 +42,8 @@ Dust3DFbxExport* dust3d_fbx_export_load(const uint8_t* bytes, size_t size, const
         std::string warning;
         // No import owner is supplied: model assets reject before GLB decoding.
         auto snapshot = readDocument(bytes, size, warning, bake.get());
-        // FBX export receipts do not report preview-only texture notices.
-        if (warning == untexturedImagePreviewWarning || warning == untexturedSurfacePreviewWarning)
+        // A successful bake supplies the material data described by these preview notices.
+        if (bake && (warning == untexturedImagePreviewWarning || warning == untexturedSurfacePreviewWarning))
             warning.clear();
         RetainedPayloadBudget overhead(maximumOutput);
         overhead.tryAdd(sizeof(Dust3DFbxExport));
