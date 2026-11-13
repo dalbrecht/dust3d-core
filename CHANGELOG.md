@@ -15,6 +15,9 @@
 
 - Render bounded explicit sound events into owned WAV bytes through the portable C API.
 
+- Composite overlapping texture-chart padding in atlas paint order.
+
+
 - Honor 16-bit RGB PNG transparency keys when compositing texture charts.
 
 - Allow static FBX callers to supply premultiplied texture samples prepared before 16-to-8-bit reduction.

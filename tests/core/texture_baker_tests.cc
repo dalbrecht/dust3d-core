@@ -374,6 +374,37 @@ void imageChartSourceTexelBoundaries()
         "A rotated chart follows the horizontal source span on its vertical atlas axis");
 }
 
+void overlappingChartPaddingUsesSourceOver()
+{
+    Fixture fixture;
+    fixture.options.colorSize = 128;
+    auto& lower = fixture.atlas.layouts.front();
+    lower.left = lower.top = 0.25;
+    lower.width = 31.0 / 128;
+    lower.height = 0.25;
+    lower.id = imageId;
+    auto upper = lower;
+    upper.left = 0.5;
+    upper.id = dust3d::Uuid("{dddddddd-dddd-4ddd-8ddd-dddddddddddd}");
+    fixture.atlas.layouts.push_back(upper);
+
+    const std::array<uint8_t, 4> below { 49, 15, 106, 127 };
+    std::array<uint8_t, 4> above { 128, 130, 190, 91 };
+    dust3d::TextureBakeInputs inputs;
+    inputs.images[imageId] = { 1, 1, 4, 4, below.data(), dust3d::TextureImageRaster::alphaComposite };
+    inputs.images[upper.id] = { 1, 1, 4, 4, above.data(), dust3d::TextureImageRaster::alphaComposite };
+    const auto overlappingPixel = [&](const dust3d::TextureBakeResult& result) {
+        std::array<uint8_t, 4> pixel {};
+        std::copy_n(result.color.pixels.data() + (40 * 128 + 63) * 4, 4, pixel.begin());
+        return pixel;
+    };
+    require(overlappingPixel(fixture.bake(inputs)) == std::array<uint8_t, 4> { 91, 75, 151, 173 },
+        "Overlapping padding must use Qt's straight-atlas SourceOver");
+    above[3] = 0;
+    require(overlappingPixel(fixture.bake(inputs)) == std::array<uint8_t, 4> { 48, 14, 106, 127 },
+        "Transparent upper padding must reveal the earlier chart");
+}
+
 void imageChartPaddedScale()
 {
     Fixture fixture;
@@ -1136,6 +1167,7 @@ int main(int argc, char* argv[])
         fractionalSubTexelGradients();
         fractionalMultiTexelSources();
         imageChartSourceTexelBoundaries();
+        overlappingChartPaddingUsesSourceOver();
         imageChartPaddedScale();
         magnifiedImageChartUsesDirectSampling();
         clippedColorChartOrigins();
