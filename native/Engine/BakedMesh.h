@@ -5,6 +5,7 @@
 #include "UvMetadata.h"
 #include <array>
 #include <dust3d/uv/texture_baker.h>
+#include <exception>
 
 namespace dust3d {
 namespace native {
@@ -33,7 +34,7 @@ namespace native {
         std::map<Uuid, UvAtlasImage> m_images;
         std::map<Uuid, TextureImageView> m_pixels;
         std::map<Uuid, TextureImageRaster> m_archiveImageModes;
-        bool m_imageMetadataAvailable = true;
+        std::exception_ptr m_imageMetadataFailure;
         std::vector<size_t> m_originalIndices;
     };
 }

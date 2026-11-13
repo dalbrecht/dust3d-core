@@ -2,9 +2,21 @@
 
 ## Unreleased
 
+- Add an opt-in preview mesh load with cooperative cancellation at native phase boundaries.
+
+- Honor legacy part inversion when opening older Dust3D documents.
+
+- Reject invalid numeric XML character references before reading DS3 documents (#103).
+- Keep the authored starting endpoint when repairing mixed edge directions in a legacy chain.
+
+- Preserve authored edge directions during native loading so identifiers cannot reverse valid chains and their generated UVs.
+
+- Omit untextured preview advisories after successful baked FBX exports. Geometry-only FBX exports continue to report their preview advisories.
+
+- Render bounded explicit sound events into owned WAV bytes through the portable C API.
+
 - Composite overlapping texture-chart padding in atlas paint order.
 
-- Store straight-alpha color in embedded FBX PNGs after chart compositing.
 
 - Honor 16-bit RGB PNG transparency keys when compositing texture charts.
 
@@ -26,7 +38,15 @@
 
 - Match Qt’s independently scaled image and seam-gradient gutters around packed texture charts.
 
+- Add owned PCM16/WAV bytes with checked RIFF arithmetic, frame validation and output quotas (#318).
+
 - Match Qt source texel selection within packed image and seam-gradient charts, including rotated charts and wide sampling spans.
+
+- Preserve thin hollow walls and cavity caps through intersecting Boolean operations.
+
+- Preserve distinct vertices in thin solids when Boolean operands have no candidate cuts.
+
+- Expose bounded generated previews for the document root and authored components in one batch.
 
 - Preflight interpolation node/edge identities before mutation, preserving original records and collision-free deterministic chains for shared-prefix UUIDs (#315).
 

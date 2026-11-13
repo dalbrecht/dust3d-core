@@ -36,7 +36,7 @@ public:
         const Vector3& normal);
     void setEdges(const std::vector<Vector3>& points,
         const std::map<size_t, std::set<size_t>>* neighborMapFrom3);
-    bool reTriangulate();
+    bool reTriangulate(bool scaleTinyPolygons);
     const std::vector<std::vector<size_t>>& polygons() const;
     const std::vector<std::vector<size_t>>& triangles() const;
 
@@ -58,7 +58,7 @@ private:
     int attachPointToTriangleEdge(const Vector2& point);
     bool buildPolygons();
     void buildPolygonHierarchy();
-    void triangulate();
+    void triangulate(bool scaleTinyPolygons);
 };
 
 }

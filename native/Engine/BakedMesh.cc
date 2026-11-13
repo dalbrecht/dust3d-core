@@ -171,7 +171,7 @@ namespace native {
 
     void BakedMeshData::item(std::string_view type, std::string_view name, const uint8_t* data, size_t size) noexcept
     {
-        if (!m_imageMetadataAvailable || m_pixels.empty() || type != "asset" || name.substr(0, 7) != "images/")
+        if (m_imageMetadataFailure || m_pixels.empty() || type != "asset" || name.substr(0, 7) != "images/")
             return;
         const auto tail = name.substr(7);
         const auto key = tail.substr(0, tail.find_first_of("/."));
@@ -185,14 +185,15 @@ namespace native {
             auto [mode, inserted] = m_archiveImageModes.emplace(identity, TextureImageRaster::decoded);
             mode->second = inserted ? pngRaster(data, size, image->second) : TextureImageRaster::decoded;
         } catch (...) {
-            // Optional archive hints must not interfere with decoded image admission.
-            m_imageMetadataAvailable = false;
-            m_archiveImageModes.clear();
+            // The archive observer is noexcept. Report the original cause when resolving the bake.
+            m_imageMetadataFailure = std::current_exception();
         }
     }
 
     TextureBakeInputs BakedMeshData::resolvedInputs(const Snapshot& snapshot) const
     {
+        if (m_imageMetadataFailure)
+            std::rethrow_exception(m_imageMetadataFailure);
         TextureBakeInputs result;
         result.images = m_pixels;
         for (const auto& [identity, raster] : m_archiveImageModes)
