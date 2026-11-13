@@ -190,7 +190,7 @@ namespace native {
         (void)resolvedInputs(snapshot);
     }
 
-    void BakedMeshData::prepare(const Object& object, const Snapshot& snapshot, const UvAtlas& atlas, bool premultipliedFbxColor)
+    void BakedMeshData::prepare(const Object& object, const Snapshot& snapshot, const UvAtlas& atlas)
     {
         checkCancellation(cancellation());
         const auto quota = m_options.maximum_bake_payload_bytes;
@@ -205,7 +205,6 @@ namespace native {
         const auto temporaryTangents = object.triangles.size() * sizeof(TextureTangent);
         TextureBakeOptions options;
         options.colorSize = m_options.color_size;
-        options.premultipliedArchiveColor = premultipliedFbxColor;
         options.normalSize = m_options.normal_size;
         options.materialSize = m_options.material_size;
         options.maximumSpatialGridEntries = m_options.maximum_spatial_grid_entries;
