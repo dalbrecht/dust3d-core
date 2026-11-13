@@ -141,8 +141,10 @@ editor/file-preview adoption and full import/export parity remain separate stage
 ## Build and test without Qt
 
 Requires CMake 3.20+, a C/C++17 compiler, platform thread support and system zlib
-headers/library (for example `zlib1g-dev` on Debian/Ubuntu; macOS SDK provides it). No Swift,
-Qt, display server or external geometry download is needed.
+headers/library (for example `zlib1g-dev` on Debian/Ubuntu. The macOS SDK provides it).
+The Unix CMake export command also requires libpng 1.6 or later
+(`libpng-dev` on Debian/Ubuntu or `brew install libpng` on macOS).
+No Swift, Qt, display server or external geometry download is needed.
 
 ```bash
 git clone --recurse-submodules https://github.com/dalbrecht/dust3d-core.git

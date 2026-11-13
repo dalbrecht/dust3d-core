@@ -2,7 +2,9 @@
 
 Qt-free static procedural OBJ/FBX export for macOS and Unix-like hosts. Build with
 CMake (`cmake --build "$BUILD_DIR" --target dust3d_export`) or the core SwiftPM
-package (`swift build --product dust3d-export`). System zlib is required.
+package (`swift build --product dust3d-export`). System zlib and libpng 1.6 or later are required. Install
+`libpng-dev` on Debian/Ubuntu or `brew install libpng` on macOS. SwiftPM uses
+`pkg-config` to locate libpng.
 
 ```sh
 "$BUILD_DIR/dust3d-export" input.ds3 output.obj
@@ -15,8 +17,11 @@ UVs/normals/materials. Baked OBJ is explicitly rejected. Geometry is the default
 size is256 for all maps. Sizes1...8192 are supported. `--max-output-bytes N`
 sets the C API's final retained-output quota; zero uses64MiB, maximum256MiB.
 Use `--` before positional filenames that start with a dash. `--help` lists usage.
-Decoded external images, imported models, rig/animation and WAV/GLB output
-are not supported by this command. Unsupported source visuals reject explicitly.
+Baked FBX resolves referenced PNGs embedded in the source DS3. Decoding uses
+the existing procedural image byte budgets and the native 8192-pixel dimension
+limit. Unsupported source visuals, including external images and imported
+models, produce an explicit error. Rig, animation, WAV and GLB export remain
+outside the static export command.
 
 The command reads a bounded regular archive, validates a distinct `.fbx` or `.obj` target,
 then completes encoding before creating a private0600 staging file beside it.
