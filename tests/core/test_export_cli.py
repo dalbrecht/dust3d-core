@@ -263,7 +263,32 @@ class ExportCliTests(unittest.TestCase):
         self.source.write_bytes(archive)
         result = self.run_export('--baked', '--texture-size', '64', self.source, self.destination)
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn(b'Dust3D_color.png', self.destination.read_bytes())
+        exported = self.destination.read_bytes()
+        self.assertIn(b'Dust3D_color.png', exported)
+        signature = b'\x89PNG\r\n\x1a\n'
+        offset = exported.index(signature) + len(signature)
+        compressed = bytearray()
+        while True:
+            size, kind = struct.unpack_from('>I4s', exported, offset)
+            chunk = exported[offset + 8:offset + 8 + size]
+            if kind == b'IHDR':
+                self.assertEqual(chunk, struct.pack('>IIBBBBB', 64, 64, 8, 6, 0, 0, 0))
+            elif kind == b'IDAT':
+                compressed.extend(chunk)
+            elif kind == b'IEND':
+                break
+            offset += size + 12
+
+        row_size = 1 + 64 * 4
+        decoder = zlib.decompressobj()
+        rows = decoder.decompress(compressed, 64 * row_size + 1)
+        self.assertTrue(decoder.eof)
+        self.assertEqual(len(rows), 64 * row_size)
+        self.assertEqual(rows[::row_size], bytes(64))
+        pixels = {rows[index:index + 4] for row in range(64)
+                  for index in range(row * row_size + 1, (row + 1) * row_size, 4)}
+        self.assertIn(bytes([255, 0, 0, 128]), pixels)
+        self.assertIn(bytes([255, 255, 0, 64]), pixels)
         self.assertEqual(self.source.read_bytes(), archive)
 
     def test_should_preserve_existing_output_when_archived_png_is_invalid(self):
