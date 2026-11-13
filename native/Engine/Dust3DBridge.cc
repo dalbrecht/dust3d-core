@@ -140,7 +140,8 @@ namespace native {
                     vertex.color[0] = static_cast<float>(color.r());
                     vertex.color[1] = static_cast<float>(color.g());
                     vertex.color[2] = static_cast<float>(color.b());
-                    vertex.color[3] = 1.0f; // Opaque preview; material transparency is a later feature.
+                    // Baked previews need the authored alpha when the atlas is hidden.
+                    vertex.color[3] = baked ? static_cast<float>(color.alpha()) : 1.0f;
                     exportedTriangle[corner] = vertex;
                 }
                 auto exportedPosition = [](const Dust3DVertex& vertex) {
