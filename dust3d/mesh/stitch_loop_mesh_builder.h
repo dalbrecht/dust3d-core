@@ -113,7 +113,8 @@ private:
     void assignLoopNodesToCells(std::vector<size_t>& seedCells);
     void bfsColorCells(std::vector<size_t>& seedCells);
     void buildNodeAdjacency();
-    void buildFaces();
+    std::vector<std::vector<size_t>> buildFaces();
+    void fillSmallHoles(const std::vector<std::vector<size_t>>& holes);
     void fillIsolatedLoops();
     void closeOuterBoundary();
 };

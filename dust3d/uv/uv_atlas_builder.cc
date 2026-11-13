@@ -6,6 +6,7 @@
 #include <dust3d/base/retained_payload_budget.h>
 #include <dust3d/uv/uv_atlas_builder.h>
 #include <limits>
+#include <set>
 
 namespace dust3d {
 namespace {
@@ -200,11 +201,28 @@ namespace {
         const double scale = totalArea > 0 ? options.textureSize / std::sqrt(totalArea) : 1;
         UvMapPacker packer;
         size_t layoutOrdinal = 0;
-        std::vector<ChartKey> order;
+        if (!object.proceduralGradientOrder.empty()) {
+            std::map<Uuid, size_t> seamRanks;
+            for (size_t index = 0; index < object.proceduralGradientOrder.size(); ++index)
+                seamRanks.emplace(object.proceduralGradientOrder[index], index);
+            const auto rank = [&](const ChartKey& key) {
+                const auto found = seamRanks.find(key.second);
+                return found == seamRanks.end() ? object.proceduralGradientOrder.size() : found->second;
+            };
+            std::stable_sort(gradientOrder.begin(), gradientOrder.end(), [&](const auto& first, const auto& second) {
+                return rank(first) < rank(second);
+            });
+        }
+        std::vector<ChartKey> order = gradientOrder;
+        std::set<Uuid> submittedComponents;
+        for (const auto& component : object.proceduralComponentOrder) {
+            const ChartKey key { false, component };
+            if (parts.count(key) != 0 && submittedComponents.insert(component).second)
+                order.push_back(key);
+        }
         for (const auto& entry : parts)
-            if (!entry.first.first)
+            if (!entry.first.first && submittedComponents.count(entry.first.second) == 0)
                 order.push_back(entry.first);
-        order.insert(order.end(), gradientOrder.begin(), gradientOrder.end());
         for (const auto& key : order) {
             auto& part = parts.at(key);
             if (key.first) {
