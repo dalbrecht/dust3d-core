@@ -559,6 +559,102 @@ Dust3DStatus dust3d_generation_session_get_stats(const Dust3DGenerationSession* 
  */
 Dust3DMesh* dust3d_mesh_load(const uint8_t* bytes, size_t size, Dust3DError* error);
 
+/** Same preview load with optional cooperative cancellation at phase boundaries.
+ * @param bytes Complete document bytes, borrowed until return.
+ * @param size Document byte count, subject to the ordinary preview limit.
+ * @param cancellation Optional borrowed token; keep alive until this call and concurrent token operations return.
+ * @param error Optional diagnostic, set to CANCELLED when cancellation is observed.
+ * @return An owning mesh on success or NULL with no partial mesh.
+ * Cancellation is checked around serialized admission, document read, and generation.
+ * It does not interrupt a lock wait or an inherited synchronous phase in progress.
+ */
+Dust3DMesh* dust3d_mesh_load_with_cancellation(const uint8_t* bytes, size_t size,
+    const Dust3DCancellationToken* cancellation, Dust3DError* error);
+
+typedef struct Dust3DComponentPreview Dust3DComponentPreview;
+
+typedef struct Dust3DComponentPreviewVertex {
+    double position[3];
+    double color[4];
+    float metalness;
+    float roughness;
+} Dust3DComponentPreviewVertex;
+
+typedef struct Dust3DComponentPreviewTriangle {
+    uint32_t indices[3];
+    double uv[3][2];
+    uint8_t has_uv;
+} Dust3DComponentPreviewTriangle;
+
+typedef struct Dust3DComponentPreviewPoint {
+    double x;
+    double y;
+} Dust3DComponentPreviewPoint;
+
+/**
+ * Generate one authored component's preview. component_id is the exact, NUL-free
+ * archive identity with explicit byte length. A result owns raw generator-space
+ * mesh data or a Cut Face outline. The combined scene may have no triangles.
+ * Referenced imported GLB geometry uses the ordinary native import path.
+ *
+ * maximum_output_bytes limits the retained result's logical bytes, including
+ * metadata. Zero selects 16 MiB, and requests above 64 MiB fail. The optional
+ * cancellation token is borrowed until this call returns. Returns NULL and a
+ * typed error for invalid, unavailable, over-budget, or cancelled requests.
+ * For example, load an authored group by its exact ID and inspect its triangles.
+ */
+Dust3DComponentPreview* dust3d_component_preview_load(const uint8_t* bytes, size_t size,
+    const char* component_id, size_t component_id_length, size_t maximum_output_bytes,
+    const Dust3DCancellationToken* cancellation, Dust3DError* error);
+
+typedef struct Dust3DComponentPreviewBatch Dust3DComponentPreviewBatch;
+typedef struct Dust3DComponentPreviewID {
+    const char* bytes;
+    size_t length;
+} Dust3DComponentPreviewID;
+
+/**
+ * Generate a document once and return up to 256 requested component previews
+ * in input order under one shared logical quota (zero selects 16 MiB).
+ * IDs and archive bytes are borrowed for the call. Invalid or duplicate IDs,
+ * cancellation and quota failures reject the whole batch with a typed error.
+ * A valid component with no generated preview retains its slot as NULL.
+ * For example, request the visible sidebar rows and inspect slots by index.
+ */
+Dust3DComponentPreviewBatch* dust3d_component_preview_batch_load(const uint8_t* bytes, size_t size,
+    const Dust3DComponentPreviewID* ids, size_t count, size_t maximum_output_bytes,
+    const Dust3DCancellationToken* cancellation, Dust3DError* error);
+/**
+ * Return the document root in slot zero, followed by up to 255 authored IDs.
+ * The root is generated with the same snapshot and shares the batch quota.
+ * An empty root retains its slot as NULL. For a root-only batch, pass NULL and
+ * zero for ids and count. Other input and ownership rules match the authored batch API.
+ */
+Dust3DComponentPreviewBatch* dust3d_component_preview_batch_load_with_root(const uint8_t* bytes, size_t size,
+    const Dust3DComponentPreviewID* ids, size_t count, size_t maximum_output_bytes,
+    const Dust3DCancellationToken* cancellation, Dust3DError* error);
+/** Release the batch and all of its previews. NULL is accepted. */
+void dust3d_component_preview_batch_destroy(Dust3DComponentPreviewBatch* batch);
+/** Return the number of slots, or zero for NULL. */
+size_t dust3d_component_preview_batch_count(const Dust3DComponentPreviewBatch* batch);
+/** Borrow a preview until batch destruction. Empty and out-of-range slots return NULL. */
+const Dust3DComponentPreview* dust3d_component_preview_batch_at(const Dust3DComponentPreviewBatch* batch, size_t index);
+
+/** Release the result and invalidate its borrowed arrays and metadata. */
+void dust3d_component_preview_destroy(Dust3DComponentPreview* preview);
+/** Return the logical output quota charge, or zero for NULL. Allocator overhead is excluded. */
+size_t dust3d_component_preview_retained_payload_bytes(const Dust3DComponentPreview* preview);
+/** Array pointers are borrowed until destroy. Empty arrays have zero count. */
+const Dust3DComponentPreviewVertex* dust3d_component_preview_vertices(const Dust3DComponentPreview* preview);
+size_t dust3d_component_preview_vertex_count(const Dust3DComponentPreview* preview);
+const Dust3DComponentPreviewTriangle* dust3d_component_preview_triangles(const Dust3DComponentPreview* preview);
+size_t dust3d_component_preview_triangle_count(const Dust3DComponentPreview* preview);
+const Dust3DComponentPreviewPoint* dust3d_component_preview_cut_face(const Dust3DComponentPreview* preview);
+size_t dust3d_component_preview_cut_face_count(const Dust3DComponentPreview* preview);
+/** Borrowed archive texture reference and read warning. Absent strings are empty. */
+const char* dust3d_component_preview_color_image_id(const Dust3DComponentPreview* preview);
+const char* dust3d_component_preview_warning(const Dust3DComponentPreview* preview);
+
 /** Release an owning handle. NULL is accepted. */
 void dust3d_mesh_destroy(Dust3DMesh* mesh);
 
@@ -1004,6 +1100,30 @@ size_t dust3d_animation_catalog_surface_material_count(const Dust3DAnimationCata
  * NULL owner/out-of-range returns NULL. Copy before release. Does not normalize unknown document names.
  */
 const char* dust3d_animation_catalog_surface_material_name(const Dust3DAnimationCatalog* catalog, size_t index);
+/** Owned mono 44.1 kHz PCM16 RIFF/WAV bytes for explicit sound events. */
+typedef struct Dust3DSoundWav Dust3DSoundWav;
+enum {
+    DUST3D_SOUND_IMPACT = 0,
+    DUST3D_SOUND_UNDERWATER = 1,
+    DUST3D_SOUND_WHOOSH = 2
+};
+typedef struct Dust3DSoundEvent {
+    float time_seconds;
+    float intensity;
+    float whoosh_duration_seconds;
+    uint32_t kind;
+} Dust3DSoundEvent;
+/** Render at most 128 timed events using the zero-based animation catalog surface order.
+ * The caller owns the input array. No archive, animation evaluator or playback is used.
+ * Returns NULL on failure and writes the original diagnostic when error is supplied.
+ */
+Dust3DSoundWav* dust3d_sound_wav_create(const Dust3DSoundEvent* events, size_t count,
+    float duration_seconds, size_t surface_index, Dust3DError* error);
+void dust3d_sound_wav_destroy(Dust3DSoundWav* wav);
+/** Borrow the immutable bytes until the owner is destroyed. NULL returns NULL/zero. */
+const uint8_t* dust3d_sound_wav_bytes(const Dust3DSoundWav* wav);
+size_t dust3d_sound_wav_size(const Dust3DSoundWav* wav);
+
 /** Release all owned catalog storage; NULL is harmless. */
 void dust3d_animation_catalog_destroy(Dust3DAnimationCatalog* catalog);
 /** Number of lexicographically ordered type records, including legacy aliases; zero for NULL. */

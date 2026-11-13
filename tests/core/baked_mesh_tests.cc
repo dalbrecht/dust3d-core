@@ -252,8 +252,8 @@ void archivedImageEncodingSelectsTheRaster()
 
     const std::array<uint8_t, 8> partial { 20, 15, 25, 127, 49, 15, 106, 91 };
     std::copy(partial.begin(), partial.end(), pixels.begin());
-    require(sample(&rgba).overlap == std::array<uint8_t, 4> { 28, 15, 46, 173 }, "FBX PNG must store straight RGB for the composited alpha");
-    require(sample(nullptr).overlap == std::array<uint8_t, 4> { 20, 15, 25, 127 }, "FBX must preserve caller-only pixels");
+    require(sample(nullptr).overlap == std::array<uint8_t, 4> { 20, 15, 25, 127 }, "Caller-provided straight-alpha pixels must be preserved");
+    require(sample(&rgba).overlap == std::array<uint8_t, 4> { 28, 15, 46, 173 }, "The inset and padding must use Qt's premultiplied rounding");
     const std::array<uint8_t, 8> associated { 40, 30, 20, 128, 60, 50, 40, 128 };
     std::copy(associated.begin(), associated.end(), pixels.begin());
     require(sample(nullptr, false, true).overlap == std::array<uint8_t, 4> { 93, 73, 53, 192 },
