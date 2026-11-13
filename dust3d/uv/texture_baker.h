@@ -44,6 +44,7 @@ struct TextureImageView {
     size_t rowStride = 0;
     size_t byteCount = 0;
     const uint8_t* pixels = nullptr;
+    bool rgb32Raster = false;
 };
 
 struct TextureMaterial {
