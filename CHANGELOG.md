@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Preserve original imported and procedural geometry in geometry-only FBX export.
+
 - Bake referenced PNG images from DS3 archives in standalone FBX exports (#390).
 
 - Add an opt-in preview mesh load with cooperative cancellation at native phase boundaries.
