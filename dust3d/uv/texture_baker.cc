@@ -350,8 +350,12 @@ namespace {
         return result;
     }
 
+    enum class RectangleKind { color,
+        normal,
+        material };
+
     template <typename Paint>
-    std::vector<uint8_t> rectangles(TextureImage& output, const UvAtlas& atlas, double bleedFraction, const TextureBakeOptions& options, Paint paint, const std::set<size_t>& skipped = {}, bool colorCharts = false)
+    std::vector<uint8_t> rectangles(TextureImage& output, const UvAtlas& atlas, double bleedFraction, const TextureBakeOptions& options, RectangleKind kind, Paint paint, const std::set<size_t>& skipped = {})
     {
         std::vector<uint8_t> covered(output.width * output.height);
         const auto size = static_cast<int>(output.width);
@@ -372,11 +376,13 @@ namespace {
             const auto sampleWidth = extentX < 1 ? width : static_cast<int>(extentX);
             const auto sampleHeight = extentY < 1 ? height : static_cast<int>(extentY);
             // Seed dilation from the painted pixmap, including its clipped integer origin.
+            const bool colorCharts = kind == RectangleKind::color;
             const bool exactColorBounds = colorCharts && extentX >= 1 && extentY >= 1;
+            const bool useTruncatedExtent = exactColorBounds || kind == RectangleKind::material;
             const auto drawLeft = exactColorBounds ? colorChartDrawOrigin(layout.left * size, bleed) : left - bleed;
             const auto drawTop = exactColorBounds ? colorChartDrawOrigin(layout.top * size, bleed) : top - bleed;
-            const auto drawRight = drawLeft + (exactColorBounds ? sampleWidth : width) + 2 * bleed;
-            const auto drawBottom = drawTop + (exactColorBounds ? sampleHeight : height) + 2 * bleed;
+            const auto drawRight = drawLeft + (useTruncatedExtent ? sampleWidth : width) + 2 * bleed;
+            const auto drawBottom = drawTop + (useTruncatedExtent ? sampleHeight : height) + 2 * bleed;
             for (int y = std::max(0, drawTop); y < std::min(size, drawBottom); ++y) {
                 checkCancellation(options);
                 for (int x = std::max(0, drawLeft); x < std::min(size, drawRight); ++x) {
@@ -1001,7 +1007,7 @@ TextureBakeResult TextureBaker::bake(const Object& object, const UvAtlas& atlas,
     }
     constexpr double colorBleedFraction = 32.0 / 4096;
     const auto colorBleed = static_cast<int>(colorBleedFraction * options.colorSize);
-    auto colorCoverage = rectangles(result.color, atlas, colorBleedFraction, options, [&](size_t ordinal, const UvMapPacker::Layout& layout, double u, double v) {
+    auto colorCoverage = rectangles(result.color, atlas, colorBleedFraction, options, RectangleKind::color, [&](size_t ordinal, const UvMapPacker::Layout& layout, double u, double v) {
         const auto left = layout.left * options.colorSize;
         const auto top = layout.top * options.colorSize;
         const auto width = layout.width * options.colorSize;
@@ -1079,13 +1085,13 @@ TextureBakeResult TextureBaker::bake(const Object& object, const UvAtlas& atlas,
             const auto paddedY = scaledImageSample(layout.flipped ? padded->column : padded->row, paddedHeight, source.height, yPhase);
             std::copy_n(source.pixels + paddedY * source.rowStride + paddedX * 4, 4, background.begin());
         }
-        return compositeChartPixel(pixel, background, inputPremultiplied); }, colorSkipped, true);
+        return compositeChartPixel(pixel, background, inputPremultiplied); }, colorSkipped);
     for (const auto& chart : charts)
         paintSurface(result.color, colorCoverage, chart, atlas.layouts[chart.layoutIndex].color, false, options, result.rasterTriangleVisits);
     dilate(result.color, colorCoverage, options);
     if (hasNormal) {
         result.normal = image(options.normalSize);
-        auto normalCoverage = rectangles(*result.normal, atlas, 8.0 / 2048, options, [](size_t, const UvMapPacker::Layout&, double, double) -> Pixel { return { 128, 128, 255, 255 }; }, normalSkipped);
+        auto normalCoverage = rectangles(*result.normal, atlas, 8.0 / 2048, options, RectangleKind::normal, [](size_t, const UvMapPacker::Layout&, double, double) -> Pixel { return { 128, 128, 255, 255 }; }, normalSkipped);
         for (const auto& chart : charts) {
             if (chart.folds)
                 paintSurface(*result.normal, normalCoverage, chart, atlas.layouts[chart.layoutIndex].color, true, options, result.rasterTriangleVisits);
@@ -1094,7 +1100,7 @@ TextureBakeResult TextureBaker::bake(const Object& object, const UvAtlas& atlas,
     }
     auto materialImage = [&](int kind) {
         auto output = image(options.materialSize);
-        auto coverage = rectangles(output, atlas, 8.0 / 1024, options, [&](size_t ordinal, const UvMapPacker::Layout& layout, double, double) -> Pixel {
+        auto coverage = rectangles(output, atlas, 8.0 / 1024, options, RectangleKind::material, [&](size_t ordinal, const UvMapPacker::Layout& layout, double, double) -> Pixel {
             const auto& material = colorSources[ordinal].material;
             if (kind == 2) {
                 const float strength = static_cast<float>(std::min(1.0, material.emissive));
