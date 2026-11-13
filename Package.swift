@@ -51,9 +51,14 @@ let package = Package(
             path: "native/AppleImages", exclude: ["README.md", "provenance.json", "Metadata"],
             linkerSettings: [.linkedFramework("CoreGraphics"), .linkedFramework("ImageIO")]
         ),
+        .systemLibrary(
+            name: "Dust3DExportPng", path: "native/ExportPng", pkgConfig: "libpng",
+            providers: [.brew(["libpng"]), .apt(["libpng-dev"])]
+        ),
         .executableTarget(
-            name: "Dust3DExport", dependencies: ["Dust3DEngine"], path: "native/ExportCli", exclude: ["README.md"],
-            cxxSettings: [.headerSearchPath("../../third_party/json")]
+            name: "Dust3DExport", dependencies: ["Dust3DEngine", "Dust3DWorkerRuntime", "Dust3DExportPng"],
+            path: "native/ExportCli", exclude: ["README.md"],
+            cxxSettings: [.headerSearchPath("../../third_party/json"), .headerSearchPath("../Engine")]
         ),
         .executableTarget(
             name: "Dust3DWorker",
