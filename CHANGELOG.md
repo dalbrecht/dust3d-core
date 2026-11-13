@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Preserve procedural vertex opacity alongside imported materials in mixed bakes.
+
 - Preserve authored vertex opacity in procedural baked preview geometry.
 
 - Bake referenced PNG images from DS3 archives in standalone FBX exports (#390).

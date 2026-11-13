@@ -428,13 +428,22 @@ void mirrorsFilteredAndMixed(const std::vector<uint8_t>& bytes)
     insertBefore(xml, "</nodes>", "<node id='" + first + "' partId='" + part + "' x='2' y='.2' z='.5' radius='.1'/><node id='" + second + "' partId='" + part + "' x='2' y='.8' z='.5' radius='.1'/>");
     insertBefore(xml, "</edges>", "<edge id='{00002001-0000-4000-8000-000000002001}' partId='" + part + "' from='" + first + "' to='" + second + "'/>");
     insertBefore(xml, "</parts>", "<part id='" + part + "' interpolated='false'/>");
-    insertBefore(xml, "<component ", "<component id='{00000201-0000-4000-8000-000000000201}' linkDataType='partId' linkData='" + part + "' color='#ff0000' combineMode='Uncombined'/>");
+    insertBefore(xml, "<component ", "<component id='{00000201-0000-4000-8000-000000000201}' linkDataType='partId' linkData='" + part + "' color='#40ff0000' combineMode='Uncombined'/>");
     auto mixed = load(withXml(bytes, xml));
+    const auto* geometry = dust3d_source_baked_mesh_geometry(mixed.get());
+    const auto* vertices = dust3d_mesh_vertices(geometry);
+    const auto triangleCount = dust3d_source_baked_mesh_triangle_count(mixed.get());
+    require(vertices && dust3d_mesh_vertex_count(geometry) == triangleCount * 3, "Mixed vertex/triangle alignment");
     size_t imports = 0, procedural = 0;
-    for (size_t index = 0; index < dust3d_source_baked_mesh_triangle_count(mixed.get()); ++index) {
+    for (size_t index = 0; index < triangleCount; ++index) {
         const auto& triangle = dust3d_source_baked_mesh_triangles(mixed.get())[index];
         require(triangle.uv_known && triangle.policy_known, "Mixed final source mappings must stay complete");
-        triangle.model_index == SIZE_MAX ? ++procedural : ++imports;
+        const bool generated = triangle.model_index == SIZE_MAX;
+        generated ? ++procedural : ++imports;
+        const float expected = generated ? 64.0f / 255.0f : 1.0f;
+        for (size_t corner = 0; corner < 3; ++corner)
+            require(std::abs(vertices[index * 3 + corner].color[3] - expected) < 1e-6f,
+                "Mixed baked procedural vertices must preserve authored opacity while imported vertices use their atlas policy");
     }
     require(imports == 4 && procedural > 0, "Mixed procedural/imported bake must exercise both paths");
 }

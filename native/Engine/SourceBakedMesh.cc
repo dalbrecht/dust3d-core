@@ -419,10 +419,15 @@ namespace native {
             for (size_t axis = 0; axis < 3; ++axis)
                 triangle.tangent.direction[axis] = static_cast<float>(tangents[index].direction[axis]);
             triangles.push_back(triangle);
-            if (triangle.uv_known)
-                for (size_t corner = 0; corner < 3; ++corner)
-                    for (size_t channel = 0; channel < 4; ++channel)
-                        geometry.vertices[index * 3 + corner].color[channel] = 1;
+            if (triangle.uv_known) {
+                const auto& source = sources.triangles()[index];
+                for (size_t corner = 0; corner < 3; ++corner) {
+                    auto& color = geometry.vertices[index * 3 + corner].color;
+                    std::fill_n(color, 3, 1.0f);
+                    // Procedural neutral previews hide the atlas and use authored corner alpha.
+                    color[3] = triangle.model_index == SIZE_MAX ? static_cast<float>(source.color[corner][3]) : 1.0f;
+                }
+            }
         }
         maps[0] = std::move(result.color);
         maps[1] = std::move(result.normal);
