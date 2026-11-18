@@ -2,8 +2,6 @@
 
 ## Unreleased
 
-- Keep preview-only texture notices out of FBX export receipts.
-
 - Preserve authored vertex opacity in procedural baked preview geometry.
 
 - Bake referenced PNG images from DS3 archives in standalone FBX exports (#390).
@@ -14,6 +12,8 @@
 
 - Reject invalid numeric XML character references before reading DS3 documents (#103).
 - Keep the authored starting endpoint when repairing mixed edge directions in a legacy chain.
+
+- Keep preview-only texture notices out of FBX export receipts.
 
 - Preserve authored edge directions during native loading so identifiers cannot reverse valid chains and their generated UVs.
 
