@@ -33,6 +33,16 @@ jobs:
           fi
           clang-format --dry-run --Werror native/Engine/*.cc native/Engine/*.h native/Engine/include/*.h tests/core/*.cc tests/core/*.c
           if grep -REn '#include[[:space:]]*[<"]Q[A-Z]|\b(QObject|QString|QImage|QWidget)\b' dust3d native/Engine tests/core --exclude='*.ds3'; then exit 1; fi
+      - name: Install standalone export dependencies
+        shell: bash
+        run: |
+          if [[ "$RUNNER_OS" == "macOS" ]]; then
+            if ! brew list --versions libpng >/dev/null; then brew install libpng; fi
+            if ! command -v pkg-config >/dev/null; then brew install pkgconf; fi
+          else
+            sudo apt-get update
+            sudo apt-get install -y libpng-dev
+          fi
       - name: Configure portable build
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DDUST3D_ENABLE_SANITIZERS=${{ matrix.sanitizers }}
       - name: Build
