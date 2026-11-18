@@ -2,8 +2,6 @@
 
 ## Unreleased
 
-- Preserve procedural vertex opacity alongside imported materials in mixed bakes.
-
 - Preserve authored vertex opacity in procedural baked preview geometry.
 
 - Bake referenced PNG images from DS3 archives in standalone FBX exports (#390).
@@ -20,6 +18,8 @@
 - Omit untextured preview advisories after successful baked FBX exports. Geometry-only FBX exports continue to report their preview advisories.
 
 - Render bounded explicit sound events into owned WAV bytes through the portable C API.
+
+- Preserve procedural vertex opacity alongside imported materials in mixed bakes.
 
 - Allow static FBX callers to supply premultiplied texture samples prepared before 16-to-8-bit reduction.
 
