@@ -113,15 +113,12 @@ void cornerOrderAndQuantization()
             if (candidate.sourceId == record.componentId)
                 layout = &candidate;
         require(layout != nullptr, "Near-coincident chart owner is retained");
-        const auto& dimensions = *inputs.at(record.componentId).image;
         for (size_t corner = 0; corner < 3; ++corner) {
             const double u = layout->flipped ? record.uv[corner].y() : record.uv[corner].x();
             const double v = layout->flipped ? record.uv[corner].x() : record.uv[corner].y();
-            const double width = layout->flipped ? dimensions.height : dimensions.width;
-            const double height = layout->flipped ? dimensions.width : dimensions.height;
-            require(std::abs(atlas.triangleUvs[index][corner].x() - (layout->left + u * width / atlas.packedTextureSize)) < 1e-8,
+            require(std::abs(atlas.triangleUvs[index][corner].x() - (layout->left + u * layout->width)) < 1e-8,
                 "Cyclic/reversed/quantization-colliding U follows actual indexed corner");
-            require(std::abs(atlas.triangleUvs[index][corner].y() - (layout->top + v * height / atlas.packedTextureSize)) < 1e-8,
+            require(std::abs(atlas.triangleUvs[index][corner].y() - (layout->top + v * layout->height)) < 1e-8,
                 "Cyclic/reversed/quantization-colliding V follows actual indexed corner");
         }
     }
@@ -191,8 +188,12 @@ void explicitGeneratedGradient()
     require(atlas.triangleUvKnown[2] == 1 && atlas.triangleComponentIds[2].isNull(),
         "Generated gradient is mapped without inventing single-component source ownership");
     const auto& gradient = atlas.gradients[0];
-    require(gradient.layoutIndex < atlas.layouts.size() && atlas.layouts[gradient.layoutIndex].sourceId.isNull(),
-        "Generated gradient layout must remain distinct from a same-ID source chart");
+    require(gradient.layoutIndex == 0 && atlas.layouts[0].sourceId.isNull(),
+        "Indexed seams must precede ordinary charts as in the legacy atlas");
+    require(atlas.layouts[0].indexedGlobalUv.at(2) == atlas.triangleUvs[2],
+        "The indexed seam corners must refer to the generated gradient layout");
+    mappedCornerMatches(atlas, 0, *object.triangleProceduralUvs[0]);
+    mappedCornerMatches(atlas, 1, *object.triangleProceduralUvs[1]);
     require(gradient.largeColor.r() == 1 && gradient.largeColor.b() == 0
             && gradient.smallColor.r() == 0 && gradient.smallColor.b() == 1,
         "Explicit topology-derived endpoint owners determine gradient colors");
@@ -213,6 +214,81 @@ void gradientOrderIgnoresOpaqueIdentity()
         "Opaque seam identity must not reorder charts across equivalent cold generations");
     require(original.gradients[0].largeColor.r() == rebuilt.gradients[0].largeColor.r(),
         "Seam gradient insertion order must follow actual triangle provenance");
+}
+
+void gradientChartsFollowSeamGenerationOrder()
+{
+    auto object = coincident();
+    const auto local = object.triangleProceduralUvs[0]->uv;
+    object.triangleProceduralUvs[0] = dust3d::ProceduralTriangleUv {
+        {}, local, dust3d::ProceduralUvGradient { first, first, second }
+    };
+    object.triangleProceduralUvs[1] = dust3d::ProceduralTriangleUv {
+        {}, local, dust3d::ProceduralUvGradient { second, second, first }
+    };
+    const dust3d::Uuid removed("{cccccccc-cccc-4ccc-8ccc-cccccccccccc}");
+    object.proceduralGradientOrder = { removed, second, second, first };
+    const auto atlas = dust3d::UvAtlasBuilder::build(object, components());
+    require(atlas.gradients.size() == 2, "Removed or duplicate seams must not add charts");
+    require(atlas.layouts[0].indexedGlobalUv.count(1) == 1
+            && atlas.layouts[1].indexedGlobalUv.count(0) == 1,
+        "Seam chart packing must follow generation order even when final faces are reordered");
+    require(atlas.gradients[0].largeColor.b() == 1 && atlas.gradients[1].largeColor.r() == 1,
+        "Reordering charts must keep each indexed seam's endpoint colors");
+    dust3d::Object copy;
+    copy.triangles = object.triangles;
+    copy.copyUvFrom(object);
+    require(copy.proceduralGradientOrder == object.proceduralGradientOrder,
+        "Compatible UV copies retain indexed seam ordering");
+    copy.triangles.pop_back();
+    copy.copyUvFrom(object);
+    require(copy.proceduralGradientOrder.empty(), "An incompatible UV copy clears stale seam ordering");
+
+    dust3d::Snapshot snapshot;
+    dust3d::native::ImportedModels imports;
+    dust3d::native::ImportedSurfaceData sources(snapshot, imports, 1024 * 1024);
+    sources.prepare(object, "");
+    sources.appendTriangle(1);
+    dust3d::Object subset;
+    std::vector<size_t> retained;
+    dust3d::native::populateProceduralSourceSubset(object, { 1 }, sources, subset, retained, nullptr);
+    const auto filtered = dust3d::UvAtlasBuilder::build(subset, components());
+    require(subset.proceduralGradientOrder == object.proceduralGradientOrder
+            && filtered.gradients.size() == 1 && filtered.gradients[0].largeColor.b() == 1,
+        "Source bake retains seam order and omits a clipped chart without losing its neighbor's colors");
+}
+
+void componentChartsFollowSourceOrder()
+{
+    auto object = coincident();
+    const dust3d::Uuid removed("{cccccccc-cccc-4ccc-8ccc-cccccccccccc}");
+    object.proceduralComponentOrder = { removed, second, second, first };
+    const auto atlas = dust3d::UvAtlasBuilder::build(object, components());
+    require(atlas.layouts.size() == 2, "Removed and duplicate owners must not add charts");
+    require(atlas.layouts[0].sourceId == second && atlas.layouts[1].sourceId == first,
+        "Component packing must retain the source chart submission order");
+    require(atlas.layouts[0].indexedGlobalUv.at(1) == atlas.triangleUvs[1]
+            && atlas.layouts[1].indexedGlobalUv.at(0) == atlas.triangleUvs[0],
+        "Changing chart order must retain indexed triangle ownership for coincident faces");
+
+    dust3d::Object copy;
+    copy.triangles = object.triangles;
+    copy.copyUvFrom(object);
+    require(copy.proceduralComponentOrder == object.proceduralComponentOrder,
+        "Compatible UV copies retain component packing order");
+
+    dust3d::Snapshot snapshot;
+    dust3d::native::ImportedModels imports;
+    dust3d::native::ImportedSurfaceData sources(snapshot, imports, 1024 * 1024);
+    sources.prepare(object, "");
+    sources.appendTriangle(0);
+    sources.appendTriangle(1);
+    dust3d::Object subset;
+    std::vector<size_t> retained;
+    dust3d::native::populateProceduralSourceSubset(object, { 0, 1 }, sources, subset, retained, nullptr);
+    const auto filtered = dust3d::UvAtlasBuilder::build(subset, components());
+    require(filtered.layouts[0].sourceId == second && filtered.layouts[1].sourceId == first,
+        "Source bake subsets retain component packing order");
 }
 
 void proceduralSubsetRetainsTopology()
@@ -277,6 +353,8 @@ int main()
         retainedSourceBakeOrdinals();
         explicitGeneratedGradient();
         gradientOrderIgnoresOpaqueIdentity();
+        gradientChartsFollowSeamGenerationOrder();
+        componentChartsFollowSourceOrder();
         proceduralSubsetRetainsTopology();
         std::cout << "Indexed procedural atlas contracts passed\n";
         return 0;

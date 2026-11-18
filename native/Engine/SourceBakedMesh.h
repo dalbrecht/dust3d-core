@@ -17,6 +17,7 @@ namespace native {
     class SourceBakedData {
     public:
         SourceBakedData(const Dust3DSourceBakeOptions& options, ImportedModels& imports, size_t maximumMipLevels = 1);
+        DocumentAssetObserver* imageEncodingObserver() { return m_legacy.get(); }
         void validateVisuals(const Snapshot& snapshot) const;
         void appendTriangle(size_t index) { m_originalIndices.push_back(index); }
         void prepare(const Object& object, const Snapshot& snapshot, Dust3DMesh& geometry, const ImportedSurfaceData& sources);

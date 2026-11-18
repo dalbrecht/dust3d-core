@@ -88,3 +88,20 @@ Python ElementTree serializes the model; an independent byte writer recomputes
 archive offsets and lengths. No native writer, fault case or image decoder is
 used to create it. Metadata extraction asserts exact encoded PNG ownership; this
 is not rendered pixel evidence. SHA256: 93f13ca989621318a39dae7f87131c1d4d554526fa29b64eac01217134a568f5.
+
+`MirroredTexturedCapsule.ds3` is an MIT derivative of Capsule with asymmetric
+radii and a synthetic 32×32 four-quadrant color image. The chain is placed at
+X 0.38 around origin X 0.5 with X mirror enabled, then resaved by Qt at
+`48b0ce2d6d61cf58731bb0c3e14ef5965a686d68`. Before indexed ownership
+(`65135e9c`), six triangles lose packed UVs and textured FBX export fails.
+The contract requires every generated UV triangle to be known and have finite
+area above `1e-14` in normalized UV space, followed by a successful baked FBX
+export. It does not pin the number or ordering of triangles or atlas coordinates.
+
+`ConcaveLinkedCoplanar.ds3` and `ConcaveLinkedDisplaced.ds3` are synthetic MIT
+fixtures for #371. Two receivers link to a closed L-shaped cut-face part.
+Coplanar caps require the complete closed union with volume 0.04280000017285407,
+derived by clipping independent receiver caps. Displaced caps preserve the
+Qt 1.1.6 final surface after seam recombination, with volume 0.0481166682563722.
+The bridge contract requires one closed consistently oriented surface and a
+volume within 1e-7 for each fixture.

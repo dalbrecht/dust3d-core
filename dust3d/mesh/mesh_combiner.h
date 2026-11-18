@@ -75,7 +75,8 @@ public:
     /// remain positional hints and are not authoritative coincident ownership.
     static Mesh* combine(const Mesh& firstMesh, const Mesh& secondMesh, Method method,
         std::vector<std::pair<Source, size_t>>* combinedVerticesComeFrom = nullptr,
-        std::vector<TriangleSource>* combinedTrianglesComeFrom = nullptr);
+        std::vector<TriangleSource>* combinedTrianglesComeFrom = nullptr, bool preserveThinWalls = false,
+        bool* alreadyConforming = nullptr);
 };
 
 }

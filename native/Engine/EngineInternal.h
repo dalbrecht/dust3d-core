@@ -59,6 +59,8 @@ namespace native {
         virtual void item(std::string_view type, std::string_view name, const uint8_t* data, size_t size) noexcept = 0;
         virtual void attribute(std::string_view name, std::string_view value) noexcept = 0;
     };
+    inline constexpr auto untexturedImagePreviewWarning = "Untextured preview: image textures are not yet displayed.";
+    inline constexpr auto untexturedSurfacePreviewWarning = "Untextured preview: image textures and procedural surface details are not yet displayed.";
     std::unique_ptr<Snapshot> readDocument(const uint8_t* bytes, size_t size, std::string& warning,
         DocumentAssetObserver* observer = nullptr, ImportedModels* imports = nullptr, bool canReadEmptyGeometry = false);
     /// Archive/snapshot inspection only: validate model declarations but never decode

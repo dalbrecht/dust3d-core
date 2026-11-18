@@ -28,6 +28,7 @@
 #include <dust3d/mesh/mesh_state.h>
 #include <limits>
 #include <memory>
+#include <set>
 
 namespace dust3d {
 
@@ -179,6 +180,7 @@ MeshState::MeshState(const MeshState& other)
 {
     if (nullptr != other.mesh)
         mesh = std::make_unique<MeshCombiner::Mesh>(*other.mesh);
+    hasHollowWalls = other.hasHollowWalls;
     seamTriangleUvs = other.seamTriangleUvs;
     seamReports = other.seamReports;
     triangleComponentKeys = other.triangleComponentKeys;
@@ -186,6 +188,7 @@ MeshState::MeshState(const MeshState& other)
     triangleVertexColors = other.triangleVertexColors;
     triangleCornerUvs = other.triangleCornerUvs;
     triangleProceduralUvs = other.triangleProceduralUvs;
+    proceduralGradientOrder = other.proceduralGradientOrder;
     triangleSourceCorners = other.triangleSourceCorners;
 }
 
@@ -208,6 +211,7 @@ std::unique_ptr<MeshState> MeshState::combine(const MeshState& first, const Mesh
     if (first.mesh->isNull() || second.mesh->isNull())
         return nullptr;
     auto newMeshState = std::make_unique<MeshState>();
+    newMeshState->hasHollowWalls = first.hasHollowWalls || second.hasHollowWalls;
     std::vector<std::pair<MeshCombiner::Source, size_t>> combinedVerticesSources;
     std::vector<MeshCombiner::TriangleSource> combinedTriangleSources;
     const bool shouldTrackOwners = !first.triangleComponentKeys.empty() || !second.triangleComponentKeys.empty();
@@ -216,10 +220,12 @@ std::unique_ptr<MeshState> MeshState::combine(const MeshState& first, const Mesh
     const bool shouldTrackProceduralUvs = !first.triangleProceduralUvs.empty() || !second.triangleProceduralUvs.empty();
     const bool shouldTrackSources = !first.triangleSourceCorners.empty() || !second.triangleSourceCorners.empty();
     const bool shouldTrackUvs = !first.triangleCornerUvs.empty() || !second.triangleCornerUvs.empty();
+    bool alreadyConforming = false;
     auto newMesh = std::unique_ptr<MeshCombiner::Mesh>(MeshCombiner::combine(*first.mesh,
         *second.mesh,
         method,
-        &combinedVerticesSources, (shouldTrackOwners || shouldTrackModels || shouldTrackColors || shouldTrackUvs || shouldTrackProceduralUvs || shouldTrackSources) ? &combinedTriangleSources : nullptr));
+        &combinedVerticesSources, (shouldTrackOwners || shouldTrackModels || shouldTrackColors || shouldTrackUvs || shouldTrackProceduralUvs || shouldTrackSources) ? &combinedTriangleSources : nullptr,
+        newMeshState->hasHollowWalls, &alreadyConforming));
     if (nullptr == newMesh)
         return nullptr;
     if (shouldTrackOwners) {
@@ -288,7 +294,8 @@ std::unique_ptr<MeshState> MeshState::combine(const MeshState& first, const Mesh
             }
         }
     }
-    if (recombine && !newMesh->isNull()) {
+    // Coplanar clipping has already joined its fragment boundaries.
+    if (recombine && !alreadyConforming && !newMesh->isNull()) {
         MeshRecombiner recombiner;
         std::vector<Vector3> combinedVertices;
         std::vector<std::vector<size_t>> combinedFaces;
@@ -427,6 +434,7 @@ std::unique_ptr<MeshState> MeshState::combine(const MeshState& first, const Mesh
                     const double middle = (minimum + maximum) * .5;
                     for (size_t group = 0; group < groups.size() && group < boundaries.size(); ++group) {
                         const ProceduralUvGradient gradient { Uuid::createUuid(), boundaryOwner(boundaries[group].first), boundaryOwner(boundaries[group].second) };
+                        newMeshState->proceduralGradientOrder.push_back(gradient.chartId);
                         auto assign = [&](const std::vector<size_t>& indices, const std::array<Vector2, 3>& corners) {
                             for (const auto index : indices) {
                                 if (index >= regeneratedUvs.size())
@@ -464,6 +472,21 @@ std::unique_ptr<MeshState> MeshState::combine(const MeshState& first, const Mesh
         return nullptr;
     }
     newMeshState->mesh = std::move(newMesh);
+    auto& gradientOrder = newMeshState->proceduralGradientOrder;
+    if (!gradientOrder.empty() || !first.proceduralGradientOrder.empty() || !second.proceduralGradientOrder.empty()) {
+        // Earlier joins may have been clipped away. Keep only their surviving chart IDs.
+        std::set<Uuid> retained;
+        for (const auto& record : newMeshState->triangleProceduralUvs)
+            if (record && record->gradient)
+                retained.insert(record->gradient->chartId);
+        auto createdHere = std::move(gradientOrder);
+        gradientOrder.clear();
+        for (const auto* order : std::array<const std::vector<Uuid>*, 3> { &createdHere, &first.proceduralGradientOrder, &second.proceduralGradientOrder }) {
+            for (const auto& id : *order)
+                if (retained.erase(id) != 0)
+                    gradientOrder.push_back(id);
+        }
+    }
     for (const auto& it : first.seamTriangleUvs)
         newMeshState->seamTriangleUvs.push_back(it);
     for (const auto& it : second.seamTriangleUvs)

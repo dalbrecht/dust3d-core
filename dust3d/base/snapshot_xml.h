@@ -31,6 +31,10 @@
 namespace dust3d {
 
 void loadSnapshotFromXmlString(Snapshot* snapshot, char* xmlString);
+
+/// Load XML and apply legacy part inversion to the effective native mesh inputs.
+void loadNativeSnapshotFromXmlString(Snapshot* snapshot, char* xmlString);
+
 enum class SnapshotXmlWriteErrorCode { invalidLimits,
     invalidHierarchy,
     limitExceeded };

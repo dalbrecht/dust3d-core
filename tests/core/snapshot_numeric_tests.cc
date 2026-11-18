@@ -25,6 +25,47 @@ void rejectNumber(const std::string& value, const std::string& originalCause)
     }
     throw std::runtime_error("Invalid numeric metadata was accepted");
 }
+void validateEdgeDirections()
+{
+    const std::string part = "{10000000-0000-4000-8000-000000000001}";
+    const std::string low = "{20000000-0000-4000-8000-000000000001}";
+    const std::string middle = "{20000000-0000-4000-8000-000000000002}";
+    const std::string high = "{20000000-0000-4000-8000-000000000003}";
+    const std::string first = "{30000000-0000-4000-8000-000000000001}";
+    const std::string second = "{30000000-0000-4000-8000-000000000002}";
+    const std::string closing = "{30000000-0000-4000-8000-000000000003}";
+    dust3d::Snapshot chain;
+    chain.parts[part] = {};
+    for (const auto& node : { low, middle, high })
+        chain.nodes[node] = { { "partId", part }, { "x", "0" }, { "y", "0" }, { "z", "0" }, { "radius", "1" } };
+    chain.edges[first] = { { "partId", part }, { "from", high }, { "to", middle } };
+    chain.edges[second] = { { "partId", part }, { "from", middle }, { "to", low } };
+    const auto authoredChain = chain.edges;
+    dust3d::native::validateSnapshot(chain, false, false);
+    require(chain.edges == authoredChain, "Validation reversed an authored chain");
+
+    auto cycle = chain;
+    cycle.edges[closing] = { { "partId", part }, { "from", low }, { "to", high } };
+    const auto authoredCycle = cycle.edges;
+    dust3d::native::validateSnapshot(cycle, false, false);
+    require(cycle.edges == authoredCycle, "Validation reversed an authored cycle");
+
+    auto legacy = chain;
+    std::swap(legacy.edges[first]["from"], legacy.edges[first]["to"]);
+    dust3d::native::validateSnapshot(legacy, false, false);
+    require(legacy.edges.at(first).at("from") == middle && legacy.edges.at(first).at("to") == high
+            && legacy.edges.at(second).at("from") == low && legacy.edges.at(second).at("to") == middle,
+        "Validation stopped repairing inconsistent legacy directions");
+
+    auto directedEndpoint = chain;
+    const std::string start = "{20000000-0000-4000-8000-000000000004}";
+    directedEndpoint.nodes[start] = chain.nodes.at(high);
+    directedEndpoint.edges[closing] = { { "partId", part }, { "from", start }, { "to", high } };
+    const auto expectedEdges = directedEndpoint.edges;
+    std::swap(directedEndpoint.edges[first]["from"], directedEndpoint.edges[first]["to"]);
+    dust3d::native::validateSnapshot(directedEndpoint, false, false);
+    require(directedEndpoint.edges == expectedEdges, "Legacy repair ignored the authored outgoing endpoint");
+}
 }
 
 int main()
@@ -49,6 +90,7 @@ int main()
             dust3d::native::validateSnapshot(snapshot, false, true);
             require(snapshot.canvas.at("originX") == value, "Validation must preserve source spelling");
         }
+        validateEdgeDirections();
         return 0;
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';

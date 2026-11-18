@@ -36,14 +36,22 @@ struct TextureImage {
     std::vector<uint8_t> pixels;
 };
 
-/// Borrowed straight-alpha RGBA8. Bytes must remain valid throughout bake();
+/// Borrowed RGBA8, straight unless explicitly marked premultiplied. Bytes must remain valid throughout bake();
 /// rowStride includes padding, byteCount bounds all readable rows.
+enum class TextureImageRaster { decoded,
+    rgb32,
+    alphaComposite,
+    indexed,
+    indexedAlpha,
+    premultiplied };
+
 struct TextureImageView {
     size_t width = 0;
     size_t height = 0;
     size_t rowStride = 0;
     size_t byteCount = 0;
     const uint8_t* pixels = nullptr;
+    TextureImageRaster raster = TextureImageRaster::decoded;
 };
 
 struct TextureMaterial {
