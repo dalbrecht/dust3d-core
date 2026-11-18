@@ -2,13 +2,13 @@
 
 ## Unreleased
 
-- Preserve original imported and procedural geometry in geometry-only FBX export.
-
 - Preserve authored vertex opacity in procedural baked preview geometry.
 
 - Bake referenced PNG images from DS3 archives in standalone FBX exports (#390).
 
 - Add an opt-in preview mesh load with cooperative cancellation at native phase boundaries.
+
+- Preserve original imported and procedural geometry in geometry-only FBX export.
 
 - Honor legacy part inversion when opening older Dust3D documents.
 
