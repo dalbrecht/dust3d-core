@@ -2,8 +2,6 @@
 
 ## Unreleased
 
-- Honor 16-bit RGB PNG transparency keys when compositing texture charts.
-
 - Preserve authored vertex opacity in procedural baked preview geometry.
 
 - Bake referenced PNG images from DS3 archives in standalone FBX exports (#390).
@@ -26,6 +24,8 @@
 - Match Qt chart compositing for 16-bit grayscale PNG transparency keys.
 
 - Match Qt texture sampling and transparency for 1-bit grayscale and indexed PNGs.
+
+- Honor 16-bit RGB PNG transparency keys when compositing texture charts.
 
 - Match Qt texture sampling and transparency for 2-bit and 4-bit indexed and grayscale PNGs.
 
