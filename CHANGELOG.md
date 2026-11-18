@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Honor 16-bit RGB PNG transparency keys when compositing texture charts.
+
+- Preserve authored vertex opacity in procedural baked preview geometry.
+
+- Bake referenced PNG images from DS3 archives in standalone FBX exports (#390).
+
 - Add an opt-in preview mesh load with cooperative cancellation at native phase boundaries.
 
 - Honor legacy part inversion when opening older Dust3D documents.
@@ -14,8 +20,6 @@
 - Omit untextured preview advisories after successful baked FBX exports. Geometry-only FBX exports continue to report their preview advisories.
 
 - Render bounded explicit sound events into owned WAV bytes through the portable C API.
-
-- Honor 16-bit RGB PNG transparency keys when compositing texture charts.
 
 - Allow static FBX callers to supply premultiplied texture samples prepared before 16-to-8-bit reduction.
 
