@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Stop CLI exports cooperatively on SIGINT, retaining files committed before cancellation and returning exit status 130 when cancellation prevents publication.
+
 - Preserve authored vertex opacity in procedural baked preview geometry.
 
 - Bake referenced PNG images from DS3 archives in standalone FBX exports (#390).

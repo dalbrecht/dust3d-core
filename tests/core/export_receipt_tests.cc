@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: MIT
+#include "ExportCancellation.h"
 #include "ExportReceipt.h"
 #include <json.hpp>
 #include <stdexcept>
@@ -62,4 +63,39 @@ int main()
     require(delivery.batchExitCode(5, 6) == 6);
     require(delivery.singleExitCode(3, 6) == 3);
     require(delivery.singleExitCode(0, 6) == 6);
+
+    bool destinationReplaced = false;
+    bool receiptWritten = false;
+    try {
+        publishWithReceipt(record, [&] {
+            commitUnlessCancelled([] { return true; }, [&] { destinationReplaced = true; });
+            return 0; }, [&](const std::string&) {
+            receiptWritten = true;
+            return true; });
+        require(false);
+    } catch (const ExportCancelled&) {
+    }
+    require(!destinationReplaced && !receiptWritten);
+    commitUnlessCancelled([] { return false; }, [&] { destinationReplaced = true; });
+    require(destinationReplaced);
+
+    bool cancelled = false;
+    size_t commits = 0;
+    size_t successReceipts = 0;
+    const auto publishJob = [&] {
+        return publishWithReceipt(record, [&] {
+            commitUnlessCancelled([&] { return cancelled; }, [&] { ++commits; });
+            cancelled = true; // Arrives after this job has committed.
+            return commits; }, [&](const std::string&) {
+            ++successReceipts;
+            return true; });
+    };
+    const auto firstJob = publishJob();
+    require(firstJob.delivered && firstJob.publication == 1);
+    try {
+        publishJob();
+        require(false);
+    } catch (const ExportCancelled&) {
+    }
+    require(commits == 1 && successReceipts == 1);
 }
