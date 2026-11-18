@@ -105,7 +105,7 @@ namespace native {
         }
     }
 
-    BakedMeshData::BakedMeshData(const Dust3DBakeOptions& options)
+    BakedMeshData::BakedMeshData(const Dust3DBakeOptions& options, const size_t* premultipliedIndices, size_t premultipliedCount)
         : m_options(options)
     {
         if (options.struct_size != sizeof(options))
@@ -123,6 +123,14 @@ namespace native {
             invalid("The bake spatial grid limit must not exceed sixteen million entries.");
         if (options.image_count > 10000 || (options.image_count && !options.images))
             invalid("Baking requires at most 10000 image descriptors and a valid descriptor buffer.");
+        if (premultipliedCount > options.image_count || (premultipliedCount && !premultipliedIndices))
+            invalid("Invalid premultiplied FBX image index buffer.");
+        for (size_t index = 0; index < premultipliedCount; ++index) {
+            if (premultipliedIndices[index] >= options.image_count || (index && premultipliedIndices[index] <= premultipliedIndices[index - 1]))
+                invalid("Premultiplied FBX image indices must be strictly increasing and in range.");
+        }
+        size_t nextPremultiplied = 0;
+        size_t remainingPremultipliedBytes = maximumBytes;
         checkCancellation(options.cancellation);
         for (size_t index = 0; index < options.image_count; ++index) {
             checkCancellation(options.cancellation);
@@ -137,7 +145,24 @@ namespace native {
                 invalid("A bake image stride/span does not cover its readable RGBA8 rows.");
             if (!m_images.emplace(identity, UvAtlasImage { identity, image.width, image.height }).second)
                 invalid("Bake image identities must be unique, including engine aliases.");
-            m_pixels.emplace(identity, TextureImageView { image.width, image.height, image.row_stride, image.byte_count, image.pixels });
+            TextureImageView view { image.width, image.height, image.row_stride, image.byte_count, image.pixels };
+            if (nextPremultiplied < premultipliedCount && index == premultipliedIndices[nextPremultiplied]) {
+                const auto bytes = rowBytes * image.height;
+                if (bytes > remainingPremultipliedBytes)
+                    limit("Premultiplied FBX image rows exceed 256 MiB.");
+                remainingPremultipliedBytes -= bytes;
+                for (size_t y = 0; y < image.height; ++y) {
+                    checkCancellation(options.cancellation);
+                    const auto* row = image.pixels + y * image.row_stride;
+                    for (size_t x = 0; x < rowBytes; x += 4) {
+                        if (std::max({ row[x], row[x + 1], row[x + 2] }) > row[x + 3])
+                            invalid("Premultiplied FBX image RGB must not exceed alpha.");
+                    }
+                }
+                view.raster = TextureImageRaster::premultiplied;
+                ++nextPremultiplied;
+            }
+            m_pixels.emplace(identity, view);
         }
         // No caller descriptor array is needed after its views have been copied.
         m_options.images = nullptr;
@@ -155,7 +180,7 @@ namespace native {
         try {
             const Uuid identity { std::string(key) };
             const auto image = m_pixels.find(identity);
-            if (image == m_pixels.end())
+            if (image == m_pixels.end() || image->second.raster == TextureImageRaster::premultiplied)
                 return;
             auto [mode, inserted] = m_archiveImageModes.emplace(identity, TextureImageRaster::decoded);
             mode->second = inserted ? pngRaster(data, size, image->second) : TextureImageRaster::decoded;

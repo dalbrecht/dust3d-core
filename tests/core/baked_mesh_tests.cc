@@ -201,8 +201,9 @@ void archivedImageEncodingSelectsTheRaster()
         std::array<uint8_t, 4> overlap;
         std::array<uint8_t, 4> clear;
     };
-    const auto sample = [&](const std::vector<uint8_t>* image, bool alias = false) {
-        dust3d::native::BakedMeshData bake(fixture.options);
+    const auto sample = [&](const std::vector<uint8_t>* image, bool alias = false, bool associated = false) {
+        const size_t first = 0;
+        dust3d::native::BakedMeshData bake(fixture.options, associated ? &first : nullptr, associated ? 1 : 0);
         if (image) {
             const auto key = "images/" + fixture.image.toString() + ".png";
             bake.item("asset", key, image->data(), image->size());
@@ -248,6 +249,12 @@ void archivedImageEncodingSelectsTheRaster()
     std::copy(partial.begin(), partial.end(), pixels.begin());
     require(sample(nullptr).overlap == std::array<uint8_t, 4> { 20, 15, 25, 127 }, "Caller-provided straight-alpha pixels must be preserved");
     require(sample(&rgba).overlap == std::array<uint8_t, 4> { 28, 15, 46, 173 }, "The inset and padding must use Qt's premultiplied rounding");
+    const std::array<uint8_t, 8> associated { 40, 30, 20, 128, 60, 50, 40, 128 };
+    std::copy(associated.begin(), associated.end(), pixels.begin());
+    require(sample(nullptr, false, true).overlap == std::array<uint8_t, 4> { 93, 73, 53, 192 },
+        "FBX must composite prepared alpha bytes without premultiplying them twice");
+    require(sample(nullptr, false, true).clear == std::array<uint8_t, 4> { 80, 60, 40, 192 },
+        "FBX must composite both layers of prepared pixels");
 }
 void analyticMaterialsImagesAndTangents()
 {
@@ -410,11 +417,11 @@ void publicImagesAndMaterials()
 {
     const std::string part = "{aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa}";
     const std::string imageKey = "{eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee}";
-    auto model = [&](const std::string& material) {
+    auto model = [&](const std::string& material, const std::string& vertexColor = "#ffffff") {
         return archive("<canvas originX='0' originY='0' originZ='0'><nodes><node id='{11111111-1111-4111-8111-111111111111}' partId='" + part
             + "' x='0' y='0' z='0' radius='.1'/></nodes><edges/><parts><part id='" + part + "' " + material
             + "/></parts><components><component id='{cccccccc-cccc-4ccc-8ccc-cccccccccccc}' linkDataType='partId' linkData='" + part
-            + "' color='#ffffff' colorImageId='" + imageKey + "'/></components></canvas>");
+            + "' color='" + vertexColor + "' colorImageId='" + imageKey + "'/></components></canvas>");
     };
     const auto bytes = model("metallic='.5' roughness='.25' emissive='2'");
     std::vector<uint8_t> pixels { 17, 91, 200, 128 };
@@ -437,6 +444,28 @@ void publicImagesAndMaterials()
     for (size_t index = 0; index < color.byte_count; index += 4)
         require(std::equal(pixels.begin(), pixels.end(), color.pixels + index), "Actual archive baking must resolve borrowed pixels and preserve straight alpha");
     require(dust3d_baked_mesh_texture(owner.get(), DUST3D_TEXTURE_METALLIC).pixels[0] == 128 && dust3d_baked_mesh_texture(owner.get(), DUST3D_TEXTURE_ROUGHNESS).pixels[0] == 64 && dust3d_baked_mesh_texture(owner.get(), DUST3D_TEXTURE_EMISSIVE).pixels[0] == 255, "Actual generated snapshot must retain material scalar inputs");
+    const auto translucentBytes = model("", "#40ffffff");
+    const auto* translucentData = reinterpret_cast<const uint8_t*>(translucentBytes.data());
+    Owner translucent(dust3d_baked_mesh_load(translucentData, translucentBytes.size(), &options, &error), dust3d_baked_mesh_destroy);
+    require(translucent != nullptr, error.message);
+    const auto* bakedGeometry = dust3d_uv_mesh_geometry(dust3d_baked_mesh_uvs(translucent.get()));
+    const auto bakedCount = dust3d_mesh_vertex_count(bakedGeometry);
+    require(bakedCount > 0, "A translucent procedural bake must retain geometry");
+    const auto* bakedVertices = dust3d_mesh_vertices(bakedGeometry);
+    require(std::all_of(bakedVertices, bakedVertices + bakedCount, [](const auto& vertex) {
+        return std::abs(vertex.color[3] - 64.0f / 255.0f) < 1e-6f;
+    }),
+        "Procedural baked geometry must retain authored vertex opacity independently of its image");
+
+    std::unique_ptr<Dust3DMesh, decltype(&dust3d_mesh_destroy)> plain(
+        dust3d_mesh_load(translucentData, translucentBytes.size(), &error), dust3d_mesh_destroy);
+    require(plain && dust3d_mesh_vertex_count(plain.get()) == bakedCount, "Ordinary preview must retain the same geometry");
+    const auto* plainVertices = dust3d_mesh_vertices(plain.get());
+    require(std::all_of(plainVertices, plainVertices + bakedCount, [](const auto& vertex) {
+        return vertex.color[3] == 1.0f;
+    }),
+        "Ordinary preview must retain its existing opaque vertex contract");
+
     const auto halfBytes = model("emissive='.5'");
     Owner half(dust3d_baked_mesh_load(reinterpret_cast<const uint8_t*>(halfBytes.data()), halfBytes.size(), &options, &error), dust3d_baked_mesh_destroy);
     require(half && dust3d_baked_mesh_texture(half.get(), DUST3D_TEXTURE_EMISSIVE).pixels[0] == 127,
