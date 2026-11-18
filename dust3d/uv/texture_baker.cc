@@ -351,8 +351,7 @@ namespace {
     }
 
     enum class RectangleKind { color,
-        normal,
-        material };
+        solid };
 
     template <typename Paint>
     std::vector<uint8_t> rectangles(TextureImage& output, const UvAtlas& atlas, double bleedFraction, const TextureBakeOptions& options, RectangleKind kind, Paint paint, const std::set<size_t>& skipped = {})
@@ -378,7 +377,7 @@ namespace {
             // Seed dilation from the painted pixmap, including its clipped integer origin.
             const bool colorCharts = kind == RectangleKind::color;
             const bool exactColorBounds = colorCharts && extentX >= 1 && extentY >= 1;
-            const bool useTruncatedExtent = exactColorBounds || kind == RectangleKind::material;
+            const bool useTruncatedExtent = exactColorBounds || !colorCharts;
             const auto drawLeft = exactColorBounds ? colorChartDrawOrigin(layout.left * size, bleed) : left - bleed;
             const auto drawTop = exactColorBounds ? colorChartDrawOrigin(layout.top * size, bleed) : top - bleed;
             const auto drawRight = drawLeft + (useTruncatedExtent ? sampleWidth : width) + 2 * bleed;
@@ -755,8 +754,6 @@ namespace {
                     x[corner] = triangle.uvs[corner].x() * size;
                     py[corner] = triangle.uvs[corner].y() * size;
                 }
-                if (y + 0.5 < std::min({ py[0], py[1], py[2] }) - margin || y + 0.5 > std::max({ py[0], py[1], py[2] }) + margin)
-                    continue;
                 const double area = (x[1] - x[0]) * (py[2] - py[0]) - (x[2] - x[0]) * (py[1] - py[0]);
                 if (std::abs(area) < 1e-12)
                     continue;
@@ -774,6 +771,7 @@ namespace {
                     weights[0] = ((x[1] - cx) * (py[2] - cy) - (x[2] - cx) * (py[1] - cy)) / area;
                     weights[1] = ((x[2] - cx) * (py[0] - cy) - (x[0] - cx) * (py[2] - cy)) / area;
                     weights[2] = 1 - weights[0] - weights[1];
+                    // The edge-distance gutter can extend past a vertex on the first or last row.
                     double outside = 0;
                     for (size_t corner = 0; corner < 3; ++corner)
                         outside = std::max(outside, -weights[corner] * heights[corner]);
@@ -1091,7 +1089,7 @@ TextureBakeResult TextureBaker::bake(const Object& object, const UvAtlas& atlas,
     dilate(result.color, colorCoverage, options);
     if (hasNormal) {
         result.normal = image(options.normalSize);
-        auto normalCoverage = rectangles(*result.normal, atlas, 8.0 / 2048, options, RectangleKind::normal, [](size_t, const UvMapPacker::Layout&, double, double) -> Pixel { return { 128, 128, 255, 255 }; }, normalSkipped);
+        auto normalCoverage = rectangles(*result.normal, atlas, 8.0 / 2048, options, RectangleKind::solid, [](size_t, const UvMapPacker::Layout&, double, double) -> Pixel { return { 128, 128, 255, 255 }; }, normalSkipped);
         for (const auto& chart : charts) {
             if (chart.folds)
                 paintSurface(*result.normal, normalCoverage, chart, atlas.layouts[chart.layoutIndex].color, true, options, result.rasterTriangleVisits);
@@ -1100,7 +1098,7 @@ TextureBakeResult TextureBaker::bake(const Object& object, const UvAtlas& atlas,
     }
     auto materialImage = [&](int kind) {
         auto output = image(options.materialSize);
-        auto coverage = rectangles(output, atlas, 8.0 / 1024, options, RectangleKind::material, [&](size_t ordinal, const UvMapPacker::Layout& layout, double, double) -> Pixel {
+        auto coverage = rectangles(output, atlas, 8.0 / 1024, options, RectangleKind::solid, [&](size_t ordinal, const UvMapPacker::Layout& layout, double, double) -> Pixel {
             const auto& material = colorSources[ordinal].material;
             if (kind == 2) {
                 const float strength = static_cast<float>(std::min(1.0, material.emissive));
