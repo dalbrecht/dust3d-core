@@ -26,6 +26,8 @@
 #include <array>
 #include <dust3d/base/color.h>
 #include <dust3d/base/position_key.h>
+#include <dust3d/base/procedural_triangle_uv.h>
+#include <dust3d/base/source_corner.h>
 #include <dust3d/base/vector2.h>
 #include <dust3d/mesh/mesh_combiner.h>
 #include <dust3d/mesh/mesh_recombiner.h>
@@ -43,6 +45,7 @@ public:
     /// Account owned dynamic payload; borrowed views are excluded.
     void accountDynamicPayload(RetainedPayloadBudget& budget) const noexcept;
     std::unique_ptr<MeshCombiner::Mesh> mesh;
+    bool hasHollowWalls = false;
     std::vector<std::pair<std::set<std::array<PositionKey, 3>>, std::set<std::array<PositionKey, 3>>>> seamTriangleUvs;
     std::vector<std::array<PositionKey, 3>> brokenTriangles;
     // Parallel to fetched triangles; generated bridges have no single owning component.
@@ -53,6 +56,11 @@ public:
     std::vector<std::optional<std::array<Color, 3>>> triangleVertexColors;
     // Parallel source coordinates; generated bridges have no authored UV mapping.
     std::vector<std::optional<std::array<Vector2, 3>>> triangleCornerUvs;
+    // Local procedural chart coordinates remain separate from imported authored UVs.
+    std::vector<std::optional<ProceduralTriangleUv>> triangleProceduralUvs;
+    std::vector<Uuid> proceduralGradientOrder;
+    // Actual triangle-corner node ownership; empty channel alone selects legacy lookup.
+    std::vector<SourceTriangleCorners> triangleSourceCorners;
     // Seam diagnostics of the combine() that produced this state
     std::vector<MeshRecombiner::SeamReport> seamReports;
 

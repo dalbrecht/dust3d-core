@@ -27,6 +27,7 @@
 #include <dust3d/base/part_target.h>
 #include <dust3d/base/snapshot_xml.h>
 #include <dust3d/base/string.h>
+#include <dust3d/mesh/interpolation_identities.h>
 #include <dust3d/mesh/mesh_generator.h>
 #include <dust3d/mesh/mesh_recombiner.h>
 #include <dust3d/mesh/rope_mesh.h>
@@ -46,8 +47,130 @@
 #include <locale>
 #include <memory>
 #include <sstream>
+#include <stdexcept>
 
 namespace dust3d {
+
+namespace {
+    // Use the same triangulation as MeshCombiner, retaining each face's actual corner ordinals.
+    std::vector<std::optional<std::array<Vector2, 3>>> triangulatedProceduralUvs(const std::vector<Vector3>& vertices,
+        const std::vector<std::vector<size_t>>& faces, const std::vector<std::vector<Vector2>>& faceUvs)
+    {
+        std::vector<std::optional<std::array<Vector2, 3>>> result;
+        for (size_t faceIndex = 0; faceIndex < faces.size(); ++faceIndex) {
+            const auto& face = faces[faceIndex];
+            std::vector<std::vector<size_t>> triangles;
+            if (face.size() <= 3)
+                triangles.push_back(face);
+            else
+                triangulate(vertices, face, &triangles);
+            for (const auto& triangle : triangles) {
+                std::optional<std::array<Vector2, 3>> corners;
+                if (triangle.size() == 3 && faceIndex < faceUvs.size() && faceUvs[faceIndex].size() == face.size()) {
+                    std::array<Vector2, 3> uv;
+                    bool known = true;
+                    for (size_t corner = 0; corner < 3; ++corner) {
+                        const auto found = std::find(face.begin(), face.end(), triangle[corner]);
+                        if (found == face.end() || std::find(found + 1, face.end(), triangle[corner]) != face.end()) {
+                            known = false;
+                            break;
+                        }
+                        uv[corner] = faceUvs[faceIndex][size_t(found - face.begin())];
+                    }
+                    if (known)
+                        corners = uv;
+                }
+                result.push_back(corners);
+            }
+        }
+        return result;
+    }
+
+    SourceCorner nodeSourceHint(const Uuid& node)
+    {
+        SourceCorner result;
+        if (!node.isNull())
+            result.setInfluences({ { node, 1 } });
+        return result;
+    }
+
+    void setSourceCorners(MeshState& mesh, const std::vector<SourceCorner>& vertexSources)
+    {
+        std::vector<Vector3> vertices;
+        std::vector<std::vector<size_t>> faces;
+        mesh.fetch(vertices, faces);
+        mesh.triangleSourceCorners.clear();
+        mesh.triangleSourceCorners.reserve(faces.size());
+        for (const auto& face : faces) {
+            SourceTriangleCorners triangle;
+            if (face.size() == 3) {
+                for (size_t corner = 0; corner < 3; ++corner) {
+                    if (face[corner] < vertexSources.size())
+                        triangle[corner] = vertexSources[face[corner]];
+                }
+            }
+            mesh.triangleSourceCorners.push_back(std::move(triangle));
+        }
+    }
+
+    bool sameSourceHint(const SourceCorner& first, const SourceCorner& second)
+    {
+        if (first.weighted != second.weighted)
+            return false;
+        auto canonical = [](const SourceCorner& source) {
+            std::map<Uuid, double> result;
+            for (const auto& influence : source.influences())
+                result[influence.first] += influence.second;
+            return result;
+        };
+        return canonical(first) == canonical(second);
+    }
+
+    // A shared vertex can have conflicting corner provenance. Such a vertex is
+    // not one bind sample; do not pick one incident face or duplicate samples.
+    std::vector<SourceCorner> uniqueVertexSources(const MeshState& mesh,
+        const std::vector<std::vector<size_t>>& faces, size_t count)
+    {
+        if (mesh.triangleSourceCorners.size() != faces.size())
+            throw std::runtime_error("Indexed source records must align with fetched triangles.");
+        std::vector<SourceCorner> result(count);
+        std::vector<bool> seen(count, false), ambiguous(count, false);
+        for (size_t triangle = 0; triangle < faces.size(); ++triangle) {
+            if (faces[triangle].size() != 3)
+                throw std::runtime_error("Indexed source input must be triangulated.");
+            for (size_t corner = 0; corner < 3; ++corner) {
+                const auto vertex = faces[triangle][corner];
+                const auto& source = mesh.triangleSourceCorners[triangle][corner];
+                if (source.influences().empty() || (seen.at(vertex) && !sameSourceHint(result.at(vertex), source)))
+                    ambiguous.at(vertex) = true;
+                if (!seen.at(vertex)) {
+                    result.at(vertex) = source;
+                    seen.at(vertex) = true;
+                }
+            }
+        }
+        for (size_t vertex = 0; vertex < count; ++vertex)
+            if (ambiguous[vertex])
+                result[vertex] = SourceCorner {};
+        return result;
+    }
+
+    std::optional<Uuid> dominantSourceNode(const SourceCorner& source)
+    {
+        return source.dominantNodeHint();
+    }
+
+    void setProceduralUvs(MeshState& mesh, const std::vector<std::optional<std::array<Vector2, 3>>>& corners, const Uuid& owner)
+    {
+        mesh.triangleProceduralUvs.reserve(corners.size());
+        for (const auto& uv : corners) {
+            if (uv && !owner.isNull())
+                mesh.triangleProceduralUvs.emplace_back(ProceduralTriangleUv { owner, *uv });
+            else
+                mesh.triangleProceduralUvs.emplace_back(std::nullopt);
+        }
+    }
+}
 
 double MeshGenerator::m_minimalRadius = 0.001;
 
@@ -132,8 +255,13 @@ void MeshGenerator::subdivideFace(std::vector<Vector2>* face)
 void MeshGenerator::recoverQuads(const std::vector<Vector3>& vertices, const std::vector<std::vector<size_t>>& triangles, const std::set<std::pair<PositionKey, PositionKey>>& sharedQuadEdges, std::vector<std::vector<size_t>>& triangleAndQuads)
 {
     std::vector<PositionKey> verticesPositionKeys;
+    verticesPositionKeys.reserve(vertices.size());
+    std::set<PositionKey> seenPositionKeys;
+    std::set<PositionKey> ambiguousPositionKeys;
     for (const auto& position : vertices) {
-        verticesPositionKeys.push_back(PositionKey(position));
+        const auto& key = verticesPositionKeys.emplace_back(position);
+        if (!seenPositionKeys.insert(key).second)
+            ambiguousPositionKeys.insert(key);
     }
     std::map<std::pair<size_t, size_t>, std::pair<size_t, size_t>> triangleEdgeMap;
     for (size_t i = 0; i < triangles.size(); i++) {
@@ -150,6 +278,9 @@ void MeshGenerator::recoverQuads(const std::vector<Vector3>& vertices, const std
         if (unionedFaces.find(edge.second.first) != unionedFaces.end())
             continue;
         auto pair = std::make_pair(verticesPositionKeys[edge.first.first], verticesPositionKeys[edge.first.second]);
+        // A quantized diagonal shared by distinct vertex indices cannot identify an original quad.
+        if (ambiguousPositionKeys.count(pair.first) || ambiguousPositionKeys.count(pair.second))
+            continue;
         if (sharedQuadEdges.find(pair) != sharedQuadEdges.end()) {
             auto oppositeEdge = triangleEdgeMap.find(std::make_pair(edge.first.second, edge.first.first));
             if (oppositeEdge == triangleEdgeMap.end()) {
@@ -590,6 +721,11 @@ std::unique_ptr<MeshState> MeshGenerator::combineStitchingMesh(const std::string
 
     const auto& faceUvs = stitchMeshBuilder->generatedFaceUvs();
     Uuid componentId = Uuid(componentIdString);
+    if (mesh) {
+        setProceduralUvs(*mesh, triangulatedProceduralUvs(generatedVertices, generatedFaces, faceUvs), componentId);
+        mesh->triangleComponentKeys.assign(mesh->triangleProceduralUvs.size(), componentIdString);
+        mesh->triangleModelKeys.resize(mesh->triangleProceduralUvs.size());
+    }
     auto& triangleUvs = componentCache.componentTriangleUvs[componentId];
     for (size_t i = 0; i < faceUvs.size(); ++i) {
         const auto& uv = faceUvs[i];
@@ -611,6 +747,13 @@ std::unique_ptr<MeshState> MeshGenerator::combineStitchingMesh(const std::string
         }
     }
     const auto& vertexSources = stitchMeshBuilder->generatedVertexSources();
+    if (mesh) {
+        std::vector<SourceCorner> sources;
+        sources.reserve(vertexSources.size());
+        for (const auto& node : vertexSources)
+            sources.push_back(nodeSourceHint(node));
+        setSourceCorners(*mesh, sources);
+    }
     for (size_t i = 0; i < vertexSources.size(); ++i) {
         componentCache.positionToNodeIdMap.emplace(std::make_pair(PositionKey(generatedVertices[i]), vertexSources[i]));
     }
@@ -626,8 +769,11 @@ std::unique_ptr<MeshState> MeshGenerator::combineStitchingMesh(const std::string
         ropeMesh.addRope(positions, false);
 
         ComponentPreview stitchingLinePreview;
-        if (mesh)
+        if (mesh) {
             mesh->fetch(stitchingLinePreview.vertices, stitchingLinePreview.triangles);
+            stitchingLinePreview.triangleProceduralUvs = mesh->triangleProceduralUvs;
+            stitchingLinePreview.triangleSourceCorners = mesh->triangleSourceCorners;
+        }
         size_t startIndex = stitchingLinePreview.vertices.size();
 
         stitchingLinePreview.color = Color(color[0], color[1], color[2], 0.15);
@@ -659,6 +805,8 @@ std::unique_ptr<MeshState> MeshGenerator::combineStitchingMesh(const std::string
                 startIndex + ropeTriangles[1],
                 startIndex + ropeTriangles[2] });
         }
+        stitchingLinePreview.triangleProceduralUvs.resize(stitchingLinePreview.triangles.size());
+        stitchingLinePreview.triangleSourceCorners.resize(stitchingLinePreview.triangles.size());
         addComponentPreview(spline.sourceId, ComponentPreview(stitchingLinePreview));
     }
 
@@ -751,6 +899,33 @@ std::unique_ptr<MeshState> MeshGenerator::combineStitchingLoopMesh(const std::st
             componentHasImage = !String::valueOrEmpty(findComp->second, "colorImageId").empty();
     }
 
+    if (mesh) {
+        const auto owners = loopMeshBuilder->generatedFaceSourceIds();
+        for (size_t faceIndex = 0; faceIndex < generatedFaces.size(); ++faceIndex) {
+            const auto owner = componentHasImage ? componentId : (faceIndex < owners.size() ? owners[faceIndex] : Uuid());
+            const std::vector<std::vector<size_t>> face { generatedFaces[faceIndex] };
+            const std::vector<std::vector<Vector2>> uv = faceIndex < faceUvs.size() ? std::vector<std::vector<Vector2>> { faceUvs[faceIndex] } : std::vector<std::vector<Vector2>> {};
+            const auto corners = triangulatedProceduralUvs(generatedVertices, face, uv);
+            setProceduralUvs(*mesh, corners, owner);
+            std::string ownerKey;
+            if (componentHasImage)
+                ownerKey = componentIdString;
+            else if (!owner.isNull()) {
+                for (const auto& candidate : componentIdStrings) {
+                    if (Uuid(candidate) == owner) {
+                        if (!ownerKey.empty() && ownerKey != candidate) {
+                            ownerKey.clear();
+                            break;
+                        }
+                        ownerKey = candidate;
+                    }
+                }
+            }
+            mesh->triangleComponentKeys.insert(mesh->triangleComponentKeys.end(), corners.size(), ownerKey);
+            mesh->triangleModelKeys.resize(mesh->triangleComponentKeys.size());
+        }
+    }
+
     auto insertTriangleUv = [&](std::map<std::array<PositionKey, 3>, std::array<Vector2, 3>>& uvMap,
                                 const std::vector<size_t>& face, const std::vector<Vector2>& uv) {
         if (3 == face.size()) {
@@ -783,6 +958,13 @@ std::unique_ptr<MeshState> MeshGenerator::combineStitchingLoopMesh(const std::st
         }
     }
     const auto& vertexSources = loopMeshBuilder->generatedVertexSources();
+    if (mesh) {
+        std::vector<SourceCorner> sources;
+        sources.reserve(vertexSources.size());
+        for (const auto& node : vertexSources)
+            sources.push_back(nodeSourceHint(node));
+        setSourceCorners(*mesh, sources);
+    }
     for (size_t i = 0; i < vertexSources.size(); ++i) {
         componentCache.positionToNodeIdMap.emplace(std::make_pair(PositionKey(generatedVertices[i]), vertexSources[i]));
     }
@@ -798,8 +980,11 @@ std::unique_ptr<MeshState> MeshGenerator::combineStitchingLoopMesh(const std::st
         ropeMesh.addRope(positions, loop.closed);
 
         ComponentPreview stitchingLoopPreview;
-        if (mesh)
+        if (mesh) {
             mesh->fetch(stitchingLoopPreview.vertices, stitchingLoopPreview.triangles);
+            stitchingLoopPreview.triangleProceduralUvs = mesh->triangleProceduralUvs;
+            stitchingLoopPreview.triangleSourceCorners = mesh->triangleSourceCorners;
+        }
         size_t startIndex = stitchingLoopPreview.vertices.size();
 
         stitchingLoopPreview.color = Color(color[0], color[1], color[2], 0.15);
@@ -828,6 +1013,8 @@ std::unique_ptr<MeshState> MeshGenerator::combineStitchingLoopMesh(const std::st
                 startIndex + ropeTriangles[1],
                 startIndex + ropeTriangles[2] });
         }
+        stitchingLoopPreview.triangleProceduralUvs.resize(stitchingLoopPreview.triangles.size());
+        stitchingLoopPreview.triangleSourceCorners.resize(stitchingLoopPreview.triangles.size());
         addComponentPreview(loop.sourceId, ComponentPreview(stitchingLoopPreview));
     }
 
@@ -857,6 +1044,8 @@ std::unique_ptr<MeshState> MeshGenerator::combinePartMesh(const std::string& par
     float deformWidth = 1.0;
     float cutRotation = 0.0;
     auto target = PartTargetFromString(String::valueOrEmpty(part, "target").c_str());
+    const auto hollowThicknessSource = String::valueOrEmpty(part, "hollowThickness");
+    const double hollowThickness = hollowThicknessSource.empty() ? 0.0 : String::toDouble(hollowThicknessSource);
 
     std::string searchPartIdString = __mirrorFromPartId.empty() ? partIdString : __mirrorFromPartId;
 
@@ -926,6 +1115,7 @@ std::unique_ptr<MeshState> MeshGenerator::combinePartMesh(const std::string& par
         std::unique_ptr<TubeMeshBuilder> tubeMeshBuilder;
         TubeMeshBuilder::BuildParameters buildParameters;
         buildParameters.deformThickness = deformThickness;
+        buildParameters.hollowThickness = hollowThickness;
         buildParameters.deformWidth = deformWidth;
         buildParameters.deformUnified = deformUnified;
         buildParameters.baseNormalRotation = cutRotation * Math::Pi;
@@ -942,7 +1132,12 @@ std::unique_ptr<MeshState> MeshGenerator::combinePartMesh(const std::string& par
             for (auto& it : partCache.faces)
                 std::reverse(it.begin(), it.end());
         }
-        const auto& faceUvs = tubeMeshBuilder->generatedFaceUvs();
+        auto faceUvs = tubeMeshBuilder->generatedFaceUvs();
+        if (!__mirrorFromPartId.empty()) {
+            for (auto& uv : faceUvs)
+                std::reverse(uv.begin(), uv.end());
+        }
+        partCache.proceduralTriangleUvs = triangulatedProceduralUvs(partCache.vertices, partCache.faces, faceUvs);
         for (size_t i = 0; i < faceUvs.size(); ++i) {
             const auto& uv = faceUvs[i];
             const auto& face = partCache.faces[i];
@@ -963,6 +1158,9 @@ std::unique_ptr<MeshState> MeshGenerator::combinePartMesh(const std::string& par
             }
         }
         const auto& vertexSources = tubeMeshBuilder->generatedVertexSources();
+        partCache.vertexSourceCorners.reserve(vertexSources.size());
+        for (const auto& node : vertexSources)
+            partCache.vertexSourceCorners.push_back(nodeSourceHint(node));
         for (size_t i = 0; i < vertexSources.size(); ++i) {
             partCache.positionToNodeIdMap.emplace(std::make_pair(PositionKey(partCache.vertices[i]), vertexSources[i]));
         }
@@ -1079,6 +1277,7 @@ std::unique_ptr<MeshState> MeshGenerator::combinePartMesh(const std::string& par
                             bestNodeId = mn.sourceId;
                         }
                     }
+                    partCache.vertexSourceCorners.push_back(nodeSourceHint(bestNodeId));
                     partCache.positionToNodeIdMap.emplace(std::make_pair(PositionKey(partCache.vertices[i]), bestNodeId));
                 }
             }
@@ -1089,7 +1288,8 @@ std::unique_ptr<MeshState> MeshGenerator::combinePartMesh(const std::string& par
     std::unique_ptr<MeshState> mesh;
 
     mesh = std::make_unique<MeshState>(partCache.vertices, partCache.faces);
-    if (!m_importedModelData.empty() && !mesh->isNull()) {
+    mesh->hasHollowWalls = target == PartTarget::Model && hollowThickness > 0 && hollowThickness < 1;
+    if (!mesh->isNull()) {
         std::vector<Vector3> vertices;
         std::vector<std::vector<size_t>> faces;
         mesh->fetch(vertices, faces);
@@ -1097,6 +1297,9 @@ std::unique_ptr<MeshState> MeshGenerator::combinePartMesh(const std::string& par
         mesh->triangleModelKeys.assign(faces.size(), target == PartTarget::ImportedModel ? String::valueOrEmpty(part, "importedModelId") : std::string());
     }
     mesh->triangleCornerUvs = partCache.importedTriangleUvs;
+    setSourceCorners(*mesh, partCache.vertexSourceCorners);
+    if (target == PartTarget::Model)
+        setProceduralUvs(*mesh, partCache.proceduralTriangleUvs, Uuid(componentIdString));
     if (!partCache.importedVertexColors.empty()) {
         std::vector<Vector3> vertices;
         std::vector<std::vector<size_t>> faces;
@@ -1120,6 +1323,8 @@ std::unique_ptr<MeshState> MeshGenerator::combinePartMesh(const std::string& par
         if (mesh) {
             preview.triangleCornerUvs = mesh->triangleCornerUvs;
             preview.triangleModelKeys = mesh->triangleModelKeys;
+            preview.triangleProceduralUvs = mesh->triangleProceduralUvs;
+            preview.triangleSourceCorners = mesh->triangleSourceCorners;
         }
         if (!partCache.importedVertexColors.empty()) {
             for (size_t index = 0; index < preview.vertices.size(); ++index)
@@ -1791,6 +1996,18 @@ void MeshGenerator::collectIncombinableMesh(const MeshState* mesh, const Generat
         m_object->triangleModelKeys.insert(m_object->triangleModelKeys.end(), mesh->triangleModelKeys.begin(), mesh->triangleModelKeys.end());
     else
         m_object->triangleModelKeys.resize(m_object->triangles.size() + uncombinedFaces.size());
+    m_object->triangleSourceCorners.resize(m_object->triangles.size());
+    if (mesh->triangleSourceCorners.size() == uncombinedFaces.size())
+        m_object->triangleSourceCorners.insert(m_object->triangleSourceCorners.end(), mesh->triangleSourceCorners.begin(), mesh->triangleSourceCorners.end());
+    else
+        m_object->triangleSourceCorners.resize(m_object->triangles.size() + uncombinedFaces.size());
+    m_object->triangleProceduralUvs.resize(m_object->triangles.size());
+    if (mesh->triangleProceduralUvs.size() == uncombinedFaces.size()) {
+        m_object->triangleProceduralUvs.insert(m_object->triangleProceduralUvs.end(), mesh->triangleProceduralUvs.begin(), mesh->triangleProceduralUvs.end());
+        m_object->proceduralGradientOrder.insert(m_object->proceduralGradientOrder.end(), mesh->proceduralGradientOrder.begin(), mesh->proceduralGradientOrder.end());
+    } else {
+        m_object->triangleProceduralUvs.resize(m_object->triangles.size() + uncombinedFaces.size());
+    }
     m_object->triangleCornerUvs.resize(m_object->triangles.size());
     if (mesh->triangleCornerUvs.size() == uncombinedFaces.size())
         m_object->triangleCornerUvs.insert(m_object->triangleCornerUvs.end(), mesh->triangleCornerUvs.begin(), mesh->triangleCornerUvs.end());
@@ -1889,10 +2106,17 @@ void MeshGenerator::collectBindSamples(const std::string& componentIdString,
         std::vector<Vector3> vertices;
         std::vector<std::vector<size_t>> faces;
         mesh->fetch(vertices, faces);
-        for (const auto& vertex : vertices) {
-            auto findNode = cache.positionToNodeIdMap.find(PositionKey(vertex));
-            if (findNode != cache.positionToNodeIdMap.end())
-                builder->addBindSample(vertex, findNode->second);
+        if (!mesh->triangleSourceCorners.empty()) {
+            const auto sources = uniqueVertexSources(*mesh, faces, vertices.size());
+            for (size_t vertex = 0; vertex < vertices.size(); ++vertex)
+                if (const auto node = dominantSourceNode(sources[vertex]))
+                    builder->addBindSample(vertices[vertex], *node);
+        } else {
+            for (const auto& vertex : vertices) {
+                auto findNode = cache.positionToNodeIdMap.find(PositionKey(vertex));
+                if (findNode != cache.positionToNodeIdMap.end())
+                    builder->addBindSample(vertex, findNode->second);
+            }
         }
         if (nullptr != surfaceVertices && nullptr != surfaceFaces) {
             size_t offset = surfaceVertices->size();
@@ -1966,6 +2190,13 @@ void MeshGenerator::collectWrapSources(const std::string& componentIdString,
         ++(*sourceCount);
         if (carve)
             return;
+        if (!mesh->triangleSourceCorners.empty()) {
+            const auto sources = uniqueVertexSources(*mesh, faces, vertices.size());
+            for (size_t vertex = 0; vertex < vertices.size(); ++vertex)
+                if (const auto node = dominantSourceNode(sources[vertex]))
+                    builder->addBindSample(vertices[vertex], *node);
+            return;
+        }
         for (const auto& vertex : vertices) {
             PositionKey key(vertex);
             auto findNode = cache.positionToNodeIdMap.find(key);
@@ -2264,7 +2495,26 @@ std::unique_ptr<MeshState> MeshGenerator::buildWrapMesh(const std::string& compo
     }
     dust3dDebug << "Wrap of component" << componentIdString.c_str() << ":" << (cloth ? "cloth" : "skin")
                 << sourceCount << "sources," << vertices.size() << "vertices," << triangles.size() << "triangles, cell" << builder.cellSize();
-    return std::make_unique<MeshState>(vertices, triangles);
+    auto mesh = std::make_unique<MeshState>(vertices, triangles);
+    std::vector<SourceCorner> sources(vertices.size());
+    for (size_t vertex = 0; vertex < vertices.size() && vertex < nodeWeights.size(); ++vertex) {
+        sources[vertex].weighted = true;
+        SourceCorner::Influences influences;
+        influences.reserve(nodeWeights[vertex].size());
+        for (const auto& influence : nodeWeights[vertex])
+            influences.emplace_back(influence.nodeId, influence.weight);
+        sources[vertex].setInfluences(std::move(influences));
+    }
+    setSourceCorners(*mesh, sources);
+    mesh->triangleComponentKeys.assign(triangles.size(), componentIdString);
+    mesh->triangleModelKeys.resize(triangles.size());
+    for (size_t index = 0; index < triangles.size(); ++index) {
+        if (index < triangleUvs.size())
+            mesh->triangleProceduralUvs.emplace_back(ProceduralTriangleUv { componentId, triangleUvs[index] });
+        else
+            mesh->triangleProceduralUvs.emplace_back(std::nullopt);
+    }
+    return mesh;
 }
 
 void MeshGenerator::collectBrokenTriangles(const std::string& componentIdString)
@@ -2305,6 +2555,8 @@ void MeshGenerator::interpolateEdgesAroundJoints()
             partEdgeIds[partId].insert(edge.first);
     }
 
+    std::vector<std::pair<std::string, std::string>> edgesToInterpolate;
+    std::vector<InterpolationEdge> identityInputs;
     for (auto& partEntry : partEdgeIds) {
         const std::string& partIdString = partEntry.first;
         auto findPart = m_snapshot->parts.find(partIdString);
@@ -2318,7 +2570,6 @@ void MeshGenerator::interpolateEdgesAroundJoints()
         std::string interpolatedString = String::valueOrEmpty(findPart->second, "interpolated");
         if (!interpolatedString.empty() && !String::isTrue(interpolatedString))
             continue;
-        std::vector<std::string> edgesToInterpolate;
         for (const auto& edgeIdString : partEntry.second) {
             auto findEdge = m_snapshot->edges.find(edgeIdString);
             if (findEdge == m_snapshot->edges.end())
@@ -2344,110 +2595,128 @@ void MeshGenerator::interpolateEdgesAroundJoints()
             float dy = toY - fromY;
             float dz = toZ - fromZ;
             float edgeLength = std::sqrt(dx * dx + dy * dy + dz * dz);
-            if (edgeLength <= (fromRadius + toRadius) * 1.5f)
+            if (edgeLength <= (fromRadius + toRadius) * 1.5f || edgeLength < 0.0001f)
                 continue;
-            edgesToInterpolate.push_back(edgeIdString);
+            edgesToInterpolate.emplace_back(partIdString, edgeIdString);
+            identityInputs.push_back({ edgeIdString, fromNodeId, toNodeId });
         }
-        for (const auto& edgeIdString : edgesToInterpolate) {
-            auto& edge = m_snapshot->edges[edgeIdString];
-            std::string fromNodeId = String::valueOrEmpty(edge, "from");
-            std::string toNodeId = String::valueOrEmpty(edge, "to");
-            std::string boneName = String::valueOrEmpty(edge, "boneName");
-            auto& fromNode = m_snapshot->nodes[fromNodeId];
-            auto& toNode = m_snapshot->nodes[toNodeId];
-            float fromX = String::toFloat(String::valueOrEmpty(fromNode, "x"));
-            float fromY = String::toFloat(String::valueOrEmpty(fromNode, "y"));
-            float fromZ = String::toFloat(String::valueOrEmpty(fromNode, "z"));
-            float fromRadius = String::toFloat(String::valueOrEmpty(fromNode, "radius"));
-            float toX = String::toFloat(String::valueOrEmpty(toNode, "x"));
-            float toY = String::toFloat(String::valueOrEmpty(toNode, "y"));
-            float toZ = String::toFloat(String::valueOrEmpty(toNode, "z"));
-            float toRadius = String::toFloat(String::valueOrEmpty(toNode, "radius"));
-            float dx = toX - fromX;
-            float dy = toY - fromY;
-            float dz = toZ - fromZ;
-            float edgeLength = std::sqrt(dx * dx + dy * dy + dz * dz);
-            if (edgeLength < 0.0001f)
+    }
+    std::vector<InterpolatedEdgeIdentities> identities;
+    if (!identityInputs.empty()) {
+        std::set<std::string> originalNodeIds;
+        std::set<std::string> originalEdgeIds;
+        for (const auto& node : m_snapshot->nodes)
+            originalNodeIds.insert(node.first);
+        for (const auto& edge : m_snapshot->edges)
+            originalEdgeIds.insert(edge.first);
+        identities = planInterpolationIdentities(identityInputs, originalNodeIds, originalEdgeIds);
+    }
+    if (m_cacheContext) {
+        for (size_t index = 0; index < edgesToInterpolate.size(); ++index) {
+            auto& signature = m_pendingInterpolationIdentityPlans[edgesToInterpolate[index].first];
+            signature += edgesToInterpolate[index].second;
+            for (const auto& id : identities[index].nodeIds)
+                signature += id;
+            for (const auto& id : identities[index].edgeIds)
+                signature += id;
+        }
+        // Global reservations can change a clean part's generated IDs when another part changes.
+        for (const auto& plan : m_pendingInterpolationIdentityPlans) {
+            const auto previous = m_cacheContext->interpolationIdentityPlans.find(plan.first);
+            if (previous == m_cacheContext->interpolationIdentityPlans.end() || previous->second != plan.second)
+                m_snapshot->parts.at(plan.first)["__dirty"] = "true";
+        }
+        for (const auto& previous : m_cacheContext->interpolationIdentityPlans) {
+            if (!m_pendingInterpolationIdentityPlans.count(previous.first) && m_snapshot->parts.count(previous.first))
+                m_snapshot->parts.at(previous.first)["__dirty"] = "true";
+        }
+    }
+    // No snapshot mutation occurs until every edge's identities have been admitted.
+    for (size_t edgeIndex = 0; edgeIndex < edgesToInterpolate.size(); ++edgeIndex) {
+        const auto& partIdString = edgesToInterpolate[edgeIndex].first;
+        const auto& edgeIdString = edgesToInterpolate[edgeIndex].second;
+        auto& edge = m_snapshot->edges.at(edgeIdString);
+        std::string fromNodeId = String::valueOrEmpty(edge, "from");
+        std::string toNodeId = String::valueOrEmpty(edge, "to");
+        std::string boneName = String::valueOrEmpty(edge, "boneName");
+        auto& fromNode = m_snapshot->nodes.at(fromNodeId);
+        auto& toNode = m_snapshot->nodes.at(toNodeId);
+        float fromX = String::toFloat(String::valueOrEmpty(fromNode, "x"));
+        float fromY = String::toFloat(String::valueOrEmpty(fromNode, "y"));
+        float fromZ = String::toFloat(String::valueOrEmpty(fromNode, "z"));
+        float fromRadius = String::toFloat(String::valueOrEmpty(fromNode, "radius"));
+        float toX = String::toFloat(String::valueOrEmpty(toNode, "x"));
+        float toY = String::toFloat(String::valueOrEmpty(toNode, "y"));
+        float toZ = String::toFloat(String::valueOrEmpty(toNode, "z"));
+        float toRadius = String::toFloat(String::valueOrEmpty(toNode, "radius"));
+        float dx = toX - fromX;
+        float dy = toY - fromY;
+        float dz = toZ - fromZ;
+        float edgeLength = std::sqrt(dx * dx + dy * dy + dz * dz);
+        if (edgeLength < 0.0001f)
+            continue;
+        float ndx = dx / edgeLength;
+        float ndy = dy / edgeLength;
+        float ndz = dz / edgeLength;
+        float a1x = fromX + ndx * fromRadius;
+        float a1y = fromY + ndy * fromRadius;
+        float a1z = fromZ + ndz * fromRadius;
+        float a2x = toX - ndx * toRadius;
+        float a2y = toY - ndy * toRadius;
+        float a2z = toZ - ndz * toRadius;
+        float t1 = fromRadius / edgeLength;
+        float t2 = toRadius / edgeLength;
+        float a1Radius = fromRadius * (1.0f - t1) + toRadius * t1;
+        float a2Radius = toRadius * (1.0f - t2) + fromRadius * t2;
+
+        const auto& ids = identities[edgeIndex];
+        const auto& newNodeId1 = ids.nodeIds[0];
+        const auto& newNodeId2 = ids.nodeIds[1];
+        const auto& newEdgeId1 = ids.edgeIds[0];
+        const auto& newEdgeId2 = ids.edgeIds[1];
+        const auto& newEdgeId3 = ids.edgeIds[2];
+
+        std::map<std::string, std::string> node1;
+        node1["id"] = newNodeId1;
+        node1["x"] = String::fromDouble(a1x);
+        node1["y"] = String::fromDouble(a1y);
+        node1["z"] = String::fromDouble(a1z);
+        node1["radius"] = String::fromDouble(a1Radius);
+        node1["partId"] = partIdString;
+        std::map<std::string, std::string> node2;
+        node2["id"] = newNodeId2;
+        node2["x"] = String::fromDouble(a2x);
+        node2["y"] = String::fromDouble(a2y);
+        node2["z"] = String::fromDouble(a2z);
+        node2["radius"] = String::fromDouble(a2Radius);
+        node2["partId"] = partIdString;
+        // carry a per-node cross-section scale along the edge like the radius
+        for (const char* key : { "deformWidth", "deformThickness" }) {
+            std::string fromString = String::valueOrEmpty(fromNode, key);
+            std::string toString = String::valueOrEmpty(toNode, key);
+            if (fromString.empty() && toString.empty())
                 continue;
-            float ndx = dx / edgeLength;
-            float ndy = dy / edgeLength;
-            float ndz = dz / edgeLength;
-            float a1x = fromX + ndx * fromRadius;
-            float a1y = fromY + ndy * fromRadius;
-            float a1z = fromZ + ndz * fromRadius;
-            float a2x = toX - ndx * toRadius;
-            float a2y = toY - ndy * toRadius;
-            float a2z = toZ - ndz * toRadius;
-            float t1 = fromRadius / edgeLength;
-            float t2 = toRadius / edgeLength;
-            float a1Radius = fromRadius * (1.0f - t1) + toRadius * t1;
-            float a2Radius = toRadius * (1.0f - t2) + fromRadius * t2;
-
-            // Build deterministic IDs by combining parts of existing from/to node IDs and edge ID
-            // UUID format: {xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx}
-            //               1        10   15   20   25
-            auto extractRaw = [](const std::string& uuid) {
-                return uuid.substr(1, 8) + uuid.substr(10, 4) + uuid.substr(15, 4) + uuid.substr(20, 4) + uuid.substr(25, 12);
-            };
-            auto formatUuid = [](const std::string& raw) {
-                return "{" + raw.substr(0, 8) + "-" + raw.substr(8, 4) + "-" + raw.substr(12, 4) + "-" + raw.substr(16, 4) + "-" + raw.substr(20, 12) + "}";
-            };
-            std::string fromRaw = extractRaw(fromNodeId);
-            std::string toRaw = extractRaw(toNodeId);
-            std::string edgeRaw = extractRaw(edgeIdString);
-            // newNodeId1: first half from fromNodeId, second half from edgeId
-            std::string newNodeId1 = formatUuid(fromRaw.substr(0, 16) + edgeRaw.substr(16, 16));
-            // newNodeId2: first half from toNodeId, second half from edgeId
-            std::string newNodeId2 = formatUuid(toRaw.substr(0, 16) + edgeRaw.substr(16, 16));
-            // newEdgeId1: first half from edgeId, second half from fromNodeId
-            std::string newEdgeId1 = formatUuid(edgeRaw.substr(0, 16) + fromRaw.substr(16, 16));
-            // newEdgeId2: first half from fromNodeId, second half from toNodeId
-            std::string newEdgeId2 = formatUuid(fromRaw.substr(0, 16) + toRaw.substr(16, 16));
-            // newEdgeId3: first half from edgeId, second half from toNodeId
-            std::string newEdgeId3 = formatUuid(edgeRaw.substr(0, 16) + toRaw.substr(16, 16));
-
-            std::map<std::string, std::string> node1;
-            node1["id"] = newNodeId1;
-            node1["x"] = String::fromDouble(a1x);
-            node1["y"] = String::fromDouble(a1y);
-            node1["z"] = String::fromDouble(a1z);
-            node1["radius"] = String::fromDouble(a1Radius);
-            node1["partId"] = partIdString;
-            std::map<std::string, std::string> node2;
-            node2["id"] = newNodeId2;
-            node2["x"] = String::fromDouble(a2x);
-            node2["y"] = String::fromDouble(a2y);
-            node2["z"] = String::fromDouble(a2z);
-            node2["radius"] = String::fromDouble(a2Radius);
-            node2["partId"] = partIdString;
-            // carry a per-node cross-section scale along the edge like the radius
-            for (const char* key : { "deformWidth", "deformThickness" }) {
-                std::string fromString = String::valueOrEmpty(fromNode, key);
-                std::string toString = String::valueOrEmpty(toNode, key);
-                if (fromString.empty() && toString.empty())
-                    continue;
-                float fromValue = fromString.empty() ? 1.0f : String::toFloat(fromString);
-                float toValue = toString.empty() ? 1.0f : String::toFloat(toString);
-                node1[key] = String::fromDouble(fromValue * (1.0f - t1) + toValue * t1);
-                node2[key] = String::fromDouble(toValue * (1.0f - t2) + fromValue * t2);
-            }
-            m_snapshot->nodes[newNodeId1] = node1;
-            m_snapshot->nodes[newNodeId2] = node2;
-            auto createEdge = [&](const std::string& id, const std::string& from, const std::string& to) {
-                std::map<std::string, std::string> e;
-                e["id"] = id;
-                e["from"] = from;
-                e["to"] = to;
-                e["partId"] = partIdString;
-                if (!boneName.empty())
-                    e["boneName"] = boneName;
-                return e;
-            };
-            m_snapshot->edges[newEdgeId1] = createEdge(newEdgeId1, fromNodeId, newNodeId1);
-            m_snapshot->edges[newEdgeId2] = createEdge(newEdgeId2, newNodeId1, newNodeId2);
-            m_snapshot->edges[newEdgeId3] = createEdge(newEdgeId3, newNodeId2, toNodeId);
-            m_snapshot->edges.erase(edgeIdString);
+            float fromValue = fromString.empty() ? 1.0f : String::toFloat(fromString);
+            float toValue = toString.empty() ? 1.0f : String::toFloat(toString);
+            node1[key] = String::fromDouble(fromValue * (1.0f - t1) + toValue * t1);
+            node2[key] = String::fromDouble(toValue * (1.0f - t2) + fromValue * t2);
         }
+        m_snapshot->nodes[newNodeId1] = node1;
+        m_snapshot->nodes[newNodeId2] = node2;
+        auto createEdge = [&](const std::string& id, const std::string& from, const std::string& to) {
+            std::map<std::string, std::string> e;
+            e["id"] = id;
+            e["from"] = from;
+            e["to"] = to;
+            e["partId"] = partIdString;
+            if (!boneName.empty())
+                e["boneName"] = boneName;
+            return e;
+        };
+        m_snapshot->edges[newEdgeId1] = createEdge(newEdgeId1, fromNodeId, newNodeId1);
+        m_snapshot->edges[newEdgeId2] = createEdge(newEdgeId2, newNodeId1, newNodeId2);
+        m_snapshot->edges[newEdgeId3] = createEdge(newEdgeId3, newNodeId2, toNodeId);
+        m_snapshot->edges.erase(edgeIdString);
     }
 }
 
@@ -2654,6 +2923,12 @@ void MeshGenerator::collectComponentPreview(const std::string& componentIdString
         std::vector<std::vector<size_t>> triangles;
         mesh->fetch(vertices, triangles);
         size_t offset = preview.vertices.size();
+        preview.triangleProceduralUvs.resize(preview.triangles.size());
+        for (size_t index = 0; index < triangles.size(); ++index)
+            preview.triangleProceduralUvs.push_back(index < mesh->triangleProceduralUvs.size() ? mesh->triangleProceduralUvs[index] : std::nullopt);
+        preview.triangleSourceCorners.resize(preview.triangles.size());
+        for (size_t index = 0; index < triangles.size(); ++index)
+            preview.triangleSourceCorners.push_back(index < mesh->triangleSourceCorners.size() ? mesh->triangleSourceCorners[index] : SourceTriangleCorners {});
         std::vector<std::tuple<Color, float, float>> properties;
         for (const auto& vertex : vertices) {
             Color vertexColor = preview.color;
@@ -2753,11 +3028,16 @@ void MeshGenerator::generateDisabledComponentPreviews()
     for (auto& entry : m_generatedComponentPreviews) {
         if (!entry.second.triangles.empty() || !entry.second.cutFaceTemplate.empty())
             continue;
-        const auto* component = findComponent(entry.first.toString());
+        auto componentId = entry.first.toString();
+        const auto* component = findComponent(componentId);
+        if (nullptr == component && !entry.first.isNull()) {
+            componentId = componentId.substr(1, componentId.size() - 2);
+            component = findComponent(componentId);
+        }
         if (nullptr == component || "partId" == String::valueOrEmpty(*component, "linkDataType"))
             continue;
         CombineMode mode;
-        previewGenerator.combineComponentMesh(entry.first.toString(), &mode);
+        previewGenerator.combineComponentMesh(componentId, &mode);
         auto generated = previewGenerator.m_generatedComponentPreviews.find(entry.first);
         if (generated != previewGenerator.m_generatedComponentPreviews.end() && !generated->second.triangles.empty())
             entry.second = generated->second;
@@ -2773,6 +3053,7 @@ void MeshGenerator::addComponentPreview(const Uuid& componentId, ComponentPrevie
 void MeshGenerator::generate()
 {
     m_generationMetrics = {};
+    m_pendingInterpolationIdentityPlans.clear();
     if (nullptr == m_snapshot)
         return;
 
@@ -2880,18 +3161,30 @@ void MeshGenerator::generate()
             m_object->triangleComponentIds.emplace_back(key);
         m_object->triangleVertexColors = combinedMesh->triangleVertexColors;
         m_object->triangleCornerUvs = combinedMesh->triangleCornerUvs;
+        m_object->triangleProceduralUvs = combinedMesh->triangleProceduralUvs;
+        m_object->proceduralGradientOrder = combinedMesh->proceduralGradientOrder;
+        m_object->triangleSourceCorners = combinedMesh->triangleSourceCorners;
         m_object->triangleModelKeys = combinedMesh->triangleModelKeys;
     }
 
     // Recursively check uncombined components
     collectUncombinedComponent(to_string(Uuid()));
     collectBrokenTriangles(to_string(Uuid()));
+    if (!m_object->triangleProceduralUvs.empty()) {
+        // Qt submits component charts in this traversal order. Keep the
+        // sequence independently of the positional UV values in that map.
+        m_object->proceduralComponentOrder.reserve(m_object->componentTriangleUvs.size());
+        for (const auto& component : m_object->componentTriangleUvs)
+            m_object->proceduralComponentOrder.push_back(component.first);
+    }
 
     postprocessObject(m_object);
 
     applyImportedAttributes(m_object);
 
     generateDisabledComponentPreviews();
+    if (m_isSuccessful)
+        m_cacheContext->interpolationIdentityPlans = std::move(m_pendingInterpolationIdentityPlans);
 }
 
 }

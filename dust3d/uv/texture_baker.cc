@@ -44,13 +44,16 @@ namespace {
             invalid("Texture spatial grid work limit must be in 1..16000000");
         if (options.maximumPayloadBytes > maximumBudget)
             invalid("Texture output budget exceeds 256 MiB");
+        const bool needsPositionKeys = std::any_of(atlas.layouts.begin(), atlas.layouts.end(), [](const UvMapPacker::Layout& layout) {
+            return !layout.globalUv.empty() && layout.indexedGlobalUv.empty();
+        });
         for (const auto& vertex : object.vertices) {
             if (validated++ % 256 == 0)
                 checkCancellation(options);
             for (size_t axis = 0; axis < 3; ++axis) {
                 const double scaled = vertex[axis] * 100000.0;
                 const double bound = std::ldexp(1.0, std::numeric_limits<long>::digits);
-                if (!std::isfinite(vertex[axis]) || scaled < -bound || scaled >= bound)
+                if (!std::isfinite(vertex[axis]) || (needsPositionKeys && (!std::isfinite(scaled) || scaled < -bound || scaled >= bound)))
                     invalid("Texture geometry must contain finite vertices");
             }
         }
@@ -92,6 +95,16 @@ namespace {
         for (const auto& layout : atlas.layouts) {
             if (validated++ % 256 == 0)
                 checkCancellation(options);
+            for (const auto& entry : layout.indexedGlobalUv) {
+                if (validated++ % 256 == 0)
+                    checkCancellation(options);
+                if (entry.first >= object.triangles.size())
+                    invalid("Surface chart references a missing triangle ordinal");
+                for (const auto& uv : entry.second) {
+                    if (!unit(uv.x()) || !unit(uv.y()))
+                        invalid("Surface chart contains invalid indexed UV coordinates");
+                }
+            }
             for (const auto& entry : layout.globalUv) {
                 if (validated++ % 256 == 0)
                     checkCancellation(options);
@@ -211,21 +224,102 @@ namespace {
     {
         return std::max(1, static_cast<int>(std::ceil(origin + extent)) - static_cast<int>(std::floor(origin)));
     }
-    double chartImageCoordinate(double normalized, double origin, double extent, bool flipped)
+    bool allowsFixedImageScale(size_t sourceWidth, size_t sourceHeight, int targetWidth, int targetHeight)
+    {
+        // Qt's transformed raster switches both axes to direct sampling outside its fixed-point range.
+        const auto axisFits = [](size_t source, size_t target) {
+            return source * 256 > target && source < target * 100;
+        };
+        return axisFits(sourceWidth, targetWidth) && axisFits(sourceHeight, targetHeight);
+    }
+    enum class ImageScalePhase { direct,
+        spans,
+        wholeAxis,
+        indexed };
+    size_t scaledImageSample(int destination, int destinationSize, size_t sourceSize, ImageScalePhase phase)
+    {
+        if (phase == ImageScalePhase::indexed) {
+            // Indexed images truncate the 12-bit increment before finding the first pixel center.
+            constexpr uint64_t indexScale = 4096;
+            const auto step = sourceSize * indexScale / destinationSize;
+            return (destination * step + step / 2) / indexScale;
+        }
+        // Qt selects the lower source texel on a pixel-center tie. Its horizontal
+        // raster uses 16-bit fractional steps and starts a new span every 2048 pixels.
+        constexpr int rasterSpanWidth = 2048;
+        constexpr uint64_t fixedScale = 1 << 16;
+        const auto spanStart = phase == ImageScalePhase::spans ? destination / rasterSpanWidth * rasterSpanWidth
+            : phase == ImageScalePhase::wholeAxis              ? 0
+                                                               : destination;
+        const auto scaledSource = static_cast<uint64_t>(sourceSize) * fixedScale;
+        const auto initial = ((2 * spanStart + 1) * scaledSource - 1) / (2 * destinationSize);
+        const auto advance = (destination - spanStart) * (scaledSource / destinationSize);
+        return static_cast<size_t>((initial + advance) / fixedScale);
+    }
+    size_t chartImageSample(double normalized, double origin, double extent, int bleed, size_t sourceSize, ImageScalePhase phase)
     {
         if (extent < 1) {
             const auto offset = std::floor(origin) + normalized * chartPixelSpan(origin, extent) - origin;
-            if (offset <= 0)
-                return 0;
-            if (offset >= extent)
-                return 1;
-            return offset / extent;
+            const auto coordinate = std::clamp(offset / extent, 0.0, 1.0);
+            return std::min(sourceSize - 1, static_cast<size_t>(coordinate * sourceSize));
         }
-        // The reference rotates the scaled image, then draws through the integer
-        // QPainter overload. Preserve that transposed pixel-center phase.
-        if (flipped)
-            return std::clamp(normalized, 0.0, 1.0);
-        return std::clamp(normalized - (0.5 + origin - std::floor(origin)) / static_cast<int>(extent), 0.0, 1.0);
+        const auto destinationSize = static_cast<int>(extent);
+        // The padded pixmap's integer draw origin can shift the inner chart at the atlas edge.
+        const auto rasterOffset = static_cast<int>(std::trunc(origin - bleed) + bleed - std::floor(origin));
+        const auto destination = static_cast<int>(std::floor(normalized * destinationSize)) - rasterOffset;
+        if (destination < 0)
+            return 0;
+        if (destination >= destinationSize)
+            return sourceSize - 1;
+
+        return scaledImageSample(destination, destinationSize, sourceSize, phase);
+    }
+    struct PaddedImageSample {
+        int column;
+        int row;
+        int width;
+        int height;
+        bool inset;
+    };
+    std::optional<PaddedImageSample> chartPaddedSample(double u, double v, double left, double top, double width, double height, int bleed)
+    {
+        if (bleed == 0 || width < 1 || height < 1)
+            return std::nullopt;
+        const auto rasterPosition = [bleed](double normalized, double origin, int size) {
+            const auto offset = static_cast<int>(std::floor(origin) - std::trunc(origin - bleed));
+            return static_cast<int>(std::floor(normalized * size)) + offset;
+        };
+        const auto innerWidth = static_cast<int>(width);
+        const auto innerHeight = static_cast<int>(height);
+        const auto column = rasterPosition(u, left, innerWidth);
+        const auto row = rasterPosition(v, top, innerHeight);
+        const auto paddedWidth = innerWidth + 2 * bleed;
+        const auto paddedHeight = innerHeight + 2 * bleed;
+        const bool inPaddedImage = column >= 0 && column < paddedWidth && row >= 0 && row < paddedHeight;
+        const bool inChart = column >= bleed && column < bleed + innerWidth && row >= bleed && row < bleed + innerHeight;
+        if (!inPaddedImage)
+            return std::nullopt;
+        return PaddedImageSample { column, row, paddedWidth, paddedHeight, inChart };
+    }
+    Pixel compositeChartPixel(const Pixel& inset, const Pixel& padded, bool inputPremultiplied)
+    {
+        const auto roundProduct = [](unsigned int value) {
+            return (value + (value >> 8) + 128) >> 8;
+        };
+        const auto remainder = 255u - inset[3];
+        const auto alpha = inset[3] + roundProduct(padded[3] * remainder);
+        Pixel result {};
+        if (alpha == 0)
+            return result;
+        const auto inverseAlpha = 0x00ff00ffu / alpha;
+        for (size_t channel = 0; channel < 3; ++channel) {
+            const auto foreground = inputPremultiplied ? inset[channel] : roundProduct(inset[channel] * inset[3]);
+            const auto background = inputPremultiplied ? padded[channel] : roundProduct(padded[channel] * padded[3]);
+            const auto premultiplied = foreground + roundProduct(background * remainder);
+            result[channel] = static_cast<uint8_t>((premultiplied * inverseAlpha + 32768) >> 16);
+        }
+        result[3] = static_cast<uint8_t>(alpha);
+        return result;
     }
     template <typename Paint>
     std::vector<uint8_t> rectangles(TextureImage& output, const UvAtlas& atlas, double bleedFraction, const TextureBakeOptions& options, Paint paint, const std::set<size_t>& skipped = {})
@@ -314,7 +408,7 @@ namespace {
     }
     bool isFoldLayout(const UvMapPacker::Layout& layout, const TextureBakeInputs& inputs, const TextureBakeOptions& options)
     {
-        if (!layout.id.isNull() || layout.sourceId.isNull() || layout.globalUv.empty())
+        if (!layout.id.isNull() || layout.sourceId.isNull() || (layout.globalUv.empty() && layout.indexedGlobalUv.empty()))
             return false;
         const auto found = inputs.surfaces.find(layout.sourceId);
         return found != inputs.surfaces.end() && hasEffectiveFolds(found->second, options);
@@ -341,6 +435,20 @@ namespace {
                 checkCancellation(options);
             if (!isFoldLayout(layout, inputs, options))
                 continue;
+            if (!layout.indexedGlobalUv.empty()) {
+                for (const auto& entry : layout.indexedGlobalUv) {
+                    if (inspected++ % 256 == 0)
+                        checkCancellation(options);
+                    SurfaceTriangle triangle;
+                    triangle.uvs = entry.second;
+                    const auto& face = object.triangles[entry.first];
+                    for (size_t corner = 0; corner < 3; ++corner)
+                        triangle.positions[corner] = object.vertices[face[corner]];
+                    if (resolveSurfaceFrame(triangle))
+                        return true;
+                }
+                continue;
+            }
             for (const auto& entry : layout.globalUv) {
                 if (inspected++ % 256 == 0)
                     checkCancellation(options);
@@ -441,7 +549,7 @@ namespace {
         const auto needsDetails = [&](const UvMapPacker::Layout& layout) {
             if (eligibilityChecks++ % 256 == 0)
                 checkCancellation(options);
-            if (!layout.id.isNull() || layout.sourceId.isNull() || layout.globalUv.empty())
+            if (!layout.id.isNull() || layout.sourceId.isNull() || (layout.globalUv.empty() && layout.indexedGlobalUv.empty()))
                 return false;
             const auto found = inputs.surfaces.find(layout.sourceId);
             if (found == inputs.surfaces.end())
@@ -455,11 +563,17 @@ namespace {
         size_t gridEntries = 0;
         size_t prepared = 0;
         std::map<PositionKey, Vector3> positions;
-        for (const auto& vertex : object.vertices) {
-            if (prepared++ % 256 == 0)
-                checkCancellation(options);
-            positions.emplace(PositionKey(vertex), vertex);
+        const bool needsPositionLookup = std::any_of(atlas.layouts.begin(), atlas.layouts.end(), [&](const UvMapPacker::Layout& layout) {
+            return needsDetails(layout) && layout.indexedGlobalUv.empty();
+        });
+        if (needsPositionLookup) {
+            for (const auto& vertex : object.vertices) {
+                if (prepared++ % 256 == 0)
+                    checkCancellation(options);
+                positions.emplace(PositionKey(vertex), vertex);
+            }
         }
+        std::set<size_t> indexedGeometryVertices;
         indexedVertices = positions.size();
         std::vector<SurfaceChart> charts;
         for (size_t ordinal = 0; ordinal < atlas.layouts.size(); ++ordinal) {
@@ -471,24 +585,48 @@ namespace {
             SurfaceChart chart;
             chart.layoutIndex = ordinal;
             std::map<PositionKey, size_t> welded;
-            for (const auto& entry : layout.globalUv) {
+            std::map<size_t, size_t> indexed;
+            for (const auto& entry : layout.indexedGlobalUv) {
                 if (prepared++ % 256 == 0)
                     checkCancellation(options);
                 SurfaceTriangle triangle;
                 triangle.uvs = entry.second;
+                const auto& face = object.triangles[entry.first];
                 for (size_t corner = 0; corner < 3; ++corner) {
-                    const auto position = positions.find(entry.first[corner]);
-                    if (position == positions.end())
-                        invalid("Surface chart references a missing geometry position");
-                    triangle.positions[corner] = position->second;
-                    const auto inserted = welded.emplace(entry.first[corner], chart.vertices.size());
+                    const auto vertex = face[corner];
+                    triangle.positions[corner] = object.vertices[vertex];
+                    const auto inserted = indexed.emplace(vertex, chart.vertices.size());
                     if (inserted.second)
-                        chart.vertices.push_back(position->second);
+                        chart.vertices.push_back(triangle.positions[corner]);
                     triangle.vertices[corner] = inserted.first->second;
+                    if (indexedGeometryVertices.insert(vertex).second)
+                        ++indexedVertices;
                 }
-                if (!resolveSurfaceFrame(triangle))
-                    continue;
-                chart.triangles.push_back(triangle);
+                if (resolveSurfaceFrame(triangle))
+                    chart.triangles.push_back(triangle);
+            }
+            // Legacy position-keyed callers retain their existing lookup. An
+            // indexed layout is authoritative and must not duplicate those faces.
+            if (layout.indexedGlobalUv.empty()) {
+                for (const auto& entry : layout.globalUv) {
+                    if (prepared++ % 256 == 0)
+                        checkCancellation(options);
+                    SurfaceTriangle triangle;
+                    triangle.uvs = entry.second;
+                    for (size_t corner = 0; corner < 3; ++corner) {
+                        const auto position = positions.find(entry.first[corner]);
+                        if (position == positions.end())
+                            invalid("Surface chart references a missing geometry position");
+                        triangle.positions[corner] = position->second;
+                        const auto inserted = welded.emplace(entry.first[corner], chart.vertices.size());
+                        if (inserted.second)
+                            chart.vertices.push_back(position->second);
+                        triangle.vertices[corner] = inserted.first->second;
+                    }
+                    if (!resolveSurfaceFrame(triangle))
+                        continue;
+                    chart.triangles.push_back(triangle);
+                }
             }
             if (chart.triangles.empty())
                 continue;
@@ -820,37 +958,87 @@ TextureBakeResult TextureBaker::bake(const Object& object, const UvAtlas& atlas,
         if (chart.folds)
             normalSkipped.insert(chart.layoutIndex);
     }
-    auto colorCoverage = rectangles(result.color, atlas, 32.0 / 4096, options, [&](size_t ordinal, const UvMapPacker::Layout& layout, double u, double v) {
-        if (const auto* gradient = colorSources[ordinal].gradient) {
+    constexpr double colorBleedFraction = 32.0 / 4096;
+    const auto colorBleed = static_cast<int>(colorBleedFraction * options.colorSize);
+    auto colorCoverage = rectangles(result.color, atlas, colorBleedFraction, options, [&](size_t ordinal, const UvMapPacker::Layout& layout, double u, double v) {
+        const auto left = layout.left * options.colorSize;
+        const auto top = layout.top * options.colorSize;
+        const auto width = layout.width * options.colorSize;
+        const auto height = layout.height * options.colorSize;
+        const auto& colorSource = colorSources[ordinal];
+        if (!colorSource.gradient && layout.id.isNull())
+            return colorPixel(layout.color);
+        // Qt stretches the background image across the padded chart before drawing the inset.
+        const auto padded = chartPaddedSample(u, v, left, top, width, height, colorBleed);
+        const auto* gutter = padded && !padded->inset ? &*padded : nullptr;
+        const auto sourceWidth = colorSource.gradient ? colorSource.gradient->resolution : colorSource.image->width;
+        const auto sourceHeight = colorSource.gradient ? colorSource.gradient->resolution : colorSource.image->height;
+        const auto pixelWidth = gutter ? gutter->width : static_cast<int>(width);
+        const auto pixelHeight = gutter ? gutter->height : static_cast<int>(height);
+        const auto targetWidth = static_cast<size_t>(layout.flipped ? pixelHeight : pixelWidth);
+        const auto targetHeight = static_cast<size_t>(layout.flipped ? pixelWidth : pixelHeight);
+        // Qt's RGB32 fast blitter advances from the origin on both axes.
+        const bool wholeAxis = !colorSource.gradient && colorSource.image->raster == TextureImageRaster::rgb32
+            && targetWidth < sourceWidth * 512 && targetHeight < sourceHeight * 512;
+        const auto raster = colorSource.gradient ? TextureImageRaster::decoded : colorSource.image->raster;
+        const bool indexed = raster == TextureImageRaster::indexed || raster == TextureImageRaster::indexedAlpha;
+        const auto xPhase = indexed ? ImageScalePhase::indexed
+            : wholeAxis             ? ImageScalePhase::wholeAxis
+            : allowsFixedImageScale(sourceWidth, sourceHeight, targetWidth, targetHeight)
+            ? ImageScalePhase::spans
+            : ImageScalePhase::direct;
+        const auto yPhase = indexed ? ImageScalePhase::indexed
+            : wholeAxis             ? ImageScalePhase::wholeAxis
+                                    : ImageScalePhase::direct;
+        if (const auto* gradient = colorSource.gradient) {
             const auto extent = (layout.flipped ? layout.height : layout.width) * options.colorSize;
             const auto origin = (layout.flipped ? layout.top : layout.left) * options.colorSize;
-            const auto coordinate = chartImageCoordinate(layout.flipped ? v : u, origin, extent, layout.flipped);
-            const auto sample = std::min(gradient->resolution - 1, static_cast<size_t>(coordinate * gradient->resolution));
+            const auto sample = gutter
+                ? scaledImageSample(layout.flipped ? gutter->row : gutter->column,
+                      layout.flipped ? gutter->height : gutter->width, gradient->resolution, xPhase)
+                : chartImageSample(layout.flipped ? v : u, origin, extent, colorBleed, gradient->resolution, xPhase);
             const auto amount = static_cast<double>(sample) / (gradient->resolution - 1);
             Pixel pixel;
             for (size_t channel = 0; channel < 4; ++channel) {
                 const auto large = static_cast<uint8_t>(gradient->largeColor[channel] * 255);
                 const auto small = static_cast<uint8_t>(gradient->smallColor[channel] * 255);
-                pixel[channel] = static_cast<uint8_t>(large * (1 - amount) + small * amount);
+                // A constant channel must not lose one byte to rounding, especially alpha.
+                pixel[channel] = large == small ? large : static_cast<uint8_t>(large * (1 - amount) + small * amount);
             }
             return pixel;
         }
-        if (layout.id.isNull())
-            return colorPixel(layout.color);
-        const auto& source = *colorSources[ordinal].image;
-        // The reference draws its integer-sized pixmap at the fractional chart origin.
-        // Sample that translated pixel lattice rather than snapping the origin down.
-        const auto left = layout.left * options.colorSize;
-        const auto top = layout.top * options.colorSize;
-        u = chartImageCoordinate(u, left, layout.width * options.colorSize, layout.flipped);
-        v = chartImageCoordinate(v, top, layout.height * options.colorSize, layout.flipped);
-        if (layout.flipped)
-            std::swap(u, v);
-        const auto x = std::min(source.width - 1, static_cast<size_t>(u * source.width));
-        const auto y = std::min(source.height - 1, static_cast<size_t>(v * source.height));
+        const auto& source = *colorSource.image;
+        auto x = layout.flipped
+            ? chartImageSample(v, top, height, colorBleed, source.width, xPhase)
+            : chartImageSample(u, left, width, colorBleed, source.width, xPhase);
+        auto y = layout.flipped
+            ? chartImageSample(u, left, width, colorBleed, source.height, yPhase)
+            : chartImageSample(v, top, height, colorBleed, source.height, yPhase);
+        if (gutter) {
+            x = layout.flipped ? scaledImageSample(gutter->row, gutter->height, source.width, xPhase)
+                               : scaledImageSample(gutter->column, gutter->width, source.width, xPhase);
+            y = layout.flipped ? scaledImageSample(gutter->column, gutter->width, source.height, yPhase)
+                               : scaledImageSample(gutter->row, gutter->height, source.height, yPhase);
+        }
         Pixel pixel;
         std::copy_n(source.pixels + y * source.rowStride + x * 4, 4, pixel.begin());
-        return pixel; }, colorSkipped);
+        const bool inputPremultiplied = raster == TextureImageRaster::premultiplied;
+        const bool compositeAlpha = inputPremultiplied || raster == TextureImageRaster::alphaComposite || raster == TextureImageRaster::indexedAlpha;
+        if (!compositeAlpha || pixel[3] == 255)
+            return pixel;
+        Pixel background {};
+        if (padded && padded->inset) {
+            const auto paddedWidth = layout.flipped ? padded->height : padded->width;
+            const auto paddedHeight = layout.flipped ? padded->width : padded->height;
+            const auto paddedPhase = indexed ? ImageScalePhase::indexed
+                : allowsFixedImageScale(source.width, source.height, paddedWidth, paddedHeight)
+                ? ImageScalePhase::spans
+                : ImageScalePhase::direct;
+            const auto paddedX = scaledImageSample(layout.flipped ? padded->row : padded->column, paddedWidth, source.width, paddedPhase);
+            const auto paddedY = scaledImageSample(layout.flipped ? padded->column : padded->row, paddedHeight, source.height, yPhase);
+            std::copy_n(source.pixels + paddedY * source.rowStride + paddedX * 4, 4, background.begin());
+        }
+        return compositeChartPixel(pixel, background, inputPremultiplied); }, colorSkipped);
     for (const auto& chart : charts)
         paintSurface(result.color, colorCoverage, chart, atlas.layouts[chart.layoutIndex].color, false, options, result.rasterTriangleVisits);
     dilate(result.color, colorCoverage, options);
@@ -868,8 +1056,12 @@ TextureBakeResult TextureBaker::bake(const Object& object, const UvAtlas& atlas,
         auto coverage = rectangles(output, atlas, 8.0 / 1024, options, [&](size_t ordinal, const UvMapPacker::Layout& layout, double, double) -> Pixel {
             const auto& material = colorSources[ordinal].material;
             if (kind == 2) {
-                const auto strength = std::min(1.0, material.emissive);
-                return { byte(layout.color.r() * strength), byte(layout.color.g() * strength), byte(layout.color.b() * strength), 255 };
+                const float strength = static_cast<float>(std::min(1.0, material.emissive));
+                // The Qt atlas scales already-quantized color channels and truncates the result.
+                const auto emissiveChannel = [strength](double channel) {
+                    return static_cast<uint8_t>(byte(channel) * strength);
+                };
+                return { emissiveChannel(layout.color.r()), emissiveChannel(layout.color.g()), emissiveChannel(layout.color.b()), 255 };
             }
             const auto value = byte(kind == 0 ? material.metallic : material.roughness);
             return { value, value, value, 255 };

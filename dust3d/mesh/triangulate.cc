@@ -23,9 +23,80 @@
 #include <array>
 #include <dust3d/base/vector2.h>
 #include <dust3d/mesh/triangulate.h>
+#include <limits>
+#include <map>
 #include <mapbox/earcut.hpp>
 
 namespace dust3d {
+
+namespace {
+
+    using DirectedEdge = std::pair<size_t, size_t>;
+    constexpr size_t ringEdge = std::numeric_limits<size_t>::max();
+
+    bool restoreConformingEdges(const std::vector<Vector3>& points, std::vector<size_t>& indices)
+    {
+        const size_t expectedIndices = (points.size() - 2) * 3;
+        for (;;) {
+            std::map<DirectedEdge, size_t> unmatched;
+            auto addEdge = [&](size_t from, size_t to, size_t corner) {
+                if (unmatched.erase({ to, from }) != 0)
+                    return true;
+                return unmatched.emplace(DirectedEdge { from, to }, corner).second;
+            };
+            for (size_t i = 0; i < points.size(); ++i)
+                addEdge((i + 1) % points.size(), i, ringEdge);
+            for (size_t i = 0; i < indices.size(); i += 3) {
+                for (size_t j = 0; j < 3; ++j) {
+                    if (!addEdge(indices[i + j], indices[i + (j + 1) % 3], i + j))
+                        return false;
+                }
+            }
+            if (unmatched.empty() || indices.size() >= expectedIndices)
+                return unmatched.empty() && indices.size() == expectedIndices;
+
+            bool split = false;
+            for (const auto& [edge, corner] : unmatched) {
+                if (corner == ringEdge)
+                    continue;
+                const auto [from, to] = edge;
+                const auto direction = points[to] - points[from];
+                const double lengthSquared = direction.lengthSquared();
+                if (!(lengthSquared > 0))
+                    continue;
+                // The opposite side can already contain two edges along the same
+                // diagonal. Split only at their shared corner and retain winding.
+                for (auto opposite = unmatched.lower_bound({ to, 0 });
+                    opposite != unmatched.end() && opposite->first.first == to; ++opposite) {
+                    const auto middle = opposite->first.second;
+                    if (unmatched.count({ middle, from }) == 0)
+                        continue;
+                    const auto delta = points[middle] - points[from];
+                    const double along = Vector3::dotProduct(delta, direction);
+                    if (!(along > 0 && along < lengthSquared))
+                        continue;
+                    const auto deviation = delta - direction * (along / lengthSquared);
+                    constexpr double tolerance = 32 * std::numeric_limits<double>::epsilon();
+                    if (deviation.lengthSquared() > tolerance * tolerance * lengthSquared)
+                        continue;
+                    const auto triangle = corner - corner % 3;
+                    const auto third = indices[triangle + (corner + 2) % 3];
+                    if (middle == third)
+                        continue;
+                    indices[triangle + (corner + 1) % 3] = middle;
+                    indices.insert(indices.end(), { middle, to, third });
+                    split = true;
+                    break;
+                }
+                if (split)
+                    break;
+            }
+            if (!split)
+                return false;
+        }
+    }
+
+}
 
 void triangulate(const std::vector<Vector3>& vertices,
     const std::vector<size_t>& faceIndices,
@@ -76,7 +147,6 @@ void triangulate(const std::vector<Vector3>& vertices,
         normal, axis, origin);
 
     std::vector<std::vector<std::array<double, 2>>> polygons;
-    std::vector<size_t> pointIndices;
 
     std::vector<std::array<double, 2>> border;
     border.reserve(pointsIn2d.size());
@@ -86,6 +156,11 @@ void triangulate(const std::vector<Vector3>& vertices,
     polygons.push_back(border);
 
     std::vector<size_t> indices = mapbox::earcut<size_t>(polygons);
+    if (faceIndices.size() > 4 && indices.size() < (faceIndices.size() - 2) * 3) {
+        auto repaired = indices;
+        if (restoreConformingEdges(pointsIn3d, repaired))
+            indices = std::move(repaired);
+    }
     for (size_t i = 0; i < indices.size(); i += 3) {
         triangles->push_back({ faceIndices[indices[i]],
             faceIndices[indices[i + 1]],

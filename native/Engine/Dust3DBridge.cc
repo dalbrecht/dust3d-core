@@ -140,7 +140,8 @@ namespace native {
                     vertex.color[0] = static_cast<float>(color.r());
                     vertex.color[1] = static_cast<float>(color.g());
                     vertex.color[2] = static_cast<float>(color.b());
-                    vertex.color[3] = 1.0f; // Opaque preview; material transparency is a later feature.
+                    // Baked previews need the authored alpha when the atlas is hidden.
+                    vertex.color[3] = baked ? static_cast<float>(color.alpha()) : 1.0f;
                     exportedTriangle[corner] = vertex;
                 }
                 auto exportedPosition = [](const Dust3DVertex& vertex) {
@@ -162,8 +163,8 @@ namespace native {
                 if (sourceBaked)
                     sourceBaked->appendTriangle(triangleIndex);
                 if (sources) {
-                    for (const auto vertexIndex : triangle)
-                        sources->appendCorner(*object, object->vertices[vertexIndex], triangleIndex);
+                    for (size_t cornerIndex = 0; cornerIndex < triangle.size(); ++cornerIndex)
+                        sources->appendCorner(*object, object->vertices[triangle[cornerIndex]], triangleIndex, cornerIndex);
                 }
                 mesh->vertices.insert(mesh->vertices.end(), exportedTriangle.begin(), exportedTriangle.end());
             }
@@ -233,13 +234,23 @@ namespace native {
 
 Dust3DMesh* dust3d_mesh_load(const uint8_t* bytes, size_t size, Dust3DError* error)
 {
+    return dust3d_mesh_load_with_cancellation(bytes, size, nullptr, error);
+}
+
+Dust3DMesh* dust3d_mesh_load_with_cancellation(const uint8_t* bytes, size_t size,
+    const Dust3DCancellationToken* cancellation, Dust3DError* error)
+{
     dust3d::native::setError(error, DUST3D_STATUS_OK, "");
     try {
+        dust3d::native::checkCancellation(cancellation);
         std::lock_guard<std::mutex> lock(dust3d::native::engineMutex());
+        dust3d::native::checkCancellation(cancellation);
         std::string warning;
         dust3d::native::ImportedModels imports;
         auto snapshot = dust3d::native::readDocument(bytes, size, warning, nullptr, &imports);
-        return dust3d::native::generateMesh(std::move(snapshot), warning, &imports).release();
+        dust3d::native::GenerationOutputs outputs;
+        outputs.cancellation = cancellation;
+        return dust3d::native::generateMesh(std::move(snapshot), warning, &imports, nullptr, nullptr, outputs).release();
     } catch (const dust3d::native::DocumentError& exception) {
         dust3d::native::setError(error, exception.status(), exception.what());
     } catch (const std::bad_alloc&) {

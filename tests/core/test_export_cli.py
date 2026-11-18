@@ -1,10 +1,13 @@
 """Ordinary filesystem contracts for the Qt-free static FBX export command."""
 import json
 import os
+import struct
 from pathlib import Path
 import subprocess
 import tempfile
 import unittest
+import zlib
+from xml.etree import ElementTree
 
 
 class ExportCliTests(unittest.TestCase):
@@ -233,6 +236,186 @@ class ExportCliTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn(b'Dust3D_color.png', self.destination.read_bytes())
         self.assert_unchanged()
+
+    @staticmethod
+    def translucent_png():
+        # A 2×2 RGBA image with opaque green/blue and translucent red/yellow.
+        return bytes.fromhex(
+            '89504e470d0a1a0a0000000d494844520000000200000002080600000072b60d'
+            '240000001749444154789c63f8cfc0d0c0f01f081918fe0301830300401907ba'
+            '7d91098c0000000049454e44ae426082'
+        )
+
+    def model_with_procedural_png(self, image):
+        canvas, _, _ = self.make_model_chain(closed=False)
+        image_id = '{eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee}'
+        canvas.find('components/component').set('colorImageId', image_id)
+        model = ElementTree.tostring(canvas)
+        manifest = (
+            f'<ds3><model name="model.xml" offset="0" size="{len(model)}"/>'
+            f'<asset name="images/{image_id}.png" offset="{len(model)}" size="{len(image)}"/></ds3>'
+        ).encode()
+        prefix = b'DUST3D 1.0 xml '
+        return prefix + f'{len(prefix) + 12 + len(manifest):010d}\r\n'.encode() + manifest + model + image
+
+    def test_should_bake_a_referenced_translucent_archive_png(self):
+        archive = self.model_with_procedural_png(self.translucent_png())
+        self.source.write_bytes(archive)
+        result = self.run_export('--baked', '--texture-size', '64', self.source, self.destination)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        exported = self.destination.read_bytes()
+        self.assertIn(b'Dust3D_color.png', exported)
+        signature = b'\x89PNG\r\n\x1a\n'
+        offset = exported.index(signature) + len(signature)
+        compressed = bytearray()
+        while True:
+            size, kind = struct.unpack_from('>I4s', exported, offset)
+            chunk = exported[offset + 8:offset + 8 + size]
+            if kind == b'IHDR':
+                self.assertEqual(chunk, struct.pack('>IIBBBBB', 64, 64, 8, 6, 0, 0, 0))
+            elif kind == b'IDAT':
+                compressed.extend(chunk)
+            elif kind == b'IEND':
+                break
+            offset += size + 12
+
+        row_size = 1 + 64 * 4
+        decoder = zlib.decompressobj()
+        rows = decoder.decompress(compressed, 64 * row_size + 1)
+        self.assertTrue(decoder.eof)
+        self.assertEqual(len(rows), 64 * row_size)
+        self.assertEqual(rows[::row_size], bytes(64))
+        pixels = {rows[index:index + 4] for row in range(64)
+                  for index in range(row * row_size + 1, (row + 1) * row_size, 4)}
+        self.assertIn(bytes([255, 0, 0, 128]), pixels)
+        self.assertIn(bytes([255, 255, 0, 64]), pixels)
+        self.assertEqual(self.source.read_bytes(), archive)
+
+    def test_should_preserve_existing_output_when_archived_png_is_invalid(self):
+        image = self.translucent_png()
+        oversized_header = image[12:16] + struct.pack('>I', 8193) + image[20:29]
+        oversized = image[:12] + oversized_header + struct.pack('>I', zlib.crc32(oversized_header)) + image[33:]
+        for png, diagnostic in [(image[:40], 'decode'), (oversized, 'limit')]:
+            with self.subTest(diagnostic=diagnostic):
+                archive = self.model_with_procedural_png(png)
+                self.source.write_bytes(archive)
+                self.destination.write_bytes(b'existing output')
+                result = self.run_export('--baked', '--texture-size', '64', self.source, self.destination)
+                self.assertEqual(result.returncode, 3, result.stderr)
+                self.assertIn('procedural PNG', result.stderr)
+                self.assertIn(diagnostic, result.stderr)
+                self.assertEqual(self.destination.read_bytes(), b'existing output')
+                self.assertEqual(self.source.read_bytes(), archive)
+                self.assertEqual(list(self.directory.glob('.dust3d-export-*')), [])
+
+    def make_model_chain(self, closed):
+        def identity(number):
+            return f'{{{number:08d}-0000-4000-8000-{number:012d}}}'
+
+        canvas = ElementTree.Element('canvas', originX='.5', originY='.5', originZ='.5')
+        nodes, edges, parts, components = [ElementTree.SubElement(canvas, tag)
+                                           for tag in ('nodes', 'edges', 'parts', 'components')]
+        part = identity(100)
+        model = ElementTree.SubElement(parts, 'part', id=part, cutFace='Triangle', cutRotation='.17')
+        if not closed:
+            model.set('rounded', 'true')
+        ElementTree.SubElement(components, 'component', id=identity(101), linkDataType='partId', linkData=part)
+        ids = list(map(identity, (4, 1, 3, 2)))
+        coordinates = (('.24', '.52', '.52', '.075'), ('.39', '.41', '.47', '.11'),
+                       ('.58', '.48', '.42', '.09'), ('.76', '.55', '.58', '.055'))
+        for node, (x, y, z, radius) in zip(ids, coordinates):
+            ElementTree.SubElement(nodes, 'node', id=node, partId=part, x=x, y=y, z=z, radius=radius)
+        endpoints = ids[1:] + (ids[:1] if closed else [])
+        for index, (start, end) in enumerate(zip(ids, endpoints)):
+            ElementTree.SubElement(edges, 'edge', id=identity(120 + index), partId=part,
+                                   attrib={'from': start, 'to': end})
+        return canvas, ids, edges
+
+    def export_model_chain(self, canvas, name):
+        xml = ElementTree.tostring(canvas)
+        header = f'<ds3><model name="model.xml" offset="0" size="{len(xml)}"/></ds3>'.encode()
+        prefix = b'DUST3D 1.0 xml '
+        archive = prefix + f'{len(prefix) + 12 + len(header):010d}\r\n'.encode() + header + xml
+        self.source.write_bytes(archive)
+        destination = self.directory / f'{name}.obj'
+        result = self.run_export(self.source, destination)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.source.read_bytes(), archive)
+        geometry = destination.read_bytes()
+        self.assertIn(b'\nf ', geometry)
+        return geometry
+
+    def test_should_repair_legacy_open_chain_from_authored_endpoint(self):
+        canvas, ids, edges = self.make_model_chain(closed=False)
+        authored = self.export_model_chain(canvas, 'authored')
+        edges[1].set('from', ids[2])
+        edges[1].set('to', ids[1])
+        self.assertEqual(self.export_model_chain(canvas, 'legacy'), authored)
+
+    def test_should_keep_closed_model_geometry_independent_of_edge_ids(self):
+        canvas, _, edges = self.make_model_chain(closed=True)
+        authored = self.export_model_chain(canvas, 'authored')
+        edges[0].set('id', '{00000130-0000-4000-8000-000000000130}')
+        self.assertEqual(self.export_model_chain(canvas, 'renamed-edge'), authored)
+        for edge in edges:
+            start, end = edge.get('from'), edge.get('to')
+            edge.set('from', end)
+            edge.set('to', start)
+        self.assertNotEqual(self.export_model_chain(canvas, 'reversed-cycle'), authored)
+
+    def test_should_keep_stitching_loop_geometry_independent_of_edge_ids(self):
+        def identity(number):
+            return f'{{{number:08d}-0000-4000-8000-{number:012d}}}'
+
+        canvas = ElementTree.Element('canvas', originX='.5', originY='.5', originZ='.5')
+        nodes, edges, parts, components = [ElementTree.SubElement(canvas, tag)
+                                           for tag in ('nodes', 'edges', 'parts', 'components')]
+        group = ElementTree.SubElement(components, 'component', id=identity(300),
+                                       backClosed='true', backCloseDepthRatio='.5', backCloseSharpness='.4')
+        for loop, (low, high, z) in enumerate((('.1', '.9', '.5'), ('.34', '.66', '.6'))):
+            part = identity(100 + loop)
+            ElementTree.SubElement(parts, 'part', id=part, target='StitchingLoop', fillLoopInterior='true')
+            ElementTree.SubElement(group, 'component', id=identity(200 + loop), linkDataType='partId', linkData=part)
+            for corner, (x, y) in enumerate(((high, '.5'), ('.5', high), (low, '.5'), ('.5', low))):
+                node = identity(1000 + loop * 10 + corner)
+                ElementTree.SubElement(nodes, 'node', id=node, partId=part, x=x, y=y, z=z, radius='.05')
+                ElementTree.SubElement(edges, 'edge', id=identity(2000 + loop * 10 + corner), partId=part,
+                                       attrib={'from': identity(1000 + loop * 10 + (corner - 1) % 4), 'to': node})
+
+        def save_source():
+            xml = ElementTree.tostring(canvas)
+            header = f'<ds3><model name="model.xml" offset="0" size="{len(xml)}"/></ds3>'.encode()
+            prefix = b'DUST3D 1.0 xml '
+            self.source.write_bytes(prefix + f'{len(prefix) + 12 + len(header):010d}\r\n'.encode() + header + xml)
+
+        def export(destination):
+            save_source()
+            result = self.run_export(self.source, destination)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            return destination.read_bytes()
+
+        baseline = export(self.directory / 'closing-edge-first.obj')
+        edges[0].set('id', identity(2090))
+        edges[4].set('id', identity(2091))
+        reordered = export(self.directory / 'closing-edge-last.obj')
+        self.assertEqual(reordered, baseline)
+        edge = edges[1]
+        start, end = edge.get('from'), edge.get('to')
+        edge.set('from', end)
+        edge.set('to', start)
+        self.assertIn(b'\nf ', export(self.directory / 'repaired-loop.obj'))
+        edge.set('from', start)
+        edge.set('to', end)
+        for node in nodes[4:]:
+            node.set('partId', identity(100))
+        for edge in edges[4:]:
+            edge.set('partId', identity(100))
+        save_source()
+        invalid = self.directory / 'disconnected-loop.obj'
+        result = self.run_export(self.source, invalid)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('disconnected edge chains', result.stderr)
+        self.assertFalse(invalid.exists())
 
     def test_should_accept_literal_dash_filenames_after_option_terminator(self):
         source = self.directory / '-source.ds3'

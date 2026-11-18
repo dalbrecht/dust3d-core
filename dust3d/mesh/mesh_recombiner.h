@@ -59,10 +59,16 @@ public:
         const std::vector<std::pair<MeshCombiner::Source, size_t>>* verticesSourceIndices);
     void setFaces(const std::vector<std::vector<size_t>>* faces);
     const std::vector<Vector3>& regeneratedVertices();
+    /// Actual input vertex ordinal for each compacted regenerated vertex.
+    const std::vector<size_t>& regeneratedVertexInputIndices() const;
     const std::vector<std::pair<MeshCombiner::Source, size_t>>& regeneratedVerticesSourceIndices();
     const std::vector<std::vector<size_t>>& regeneratedFaces();
     /// Input face index for retained faces; generated bridges have no single source.
     const std::vector<std::optional<size_t>>& regeneratedFaceSources() const;
+    // Exact regenerated triangle ordinals, paired as (large-side, small-side) bridge fans.
+    const std::vector<std::pair<std::vector<size_t>, std::vector<size_t>>>& generatedBridgingFaceIndices() const;
+    // Input vertex identities on each bridge boundary, before regenerated-vertex compaction.
+    const std::vector<std::pair<std::vector<size_t>, std::vector<size_t>>>& generatedBridgingBoundaryVertices() const;
     const std::vector<std::pair<std::vector<std::array<Vector3, 3>>, std::vector<std::array<Vector3, 3>>>>& generatedBridgingTriangles();
     bool recombine();
     const std::map<size_t, size_t>& inputFacesInSeamArea() const;
@@ -72,9 +78,12 @@ private:
     const std::vector<std::pair<MeshCombiner::Source, size_t>>* m_verticesSourceIndices = nullptr;
     const std::vector<std::vector<size_t>>* m_faces = nullptr;
     std::vector<Vector3> m_regeneratedVertices;
+    std::vector<size_t> m_regeneratedVertexInputIndices;
     std::vector<std::pair<MeshCombiner::Source, size_t>> m_regeneratedVerticesSourceIndices;
     std::vector<std::vector<size_t>> m_regeneratedFaces;
     std::vector<std::optional<size_t>> m_regeneratedFaceSources;
+    std::vector<std::pair<std::vector<size_t>, std::vector<size_t>>> m_generatedBridgingFaceIndices;
+    std::vector<std::pair<std::vector<size_t>, std::vector<size_t>>> m_generatedBridgingBoundaryVertices;
     std::map<std::pair<size_t, size_t>, size_t> m_halfEdgeToFaceMap;
     std::map<size_t, size_t> m_facesInSeamArea;
     std::set<size_t> m_goodSeams;

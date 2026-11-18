@@ -66,6 +66,8 @@ public:
     const std::vector<Uuid>& generatedVertexLoopSourceIds() const;
     const std::vector<std::vector<size_t>>& generatedFaces() const;
     const std::vector<std::vector<Vector2>>& generatedFaceUvs() const;
+    // Existing per-loop chart owner policy, parallel to generated faces.
+    std::vector<Uuid> generatedFaceSourceIds() const;
     const std::vector<Loop>& loops() const;
     std::map<Uuid, std::map<std::array<PositionKey, 3>, std::array<Vector2, 3>>> buildPerLoopTriangleUvs() const;
 
@@ -111,7 +113,8 @@ private:
     void assignLoopNodesToCells(std::vector<size_t>& seedCells);
     void bfsColorCells(std::vector<size_t>& seedCells);
     void buildNodeAdjacency();
-    void buildFaces();
+    std::vector<std::vector<size_t>> buildFaces();
+    void fillSmallHoles(const std::vector<std::vector<size_t>>& holes);
     void fillIsolatedLoops();
     void closeOuterBoundary();
 };

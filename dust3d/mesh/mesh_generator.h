@@ -68,6 +68,8 @@ public:
         bool joined = true;
         std::vector<Color> importedVertexColors;
         std::vector<std::optional<std::array<Vector2, 3>>> importedTriangleUvs;
+        std::vector<std::optional<std::array<Vector2, 3>>> proceduralTriangleUvs;
+        std::vector<SourceCorner> vertexSourceCorners;
         std::map<std::array<PositionKey, 3>, std::array<Vector3, 3>> importedTriangleNormals;
         void reset()
         {
@@ -78,6 +80,8 @@ public:
             nodeMap.clear();
             importedVertexColors.clear();
             importedTriangleUvs.clear();
+            proceduralTriangleUvs.clear();
+            vertexSourceCorners.clear();
             importedTriangleNormals.clear();
             color = Color(1.0, 1.0, 1.0);
             metalness = 0.0;
@@ -133,6 +137,8 @@ public:
         std::map<std::string, std::unique_ptr<MeshState>> cachedCombination;
         // Wrap surfaces and weights by their inputs (see WrapMeshBuilder::Cache).
         WrapMeshBuilder::Cache wrapCache;
+        // Exact derived identities used by the successfully generated cached parts.
+        std::map<std::string, std::string> interpolationIdentityPlans;
     };
 
     struct ComponentPreview {
@@ -146,6 +152,8 @@ public:
         std::vector<Vector2> cutFaceTemplate;
         std::vector<std::optional<std::array<Vector2, 3>>> triangleCornerUvs;
         std::vector<std::string> triangleModelKeys;
+        std::vector<std::optional<ProceduralTriangleUv>> triangleProceduralUvs;
+        std::vector<SourceTriangleCorners> triangleSourceCorners;
     };
 
     struct ImportedModelData {
@@ -184,6 +192,7 @@ private:
     Color m_defaultPartColor = Color::createWhite();
     Snapshot* m_snapshot = nullptr;
     GeneratedCacheContext* m_cacheContext = nullptr;
+    std::map<std::string, std::string> m_pendingInterpolationIdentityPlans;
     std::set<std::string> m_dirtyComponentIds;
     std::set<std::string> m_dirtyPartIds;
     std::set<std::string> m_generatedComponentIds;

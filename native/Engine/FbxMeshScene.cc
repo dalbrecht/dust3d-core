@@ -117,6 +117,10 @@ namespace native {
             properties.push_back(parameter("EmissiveFactor", "Number", "", 1));
             properties.push_back(vectorParameter("Maya|emissive", { emission, emission, emission }, "Vector3D"));
             properties.push_back(parameter("Maya|emissive_intensity", "double", "Number", emission));
+            if (!material.pngMaps[1].empty()) {
+                properties.push_back(vectorParameter("Bump", { 0, 0, 0 }, "Vector3D"));
+                properties.push_back(parameter("BumpFactor", "double", "Number", 1));
+            }
             constexpr std::array<const char*, 6> names { "color", "normal", "metallic", "roughness", "emissive", "ao" };
             constexpr std::array<const char*, 6> nativeProperties { "Maya|TEX_color_map", "Maya|TEX_normal_map", "Maya|TEX_metallic_map", "Maya|TEX_roughness_map", "Maya|TEX_emissive_map", "Maya|TEX_ao_map" };
             constexpr std::array<const char*, 6> standardProperties { "DiffuseColor", "NormalMap", "Metalness", "Roughness", "EmissiveColor", "AmbientColor" };
@@ -154,6 +158,8 @@ namespace native {
                 };
                 connectProperty(nativeProperties[channel]);
                 connectProperty(standardProperties[channel]);
+                if (channel == 1)
+                    connectProperty("Bump");
             }
             FbxPropertyBlock materialProperties;
             materialProperties.appendInt64(612150002);
@@ -285,7 +291,7 @@ namespace native {
         modelProperties.appendString(std::string("Dust3D\0\1Model", 13));
         modelProperties.appendString("Mesh");
         auto objects = children(FbxNode("Geometry", std::move(geometryProperties), std::move(geometryChildren), { maximumBytes }), FbxNode("Model", std::move(modelProperties), children(integer("Version", 232), FbxNode("Properties70"), text("Culling", "CullingOff"))));
-        auto settings = children(parameter("UpAxis", "int", "Integer", 1, true), parameter("UpAxisSign", "int", "Integer", 1, true), parameter("FrontAxis", "int", "Integer", 2, true), parameter("FrontAxisSign", "int", "Integer", 1, true), parameter("CoordAxis", "int", "Integer", 0, true), parameter("CoordAxisSign", "int", "Integer", 1, true), parameter("OriginalUpAxis", "int", "Integer", 1, true), parameter("OriginalUpAxisSign", "int", "Integer", 1, true), parameter("UnitScaleFactor", "double", "Number", 100), parameter("OriginalUnitScaleFactor", "double", "Number", 1));
+        auto settings = children(parameter("UpAxis", "int", "Integer", 1, true), parameter("UpAxisSign", "int", "Integer", 1, true), parameter("FrontAxis", "int", "Integer", 2, true), parameter("FrontAxisSign", "int", "Integer", 1, true), parameter("CoordAxis", "int", "Integer", 0, true), parameter("CoordAxisSign", "int", "Integer", 1, true), parameter("OriginalUpAxis", "int", "Integer", -1, true), parameter("OriginalUpAxisSign", "int", "Integer", 1, true), parameter("UnitScaleFactor", "double", "Number", 100), parameter("OriginalUnitScaleFactor", "double", "Number", 1));
         auto connections = children(connection(612150001, 0), connection(612150000, 612150001));
         if (material)
             appendMaterial(*material, objects, connections);

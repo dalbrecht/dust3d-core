@@ -25,6 +25,7 @@
 #include <dust3d/animation/animation_catalog.h>
 #include <dust3d/animation/animation_defaults.h>
 #include <dust3d/animation/animation_generator.h>
+#include <dust3d/animation/parameter_catalog.h>
 #include <dust3d/animation/biped/block.h>
 #include <dust3d/animation/biped/cast.h>
 #include <dust3d/animation/biped/channel.h>
@@ -112,23 +113,17 @@ AnimationParams AnimationGenerator::defaultParameters(const std::string& type)
 
 bool AnimationGenerator::generate(const RigStructure& rigStructure,
     const std::map<std::string, Matrix4x4>& inverseBindMatrices,
-    RigAnimationClip& animationClip,
+    RigAnimationClip& output,
     const std::string& requestedAnimationType,
     const AnimationParams& inputParameters)
 {
-    animationClip.frames.clear();
+    RigAnimationClip animationClip;
+    animationClip.name = output.name;
     animationClip.animationType = requestedAnimationType;
-    animationClip.movementSpeed = 0.0f;
-    animationClip.movementDirectionX = 0.0f;
-    animationClip.movementDirectionZ = 0.0f;
-    animationClip.loop = false;
-    animationClip.entryPose.clear();
-    animationClip.exitPose.clear();
-    animationClip.rootYawDegrees = 0.0f;
-    animationClip.events.clear();
-    animationClip.rootMotion = "inPlace";
     const auto preset = animation::clipCatalog().find(requestedAnimationType);
     if (preset == animation::clipCatalog().end() || preset->second.rig != rigStructure.type)
+        return false;
+    if (!animation::animationFrameWorkFits(2, rigStructure.bones.size()))
         return false;
     std::map<std::string, std::string> parents;
     for (const auto& bone : rigStructure.bones) {
@@ -211,6 +206,10 @@ bool AnimationGenerator::generate(const RigStructure& rigStructure,
             animationClip.exitPose = definition->exitPose;
         }
     }
+    // Reserve room for the loop-closing key before the sampler allocates joint maps.
+    const auto requestedFrames = static_cast<size_t>(std::ceil(parameters.getValue("frameCount", 30.0)));
+    if (!animation::animationFrameWorkFits(requestedFrames + animationClip.loop, rigStructure.bones.size()))
+        return false;
     bool result = false;
     // Locomotion clips that know their true ground speed (the speed at which their planted
     // feet slide back) report it themselves; the rest get an estimate below.
@@ -358,7 +357,9 @@ bool AnimationGenerator::generate(const RigStructure& rigStructure,
         return false;
 
     // Correct directional rolls before inheriting accessory transforms.
-    if (animationClip.frames.size() < 2 || !std::isfinite(animationClip.durationSeconds)
+    if (animationClip.frames.size() < 2
+        || !animation::animationFrameWorkFits(animationClip.frames.size() + animationClip.loop, rigStructure.bones.size())
+        || !std::isfinite(animationClip.durationSeconds)
         || animationClip.durationSeconds <= 0.0f)
         return false;
     for (size_t i = 0; i < animationClip.frames.size(); ++i)
@@ -553,18 +554,24 @@ bool AnimationGenerator::generate(const RigStructure& rigStructure,
             it = parents.count(it->first) ? std::next(it) : frame.boneSkinMatrices.erase(it);
     }
 
-    // Never publish a partial or nonfinite animation, including invalid secondary
-    // simulations or malformed bind data supplied by a headless caller.
+    // Keep the previous clip intact unless every generated frame is admissible.
+    const auto finiteMatrices = [](const auto& transforms) {
+        return std::all_of(transforms.begin(), transforms.end(), [](const auto& transform) {
+            const auto* matrix = transform.second.constData();
+            return std::all_of(matrix, matrix + 16, [](double value) { return std::isfinite(value); });
+        });
+    };
+    double previous = -1;
     for (const auto& frame : animationClip.frames) {
-        if (!std::isfinite(frame.time) || frame.boneWorldTransforms.size() != rigStructure.bones.size()
-            || frame.boneSkinMatrices.size() != rigStructure.bones.size())
+        if (!animation::animationFrameTimeFollows(frame.time, previous, animationClip.durationSeconds)
+            || frame.boneWorldTransforms.size() != rigStructure.bones.size()
+            || frame.boneSkinMatrices.size() != rigStructure.bones.size()
+            || !finiteMatrices(frame.boneWorldTransforms) || !finiteMatrices(frame.boneSkinMatrices))
             return false;
-        for (const auto& transform : frame.boneSkinMatrices)
-            for (int i = 0; i < 16; ++i)
-                if (!std::isfinite(transform.second.constData()[i]))
-                    return false;
+        previous = frame.time;
     }
 
+    output = std::move(animationClip);
     return true;
 }
 

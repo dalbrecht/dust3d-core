@@ -24,6 +24,7 @@
 #include <cmath>
 #include <cstring>
 #include <dust3d/animation/sound_generator.h>
+#include <stdexcept>
 
 namespace dust3d {
 
@@ -869,6 +870,27 @@ AnimationSoundData SoundGenerator::generate(
     }
 
     return result;
+}
+
+AnimationSoundData SoundGenerator::generateBoundedPcm(
+    const std::vector<SoundEvent>& events, float durationSeconds, SurfaceMaterial material)
+{
+    constexpr float maximumWhooshDuration = 2.0f;
+    if (!std::isfinite(durationSeconds) || durationSeconds < 0.001f || durationSeconds > maximumBoundedDurationSeconds)
+        throw std::invalid_argument("Sound duration must be between 1 millisecond and 30 seconds");
+    if (events.size() > maximumBoundedEvents)
+        throw std::invalid_argument("Sound synthesis accepts at most 128 events");
+    const auto& surfaces = surfaceMaterials();
+    if (std::find(surfaces.begin(), surfaces.end(), material) == surfaces.end())
+        throw std::invalid_argument("Unknown sound surface");
+    for (const auto& event : events) {
+        if (!std::isfinite(event.timeSeconds) || event.timeSeconds < 0 || event.timeSeconds >= durationSeconds
+            || !std::isfinite(event.intensity) || event.intensity < 0 || event.intensity > 1
+            || (event.isWhoosh && (!std::isfinite(event.whooshDuration) || event.whooshDuration < 0
+                                     || event.whooshDuration > maximumWhooshDuration)))
+            throw std::invalid_argument("Invalid sound event timing or intensity");
+    }
+    return generate(events, durationSeconds, material);
 }
 
 std::vector<uint8_t> SoundGenerator::encodeWav(const AnimationSoundData& data)

@@ -44,6 +44,8 @@ public:
         double width = 0.0;
         double height = 0.0;
         std::map<std::array<PositionKey, 3>, std::array<Vector2, 3>> localUv;
+        // Triangle ordinals distinguish coincident surfaces without position lookup.
+        std::map<size_t, std::array<Vector2, 3>> indexedLocalUv;
     };
 
     struct Layout {
@@ -56,6 +58,7 @@ public:
         double height = 0.0;
         bool flipped = false;
         std::map<std::array<PositionKey, 3>, std::array<Vector2, 3>> globalUv;
+        std::map<size_t, std::array<Vector2, 3>> indexedGlobalUv;
     };
 
     UvMapPacker();

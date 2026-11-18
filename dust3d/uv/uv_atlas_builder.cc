@@ -6,6 +6,7 @@
 #include <dust3d/base/retained_payload_budget.h>
 #include <dust3d/uv/uv_atlas_builder.h>
 #include <limits>
+#include <set>
 
 namespace dust3d {
 namespace {
@@ -31,11 +32,24 @@ namespace {
 
     void validate(const Object& object, const std::map<Uuid, UvAtlasComponent>& components)
     {
+        const bool indexed = !object.triangleProceduralUvs.empty();
+        if (indexed && object.triangleProceduralUvs.size() != object.triangles.size())
+            throw UvAtlasError(UvAtlasErrorCode::invalidInput, "Procedural UV records must align with triangles.");
+        for (const auto& record : object.triangleProceduralUvs) {
+            if (!record)
+                continue;
+            if (record->gradient ? (!record->componentId.isNull() || record->gradient->chartId.isNull()) : record->componentId.isNull())
+                throw UvAtlasError(UvAtlasErrorCode::invalidInput, "An indexed chart requires one component owner or an explicit generated gradient identity.");
+            for (const auto& uv : record->uv) {
+                if (!std::isfinite(uv.x()) || !std::isfinite(uv.y()) || uv.x() < 0 || uv.x() > 1 || uv.y() < 0 || uv.y() > 1)
+                    throw UvAtlasError(UvAtlasErrorCode::invalidInput, "An indexed local UV is outside its finite normalized chart range.");
+            }
+        }
         const double exclusive = std::ldexp(1.0, std::numeric_limits<long>::digits);
         for (const auto& vertex : object.vertices) {
             for (size_t axis = 0; axis < 3; ++axis) {
                 const double scaled = vertex[axis] * 100000;
-                if (!std::isfinite(scaled) || scaled < -exclusive || scaled >= exclusive)
+                if (!std::isfinite(vertex[axis]) || (!indexed && (!std::isfinite(scaled) || scaled < -exclusive || scaled >= exclusive)))
                     throw UvAtlasError(UvAtlasErrorCode::invalidInput, "A UV vertex is outside the finite position-key range.");
             }
         }
@@ -55,6 +69,8 @@ namespace {
                     throw UvAtlasError(UvAtlasErrorCode::invalidInput, "A UV source image needs an identity and dimensions from 1 to 8192.");
             }
         }
+        if (indexed)
+            return;
         for (const auto& component : object.componentTriangleUvs) {
             for (const auto& triangle : component.second) {
                 for (const auto& uv : triangle.second) {
@@ -134,6 +150,123 @@ namespace {
             }
         }
     }
+    UvAtlas buildIndexed(const Object& object, const std::map<Uuid, UvAtlasComponent>& components,
+        const UvAtlasOptions& options, OutputBudget& budget)
+    {
+        UvAtlas result;
+        result.triangleUvs.resize(object.triangles.size());
+        result.triangleUvKnown.resize(object.triangles.size(), 0);
+        result.triangleComponentIds.resize(object.triangles.size());
+        using ChartKey = std::pair<bool, Uuid>;
+        std::map<ChartKey, UvMapPacker::Part> parts;
+        std::map<ChartKey, double> areas;
+        std::map<ChartKey, ProceduralUvGradient> gradients;
+        std::vector<ChartKey> gradientOrder;
+        double totalArea = 0;
+        for (size_t index = 0; index < object.triangles.size(); ++index) {
+            const auto& record = object.triangleProceduralUvs[index];
+            if (!record)
+                continue;
+            result.triangleComponentIds[index] = record->componentId;
+            const ChartKey key { record->gradient.has_value(), record->gradient ? record->gradient->chartId : record->componentId };
+            const auto component = components.find(record->componentId);
+            if (!record->gradient && component == components.end())
+                continue;
+            auto& part = parts[key];
+            if (record->gradient) {
+                const auto inserted = gradients.emplace(key, *record->gradient);
+                if (inserted.second)
+                    gradientOrder.push_back(key);
+                if (!inserted.second && (inserted.first->second.largeComponentId != record->gradient->largeComponentId || inserted.first->second.smallComponentId != record->gradient->smallComponentId))
+                    throw UvAtlasError(UvAtlasErrorCode::invalidInput, "One indexed gradient chart has conflicting endpoint owners.");
+                part.color = Color(1, 1, 1);
+                part.width = part.height = 512;
+            } else {
+                part.sourceId = record->componentId;
+                part.color = component->second.color;
+            }
+            part.indexedLocalUv.emplace(index, record->uv);
+            budget.add(1, sizeof(decltype(part.indexedLocalUv)::value_type));
+            if (!record->gradient && !component->second.image) {
+                const auto& face = object.triangles[index];
+                const double area = Vector3::area(object.vertices[face[0]], object.vertices[face[1]], object.vertices[face[2]]);
+                if (!std::isfinite(area))
+                    throw UvAtlasError(UvAtlasErrorCode::invalidInput, "Indexed chart area exceeds finite geometry.");
+                areas[key] += area;
+                totalArea += area;
+                if (!std::isfinite(totalArea))
+                    throw UvAtlasError(UvAtlasErrorCode::invalidInput, "Indexed atlas area exceeds finite geometry.");
+            }
+        }
+        const double scale = totalArea > 0 ? options.textureSize / std::sqrt(totalArea) : 1;
+        UvMapPacker packer;
+        size_t layoutOrdinal = 0;
+        if (!object.proceduralGradientOrder.empty()) {
+            std::map<Uuid, size_t> seamRanks;
+            for (size_t index = 0; index < object.proceduralGradientOrder.size(); ++index)
+                seamRanks.emplace(object.proceduralGradientOrder[index], index);
+            const auto rank = [&](const ChartKey& key) {
+                const auto found = seamRanks.find(key.second);
+                return found == seamRanks.end() ? object.proceduralGradientOrder.size() : found->second;
+            };
+            std::stable_sort(gradientOrder.begin(), gradientOrder.end(), [&](const auto& first, const auto& second) {
+                return rank(first) < rank(second);
+            });
+        }
+        std::vector<ChartKey> order = gradientOrder;
+        std::set<Uuid> submittedComponents;
+        for (const auto& component : object.proceduralComponentOrder) {
+            const ChartKey key { false, component };
+            if (parts.count(key) != 0 && submittedComponents.insert(component).second)
+                order.push_back(key);
+        }
+        for (const auto& entry : parts)
+            if (!entry.first.first && submittedComponents.count(entry.first.second) == 0)
+                order.push_back(entry.first);
+        for (const auto& key : order) {
+            auto& part = parts.at(key);
+            if (key.first) {
+                const auto& gradient = gradients.at(key);
+                auto color = [&](const Uuid& owner) {
+                    const auto found = components.find(owner);
+                    return found == components.end() ? Color(200.0 / 255, 200.0 / 255, 200.0 / 255) : found->second.color;
+                };
+                budget.add(1, sizeof(UvAtlasGradient));
+                result.gradients.push_back({ layoutOrdinal, color(gradient.largeComponentId), color(gradient.smallComponentId), 512 });
+            } else {
+                const auto& input = components.at(key.second);
+                if (input.image) {
+                    part.id = input.image->id;
+                    part.width = input.image->width;
+                    part.height = input.image->height;
+                } else
+                    part.width = part.height = std::max(1.0, std::sqrt(areas[key]) * scale);
+            }
+            budget.add(1, sizeof(UvMapPacker::Layout));
+            packer.addPart(part);
+            ++layoutOrdinal;
+        }
+        packer.pack();
+        result.layouts = packer.packedLayouts();
+        result.packedTextureSize = packer.packedTextureSize();
+        if (result.layouts.size() != parts.size() || !std::isfinite(result.packedTextureSize)
+            || (!parts.empty() && result.packedTextureSize <= 0))
+            throw UvAtlasError(UvAtlasErrorCode::packingFailed, "The indexed atlas packer returned an invalid chart set.");
+        for (const auto& layout : result.layouts) {
+            if (!std::isfinite(layout.left) || !std::isfinite(layout.top) || !std::isfinite(layout.width) || !std::isfinite(layout.height))
+                throw UvAtlasError(UvAtlasErrorCode::packingFailed, "The indexed atlas packer returned nonfinite chart bounds.");
+            for (const auto& entry : layout.indexedGlobalUv) {
+                for (const auto& uv : entry.second) {
+                    if (!std::isfinite(uv.x()) || !std::isfinite(uv.y()))
+                        throw UvAtlasError(UvAtlasErrorCode::packingFailed, "The indexed atlas packer returned nonfinite UVs.");
+                }
+                result.triangleUvs.at(entry.first) = entry.second;
+                result.triangleUvKnown.at(entry.first) = 1;
+            }
+        }
+        result.payloadBytes = budget.used();
+        return result;
+    }
 }
 
 UvAtlas UvAtlasBuilder::build(const Object& object, const std::map<Uuid, UvAtlasComponent>& components, const UvAtlasOptions& options)
@@ -147,6 +280,8 @@ UvAtlas UvAtlasBuilder::build(const Object& object, const std::map<Uuid, UvAtlas
     OutputBudget budget(options.maximumPayloadBytes == 0 ? defaultPayload : options.maximumPayloadBytes);
     budget.add(object.triangles.size(), sizeof(Uvs) + sizeof(Uuid) + sizeof(uint8_t));
     validate(object, components);
+    if (!object.triangleProceduralUvs.empty())
+        return buildIndexed(object, components, options, budget);
     UvAtlas result;
     UvMapPacker packer;
     size_t layoutCount = 0;

@@ -98,6 +98,18 @@ int main(int argc, char** argv)
         noUvs.triangles = source.triangles;
         rejects([&] { encodeFbxTexturedMeshScene(noUvs, material); }, DUST3D_STATUS_INVALID_DOCUMENT);
         const auto output = encodeFbxTexturedMeshScene(source, material);
+        FbxPropertyBlock bumpConnection;
+        bumpConnection.appendString("OP");
+        bumpConnection.appendInt64(612150006);
+        bumpConnection.appendInt64(612150002);
+        bumpConnection.appendString("Bump");
+        const auto hasBumpConnection = [&](const auto& scene) {
+            return std::search(scene.bytes().begin(), scene.bytes().end(),
+                       bumpConnection.bytes().begin(), bumpConnection.bytes().end())
+                != scene.bytes().end();
+        };
+        require(hasBumpConnection(output), "Normal texture must connect to the Qt-compatible Bump property");
+        require(!hasBumpConnection(baseline), "Scene without a normal texture must have no Bump connection");
         for (const auto& png : material.pngMaps)
             require(std::search(output.bytes().begin(), output.bytes().end(), png.begin(), png.end()) != output.bytes().end(), "Embedded PNG bytes changed or channel was lost");
         const auto moved = [&] { auto ownedMaterial = material; return encodeFbxTexturedMeshScene(source, ownedMaterial); }();

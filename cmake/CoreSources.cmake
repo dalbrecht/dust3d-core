@@ -4,6 +4,7 @@ set(DUST3D_CORE_SOURCES
     dust3d/animation/animation_defaults.cc
     dust3d/animation/spring_step_admission.cc
     dust3d/animation/surface_material.cc
+    dust3d/animation/sound_generator.cc
     dust3d/animation/parameter_catalog.cc
     dust3d/animation/biped/clip_metadata.cc
     dust3d/base/axis_aligned_bounding_box_tree.cc
@@ -24,6 +25,7 @@ set(DUST3D_CORE_SOURCES
     dust3d/mesh/hole_stitcher.cc
     dust3d/mesh/hole_wrapper.cc
     dust3d/mesh/mesh_combiner.cc
+    dust3d/mesh/interpolation_identities.cc
     dust3d/mesh/mesh_generator.cc
     dust3d/mesh/mesh_recombiner.cc
     dust3d/mesh/retained_payload.cc

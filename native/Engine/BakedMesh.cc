@@ -14,6 +14,71 @@ namespace native {
         constexpr size_t maximumBytes = 268435456;
         [[noreturn]] void invalid(const char* cause) { throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, cause); }
         [[noreturn]] void limit(const char* cause) { throw DocumentError(DUST3D_STATUS_LIMIT_EXCEEDED, cause); }
+        uint32_t pngInteger(const uint8_t* bytes)
+        {
+            return (uint32_t(bytes[0]) << 24) | (uint32_t(bytes[1]) << 16) | (uint32_t(bytes[2]) << 8) | bytes[3];
+        }
+        TextureImageRaster pngRaster(const uint8_t* data, size_t size, const TextureImageView& image)
+        {
+            constexpr uint8_t signature[] { 137, 80, 78, 71, 13, 10, 26, 10 };
+            if (size < 33 || std::memcmp(data, signature, sizeof(signature)) || pngInteger(data + 8) != 13
+                || std::memcmp(data + 12, "IHDR", 4) || pngInteger(data + 16) != image.width
+                || pngInteger(data + 20) != image.height
+                || data[26] != 0 || data[27] != 0 || data[28] > 1)
+                return TextureImageRaster::decoded;
+            const auto depth = data[24];
+            const auto colorType = data[25];
+            const bool packedIndexed = (depth == 1 || depth == 2 || depth == 4) && (colorType == 0 || colorType == 3);
+            const bool wideGray = depth == 16 && colorType == 0;
+            if (depth != 8 && !packedIndexed && !wideGray)
+                return TextureImageRaster::decoded;
+            size_t paletteSize = 0;
+            bool keyed = false;
+            // PNG requires the transparency key to precede the first image data chunk.
+            for (size_t offset = 33; size - offset >= 12;) {
+                const auto length = pngInteger(data + offset);
+                if (length > size - offset - 12)
+                    break;
+                const auto* kind = data + offset + 4;
+                if (!std::memcmp(kind, "IDAT", 4)) {
+                    switch (colorType) {
+                    case 0:
+                        if (wideGray)
+                            return keyed ? TextureImageRaster::alphaComposite : TextureImageRaster::decoded;
+                        return keyed        ? TextureImageRaster::indexedAlpha
+                            : packedIndexed ? TextureImageRaster::indexed
+                                            : TextureImageRaster::decoded;
+                    case 2:
+                        return keyed ? TextureImageRaster::alphaComposite : TextureImageRaster::rgb32;
+                    case 3:
+                        if (paletteSize)
+                            return keyed ? TextureImageRaster::indexedAlpha : TextureImageRaster::indexed;
+                        return TextureImageRaster::decoded;
+                    case 4:
+                    case 6:
+                        return TextureImageRaster::alphaComposite;
+                    default:
+                        return TextureImageRaster::decoded;
+                    }
+                }
+                if (!std::memcmp(kind, "IEND", 4) || !std::memcmp(kind, "IHDR", 4))
+                    break;
+                if (colorType == 3 && !std::memcmp(kind, "PLTE", 4)) {
+                    if (paletteSize || length == 0 || length % 3 || length > (1u << depth) * 3)
+                        break;
+                    paletteSize = length / 3;
+                }
+                if (!std::memcmp(kind, "tRNS", 4)) {
+                    const bool validKey = (colorType == 0 && length == 2) || (colorType == 2 && length == 6)
+                        || (colorType == 3 && length > 0 && length <= paletteSize);
+                    if (keyed || !validKey)
+                        break;
+                    keyed = true;
+                }
+                offset += size_t(length) + 12;
+            }
+            return TextureImageRaster::decoded;
+        }
         size_t dimension(size_t value, size_t fallback)
         {
             if (value > 8192)
@@ -40,7 +105,7 @@ namespace native {
         }
     }
 
-    BakedMeshData::BakedMeshData(const Dust3DBakeOptions& options)
+    BakedMeshData::BakedMeshData(const Dust3DBakeOptions& options, const size_t* premultipliedIndices, size_t premultipliedCount)
         : m_options(options)
     {
         if (options.struct_size != sizeof(options))
@@ -58,6 +123,14 @@ namespace native {
             invalid("The bake spatial grid limit must not exceed sixteen million entries.");
         if (options.image_count > 10000 || (options.image_count && !options.images))
             invalid("Baking requires at most 10000 image descriptors and a valid descriptor buffer.");
+        if (premultipliedCount > options.image_count || (premultipliedCount && !premultipliedIndices))
+            invalid("Invalid premultiplied FBX image index buffer.");
+        for (size_t index = 0; index < premultipliedCount; ++index) {
+            if (premultipliedIndices[index] >= options.image_count || (index && premultipliedIndices[index] <= premultipliedIndices[index - 1]))
+                invalid("Premultiplied FBX image indices must be strictly increasing and in range.");
+        }
+        size_t nextPremultiplied = 0;
+        size_t remainingPremultipliedBytes = maximumBytes;
         checkCancellation(options.cancellation);
         for (size_t index = 0; index < options.image_count; ++index) {
             checkCancellation(options.cancellation);
@@ -72,17 +145,59 @@ namespace native {
                 invalid("A bake image stride/span does not cover its readable RGBA8 rows.");
             if (!m_images.emplace(identity, UvAtlasImage { identity, image.width, image.height }).second)
                 invalid("Bake image identities must be unique, including engine aliases.");
-            m_pixels.emplace(identity, TextureImageView { image.width, image.height, image.row_stride, image.byte_count, image.pixels });
+            TextureImageView view { image.width, image.height, image.row_stride, image.byte_count, image.pixels };
+            if (nextPremultiplied < premultipliedCount && index == premultipliedIndices[nextPremultiplied]) {
+                const auto bytes = rowBytes * image.height;
+                if (bytes > remainingPremultipliedBytes)
+                    limit("Premultiplied FBX image rows exceed 256 MiB.");
+                remainingPremultipliedBytes -= bytes;
+                for (size_t y = 0; y < image.height; ++y) {
+                    checkCancellation(options.cancellation);
+                    const auto* row = image.pixels + y * image.row_stride;
+                    for (size_t x = 0; x < rowBytes; x += 4) {
+                        if (std::max({ row[x], row[x + 1], row[x + 2] }) > row[x + 3])
+                            invalid("Premultiplied FBX image RGB must not exceed alpha.");
+                    }
+                }
+                view.raster = TextureImageRaster::premultiplied;
+                ++nextPremultiplied;
+            }
+            m_pixels.emplace(identity, view);
         }
         // No caller descriptor array is needed after its views have been copied.
         m_options.images = nullptr;
         m_options.image_count = 0;
     }
 
+    void BakedMeshData::item(std::string_view type, std::string_view name, const uint8_t* data, size_t size) noexcept
+    {
+        if (m_imageMetadataFailure || m_pixels.empty() || type != "asset" || name.substr(0, 7) != "images/")
+            return;
+        const auto tail = name.substr(7);
+        const auto key = tail.substr(0, tail.find_first_of("/."));
+        if (key.size() != 36 && key.size() != 38)
+            return;
+        try {
+            const Uuid identity { std::string(key) };
+            const auto image = m_pixels.find(identity);
+            if (image == m_pixels.end() || image->second.raster == TextureImageRaster::premultiplied)
+                return;
+            auto [mode, inserted] = m_archiveImageModes.emplace(identity, TextureImageRaster::decoded);
+            mode->second = inserted ? pngRaster(data, size, image->second) : TextureImageRaster::decoded;
+        } catch (...) {
+            // The archive observer is noexcept. Report the original cause when resolving the bake.
+            m_imageMetadataFailure = std::current_exception();
+        }
+    }
+
     TextureBakeInputs BakedMeshData::resolvedInputs(const Snapshot& snapshot) const
     {
+        if (m_imageMetadataFailure)
+            std::rethrow_exception(m_imageMetadataFailure);
         TextureBakeInputs result;
         result.images = m_pixels;
+        for (const auto& [identity, raster] : m_archiveImageModes)
+            result.images.at(identity).raster = raster;
         std::map<Uuid, std::map<std::string, std::string>> definitions;
         for (const auto& [key, attributes] : snapshot.components) {
             checkCancellation(cancellation());
@@ -179,6 +294,7 @@ namespace native {
         // Generated triangle ordinals and caller pixel views are call-local workspace.
         std::vector<size_t>().swap(m_originalIndices);
         m_pixels.clear();
+        m_archiveImageModes.clear();
         m_options.cancellation = nullptr;
     }
 }
@@ -198,7 +314,7 @@ Dust3DBakedMesh* dust3d_baked_mesh_load(const uint8_t* bytes, size_t size, const
         std::lock_guard<std::mutex> lock(engineMutex());
         checkCancellation(options->cancellation);
         std::string warning;
-        auto snapshot = readDocument(bytes, size, warning);
+        auto snapshot = readDocument(bytes, size, warning, owner->data.get());
         owner->data->validateVisuals(*snapshot);
         owner->uvs = std::make_unique<Dust3DUvMesh>();
         owner->uvs->metadata = std::make_unique<UvMetadata>(*snapshot, owner->data->uvBudget());

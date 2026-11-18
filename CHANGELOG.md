@@ -4,6 +4,63 @@
 
 - Stop CLI exports cooperatively on SIGINT, retaining files committed before cancellation and returning exit status 130 when cancellation prevents publication.
 
+- Preserve authored vertex opacity in procedural baked preview geometry.
+
+- Bake referenced PNG images from DS3 archives in standalone FBX exports (#390).
+
+- Add an opt-in preview mesh load with cooperative cancellation at native phase boundaries.
+
+- Honor legacy part inversion when opening older Dust3D documents.
+
+- Reject invalid numeric XML character references before reading DS3 documents (#103).
+- Keep the authored starting endpoint when repairing mixed edge directions in a legacy chain.
+
+- Preserve authored edge directions during native loading so identifiers cannot reverse valid chains and their generated UVs.
+
+- Omit untextured preview advisories after successful baked FBX exports. Geometry-only FBX exports continue to report their preview advisories.
+
+- Render bounded explicit sound events into owned WAV bytes through the portable C API.
+
+- Allow static FBX callers to supply premultiplied texture samples prepared before 16-to-8-bit reduction.
+
+- Match Qt chart compositing for 16-bit grayscale PNG transparency keys.
+
+- Match Qt texture sampling and transparency for 1-bit grayscale and indexed PNGs.
+
+- Match Qt texture sampling and transparency for 2-bit and 4-bit indexed and grayscale PNGs.
+
+- Match Qt texture sampling for 8-bit indexed and alpha-capable grayscale PNGs.
+
+- Match Qt’s inset and padding compositing for alpha-capable truecolor PNG textures.
+
+- Preserve Qt RGB32 texture sampling for unkeyed 8-bit RGB PNG assets.
+
+- Match Qt's direct texture sampling for extreme chart scales.
+
+- Match Qt’s independently scaled image and seam-gradient gutters around packed texture charts.
+
+- Add owned PCM16/WAV bytes with checked RIFF arithmetic, frame validation and output quotas (#318).
+
+- Match Qt source texel selection within packed image and seam-gradient charts, including rotated charts and wide sampling spans.
+
+- Preserve thin hollow walls and cavity caps through intersecting Boolean operations.
+
+- Preserve distinct vertices in thin solids when Boolean operands have no candidate cuts.
+
+- Expose bounded generated previews for the document root and authored components in one batch.
+
+- Preflight interpolation node/edge identities before mutation, preserving original records and collision-free deterministic chains for shared-prefix UUIDs (#315).
+
+- Generate hollow tubes for thicknesses strictly between 0 and 1. Both endpoints use the ordinary solid tube (Apple #96).
+
+- Keep Boolean-derived unit UVs inside atlas bounds without repairing invalid source coordinates, and retain unknown/gradient incident-face ownership at generated seam boundaries.
+
+- Share immutable node-hint distributions across corner/cache copies while retaining replacement isolation and conservative ownership accounting.
+
+- Preserve node/weighted source hints by original triangle corner through producers, Boolean interpolation, generated bridges and filtered native export; keep unknown/conflicting ownership explicit (Apple #96 prerequisite).
+
+- Preserve procedural UV corners and chart ownership by triangle ordinal through mirrors, booleans, generated seam gradients and source baking; distinguish coincident surfaces (Apple #96 prerequisite).
+
 - Add versioned newline-delimited JSON export receipts with `--json`. Successful receipts follow atomic publication. Exit status 6 reports a delivery failure while preserving committed files (#306).
 
 - Require sealed schema-3 per-job wall budgets and enforce scheduler-owned service watchdogs independently of native work, retaining original deadline causes (#304).

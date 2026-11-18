@@ -409,6 +409,11 @@ const std::vector<Vector3>& MeshRecombiner::regeneratedVertices()
     return m_regeneratedVertices;
 }
 
+const std::vector<size_t>& MeshRecombiner::regeneratedVertexInputIndices() const
+{
+    return m_regeneratedVertexInputIndices;
+}
+
 const std::vector<std::pair<MeshCombiner::Source, size_t>>& MeshRecombiner::regeneratedVerticesSourceIndices()
 {
     return m_regeneratedVerticesSourceIndices;
@@ -422,6 +427,16 @@ const std::vector<std::vector<size_t>>& MeshRecombiner::regeneratedFaces()
 const std::vector<std::optional<size_t>>& MeshRecombiner::regeneratedFaceSources() const
 {
     return m_regeneratedFaceSources;
+}
+
+const std::vector<std::pair<std::vector<size_t>, std::vector<size_t>>>& MeshRecombiner::generatedBridgingFaceIndices() const
+{
+    return m_generatedBridgingFaceIndices;
+}
+
+const std::vector<std::pair<std::vector<size_t>, std::vector<size_t>>>& MeshRecombiner::generatedBridgingBoundaryVertices() const
+{
+    return m_generatedBridgingBoundaryVertices;
 }
 
 size_t MeshRecombiner::nearestIndex(const Vector3& position, const std::vector<size_t>& edgeLoop)
@@ -608,6 +623,7 @@ bool MeshRecombiner::advanceSmallForBridgeQuad(const Vector3& smallCurrent, cons
 void MeshRecombiner::fillPairs(const std::vector<size_t>& small, const std::vector<size_t>& large)
 {
     std::pair<std::vector<std::array<Vector3, 3>>, std::vector<std::array<Vector3, 3>>> bridgingTriangles;
+    std::pair<std::vector<size_t>, std::vector<size_t>> bridgeIndices;
 
     size_t smallIndex = 0;
     size_t largeIndex = 0;
@@ -619,6 +635,7 @@ void MeshRecombiner::fillPairs(const std::vector<size_t>& small, const std::vect
                     (*m_vertices)[small[smallIndex + 1]],
                     (*m_vertices)[large[largeIndex]],
                     (*m_vertices)[large[largeIndex + 1]])) {
+                bridgeIndices.second.push_back(m_regeneratedFaces.size());
                 m_regeneratedFaces.push_back({ small[smallIndex],
                     small[smallIndex + 1],
                     large[largeIndex] });
@@ -626,6 +643,7 @@ void MeshRecombiner::fillPairs(const std::vector<size_t>& small, const std::vect
                 ++smallIndex;
                 continue;
             }
+            bridgeIndices.first.push_back(m_regeneratedFaces.size());
             m_regeneratedFaces.push_back({ large[largeIndex + 1],
                 large[largeIndex],
                 small[smallIndex] });
@@ -634,6 +652,7 @@ void MeshRecombiner::fillPairs(const std::vector<size_t>& small, const std::vect
             continue;
         }
         if (smallIndex + 1 >= small.size()) {
+            bridgeIndices.first.push_back(m_regeneratedFaces.size());
             m_regeneratedFaces.push_back({ large[largeIndex + 1],
                 large[largeIndex],
                 small[smallIndex] });
@@ -642,6 +661,7 @@ void MeshRecombiner::fillPairs(const std::vector<size_t>& small, const std::vect
             continue;
         }
         if (largeIndex + 1 >= large.size()) {
+            bridgeIndices.second.push_back(m_regeneratedFaces.size());
             m_regeneratedFaces.push_back({ small[smallIndex],
                 small[smallIndex + 1],
                 large[largeIndex] });
@@ -653,6 +673,8 @@ void MeshRecombiner::fillPairs(const std::vector<size_t>& small, const std::vect
     }
 
     m_generatedBridgingTriangles.emplace_back(bridgingTriangles);
+    m_generatedBridgingFaceIndices.emplace_back(std::move(bridgeIndices));
+    m_generatedBridgingBoundaryVertices.emplace_back(large, small);
 }
 
 void MeshRecombiner::removeReluctantVertices()
@@ -668,6 +690,7 @@ void MeshRecombiner::removeReluctantVertices()
             } else {
                 size_t newIndex = m_regeneratedVertices.size();
                 m_regeneratedVertices.push_back((*m_vertices)[index]);
+                m_regeneratedVertexInputIndices.push_back(index);
                 m_regeneratedVerticesSourceIndices.push_back((*m_verticesSourceIndices)[index]);
                 oldToNewIndexMap.insert({ index, newIndex });
                 newFace.push_back(newIndex);

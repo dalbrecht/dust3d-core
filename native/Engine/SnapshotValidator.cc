@@ -52,8 +52,8 @@ namespace native {
 
         void orientEdges(Snapshot& snapshot)
         {
-            // The Qt loader normalizes legacy chains before generation. A bounded traversal
-            // also prevents flattenLinks from looping forever on inconsistent edge cycles.
+            // The Qt loader normalizes inconsistent legacy chains before generation.
+            // Keep valid authored directions because the tube frame and UVs depend on them.
             using Neighbor = std::pair<std::string, std::string>;
             std::map<std::string, std::map<std::string, std::vector<Neighbor>>> links;
             for (const auto& edge : snapshot.edges) {
@@ -74,26 +74,42 @@ namespace native {
                 const auto& neighbors = part.second;
                 if (neighbors.empty())
                     continue;
+                bool needsOrientationRepair = false;
                 for (const auto& node : neighbors) {
                     if (node.second.size() > 2)
                         throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "A part contains branching edges; split it into separate parts first.");
+                    if (node.second.size() == 2) {
+                        const auto startsAtNode = [&](const Neighbor& neighbor) {
+                            return snapshot.edges.at(neighbor.second).at("from") == node.first;
+                        };
+                        if (startsAtNode(node.second[0]) == startsAtNode(node.second[1]))
+                            needsOrientationRepair = true;
+                    }
                 }
-                auto current = neighbors.begin()->first;
+                const std::string* endpoint = nullptr;
                 for (const auto& node : neighbors) {
-                    if (node.second.size() == 1) {
-                        current = node.first;
+                    if (node.second.size() != 1)
+                        continue;
+                    if (!endpoint)
+                        endpoint = &node.first;
+                    // Qt prefers an endpoint already authored as the source of its edge.
+                    if (needsOrientationRepair && snapshot.edges.at(node.second.front().second).at("from") == node.first) {
+                        endpoint = &node.first;
                         break;
                     }
                 }
+                auto current = endpoint ? *endpoint : neighbors.begin()->first;
                 std::set<std::string> visitedEdges;
                 for (;;) {
                     bool advanced = false;
                     for (const auto& next : neighbors.at(current)) {
                         if (!visitedEdges.insert(next.second).second)
                             continue;
-                        auto& edge = snapshot.edges.at(next.second);
-                        edge["from"] = current;
-                        edge["to"] = next.first;
+                        if (needsOrientationRepair) {
+                            auto& edge = snapshot.edges.at(next.second);
+                            edge["from"] = current;
+                            edge["to"] = next.first;
+                        }
                         current = next.first;
                         advanced = true;
                         break;
