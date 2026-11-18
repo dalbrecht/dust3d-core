@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Seed color-atlas dilation from the exact padded chart draw bounds.
+
+- Composite overlapping texture-chart padding in atlas paint order.
+
+- Preserve authored vertex opacity in procedural baked preview geometry.
+
+- Bake referenced PNG images from DS3 archives in standalone FBX exports (#390).
+
 - Add an opt-in preview mesh load with cooperative cancellation at native phase boundaries.
 
 - Honor legacy part inversion when opening older Dust3D documents.
@@ -15,18 +23,13 @@
 
 - Render bounded explicit sound events into owned WAV bytes through the portable C API.
 
-- Seed color-atlas dilation from the exact padded chart draw bounds.
-
-- Composite overlapping texture-chart padding in atlas paint order.
-
-
-- Honor 16-bit RGB PNG transparency keys when compositing texture charts.
-
 - Allow static FBX callers to supply premultiplied texture samples prepared before 16-to-8-bit reduction.
 
 - Match Qt chart compositing for 16-bit grayscale PNG transparency keys.
 
 - Match Qt texture sampling and transparency for 1-bit grayscale and indexed PNGs.
+
+- Honor 16-bit RGB PNG transparency keys when compositing texture charts.
 
 - Match Qt texture sampling and transparency for 2-bit and 4-bit indexed and grayscale PNGs.
 
