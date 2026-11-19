@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Preserve reference quiet-arm values for catalog-derived Biped walk directions in opt-in native animation evaluation.
+
 - Add an explicitly enabled SwiftPM animation library with C ABI import and ownership contracts.
 
 - Apply legacy part inversion to the exact resolved component owner during native loading.
