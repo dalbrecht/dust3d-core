@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add an explicitly enabled SwiftPM animation library with C ABI import and ownership contracts.
+
 - Apply legacy part inversion to the exact resolved component owner during native loading.
 
 - Give legacy flat part lists stable component identities during native loading, and give explicit component hierarchies precedence over stale flat entries.

@@ -1820,3 +1820,10 @@ if(BUILD_TESTING AND TARGET dust3d_worker_job_io)
 endif()
 
 include(cmake/ExperimentalAnimationTests.cmake)
+
+if(BUILD_TESTING AND Python3_Interpreter_FOUND)
+    add_test(NAME experimental_animation_package_contracts
+        COMMAND "${Python3_EXECUTABLE}" -B -m unittest discover
+        -s "${CMAKE_CURRENT_SOURCE_DIR}/tests/core" -p test_experimental_animation_package.py)
+    set_tests_properties(experimental_animation_package_contracts PROPERTIES TIMEOUT 60)
+endif()

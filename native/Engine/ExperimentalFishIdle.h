@@ -8,7 +8,7 @@
 extern "C" {
 #endif
 
-/* Private, unregistered source contract for the procedural FishIdle clip. */
+/* Experimental animation owner enabled by opt-in build targets. */
 typedef struct Dust3DExperimentalFishIdle Dust3DExperimentalFishIdle;
 
 typedef struct Dust3DExperimentalFishIdleOptions {

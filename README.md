@@ -1381,3 +1381,15 @@ ctest --test-dir build-animation -R '^experimental_animation_runtime_contracts$'
 
 The fixture is generated from the checked-in goldfish model and Fish rig template.
 The opt-in runtime is retained in the dedicated static test library.
+
+### SwiftPM animation product
+
+Set `DUST3D_EXPERIMENTAL_ANIMATION=1` to register the
+`Dust3DExperimentalAnimation` static library and its Swift bridge tests.
+Swift callers import `Dust3DExperimentalAnimation` alongside `Dust3DEngine`.
+The product compiles the same explicit animation source inventory as the CMake contract target.
+
+```sh
+DUST3D_EXPERIMENTAL_ANIMATION=1 swift build --product Dust3DExperimentalAnimation --configuration release
+DUST3D_EXPERIMENTAL_ANIMATION=1 swift test --configuration release --filter Dust3DExperimentalAnimationTests
+```
