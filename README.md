@@ -1367,3 +1367,17 @@ owned PCM16 WAV bytes for core #318. Caller quotas include the 44-byte header;
 empty PCM is valid, and output is immutable until owner destruction. The encoder
 performs no synthesis, native evaluation, file I/O or playback. See
 [ADR 0204](docs/adr/0204-owned-pcm-wav.md) for tests and remaining delivery gates.
+
+## Experimental animation runtime contracts
+
+Build the private generated-rig animation evaluator and run its pose, PCM audio,
+animated FBX ownership, and authored decimal parsing contracts with Python 3 and CMake.
+
+```sh
+cmake -S . -B build-animation -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON -DDUST3D_BUILD_EXPERIMENTAL_ANIMATION_TESTS=ON
+cmake --build build-animation --target dust3d_experimental_animation_tests --parallel 4
+ctest --test-dir build-animation -R '^experimental_animation_runtime_contracts$' --output-on-failure
+```
+
+The fixture is generated from the checked-in goldfish model and Fish rig template.
+The opt-in runtime is retained in the dedicated static test library.

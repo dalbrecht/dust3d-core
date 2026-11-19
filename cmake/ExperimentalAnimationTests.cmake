@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 # Explicit opt-in keeps the private runtime separate from standard products.
 option(DUST3D_BUILD_EXPERIMENTAL_ANIMATION_TESTS "Build private animation runtime contracts" OFF)
 if(BUILD_TESTING AND DUST3D_BUILD_EXPERIMENTAL_ANIMATION_TESTS)
