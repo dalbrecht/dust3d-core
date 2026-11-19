@@ -3,6 +3,7 @@
 #include "FbxBakedMaterial.h"
 #include "FbxGeometrySelection.h"
 #include "GenerationPipeline.h"
+#include "ImportedModels.h"
 #include <dust3d/base/retained_payload_budget.h>
 
 struct Dust3DFbxExport {
@@ -48,8 +49,11 @@ Dust3DFbxExport* dust3d_fbx_export_load_with_premultiplied_images(const uint8_t*
         std::lock_guard<std::mutex> lock(engineMutex());
         checkCancellation(options->cancellation);
         std::string warning;
-        // No import owner is supplied: model assets reject before GLB decoding.
-        auto snapshot = readDocument(bytes, size, warning, bake.get());
+        // Imported geometry is owned through reading and generation. BAKED still
+        // rejects model assets before decoding: it has no source-aligned atlas.
+        ImportedModels imports;
+        auto* geometryImports = options->mode == DUST3D_FBX_EXPORT_GEOMETRY ? &imports : nullptr;
+        auto snapshot = readDocument(bytes, size, warning, bake.get(), geometryImports);
         // A successful bake supplies the material data described by these preview notices.
         if (bake && (warning == untexturedImagePreviewWarning || warning == untexturedSurfacePreviewWarning))
             warning.clear();
@@ -76,7 +80,7 @@ Dust3DFbxExport* dust3d_fbx_export_load_with_premultiplied_images(const uint8_t*
             outputs.useFbxAtlasUvs = true;
         }
         // Original-export preparation returns metadata only; discard it and atlas workspace before encoding.
-        (void)generateMesh(std::move(snapshot), warning, nullptr, nullptr, nullptr, outputs);
+        (void)generateMesh(std::move(snapshot), warning, geometryImports, nullptr, nullptr, outputs);
         uvs.reset();
         checkCancellation(options->cancellation);
         auto document = [&] {
