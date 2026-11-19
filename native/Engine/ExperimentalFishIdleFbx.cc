@@ -29,9 +29,7 @@ static Dust3DExperimentalFishIdleFbx* createFishIdleFbx(
         const auto config = options ? *options : dust3d_generated_rig_default_options();
         if (config.version != 1 || config.struct_size != sizeof(config))
             throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Unsupported FishIdle FBX rig options.");
-        if (bakeOptions && (bakeOptions->struct_size != sizeof(*bakeOptions)
-                               || bakeOptions->cancellation != config.cancellation
-                               || !bakeOptions->maximum_uv_payload_bytes || !bakeOptions->maximum_bake_payload_bytes))
+        if (bakeOptions && (bakeOptions->struct_size != sizeof(*bakeOptions) || bakeOptions->cancellation != config.cancellation || !bakeOptions->maximum_uv_payload_bytes || !bakeOptions->maximum_bake_payload_bytes))
             throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Animated FBX bake options require explicit budgets and a shared token.");
         checkCancellation(config.cancellation);
         std::vector<std::string_view> requested;
@@ -82,8 +80,8 @@ static Dust3DExperimentalFishIdleFbx* createFishIdleFbx(
         return new Dust3DExperimentalFishIdleFbx { std::move(document) };
     } catch (const RigFinalDataError& cause) {
         const auto status = cause.failure() == RigFinalDataFailure::invalidData ? DUST3D_STATUS_INVALID_DOCUMENT
-            : cause.failure() == RigFinalDataFailure::limitExceeded ? DUST3D_STATUS_LIMIT_EXCEEDED
-                                                                  : DUST3D_STATUS_CANCELLED;
+            : cause.failure() == RigFinalDataFailure::limitExceeded             ? DUST3D_STATUS_LIMIT_EXCEEDED
+                                                                                : DUST3D_STATUS_CANCELLED;
         setError(error, status, cause.what());
     } catch (const DocumentError& cause) {
         setError(error, cause.status(), cause.what());
@@ -91,15 +89,15 @@ static Dust3DExperimentalFishIdleFbx* createFishIdleFbx(
         setError(error, DUST3D_STATUS_LIMIT_EXCEEDED, cause.what());
     } catch (const TextureBakeError& cause) {
         const auto status = cause.code() == TextureBakeErrorCode::cancelled ? DUST3D_STATUS_CANCELLED
-            : cause.code() == TextureBakeErrorCode::limitExceeded ? DUST3D_STATUS_LIMIT_EXCEEDED
-            : cause.code() == TextureBakeErrorCode::invalidInput ? DUST3D_STATUS_INVALID_DOCUMENT
-                                                                : DUST3D_STATUS_GENERATION_FAILED;
+            : cause.code() == TextureBakeErrorCode::limitExceeded           ? DUST3D_STATUS_LIMIT_EXCEEDED
+            : cause.code() == TextureBakeErrorCode::invalidInput            ? DUST3D_STATUS_INVALID_DOCUMENT
+                                                                            : DUST3D_STATUS_GENERATION_FAILED;
         setError(error, status, cause.what());
     } catch (const UvAtlasError& cause) {
         const auto status = cause.code() == UvAtlasErrorCode::cancelled ? DUST3D_STATUS_CANCELLED
-            : cause.code() == UvAtlasErrorCode::limitExceeded ? DUST3D_STATUS_LIMIT_EXCEEDED
-            : cause.code() == UvAtlasErrorCode::invalidInput ? DUST3D_STATUS_INVALID_DOCUMENT
-                                                           : DUST3D_STATUS_GENERATION_FAILED;
+            : cause.code() == UvAtlasErrorCode::limitExceeded           ? DUST3D_STATUS_LIMIT_EXCEEDED
+            : cause.code() == UvAtlasErrorCode::invalidInput            ? DUST3D_STATUS_INVALID_DOCUMENT
+                                                                        : DUST3D_STATUS_GENERATION_FAILED;
         setError(error, status, cause.what());
     } catch (const std::bad_alloc& cause) {
         setError(error, DUST3D_STATUS_LIMIT_EXCEEDED, cause.what());

@@ -91,7 +91,8 @@ static Dust3DExperimentalFishIdle* loadFishIdle(const uint8_t* archive, size_t a
             if (!entry.name || !entry.name_length || entry.name_length > 64
                 || !entry.value || !entry.value_length || entry.value_length > 64
                 || !authored.values.emplace(std::string(entry.name, entry.name_length),
-                    std::string(entry.value, entry.value_length)).second)
+                                       std::string(entry.value, entry.value_length))
+                    .second)
                 throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Invalid or duplicate experimental FishIdle parameter span.");
         }
         std::vector<std::string> surfaceNames;
@@ -117,11 +118,11 @@ static Dust3DExperimentalFishIdle* loadFishIdle(const uint8_t* archive, size_t a
         auto* drawBake = source.bake.get();
         auto result = surface
             ? generateGroundedFishIdleSoundPreview(*source.input, std::move(source.metadata), source.rig,
-                authored, *surface, source.options, config.maximum_draw_vertices, config.cancellation, clipType, drawBake)
+                  authored, *surface, source.options, config.maximum_draw_vertices, config.cancellation, clipType, drawBake)
             : GroundedFishIdleSoundPreview { generateGroundedFishIdleDrawPreview(*source.input,
-                  std::move(source.metadata), source.rig, authored, source.options,
-                  config.maximum_draw_vertices, config.cancellation, surfaceHandoff, clipType, drawBake),
-                {} };
+                                                 std::move(source.metadata), source.rig, authored, source.options,
+                                                 config.maximum_draw_vertices, config.cancellation, surfaceHandoff, clipType, drawBake),
+                  {} };
         auto& preview = result.visual;
         const auto frames = preview.clip.sampleTimes().size();
         const auto joints = preview.rest->joints.size();
@@ -146,8 +147,8 @@ static Dust3DExperimentalFishIdle* loadFishIdle(const uint8_t* archive, size_t a
         return owner.release();
     } catch (const RigFinalDataError& cause) {
         const auto status = cause.failure() == RigFinalDataFailure::invalidData ? DUST3D_STATUS_INVALID_DOCUMENT
-            : cause.failure() == RigFinalDataFailure::limitExceeded ? DUST3D_STATUS_LIMIT_EXCEEDED
-                                                                  : DUST3D_STATUS_CANCELLED;
+            : cause.failure() == RigFinalDataFailure::limitExceeded             ? DUST3D_STATUS_LIMIT_EXCEEDED
+                                                                                : DUST3D_STATUS_CANCELLED;
         setError(error, status, cause.what());
     } catch (const DocumentError& cause) {
         setError(error, cause.status(), cause.what());
@@ -155,15 +156,15 @@ static Dust3DExperimentalFishIdle* loadFishIdle(const uint8_t* archive, size_t a
         setError(error, DUST3D_STATUS_LIMIT_EXCEEDED, cause.what());
     } catch (const TextureBakeError& cause) {
         const auto status = cause.code() == TextureBakeErrorCode::cancelled ? DUST3D_STATUS_CANCELLED
-            : cause.code() == TextureBakeErrorCode::limitExceeded ? DUST3D_STATUS_LIMIT_EXCEEDED
-            : cause.code() == TextureBakeErrorCode::invalidInput ? DUST3D_STATUS_INVALID_DOCUMENT
-                                                                : DUST3D_STATUS_GENERATION_FAILED;
+            : cause.code() == TextureBakeErrorCode::limitExceeded           ? DUST3D_STATUS_LIMIT_EXCEEDED
+            : cause.code() == TextureBakeErrorCode::invalidInput            ? DUST3D_STATUS_INVALID_DOCUMENT
+                                                                            : DUST3D_STATUS_GENERATION_FAILED;
         setError(error, status, cause.what());
     } catch (const UvAtlasError& cause) {
         const auto status = cause.code() == UvAtlasErrorCode::cancelled ? DUST3D_STATUS_CANCELLED
-            : cause.code() == UvAtlasErrorCode::limitExceeded ? DUST3D_STATUS_LIMIT_EXCEEDED
-            : cause.code() == UvAtlasErrorCode::invalidInput ? DUST3D_STATUS_INVALID_DOCUMENT
-                                                           : DUST3D_STATUS_GENERATION_FAILED;
+            : cause.code() == UvAtlasErrorCode::limitExceeded           ? DUST3D_STATUS_LIMIT_EXCEEDED
+            : cause.code() == UvAtlasErrorCode::invalidInput            ? DUST3D_STATUS_INVALID_DOCUMENT
+                                                                        : DUST3D_STATUS_GENERATION_FAILED;
         setError(error, status, cause.what());
     } catch (const std::bad_alloc& cause) {
         setError(error, DUST3D_STATUS_LIMIT_EXCEEDED, cause.what());

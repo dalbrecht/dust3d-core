@@ -51,14 +51,14 @@ int main()
     // grounded 1.5-unit chain. The preview integration supplies this same shape
     // through actual authored edge assignments and the owned grounded mesh.
     const RigStructure rig { "Fish", "", {
-        { "Root", "", 0, 0, 0.75f, 0, 0.25f, 0.75f },
-        { "Head", "Root", 0, 0, 0.75f, 0, 0, 0.50f },
-        { "BodyFront", "Head", 0, 0, 0.50f, 0, 0, 0.25f },
-        { "BodyMid", "BodyFront", 0, 0, 0.25f, 0, 0, 0 },
-        { "BodyRear", "BodyMid", 0, 0, 0, 0, 0, -0.25f },
-        { "TailStart", "BodyRear", 0, 0, -0.25f, 0, 0, -0.50f },
-        { "TailEnd", "TailStart", 0, 0, -0.50f, 0, 0, -0.75f },
-    } };
+                                             { "Root", "", 0, 0, 0.75f, 0, 0.25f, 0.75f },
+                                             { "Head", "Root", 0, 0, 0.75f, 0, 0, 0.50f },
+                                             { "BodyFront", "Head", 0, 0, 0.50f, 0, 0, 0.25f },
+                                             { "BodyMid", "BodyFront", 0, 0, 0.25f, 0, 0, 0 },
+                                             { "BodyRear", "BodyMid", 0, 0, 0, 0, 0, -0.25f },
+                                             { "TailStart", "BodyRear", 0, 0, -0.25f, 0, 0, -0.50f },
+                                             { "TailEnd", "TailStart", 0, 0, -0.50f, 0, 0, -0.75f },
+                                         } };
     RigGenerator generator;
     std::map<std::string, Matrix4x4> inverse;
     const auto prepared = generator.computeBoneInverseBindMatrices(rig, inverse);

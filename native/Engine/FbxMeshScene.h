@@ -3,8 +3,8 @@
 #define DUST3D_NATIVE_FBX_MESH_SCENE_H_
 #include "FbxDocument.h"
 #include "GlbSkinWeights.h"
-#include <dust3d/animation/animation_generator.h>
 #include <array>
+#include <dust3d/animation/animation_generator.h>
 #include <dust3d/base/object.h>
 namespace dust3d {
 namespace native {

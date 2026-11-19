@@ -21,33 +21,34 @@ struct Dust3DGeneratedRig {
 };
 
 namespace dust3d::native {
-    /// Keep the import material owners alive after the generator takes their geometry.
-    struct GeneratedRigDrawBakeInput {
-        ImportedModels imports;
-        std::unique_ptr<ImportedSurfaceData> surfaces;
-        std::unique_ptr<SourceBakedData> atlas;
-        std::array<size_t, 5> payloadLimits {};
-    };
+/// Keep the import material owners alive after the generator takes their geometry.
+struct GeneratedRigDrawBakeInput {
+    ImportedModels imports;
+    std::unique_ptr<ImportedSurfaceData> surfaces;
+    std::unique_ptr<SourceBakedData> atlas;
+    std::array<size_t, 5> payloadLimits {};
+};
 
-    /// The template and both outputs from a single validated rig-input-only generation.
-    struct PreparedGeneratedRigSource {
-        RigStructure rig;
-        RigFinalDataOptions options;
-        std::unique_ptr<GeneratedRigInput> input;
-        std::unique_ptr<Dust3DMesh> metadata;
-        std::unique_ptr<GeneratedRigDrawBakeInput> bake;
-    };
-    enum class GeneratedRigImportMode { proceduralOnly, allowImportedGeometry };
-    PreparedGeneratedRigSource prepareGeneratedRigSource(const uint8_t*, size_t, const char*, size_t,
-        const Dust3DGeneratedRigBoneInput*, size_t, const Dust3DGeneratedRigOptions&,
-        const Dust3DSourceBakeOptions* bakeOptions = nullptr,
-        GeneratedRigImportMode imports = GeneratedRigImportMode::proceduralOnly);
+/// The template and both outputs from a single validated rig-input-only generation.
+struct PreparedGeneratedRigSource {
+    RigStructure rig;
+    RigFinalDataOptions options;
+    std::unique_ptr<GeneratedRigInput> input;
+    std::unique_ptr<Dust3DMesh> metadata;
+    std::unique_ptr<GeneratedRigDrawBakeInput> bake;
+};
+enum class GeneratedRigImportMode { proceduralOnly,
+    allowImportedGeometry };
+PreparedGeneratedRigSource prepareGeneratedRigSource(const uint8_t*, size_t, const char*, size_t,
+    const Dust3DGeneratedRigBoneInput*, size_t, const Dust3DGeneratedRigOptions&,
+    const Dust3DSourceBakeOptions* bakeOptions = nullptr,
+    GeneratedRigImportMode imports = GeneratedRigImportMode::proceduralOnly);
 
-    /// Expand the exact final grounded Object and its aligned original weights.
-    /// Acquires engineMutex internally. Metadata must be the fresh rig-input generation receipt.
-    std::unique_ptr<Dust3DGeneratedRig> makeGeneratedRigDrawOwner(const FinalRigGeneration&,
-        std::unique_ptr<Dust3DMesh> metadata, size_t maximumDrawVertices, size_t maximumOutputBytes,
-        const Dust3DCancellationToken*, const Snapshot* generated = nullptr,
-        GeneratedRigDrawBakeInput* bake = nullptr);
+/// Expand the exact final grounded Object and its aligned original weights.
+/// Acquires engineMutex internally. Metadata must be the fresh rig-input generation receipt.
+std::unique_ptr<Dust3DGeneratedRig> makeGeneratedRigDrawOwner(const FinalRigGeneration&,
+    std::unique_ptr<Dust3DMesh> metadata, size_t maximumDrawVertices, size_t maximumOutputBytes,
+    const Dust3DCancellationToken*, const Snapshot* generated = nullptr,
+    GeneratedRigDrawBakeInput* bake = nullptr);
 }
 #endif

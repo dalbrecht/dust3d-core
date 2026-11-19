@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 #include "OwnedEvaluatedSkeletonClip.h"
 #include "EngineInternal.h"
-#include <dust3d/animation/animation_generator.h>
-#include <dust3d/animation/parameter_catalog.h>
 #include <algorithm>
 #include <cmath>
+#include <dust3d/animation/animation_generator.h>
+#include <dust3d/animation/parameter_catalog.h>
 #include <set>
 #include <string_view>
 

@@ -217,7 +217,8 @@ Dust3DGeneratedRig* dust3d_generated_rig_load(const uint8_t* bytes, size_t size,
         auto prepared = prepareGeneratedRigSource(bytes, size, type, typeSize, input, count, config);
         auto final = generateFinalRig(*prepared.input, prepared.rig, prepared.options);
         return makeGeneratedRigDrawOwner(final, std::move(prepared.metadata), config.maximum_draw_vertices,
-            config.maximum_output_bytes, config.cancellation).release();
+            config.maximum_output_bytes, config.cancellation)
+            .release();
     } catch (const RigFinalDataError& e) {
         const auto status = e.failure() == RigFinalDataFailure::invalidData ? DUST3D_STATUS_INVALID_DOCUMENT : e.failure() == RigFinalDataFailure::limitExceeded ? DUST3D_STATUS_LIMIT_EXCEEDED
                                                                                                                                                                  : DUST3D_STATUS_CANCELLED;

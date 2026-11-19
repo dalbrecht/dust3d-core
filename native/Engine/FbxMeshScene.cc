@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 #include "FbxMeshScene.h"
 #include "EngineInternal.h"
+#include "FbxAnimationMath.h"
 #include "FbxMaterialImagePlan.h"
 #include "FbxMeshScenePlan.h"
-#include "FbxAnimationMath.h"
 #include <algorithm>
 #include <cmath>
 #include <dust3d/base/retained_payload_budget.h>
@@ -315,7 +315,8 @@ namespace native {
                 objectProperties(cluster, bone.name + std::string("\0\1SubDeformer", 13), "Cluster"),
                 children(integer("Version", 100), FbxNode("Indexes", std::move(points), {}, { 256 * 1024 * 1024 }),
                     doubles("Weights", clusters[index].weights), doubles("Transform", matrixValues(inverse)),
-                    doubles("TransformLink", matrixValues(bind))), FbxNodeLimits { 256 * 1024 * 1024 });
+                    doubles("TransformLink", matrixValues(bind))),
+                FbxNodeLimits { 256 * 1024 * 1024 });
             connections.push_back(connection(limb, parent));
             connections.push_back(connection(limb, cluster));
             connections.push_back(connection(cluster, skinId));
@@ -381,9 +382,7 @@ namespace native {
             const auto stack = nextId++;
             const auto layer = nextId++;
             objects.emplace_back("AnimationStack", namedObject(stack, clip.name, "AnimStack"),
-                children(FbxNode("Properties70", FbxPropertyBlock(), children(
-                    durationProperty("LocalStart", 0), durationProperty("LocalStop", duration),
-                    durationProperty("ReferenceStart", 0), durationProperty("ReferenceStop", duration)))));
+                children(FbxNode("Properties70", FbxPropertyBlock(), children(durationProperty("LocalStart", 0), durationProperty("LocalStop", duration), durationProperty("ReferenceStart", 0), durationProperty("ReferenceStop", duration)))));
             objects.emplace_back("AnimationLayer", namedObject(layer, "BaseLayer", "AnimLayer"));
             connections.push_back(connection(layer, stack));
 

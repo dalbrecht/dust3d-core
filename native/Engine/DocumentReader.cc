@@ -89,7 +89,8 @@ namespace native {
                 auto& fields = selection.records[selected->second];
                 for (auto* field = row->first_attribute(); field; field = field->next_attribute()) {
                     if (!fields.emplace(std::string(field->name(), field->name_size()),
-                            std::string(field->value(), field->value_size())).second)
+                                   std::string(field->value(), field->value_size()))
+                            .second)
                         throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Duplicate selected animation attribute.");
                 }
             }
