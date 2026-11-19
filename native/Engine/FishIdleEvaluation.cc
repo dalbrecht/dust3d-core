@@ -66,9 +66,10 @@ OwnedEvaluatedSkeletonClip evaluateFishIdle(const RigStructure& groundedRig,
                 [&parameterName = name](const auto& candidate) { return candidate.parameterName == parameterName; });
             if (control == controls.end())
                 throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Animation clip has an unknown parameter.");
-            // The reference walk supports still arms, and its T. rex example
-            // authors 0.2 below the editor slider's 0.25 minimum.
-            const auto minimum = clipType == "BipedWalk" && name == "armSwingFactor"
+            // The reference walk and its catalog-derived directional clips share
+            // still-arm support. Its T. rex example authors 0.2 below the
+            // editor slider's 0.25 minimum. Other generators retain their bounds.
+            const auto minimum = definition->second.generator == "BipedWalk" && name == "armSwingFactor"
                 ? 0.0
                 : animation::parameterValue(*control, control->minimumSliderValue);
             if (value < minimum || value > animation::parameterValue(*control, control->maximumSliderValue))
