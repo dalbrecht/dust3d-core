@@ -2,13 +2,15 @@
 
 ## Unreleased
 
-- Composite overlapping texture-chart padding in atlas paint order.
+- Stop CLI exports cooperatively on SIGINT, retaining files committed before cancellation and returning exit status 130 when cancellation prevents publication.
 
 - Preserve authored vertex opacity in procedural baked preview geometry.
 
 - Bake referenced PNG images from DS3 archives in standalone FBX exports (#390).
 
 - Add an opt-in preview mesh load with cooperative cancellation at native phase boundaries.
+
+- Preserve original imported and procedural geometry in geometry-only FBX export.
 
 - Honor legacy part inversion when opening older Dust3D documents.
 
@@ -20,6 +22,8 @@
 - Omit untextured preview advisories after successful baked FBX exports. Geometry-only FBX exports continue to report their preview advisories.
 
 - Render bounded explicit sound events into owned WAV bytes through the portable C API.
+
+- Preserve procedural vertex opacity alongside imported materials in mixed bakes.
 
 - Allow static FBX callers to supply premultiplied texture samples prepared before 16-to-8-bit reduction.
 
@@ -216,6 +220,8 @@
 - Encode owned base/UV worker requests through shared C codecs and verify both operations through the isolated development XPC fixture (#172).
 
 - Verify an ordinary static mesh job in a separately running development XPC service with peer hash requirements and bounded C reply decoding (#171).
+
+- Composite overlapping texture-chart padding in atlas paint order.
 
 - Decode framed worker base/UV/failure replies into independent C semantic owners with bounded value copies and preserved native cause bytes (#170).
 
