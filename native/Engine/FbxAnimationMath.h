@@ -7,9 +7,9 @@
 namespace dust3d {
 namespace native {
     /// Convert finite nonnegative seconds to reference FBX ticks, truncating toward
-    /// zero at 46,186,158,000 ticks/second. Accept at most 60 seconds, matching the
-    /// owned animation boundary. Throws DocumentError INVALID_DOCUMENT for invalid
-    /// values or LIMIT_EXCEEDED above 60. Pure, no engine globals or allocations on
+    /// zero at 46,186,158,000 ticks/second. Accept at most 600 seconds, matching the
+    /// shared reference generator duration boundary. Throws DocumentError INVALID_DOCUMENT for invalid
+    /// values or LIMIT_EXCEEDED above 600. Pure, no engine globals or allocations on
     /// success. Example: fbxAnimationTime(1) == 46186158000.
     int64_t fbxAnimationTime(double seconds);
     struct FbxEulerAngles {
