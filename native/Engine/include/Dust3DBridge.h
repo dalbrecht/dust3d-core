@@ -934,7 +934,9 @@ typedef struct Dust3DFbxExport Dust3DFbxExport;
 #define DUST3D_FBX_EXPORT_BAKED 1
 /** Source-matched prototype options; struct_size must equal sizeof this structure.
  * mode is GEOMETRY or BAKED. Geometry excludes materials/rig/animation; baked uses
- * one complete procedural atlas. Imported GLB assets are rejected before decoding.
+ * one complete procedural atlas. GEOMETRY supports imported GLB geometry under
+ * the default import limits and retains omission warnings; no materials are exported.
+ * BAKED rejects imported GLB assets before decoding; no silent mode downgrade.
  * Geometry quota: zero64MiB/max256MiB. PNG capacity quota: zero64MiB/max64MiB.
  * Output quota: zero64MiB/max256MiB, counting handle, complete FBX byte capacity
  * and parser warning. These independent budgets exclude source, generator,
@@ -953,7 +955,7 @@ typedef struct Dust3DFbxExportOptions {
     const Dust3DCancellationToken* cancellation;
     Dust3DBakeOptions bake;
 } Dust3DFbxExportOptions;
-/** Serialize procedural archive generation and static FBX encoding under the engine lock.
+/** Serialize archive generation and static FBX encoding under the engine lock.
  * @param bytes Complete readable archive, borrowed until return.
  * @param size Archive byte count; existing archive bounds apply.
  * @param options Required sized options and optional borrowed decoded pixels/token.
@@ -964,6 +966,18 @@ typedef struct Dust3DFbxExportOptions {
  * Example: zero options, set struct_size, load; copy bytes/count; destroy.
  */
 Dust3DFbxExport* dust3d_fbx_export_load(const uint8_t* bytes, size_t size, const Dust3DFbxExportOptions* options, Dust3DError* error);
+/** Same export contract, with opt-in premultiplied RGBA8 bake images.
+ * @param premultiplied_indices Borrowed strictly increasing indices into
+ * options->bake.images, valid until return. NULL allowed for zero count.
+ * Listed images contain source-encoded premultiplied RGBA8, suitable for
+ * retaining a 16-bit source's premultiplication before reducing to 8 bits.
+ * Other images remain straight RGBA8. Listed readable rows total at most
+ * 256 MiB and must satisfy RGB <= alpha. Geometry mode requires zero count.
+ * @param premultiplied_count Number of listed indices.
+ * @return Independent immutable FBX or NULL with error, as in the original API.
+ */
+Dust3DFbxExport* dust3d_fbx_export_load_with_premultiplied_images(const uint8_t* bytes, size_t size,
+    const Dust3DFbxExportOptions* options, const size_t* premultiplied_indices, size_t premultiplied_count, Dust3DError* error);
 /** Release all storage. NULL is accepted. */
 void dust3d_fbx_export_destroy(Dust3DFbxExport* output);
 /** Borrowed bytes until destroy; copy before releasing. NULL for NULL/empty owner. */

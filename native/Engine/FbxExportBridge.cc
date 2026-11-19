@@ -3,6 +3,7 @@
 #include "FbxBakedMaterial.h"
 #include "FbxGeometrySelection.h"
 #include "GenerationPipeline.h"
+#include "ImportedModels.h"
 #include <dust3d/base/retained_payload_budget.h>
 
 struct Dust3DFbxExport {
@@ -13,6 +14,12 @@ struct Dust3DFbxExport {
 
 Dust3DFbxExport* dust3d_fbx_export_load(const uint8_t* bytes, size_t size, const Dust3DFbxExportOptions* options, Dust3DError* error)
 {
+    return dust3d_fbx_export_load_with_premultiplied_images(bytes, size, options, nullptr, 0, error);
+}
+
+Dust3DFbxExport* dust3d_fbx_export_load_with_premultiplied_images(const uint8_t* bytes, size_t size,
+    const Dust3DFbxExportOptions* options, const size_t* premultipliedIndices, size_t premultipliedCount, Dust3DError* error)
+{
     using namespace dust3d;
     using namespace dust3d::native;
     setError(error, DUST3D_STATUS_OK, "");
@@ -21,6 +28,8 @@ Dust3DFbxExport* dust3d_fbx_export_load(const uint8_t* bytes, size_t size, const
             throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "FBX export requires correctly sized options.");
         if (options->mode != DUST3D_FBX_EXPORT_GEOMETRY && options->mode != DUST3D_FBX_EXPORT_BAKED)
             throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Unknown static FBX export mode.");
+        if (premultipliedCount && options->mode != DUST3D_FBX_EXPORT_BAKED)
+            throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Premultiplied FBX images require baked export mode.");
         planFbxGeometrySelection(1, 1, 1, false, false, options->maximum_geometry_payload_bytes);
         const auto maximumPng = options->maximum_png_payload_bytes ? options->maximum_png_payload_bytes : 64 * 1024 * 1024;
         if (maximumPng < 57 || maximumPng > 64 * 1024 * 1024)
@@ -35,13 +44,16 @@ Dust3DFbxExport* dust3d_fbx_export_load(const uint8_t* bytes, size_t size, const
                 throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "FBX bake and export cancellation tokens must agree.");
             auto settings = options->bake;
             settings.cancellation = options->cancellation;
-            bake = std::make_unique<BakedMeshData>(settings);
+            bake = std::make_unique<BakedMeshData>(settings, premultipliedIndices, premultipliedCount);
         }
         std::lock_guard<std::mutex> lock(engineMutex());
         checkCancellation(options->cancellation);
         std::string warning;
-        // No import owner is supplied: model assets reject before GLB decoding.
-        auto snapshot = readDocument(bytes, size, warning, bake.get());
+        // Imported geometry is owned through reading and generation. BAKED still
+        // rejects model assets before decoding: it has no source-aligned atlas.
+        ImportedModels imports;
+        auto* geometryImports = options->mode == DUST3D_FBX_EXPORT_GEOMETRY ? &imports : nullptr;
+        auto snapshot = readDocument(bytes, size, warning, bake.get(), geometryImports);
         // A successful bake supplies the material data described by these preview notices.
         if (bake && (warning == untexturedImagePreviewWarning || warning == untexturedSurfacePreviewWarning))
             warning.clear();
@@ -68,7 +80,7 @@ Dust3DFbxExport* dust3d_fbx_export_load(const uint8_t* bytes, size_t size, const
             outputs.useFbxAtlasUvs = true;
         }
         // Original-export preparation returns metadata only; discard it and atlas workspace before encoding.
-        (void)generateMesh(std::move(snapshot), warning, nullptr, nullptr, nullptr, outputs);
+        (void)generateMesh(std::move(snapshot), warning, geometryImports, nullptr, nullptr, outputs);
         uvs.reset();
         checkCancellation(options->cancellation);
         auto document = [&] {

@@ -194,14 +194,17 @@ void archivedImageEncodingSelectsTheRaster()
     const std::vector<uint8_t> monoIndexed { 137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 8, 0, 0, 0, 8, 1, 3, 0, 0, 0, 254, 193, 44, 200, 0, 0, 0, 6, 80, 76, 84, 69, 20, 15, 25, 31, 22, 38, 75, 142, 162, 225, 0, 0, 0, 14, 73, 68, 65, 84, 120, 156, 99, 8, 101, 88, 197, 128, 132, 1, 30, 156, 3, 253, 109, 125, 135, 230, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130 };
     const std::vector<uint8_t> monoGrayKey { 137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 8, 0, 0, 0, 8, 1, 0, 0, 0, 0, 236, 116, 131, 38, 0, 0, 0, 2, 116, 82, 78, 83, 0, 0, 118, 147, 205, 56, 0, 0, 0, 14, 73, 68, 65, 84, 120, 156, 99, 8, 101, 88, 197, 128, 132, 1, 30, 156, 3, 253, 109, 125, 135, 230, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130 };
     const std::vector<uint8_t> monoIndexedKey { 137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 8, 0, 0, 0, 8, 1, 3, 0, 0, 0, 254, 193, 44, 200, 0, 0, 0, 6, 80, 76, 84, 69, 20, 15, 25, 31, 22, 38, 75, 142, 162, 225, 0, 0, 0, 1, 116, 82, 78, 83, 0, 64, 230, 216, 102, 0, 0, 0, 14, 73, 68, 65, 84, 120, 156, 99, 8, 101, 88, 197, 128, 132, 1, 30, 156, 3, 253, 109, 125, 135, 230, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130 };
+    const std::vector<uint8_t> gray16Key { 137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 8, 0, 0, 0, 8, 16, 0, 0, 0, 0, 177, 244, 61, 20, 0, 0, 0, 2, 116, 82, 78, 83, 48, 57, 246, 208, 115, 195, 0, 0, 0, 147, 73, 68, 65, 84, 120, 156, 1, 136, 0, 119, 255, 0, 48, 57, 52, 30, 56, 3, 59, 232, 63, 205, 67, 178, 71, 151, 75, 124, 0, 79, 97, 83, 70, 87, 43, 91, 16, 94, 245, 98, 218, 102, 191, 106, 164, 0, 110, 137, 114, 110, 118, 83, 122, 56, 126, 29, 130, 2, 133, 231, 137, 204, 0, 141, 177, 145, 150, 149, 123, 153, 96, 157, 69, 161, 42, 165, 15, 168, 244, 0, 172, 217, 176, 190, 180, 163, 184, 136, 188, 109, 192, 82, 196, 55, 200, 28, 0, 204, 1, 207, 230, 211, 203, 215, 176, 219, 149, 223, 122, 227, 95, 231, 68, 0, 235, 41, 239, 14, 242, 243, 246, 216, 250, 189, 254, 162, 2, 135, 6, 108, 0, 10, 81, 14, 54, 18, 27, 22, 0, 25, 229, 29, 202, 33, 175, 37, 148, 42, 187, 63, 60, 89, 251, 120, 175, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130 };
+    const std::vector<uint8_t> rgb16Key { 137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 8, 0, 0, 0, 8, 16, 2, 0, 0, 0, 27, 253, 245, 159, 0, 0, 0, 6, 116, 82, 78, 83, 48, 57, 49, 30, 50, 66, 237, 96, 191, 184, 0, 0, 1, 147, 73, 68, 65, 84, 120, 156, 1, 136, 1, 119, 254, 0, 48, 57, 49, 30, 50, 66, 52, 30, 53, 3, 54, 39, 56, 3, 56, 232, 58, 12, 59, 232, 60, 205, 61, 241, 63, 205, 64, 178, 65, 214, 67, 178, 68, 151, 69, 187, 71, 151, 72, 124, 73, 160, 75, 124, 76, 97, 77, 133, 0, 79, 97, 80, 70, 81, 106, 83, 70, 84, 43, 85, 79, 87, 43, 88, 16, 89, 52, 91, 16, 91, 245, 93, 25, 94, 245, 95, 218, 96, 254, 98, 218, 99, 191, 100, 227, 102, 191, 103, 164, 104, 200, 106, 164, 107, 137, 108, 173, 0, 110, 137, 111, 110, 112, 146, 114, 110, 115, 83, 116, 119, 118, 83, 119, 56, 120, 92, 122, 56, 123, 29, 124, 65, 126, 29, 127, 2, 128, 38, 130, 2, 130, 231, 132, 11, 133, 231, 134, 204, 135, 240, 137, 204, 138, 177, 139, 213, 0, 141, 177, 142, 150, 143, 186, 145, 150, 146, 123, 147, 159, 149, 123, 150, 96, 151, 132, 153, 96, 154, 69, 155, 105, 157, 69, 158, 42, 159, 78, 161, 42, 162, 15, 163, 51, 165, 15, 165, 244, 167, 24, 168, 244, 169, 217, 170, 253, 0, 172, 217, 173, 190, 174, 226, 176, 190, 177, 163, 178, 199, 180, 163, 181, 136, 182, 172, 184, 136, 185, 109, 186, 145, 188, 109, 189, 82, 190, 118, 192, 82, 193, 55, 194, 91, 196, 55, 197, 28, 198, 64, 200, 28, 201, 1, 202, 37, 0, 204, 1, 204, 230, 206, 10, 207, 230, 208, 203, 209, 239, 211, 203, 212, 176, 213, 212, 215, 176, 216, 149, 217, 185, 219, 149, 220, 122, 221, 158, 223, 122, 224, 95, 225, 131, 227, 95, 228, 68, 229, 104, 231, 68, 232, 41, 233, 77, 0, 235, 41, 236, 14, 237, 50, 239, 14, 239, 243, 241, 23, 242, 243, 243, 216, 244, 252, 246, 216, 247, 189, 248, 225, 250, 189, 251, 162, 252, 198, 254, 162, 255, 135, 0, 171, 2, 135, 3, 108, 4, 144, 6, 108, 7, 81, 8, 117, 0, 10, 81, 11, 54, 12, 90, 14, 54, 15, 27, 16, 63, 18, 27, 19, 0, 20, 36, 22, 0, 22, 229, 24, 9, 25, 229, 26, 202, 27, 238, 29, 202, 30, 175, 31, 211, 33, 175, 34, 148, 35, 184, 37, 148, 38, 121, 39, 157, 36, 158, 191, 235, 230, 127, 248, 217, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130 };
     struct Samples {
         uint8_t indexedTransition;
         std::array<uint8_t, 2> scale;
         std::array<uint8_t, 4> overlap;
         std::array<uint8_t, 4> clear;
     };
-    const auto sample = [&](const std::vector<uint8_t>* image, bool alias = false) {
-        dust3d::native::BakedMeshData bake(fixture.options);
+    const auto sample = [&](const std::vector<uint8_t>* image, bool alias = false, bool associated = false) {
+        const size_t first = 0;
+        dust3d::native::BakedMeshData bake(fixture.options, associated ? &first : nullptr, associated ? 1 : 0);
         if (image) {
             const auto key = "images/" + fixture.image.toString() + ".png";
             bake.item("asset", key, image->data(), image->size());
@@ -234,6 +237,14 @@ void archivedImageEncodingSelectsTheRaster()
         require(result.overlap == std::array<uint8_t, 4> { 1, 0, 255, 255 }, "Alpha-capable indexed and grayscale PNGs must reveal the padded layer");
         require(result.clear == std::array<uint8_t, 4> {}, "Fully transparent PNG samples must clear hidden RGB");
     }
+    const auto gray16Transparent = sample(&gray16Key);
+    require(gray16Transparent.overlap == std::array<uint8_t, 4> { 1, 0, 255, 255 }
+            && gray16Transparent.clear == std::array<uint8_t, 4> {},
+        "16-bit grayscale key must composite binary alpha with the padded layer");
+    const auto rgb16Transparent = sample(&rgb16Key);
+    require(rgb16Transparent.overlap == std::array<uint8_t, 4> { 1, 0, 255, 255 }
+            && rgb16Transparent.clear == std::array<uint8_t, 4> {},
+        "16-bit RGB key must composite binary alpha with the padded layer");
     const auto transparent = sample(&keyed);
     require(transparent.overlap == std::array<uint8_t, 4> { 1, 0, 255, 255 }, "The keyed inset must reveal the padded layer");
     require(transparent.clear == std::array<uint8_t, 4> {}, "Fully transparent chart output must clear hidden RGB");
@@ -243,6 +254,12 @@ void archivedImageEncodingSelectsTheRaster()
     std::copy(partial.begin(), partial.end(), pixels.begin());
     require(sample(nullptr).overlap == std::array<uint8_t, 4> { 20, 15, 25, 127 }, "Caller-provided straight-alpha pixels must be preserved");
     require(sample(&rgba).overlap == std::array<uint8_t, 4> { 28, 15, 46, 173 }, "The inset and padding must use Qt's premultiplied rounding");
+    const std::array<uint8_t, 8> associated { 40, 30, 20, 128, 60, 50, 40, 128 };
+    std::copy(associated.begin(), associated.end(), pixels.begin());
+    require(sample(nullptr, false, true).overlap == std::array<uint8_t, 4> { 93, 73, 53, 192 },
+        "FBX must composite prepared alpha bytes without premultiplying them twice");
+    require(sample(nullptr, false, true).clear == std::array<uint8_t, 4> { 80, 60, 40, 192 },
+        "FBX must composite both layers of prepared pixels");
 }
 void analyticMaterialsImagesAndTangents()
 {
@@ -405,11 +422,11 @@ void publicImagesAndMaterials()
 {
     const std::string part = "{aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa}";
     const std::string imageKey = "{eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee}";
-    auto model = [&](const std::string& material) {
+    auto model = [&](const std::string& material, const std::string& vertexColor = "#ffffff") {
         return archive("<canvas originX='0' originY='0' originZ='0'><nodes><node id='{11111111-1111-4111-8111-111111111111}' partId='" + part
             + "' x='0' y='0' z='0' radius='.1'/></nodes><edges/><parts><part id='" + part + "' " + material
             + "/></parts><components><component id='{cccccccc-cccc-4ccc-8ccc-cccccccccccc}' linkDataType='partId' linkData='" + part
-            + "' color='#ffffff' colorImageId='" + imageKey + "'/></components></canvas>");
+            + "' color='" + vertexColor + "' colorImageId='" + imageKey + "'/></components></canvas>");
     };
     const auto bytes = model("metallic='.5' roughness='.25' emissive='2'");
     std::vector<uint8_t> pixels { 17, 91, 200, 128 };
@@ -432,6 +449,28 @@ void publicImagesAndMaterials()
     for (size_t index = 0; index < color.byte_count; index += 4)
         require(std::equal(pixels.begin(), pixels.end(), color.pixels + index), "Actual archive baking must resolve borrowed pixels and preserve straight alpha");
     require(dust3d_baked_mesh_texture(owner.get(), DUST3D_TEXTURE_METALLIC).pixels[0] == 128 && dust3d_baked_mesh_texture(owner.get(), DUST3D_TEXTURE_ROUGHNESS).pixels[0] == 64 && dust3d_baked_mesh_texture(owner.get(), DUST3D_TEXTURE_EMISSIVE).pixels[0] == 255, "Actual generated snapshot must retain material scalar inputs");
+    const auto translucentBytes = model("", "#40ffffff");
+    const auto* translucentData = reinterpret_cast<const uint8_t*>(translucentBytes.data());
+    Owner translucent(dust3d_baked_mesh_load(translucentData, translucentBytes.size(), &options, &error), dust3d_baked_mesh_destroy);
+    require(translucent != nullptr, error.message);
+    const auto* bakedGeometry = dust3d_uv_mesh_geometry(dust3d_baked_mesh_uvs(translucent.get()));
+    const auto bakedCount = dust3d_mesh_vertex_count(bakedGeometry);
+    require(bakedCount > 0, "A translucent procedural bake must retain geometry");
+    const auto* bakedVertices = dust3d_mesh_vertices(bakedGeometry);
+    require(std::all_of(bakedVertices, bakedVertices + bakedCount, [](const auto& vertex) {
+        return std::abs(vertex.color[3] - 64.0f / 255.0f) < 1e-6f;
+    }),
+        "Procedural baked geometry must retain authored vertex opacity independently of its image");
+
+    std::unique_ptr<Dust3DMesh, decltype(&dust3d_mesh_destroy)> plain(
+        dust3d_mesh_load(translucentData, translucentBytes.size(), &error), dust3d_mesh_destroy);
+    require(plain && dust3d_mesh_vertex_count(plain.get()) == bakedCount, "Ordinary preview must retain the same geometry");
+    const auto* plainVertices = dust3d_mesh_vertices(plain.get());
+    require(std::all_of(plainVertices, plainVertices + bakedCount, [](const auto& vertex) {
+        return vertex.color[3] == 1.0f;
+    }),
+        "Ordinary preview must retain its existing opaque vertex contract");
+
     const auto halfBytes = model("emissive='.5'");
     Owner half(dust3d_baked_mesh_load(reinterpret_cast<const uint8_t*>(halfBytes.data()), halfBytes.size(), &options, &error), dust3d_baked_mesh_destroy);
     require(half && dust3d_baked_mesh_texture(half.get(), DUST3D_TEXTURE_EMISSIVE).pixels[0] == 127,

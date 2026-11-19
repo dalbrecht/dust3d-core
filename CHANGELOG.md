@@ -30,14 +30,28 @@
 - Support an optional cooperative cancellation flag inside vertex binding and nearest-bound searches; cancelled partial bindings must be discarded (#327).
 
 - Add generator-independent owned PCM16/WAV bytes with checked RIFF arithmetic, format/frame validation and caller output quotas (#318); synthesis, playback and app adoption remain separate.
+- Match Qt wrinkle normal-map padding at oblique edges and flat chart boundaries.
+
+- Match Qt scalar material atlas draw bounds before dilating chart edges.
+
+- Seed color-atlas dilation from the exact padded chart draw bounds.
+
+- Stop CLI exports cooperatively on SIGINT, retaining files committed before cancellation and returning exit status 130 when cancellation prevents publication.
+
+- Preserve authored vertex opacity in procedural baked preview geometry.
+
 - Bake referenced PNG images from DS3 archives in standalone FBX exports (#390).
 
 - Add an opt-in preview mesh load with cooperative cancellation at native phase boundaries.
+
+- Preserve original imported and procedural geometry in geometry-only FBX export.
 
 - Honor legacy part inversion when opening older Dust3D documents.
 
 - Reject invalid numeric XML character references before reading DS3 documents (#103).
 - Keep the authored starting endpoint when repairing mixed edge directions in a legacy chain.
+
+- Keep preview-only texture notices out of FBX export receipts.
 
 - Preserve authored edge directions during native loading so identifiers cannot reverse valid chains and their generated UVs.
 
@@ -45,7 +59,15 @@
 
 - Render bounded explicit sound events into owned WAV bytes through the portable C API.
 
+- Preserve procedural vertex opacity alongside imported materials in mixed bakes.
+
+- Allow static FBX callers to supply premultiplied texture samples prepared before 16-to-8-bit reduction.
+
+- Match Qt chart compositing for 16-bit grayscale PNG transparency keys.
+
 - Match Qt texture sampling and transparency for 1-bit grayscale and indexed PNGs.
+
+- Honor 16-bit RGB PNG transparency keys when compositing texture charts.
 
 - Match Qt texture sampling and transparency for 2-bit and 4-bit indexed and grayscale PNGs.
 
@@ -234,6 +256,8 @@
 - Encode owned base/UV worker requests through shared C codecs and verify both operations through the isolated development XPC fixture (#172).
 
 - Verify an ordinary static mesh job in a separately running development XPC service with peer hash requirements and bounded C reply decoding (#171).
+
+- Composite overlapping texture-chart padding in atlas paint order.
 
 - Decode framed worker base/UV/failure replies into independent C semantic owners with bounded value copies and preserved native cause bytes (#170).
 
