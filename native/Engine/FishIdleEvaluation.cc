@@ -4,8 +4,9 @@
 #include <dust3d/animation/animation_catalog.h>
 #include <dust3d/animation/parameter_catalog.h>
 #include <algorithm>
-#include <charconv>
 #include <cmath>
+#include <locale>
+#include <sstream>
 
 namespace dust3d::native {
     namespace {
@@ -15,12 +16,11 @@ namespace dust3d::native {
                 throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Animation clip parameter is not a bounded decimal.");
             auto decimal = text;
             std::replace(decimal.begin(), decimal.end(), ',', '.');
-            const auto* end = decimal.data() + decimal.size();
-            const auto* start = decimal.data() + (decimal.front() == '+');
+            // Apple's floating-point from_chars requires macOS 26.
+            std::istringstream input(decimal);
+            input.imbue(std::locale::classic());
             double value = 0;
-            const auto result = std::from_chars(start, end, value);
-            if (result.ec != std::errc {} || result.ptr != end || !std::isfinite(value)
-                || (decimal.front() == '+' && start != end && *start == '-'))
+            if (!(input >> std::noskipws >> value) || !input.eof() || !std::isfinite(value))
                 throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Animation clip parameter is not a finite decimal.");
             return value;
         }
