@@ -17,6 +17,8 @@
 - Reject invalid numeric XML character references before reading DS3 documents (#103).
 - Keep the authored starting endpoint when repairing mixed edge directions in a legacy chain.
 
+- Keep preview-only texture notices out of FBX export receipts.
+
 - Preserve authored edge directions during native loading so identifiers cannot reverse valid chains and their generated UVs.
 
 - Omit untextured preview advisories after successful baked FBX exports. Geometry-only FBX exports continue to report their preview advisories.
