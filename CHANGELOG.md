@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Match Qt wrinkle normal-map padding at oblique edges and flat chart boundaries.
+
+- Match Qt scalar material atlas draw bounds before dilating chart edges.
+
+- Seed color-atlas dilation from the exact padded chart draw bounds.
+
 - Stop CLI exports cooperatively on SIGINT, retaining files committed before cancellation and returning exit status 130 when cancellation prevents publication.
 
 - Preserve authored vertex opacity in procedural baked preview geometry.
@@ -222,6 +228,8 @@
 - Encode owned base/UV worker requests through shared C codecs and verify both operations through the isolated development XPC fixture (#172).
 
 - Verify an ordinary static mesh job in a separately running development XPC service with peer hash requirements and bounded C reply decoding (#171).
+
+- Composite overlapping texture-chart padding in atlas paint order.
 
 - Decode framed worker base/UV/failure replies into independent C semantic owners with bounded value copies and preserved native cause bytes (#170).
 

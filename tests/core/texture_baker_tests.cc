@@ -146,6 +146,39 @@ void surfaceDetails()
     }
     require(nonflat > 0, "Fold normal map must contain actual evaluated surface detail");
 }
+void obliqueFoldGutterKeepsTheNearestRasterSeed()
+{
+    Fixture fixture;
+    fixture.options.colorSize = 64;
+    fixture.options.normalSize = 256;
+    const dust3d::Vector2 top(40.5 / 256, 10.8 / 256), right(70.5 / 256, 40.8 / 256);
+    const dust3d::Vector2 bottom(40.5 / 256, 70.8 / 256), left(10.5 / 256, 40.8 / 256);
+    fixture.atlas.triangleUvs = { { top, right, bottom }, { top, bottom, left } };
+    auto& layout = fixture.atlas.layouts.front();
+    layout.width = layout.height = 0.5;
+    layout.globalUv.clear();
+    for (size_t index = 0; index < fixture.object.triangles.size(); ++index) {
+        const auto& triangle = fixture.object.triangles[index];
+        layout.globalUv[{ dust3d::PositionKey(fixture.object.vertices[triangle[0]]), dust3d::PositionKey(fixture.object.vertices[triangle[1]]), dust3d::PositionKey(fixture.object.vertices[triangle[2]]) }] = fixture.atlas.triangleUvs[index];
+    }
+
+    dust3d::ClothFolds::Fold fold;
+    fold.points = { { -1, 0.02, 0 }, { 1, 0.02, 0 } };
+    fold.normals = { { 0, 0, 1 }, { 0, 0, 1 } };
+    fold.width = 0.055;
+    fold.depth = 0.12;
+    dust3d::TextureBakeInputs inputs;
+    auto& surface = inputs.surfaces[componentId];
+    surface.folds = { fold };
+    surface.wrinkleStrength = 1;
+    const auto result = fixture.bake(inputs);
+    require(result.normal.has_value(), "The cloth fixture must emit a normal map");
+    const size_t edge = (10 * 256 + 40) * 4;
+    require(result.normal->pixels[edge] == 200 && result.normal->pixels[edge + 1] == 200
+            && result.normal->pixels[edge + 2] == 203,
+        "The oblique edge gutter must retain a texel within the signed edge-distance limit");
+}
+
 void malformedSurfaceInputs()
 {
     Fixture fixture;
@@ -324,7 +357,7 @@ void fractionalMultiTexelSources()
         const size_t interior = (11 * 128 + 11) * 4;
         require(image.color.pixels[interior] == 63 && image.color.pixels[interior + 2] == 191, "The Qt two-pixel scale selects source texel 383 in either chart orientation");
         const size_t edge = (13 * 128 + 13) * 4;
-        require(image.color.pixels[edge] == 0 && image.color.pixels[edge + 2] == 255, "Image bleed must clamp after fractional-origin correction to retain the final source texel");
+        require(image.color.pixels[edge] == 31 && image.color.pixels[edge + 2] == 223, "Dilation must copy the last painted gutter texel");
         const size_t firstPixelAlpha = (10 * 128 + 10) * 4 + 3;
         require(result.color.pixels[firstPixelAlpha] == 255, "Opaque gradient endpoints must stay opaque after interpolation");
         require(result.color.pixels == image.color.pixels, "Multi-texel fractional gradients must match equivalent image charts including gutters");
@@ -372,6 +405,89 @@ void imageChartSourceTexelBoundaries()
     const size_t vertical = ((24 + 2053) * 2176 + 28) * 4;
     require(rotated.color.pixels[vertical] == 1 && rotated.color.pixels[vertical + 1] == 233,
         "A rotated chart follows the horizontal source span on its vertical atlas axis");
+}
+
+void fractionalColorBoundsSeedDilationAtTheDrawEdge()
+{
+    Fixture fixture;
+    fixture.options.colorSize = 128;
+    auto& lower = fixture.atlas.layouts.front();
+    lower.left = 32.25 / 128;
+    lower.top = 0.25;
+    lower.width = 31.25 / 128;
+    lower.height = 0.25;
+    lower.color = dust3d::Color(1, 0, 0);
+    auto upper = lower;
+    upper.left = 69.25 / 128;
+    upper.color = dust3d::Color(0, 1, 0);
+    fixture.atlas.layouts.push_back(upper);
+
+    const auto result = fixture.bake();
+    const auto colorAt = [&](size_t x) {
+        std::array<uint8_t, 4> pixel {};
+        std::copy_n(result.color.pixels.data() + (40 * 128 + x) * 4, 4, pixel.begin());
+        return pixel;
+    };
+    require(colorAt(65) == std::array<uint8_t, 4> { 255, 0, 0, 255 }
+            && colorAt(66) == std::array<uint8_t, 4> { 0, 255, 0, 255 },
+        "Dilation must start at the actual color chart draw bounds");
+}
+
+void fractionalMaterialBoundsSeedDilationAtTheDrawEdge()
+{
+    Fixture fixture;
+    fixture.options.materialSize = 128;
+    auto& left = fixture.atlas.layouts.front();
+    left.left = 32.25 / 128;
+    left.top = 0.25;
+    left.width = 31.25 / 128;
+    left.height = 0.25;
+    auto right = left;
+    right.left = 69.25 / 128;
+    right.sourceId = imageId;
+    fixture.atlas.layouts.push_back(right);
+
+    dust3d::TextureBakeInputs inputs;
+    inputs.materials[componentId] = { 0.85, 0.23, 0 };
+    inputs.materials[imageId] = { 0.28, 0.75, 0 };
+    const auto result = fixture.bake(inputs);
+    require(result.metallic && result.roughness, "Authored scalar materials must produce both maps");
+    const auto sample = [](const auto& image, size_t x) { return image.pixels[(40 * 128 + x) * 4]; };
+    require(sample(*result.metallic, 65) == 217 && sample(*result.metallic, 66) == 71,
+        "Metallic dilation must seed from the truncated painted extent");
+    require(sample(*result.roughness, 65) == 59 && sample(*result.roughness, 66) == 191,
+        "Roughness dilation must seed from the truncated painted extent");
+}
+
+void overlappingChartPaddingUsesSourceOver()
+{
+    Fixture fixture;
+    fixture.options.colorSize = 128;
+    auto& lower = fixture.atlas.layouts.front();
+    lower.left = lower.top = 0.25;
+    lower.width = 31.0 / 128;
+    lower.height = 0.25;
+    lower.id = imageId;
+    auto upper = lower;
+    upper.left = 0.5;
+    upper.id = dust3d::Uuid("{dddddddd-dddd-4ddd-8ddd-dddddddddddd}");
+    fixture.atlas.layouts.push_back(upper);
+
+    const std::array<uint8_t, 4> below { 49, 15, 106, 127 };
+    std::array<uint8_t, 4> above { 128, 130, 190, 91 };
+    dust3d::TextureBakeInputs inputs;
+    inputs.images[imageId] = { 1, 1, 4, 4, below.data(), dust3d::TextureImageRaster::alphaComposite };
+    inputs.images[upper.id] = { 1, 1, 4, 4, above.data(), dust3d::TextureImageRaster::alphaComposite };
+    const auto overlappingPixel = [&](const dust3d::TextureBakeResult& result) {
+        std::array<uint8_t, 4> pixel {};
+        std::copy_n(result.color.pixels.data() + (40 * 128 + 63) * 4, 4, pixel.begin());
+        return pixel;
+    };
+    require(overlappingPixel(fixture.bake(inputs)) == std::array<uint8_t, 4> { 91, 75, 151, 173 },
+        "Overlapping padding must use Qt's straight-atlas SourceOver");
+    above[3] = 0;
+    require(overlappingPixel(fixture.bake(inputs)) == std::array<uint8_t, 4> { 48, 14, 106, 127 },
+        "Transparent upper padding must reveal the earlier chart");
 }
 
 void imageChartPaddedScale()
@@ -1131,11 +1247,15 @@ int main(int argc, char* argv[])
         imageOrientation();
         boundaries();
         surfaceDetails();
+        obliqueFoldGutterKeepsTheNearestRasterSeed();
         malformedSurfaceInputs();
         gradientQuantization();
         fractionalSubTexelGradients();
         fractionalMultiTexelSources();
         imageChartSourceTexelBoundaries();
+        fractionalColorBoundsSeedDilationAtTheDrawEdge();
+        fractionalMaterialBoundsSeedDilationAtTheDrawEdge();
+        overlappingChartPaddingUsesSourceOver();
         imageChartPaddedScale();
         magnifiedImageChartUsesDirectSampling();
         clippedColorChartOrigins();
