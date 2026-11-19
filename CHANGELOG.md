@@ -31,6 +31,8 @@
 
 - Match Qt texture sampling and transparency for 1-bit grayscale and indexed PNGs.
 
+- Honor 16-bit RGB PNG transparency keys when compositing texture charts.
+
 - Match Qt texture sampling and transparency for 2-bit and 4-bit indexed and grayscale PNGs.
 
 - Match Qt texture sampling for 8-bit indexed and alpha-capable grayscale PNGs.

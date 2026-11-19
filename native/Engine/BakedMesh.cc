@@ -29,8 +29,8 @@ namespace native {
             const auto depth = data[24];
             const auto colorType = data[25];
             const bool packedIndexed = (depth == 1 || depth == 2 || depth == 4) && (colorType == 0 || colorType == 3);
-            const bool wideGray = depth == 16 && colorType == 0;
-            if (depth != 8 && !packedIndexed && !wideGray)
+            const bool wideColorKey = depth == 16 && (colorType == 0 || colorType == 2);
+            if (depth != 8 && !packedIndexed && !wideColorKey)
                 return TextureImageRaster::decoded;
             size_t paletteSize = 0;
             bool keyed = false;
@@ -41,10 +41,10 @@ namespace native {
                     break;
                 const auto* kind = data + offset + 4;
                 if (!std::memcmp(kind, "IDAT", 4)) {
+                    if (wideColorKey)
+                        return keyed ? TextureImageRaster::alphaComposite : TextureImageRaster::decoded;
                     switch (colorType) {
                     case 0:
-                        if (wideGray)
-                            return keyed ? TextureImageRaster::alphaComposite : TextureImageRaster::decoded;
                         return keyed        ? TextureImageRaster::indexedAlpha
                             : packedIndexed ? TextureImageRaster::indexed
                                             : TextureImageRaster::decoded;
