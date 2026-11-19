@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Unregistered source contract. Compile only under the current runtime quarantine.
+// Executed by the opt-in private animation runtime contract target.
 #include "ExperimentalFishIdle.h"
 #include "ExperimentalFishIdleFbx.h"
 #include "fish_idle_pcm_fixture.h"

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Unregistered. Syntax-check only while FishIdle evaluation is quarantined.
+// Executed by the opt-in private animation runtime contract target.
 #include "ExperimentalFishIdle.h"
 #include "fish_idle_pcm_fixture.h"
 #include <cassert>

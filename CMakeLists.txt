@@ -1818,3 +1818,5 @@ if(BUILD_TESTING AND TARGET dust3d_worker_job_io)
     target_link_libraries(dust3d_worker_job_expectation_tests PRIVATE dust3d_worker_job_io)
     add_test(NAME worker_job_expectation_contracts COMMAND dust3d_worker_job_expectation_tests)
 endif()
+
+include(cmake/ExperimentalAnimationTests.cmake)
