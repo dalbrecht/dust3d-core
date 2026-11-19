@@ -129,7 +129,7 @@ class StaticExportBenchmarkTests(unittest.TestCase):
             receipt = build_root / 'receipt.json'
             self.assertEqual(MODULE.validate_receipt_path(receipt, build_root, protected), receipt.resolve())
             alias = build_root / 'fixture-alias.json'
-            alias.hardlink_to(fixture)
+            os.link(fixture, alias)
             symbolic = build_root / 'fixture-symbolic.json'
             symbolic.symlink_to(fixture)
             for unsafe in [root / 'outside.json', build_root, executable, alias, symbolic]:
