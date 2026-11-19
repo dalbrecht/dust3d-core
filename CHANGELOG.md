@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Match reference pose and animated FBX timing for source durations from 0.001 to 600 seconds and normalize authored one-frame clips before native work admission; retain existing audio and payload limits.
+
 - Preserve reference quiet-arm values for catalog-derived Biped walk directions in opt-in native animation evaluation.
 
 - Add an explicitly enabled SwiftPM animation library with C ABI import and ownership contracts.

@@ -32,7 +32,7 @@ int main()
 {
     try {
         require(fbxAnimationTime(0) == 0 && fbxAnimationTime(1) == 46186158000LL, "FBX seconds/ticks convention changed");
-        require(fbxAnimationTime(60) == 2771169480000LL, "FBX duration boundary changed");
+        require(fbxAnimationTime(60) == 2771169480000LL && fbxAnimationTime(600) == 27711694800000LL, "FBX duration boundary changed");
         require(fbxAnimationTime(1.0 / 24) == static_cast<int64_t>((1.0 / 24) * 46186158000.0), "FBX reference truncation changed");
         for (double angle : { -1080.0, -540.0, -180.0, 0.0, 180.0, 540.0, 1080.0 }) {
             double expected = std::fmod(angle, 360.0);
@@ -73,7 +73,7 @@ int main()
             rejects([&] { (void)unwrapFbxAngle(invalid, 0); }, DUST3D_STATUS_INVALID_DOCUMENT);
         }
         rejects([] { (void)fbxAnimationTime(-0.001); }, DUST3D_STATUS_INVALID_DOCUMENT);
-        rejects([] { (void)fbxAnimationTime(60.001); }, DUST3D_STATUS_LIMIT_EXCEEDED);
+        rejects([] { (void)fbxAnimationTime(std::nextafter(600.0, std::numeric_limits<double>::infinity())); }, DUST3D_STATUS_LIMIT_EXCEEDED);
         rejects([] { (void)normalizeFbxAngle(1000001); }, DUST3D_STATUS_LIMIT_EXCEEDED);
         rejects([] { (void)shortestFbxAngleDifference(-1000001, 0); }, DUST3D_STATUS_LIMIT_EXCEEDED);
         rejects([] { (void)unwrapFbxAngle(0, 1000001); }, DUST3D_STATUS_LIMIT_EXCEEDED);

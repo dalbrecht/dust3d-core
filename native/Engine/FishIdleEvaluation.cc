@@ -77,11 +77,16 @@ OwnedEvaluatedSkeletonClip evaluateFishIdle(const RigStructure& groundedRig,
         }
     }
     const auto& timing = animation::commonTimingDefinition();
-    if (!std::isfinite(duration) || duration < timing.minimumDurationSeconds || duration > timing.maximumDurationSeconds
-        || !std::isfinite(frameCount) || frameCount < 2 || frameCount > timing.maximumFrameCount
+    // Source documents use the shared generator's range, independently of
+    // the reference editor widget's narrower duration controls.
+    if (!std::isfinite(duration) || duration < 0.001 || duration > 600.0
+        || !std::isfinite(frameCount) || frameCount < 1 || frameCount > timing.maximumFrameCount
         || std::trunc(frameCount) != frameCount)
         throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Animation clip timing is outside its declared sampling range.");
 
+    // Predict the exact reference normalization before work/payload admission,
+    // without rewriting the authored parameter strings passed to the generator.
+    frameCount = std::clamp(frameCount, 2.0, 4999.0);
     // The reference evaluator appends a closing sample only for loops.
     const bool loops = definition->second.loop;
     const auto retainedFrameCount = static_cast<size_t>(frameCount) + (loops ? 1 : 0);

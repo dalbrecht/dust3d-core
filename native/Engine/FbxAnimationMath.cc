@@ -6,6 +6,7 @@
 #include "RigTransformValidation.h"
 #include <algorithm>
 #include <cmath>
+#include <limits>
 namespace dust3d {
 namespace native {
     namespace {
@@ -21,9 +22,10 @@ namespace native {
     {
         if (!std::isfinite(seconds) || seconds < 0)
             throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "FBX time must be finite and nonnegative.");
-        if (seconds > 60)
+        if (seconds > 600)
             throw DocumentError(DUST3D_STATUS_LIMIT_EXCEEDED, "FBX time exceeds the owned animation duration bound.");
-        // The admitted maximum yields 2,771,169,480,000, safely representable by int64_t.
+        // The generator-domain maximum is checked at compile time before truncation.
+        static_assert(600ULL * 46186158000ULL <= static_cast<uint64_t>(std::numeric_limits<int64_t>::max()));
         return static_cast<int64_t>(seconds * 46186158000.0);
     }
     FbxEulerAngles fbxEulerAngles(const RigMatrix& matrix)

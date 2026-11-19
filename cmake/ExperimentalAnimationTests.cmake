@@ -191,4 +191,13 @@ if(BUILD_TESTING AND DUST3D_BUILD_EXPERIMENTAL_ANIMATION_TESTS)
     target_link_libraries(dust3d_directional_walk_parameter_tests PRIVATE dust3d_experimental_animation)
     add_test(NAME directional_walk_parameter_contracts COMMAND dust3d_directional_walk_parameter_tests)
     set_tests_properties(directional_walk_parameter_contracts PROPERTIES TIMEOUT 60)
+    add_executable(dust3d_reference_animation_timing_tests
+        "${PROJECT_SOURCE_DIR}/tests/core/reference_animation_timing_tests.cc")
+    target_include_directories(dust3d_reference_animation_timing_tests PRIVATE "${PROJECT_SOURCE_DIR}")
+    target_link_libraries(dust3d_reference_animation_timing_tests PRIVATE dust3d_experimental_animation dust3d_fbx_reference)
+    foreach(mode IN ITEMS pose fbx pcm)
+        add_test(NAME reference_animation_${mode}_timing_contracts
+            COMMAND dust3d_reference_animation_timing_tests ${mode} "${CMAKE_CURRENT_BINARY_DIR}")
+        set_tests_properties(reference_animation_${mode}_timing_contracts PROPERTIES TIMEOUT 60)
+    endforeach()
 endif()
