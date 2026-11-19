@@ -2,7 +2,9 @@
 #ifndef DUST3D_NATIVE_FBX_MESH_SCENE_H_
 #define DUST3D_NATIVE_FBX_MESH_SCENE_H_
 #include "FbxDocument.h"
+#include "GlbSkinWeights.h"
 #include <array>
+#include <dust3d/animation/animation_generator.h>
 #include <dust3d/base/object.h>
 namespace dust3d {
 namespace native {
@@ -34,6 +36,13 @@ namespace native {
     /// input or LIMIT_EXCEEDED for quotas; allocation errors propagate. No image decoding, files, rig,
     /// animation or source baking. Example: encodeFbxTexturedMeshScene(mesh, material).
     OwnedFbxDocument encodeFbxTexturedMeshScene(const Object& source, const FbxSceneMaterial& material, FbxDocumentLimits limits = {});
+    /// Encode a rest skin over the original shared control points and optional
+    /// supplied rig-matched animation keys. The caller owns evaluation and keeps
+    /// the rig, normalized bindings and clips alive for the call.
+    OwnedFbxDocument encodeFbxRestMeshScene(const Object& source, const FbxSceneMaterial* material,
+        const RigStructure& rig, const std::vector<GlbSkinWeights>& bindings, FbxDocumentLimits limits,
+        const std::vector<RigAnimationClip>& clips = {});
+
 }
 }
 #endif

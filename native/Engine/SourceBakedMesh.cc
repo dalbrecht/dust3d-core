@@ -158,10 +158,11 @@ namespace native {
             return { image.width, image.height, image.width * 4, image.pixels.size(), image.pixels.data() };
         }
     }
-    SourceBakedData::SourceBakedData(const Dust3DSourceBakeOptions& options, ImportedModels& imports, size_t maximumMipLevels)
+    SourceBakedData::SourceBakedData(const Dust3DSourceBakeOptions& options, ImportedModels& imports, size_t maximumMipLevels, bool preserveVertexColors)
         : m_options(options)
         , m_maximumOutputBytes(quota(options.maximum_output_payload_bytes, maximumBytes))
         , m_maximumMipLevels(maximumMipLevels)
+        , m_preserveVertexColors(preserveVertexColors)
         , m_imports(&imports)
     {
         if (maximumMipLevels < 1 || maximumMipLevels > 14)
@@ -190,6 +191,14 @@ namespace native {
         m_options.model_images = nullptr;
         m_options.model_image_count = 0;
     }
+    Dust3DTextureView SourceBakedData::texture(uint32_t map) const
+    {
+        if (map >= maps.size() || !maps[map])
+            return {};
+        const auto& image = *maps[map];
+        return { image.width, image.height, image.width * 4, image.pixels.size(), image.pixels.data() };
+    }
+
     void SourceBakedData::validateVisuals(const Snapshot& snapshot) const
     {
         for (const auto& [identity, component] : snapshot.components) {
@@ -419,7 +428,7 @@ namespace native {
             for (size_t axis = 0; axis < 3; ++axis)
                 triangle.tangent.direction[axis] = static_cast<float>(tangents[index].direction[axis]);
             triangles.push_back(triangle);
-            if (triangle.uv_known) {
+            if (triangle.uv_known && !m_preserveVertexColors) {
                 const auto& source = sources.triangles()[index];
                 for (size_t corner = 0; corner < 3; ++corner) {
                     auto& color = geometry.vertices[index * 3 + corner].color;
@@ -539,8 +548,5 @@ Dust3DSurfaceComponentKind dust3d_source_baked_mesh_component_kind(const Dust3DS
 double dust3d_source_baked_mesh_maximum_sampling_lod(const Dust3DSourceBakedMesh* mesh) { return mesh ? mesh->data->maximumSamplingLod : 0; }
 Dust3DTextureView dust3d_source_baked_mesh_texture(const Dust3DSourceBakedMesh* mesh, uint32_t map)
 {
-    if (!mesh || map >= mesh->data->maps.size() || !mesh->data->maps[map])
-        return {};
-    const auto& image = *mesh->data->maps[map];
-    return { image.width, image.height, image.width * 4, image.pixels.size(), image.pixels.data() };
+    return mesh ? mesh->data->texture(map) : Dust3DTextureView {};
 }

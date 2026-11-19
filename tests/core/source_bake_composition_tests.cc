@@ -18,7 +18,7 @@ TriangleKey key(const dust3d::Object& object, size_t index)
     const auto& face = object.triangles[index];
     return { dust3d::PositionKey(object.vertices[face[0]]), dust3d::PositionKey(object.vertices[face[1]]), dust3d::PositionKey(object.vertices[face[2]]) };
 }
-void verifyProceduralSeamsAndNormalComposition()
+void verifyProceduralSeamsAndNormalComposition(bool preserveVertexColors)
 {
     const std::string redId = "{cccccccc-cccc-4ccc-8ccc-cccccccccccc}";
     const std::string blueId = "{dddddddd-dddd-4ddd-8ddd-dddddddddddd}";
@@ -60,10 +60,14 @@ void verifyProceduralSeamsAndNormalComposition()
             for (size_t axis = 0; axis < 3; ++axis)
                 vertex.position[axis] = static_cast<float>(object.vertices[index][axis]);
             vertex.normal[2] = -1;
+            vertex.color[0] = .25f;
+            vertex.color[1] = .5f;
+            vertex.color[2] = .75f;
+            vertex.color[3] = .625f;
             geometry.vertices.push_back(vertex);
         }
     sources.prepare(object, geometry.warning);
-    dust3d::native::SourceBakedData data(options, imports);
+    dust3d::native::SourceBakedData data(options, imports, 1, preserveVertexColors);
     data.validateVisuals(snapshot);
     for (size_t index = 0; index < object.triangles.size(); ++index) {
         sources.appendTriangle(index);
@@ -71,6 +75,11 @@ void verifyProceduralSeamsAndNormalComposition()
     }
     sources.finish(geometry);
     data.prepare(object, snapshot, geometry, sources);
+    const auto& color = geometry.vertices[0].color;
+    require(preserveVertexColors
+            ? color[0] == .25f && color[1] == .5f && color[2] == .75f && color[3] == .625f
+            : color[0] == 1 && color[1] == 1 && color[2] == 1 && color[3] == 1,
+        "Mapped vertices must honor the caller's draw-color policy.");
     require(data.triangles.size() == 5 && data.maps[0] && data.maps[1] && data.maps[2] && data.maps[3] && data.maps[4], "All procedural maps must survive native composition");
     auto sample = [&](size_t triangle, size_t map) {
         double u = 0, v = 0;
@@ -100,7 +109,8 @@ int main()
 {
     try {
         std::lock_guard<std::mutex> lock(dust3d::native::engineMutex());
-        verifyProceduralSeamsAndNormalComposition();
+        verifyProceduralSeamsAndNormalComposition(false);
+        verifyProceduralSeamsAndNormalComposition(true);
         std::cout << "Native source-bake composition contracts passed\n";
         return 0;
     } catch (const std::exception& error) {

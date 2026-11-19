@@ -1,6 +1,7 @@
 #include "DocumentXmlPreflight.h"
 #include "EngineInternal.h"
 #include "ImportedModels.h"
+#include "SnapshotReferences.h"
 #include <algorithm>
 #include <charconv>
 #include <dust3d/base/ds3_file.h>
@@ -56,7 +57,48 @@ namespace native {
             }
         }
 
-        void validateModelXml(std::vector<uint8_t>& bytes)
+        struct AnimationSelection {
+            std::string rigType;
+            std::map<std::string_view, size_t> indexes;
+            std::vector<std::map<std::string, std::string>> records;
+        };
+
+        void selectAnimationMetadata(rapidxml::xml_node<>* canvas, AnimationSelection& selection)
+        {
+            if (auto* rigType = canvas->first_attribute("rigType")) {
+                if (rigType->next_attribute("rigType") || rigType->value_size() > 32)
+                    throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Invalid authored animation rig type.");
+                selection.rigType.assign(rigType->value(), rigType->value_size());
+            }
+            auto* section = canvas->first_node("animations");
+            if (!section || section->next_sibling("animations"))
+                throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Expected exactly one animation container.");
+            std::set<std::string> ids;
+            for (auto* row = section->first_node(); row; row = row->next_sibling()) {
+                if (row->type() != rapidxml::node_element
+                    || std::string_view(row->name(), row->name_size()) != "animation")
+                    throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Invalid animation record.");
+                const auto id = requiredAttribute(row, "id");
+                if (id.size() > 1024 || id.find('\0') != std::string::npos || !ids.insert(id).second)
+                    throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Invalid or duplicate animation identity.");
+                if (ids.size() > 10000)
+                    throw DocumentError(DUST3D_STATUS_LIMIT_EXCEEDED, "The document exceeds the animation record limit.");
+                const auto selected = selection.indexes.find(id);
+                if (selected == selection.indexes.end())
+                    continue;
+                auto& fields = selection.records[selected->second];
+                for (auto* field = row->first_attribute(); field; field = field->next_attribute()) {
+                    if (!fields.emplace(std::string(field->name(), field->name_size()),
+                                   std::string(field->value(), field->value_size()))
+                            .second)
+                        throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Duplicate selected animation attribute.");
+                }
+            }
+            if (std::any_of(selection.records.begin(), selection.records.end(), [](const auto& fields) { return fields.empty(); }))
+                throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "A selected animation is missing.");
+        }
+
+        void validateModelXml(std::vector<uint8_t>& bytes, AnimationSelection* animation)
         {
             validateXmlEnvelope(std::string_view(reinterpret_cast<const char*>(bytes.data()), bytes.size()));
             bytes.push_back(0);
@@ -66,6 +108,8 @@ namespace native {
             auto* canvas = xml.first_node("canvas");
             if (!canvas || xml.first_node() != canvas || canvas->next_sibling())
                 throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "The model must have a single canvas root element.");
+            if (animation)
+                selectAnimationMetadata(canvas, *animation);
             for (const auto* section : { "nodes", "edges", "parts" }) {
                 std::set<std::string> ids;
                 if (auto* elements = canvas->first_node(section)) {
@@ -91,7 +135,7 @@ namespace native {
         }
     }
 
-    static std::unique_ptr<Snapshot> readDocumentInternal(const uint8_t* bytes, size_t size, std::string& warning, DocumentAssetObserver* observer, ImportedModels* imports, bool canReadEmptyGeometry, bool metadataOnly)
+    static std::unique_ptr<Snapshot> readDocumentInternal(const uint8_t* bytes, size_t size, std::string& warning, DocumentAssetObserver* observer, ImportedModels* imports, bool canReadEmptyGeometry, bool metadataOnly, AnimationSelection* animation = nullptr)
     {
         if (!bytes || !size)
             throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Choose a nonempty .ds3 document.");
@@ -161,9 +205,10 @@ namespace native {
         Ds3FileReader reader(bytes, size);
         std::vector<uint8_t> modelBytes;
         reader.loadItem(modelName, &modelBytes);
-        validateModelXml(modelBytes);
+        validateModelXml(modelBytes, animation);
         auto snapshot = std::make_unique<Snapshot>();
-        loadNativeSnapshotFromXmlString(snapshot.get(), reinterpret_cast<char*>(modelBytes.data()));
+        loadSnapshotFromXmlString(snapshot.get(), reinterpret_cast<char*>(modelBytes.data()), SnapshotXmlMode::NativeExecution);
+        resolveSnapshotReferences(*snapshot);
         validateSnapshot(*snapshot, imports != nullptr || metadataOnly, canReadEmptyGeometry);
         for (const auto& component : snapshot->components) {
             if (!String::valueOrEmpty(component.second, "colorImageId").empty()
@@ -183,6 +228,33 @@ namespace native {
     std::unique_ptr<Snapshot> readDocumentMetadata(const uint8_t* bytes, size_t size, std::string& warning, DocumentAssetObserver* observer)
     {
         return readDocumentInternal(bytes, size, warning, observer, nullptr, true, true);
+    }
+
+    std::map<std::string, std::string> readSelectedAnimationMetadata(
+        const uint8_t* bytes, size_t size, std::string_view animationId, std::string* authoredRigType)
+    {
+        auto records = readSelectedAnimationMetadataBatch(bytes, size, { animationId }, authoredRigType);
+        return std::move(records.front());
+    }
+
+    std::vector<std::map<std::string, std::string>> readSelectedAnimationMetadataBatch(
+        const uint8_t* bytes, size_t size, const std::vector<std::string_view>& ids, std::string* authoredRigType)
+    {
+        if (ids.empty() || ids.size() > 128)
+            throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Invalid selected animation count.");
+        AnimationSelection animation;
+        animation.records.resize(ids.size());
+        for (size_t index = 0; index < ids.size(); ++index) {
+            const auto id = ids[index];
+            if (id.empty() || id.size() > 1024 || id.find('\0') != std::string_view::npos
+                || !animation.indexes.emplace(id, index).second)
+                throw DocumentError(DUST3D_STATUS_INVALID_DOCUMENT, "Invalid or duplicate selected animation identity.");
+        }
+        std::string warning;
+        (void)readDocumentInternal(bytes, size, warning, nullptr, nullptr, true, true, &animation);
+        if (authoredRigType)
+            *authoredRigType = std::move(animation.rigType);
+        return std::move(animation.records);
     }
 
 }

@@ -1311,6 +1311,55 @@ The Swift prototype adapter uses it explicitly. Transport authentication and cur
 parent publication admission remain separate; see
 [ADR0165](docs/adr/0165-worker-host-request-preflight.md).
 
+## Rig template visualization extraction (#319)
+
+Private `native/Engine/RigTemplateMesh` ports the Qt template geometry to owned
+portable C++ values, retaining tapered bone solids, capsule rings, source-order
+bone/selection roles and optional 1.5-unit normalization. Bounded metadata/output
+validation precedes geometry allocation. The new focused contract target exercises
+small source-derived cases and all seven licensed templates; it links only this
+math plus RopeMesh/BaseNormal/Vector3. It invokes no document, rig, pose or animation
+generator. See [ADR0204](docs/adr/0204-rig-template-visualization-mesh.md).
+
+This is not a public C ABI or Apple preview adoption. The Apple production pin and
+all quarantines remain unchanged. Full rig/skin/IK/pose and Qt/HIG acceptance remain open.
+
+The template-only C interface uses `dust3d_rig_template_default_options()` and
+`dust3d_rig_template_mesh_create(bones, count, &options, &error)`. A successful
+owner exposes triangle draw records and copied source-order bone names; destroy
+it with `dust3d_rig_template_mesh_destroy`. Borrowed accessor views end at destroy.
+`maximum_vertices` counts expanded draw vertices; retained logical bytes charge
+records and NUL-terminated names, excluding temporary/container overhead. Empty
+input is a successful empty owner, while failures return NULL with a typed cause.
+This API does not generate an actual rig or change the Apple production pin.
+
+## Final rig data ownership boundary (#320)
+
+Private `native/Engine/RigFinalData` copies already finalized joint/vertex-weight
+values into independent storage. It validates exact source names, parent forests,
+finite values, all four influence channels, normalized bound weights, unbound
+sentinels, logical quotas and cooperative cancellation. It does not generate a
+rig, evaluate a pose or expose a public C ABI. See ADR0205. The standalone
+`rig_final_data_contracts` target links no generator, cache materializer or writer.
+Production dependency pins and runtime quarantines remain unchanged.
+
+## Owned procedural generated rigs (development C ABI)
+
+`dust3d_generated_rig_load` copies bounded template name/parent spans and derives
+actual joints/bindings/grounding from a procedural `.ds3` document. Use version1
+`Dust3DGeneratedRigOptions` or defaults; provide the exact rig type and template
+hierarchy. The owner exposes a borrowed grounded `Dust3DMesh`, source-ordered
+joints with rest-world/inverse-bind matrices, exact owned names and four-slot
+weights matching every admitted draw corner. Copy every view before destroying
+the rig; never independently destroy its borrowed mesh.
+
+Typed invalid/limit/cancel errors retain original causes. Imported model assets
+reject explicitly; this does not provide UV/material export, pose deformation or
+animation. Quotas bound logical retained/staging records and separate temporary
+input/final data stages, not process RSS or fixed cancellation latency. See
+[ADR0212](docs/adr/0212-generated-rig-c-abi.md) for the precise contract and validation.
+Apple production pin, active app routes and quarantines remain unchanged.
+
 ### Owned PCM16/WAV encoding
 
 `native/Engine/include/Dust3DAudioWav.h` provides checked scalar planning and
@@ -1318,3 +1367,17 @@ owned PCM16 WAV bytes for core #318. Caller quotas include the 44-byte header;
 empty PCM is valid, and output is immutable until owner destruction. The encoder
 performs no synthesis, native evaluation, file I/O or playback. See
 [ADR 0204](docs/adr/0204-owned-pcm-wav.md) for tests and remaining delivery gates.
+
+## Experimental animation runtime contracts
+
+Build the private generated-rig animation evaluator and run its pose, PCM audio,
+animated FBX ownership, and authored decimal parsing contracts with Python 3 and CMake.
+
+```sh
+cmake -S . -B build-animation -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON -DDUST3D_BUILD_EXPERIMENTAL_ANIMATION_TESTS=ON
+cmake --build build-animation --target dust3d_experimental_animation_tests --parallel 4
+ctest --test-dir build-animation -R '^experimental_animation_runtime_contracts$' --output-on-failure
+```
+
+The fixture is generated from the checked-in goldfish model and Fish rig template.
+The opt-in runtime is retained in the dedicated static test library.

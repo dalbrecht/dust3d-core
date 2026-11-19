@@ -28,12 +28,15 @@
 #include <dust3d/base/object.h>
 #include <dust3d/base/snapshot.h>
 #include <dust3d/base/uuid.h>
+#include <atomic>
 #include <map>
 #include <set>
 #include <string>
 #include <vector>
 
 namespace dust3d {
+
+struct RigSnapshotIndexes;
 
 // RigStructure: Defines a skeletal rig with bones and hierarchy
 struct RigNode {
@@ -79,6 +82,12 @@ public:
         const RigStructure& rigStructure,
         std::map<Uuid, NodeBoneInfluence>& nodeBoneInfluences);
 
+    // Optional borrowed flag for vertex binding only. It must outlive each call;
+    // do not race this setter with generator methods. Null preserves legacy behavior.
+    // Cancellation returns false with a diagnostic; discard partial Object bindings.
+    // Containers/sorting and other rig stages have no fixed cancellation latency.
+    void setBindingCancellationFlag(const std::atomic_bool* flag) { m_bindingCancellationFlag = flag; }
+
     // Compute vertex bone bindings for a generated mesh object
     // Uses the mesh's positionToNodeIdMap to trace vertices back to nodes,
     // then applies node bone influences to create vertex bindings
@@ -106,6 +115,7 @@ public:
 
 private:
     std::string m_errorMessage;
+    const std::atomic_bool* m_bindingCancellationFlag = nullptr;
 
     // Coordinate transformation offsets (from snapshot canvas)
     float m_mainProfileMiddleX = 0.0f;
@@ -115,36 +125,36 @@ private:
     // Helper: Extract all connected chains of nodes for a given bone name
     // Each chain is an ordered list of node UUIDs.
     // Multiple disconnected groups of edges produce multiple chains.
-    bool extractNodeChainsForBone(const Snapshot* snapshot,
+    bool extractNodeChainsForBone(const Snapshot* snapshot, const RigSnapshotIndexes& indexes,
         const std::string& boneName,
         std::vector<std::vector<Uuid>>& nodeChains);
 
     // Helper: Build node connectivity graph from edges with a given bone name
-    void buildNodeAdjacency(const Snapshot* snapshot,
+    void buildNodeAdjacency(const Snapshot* snapshot, const RigSnapshotIndexes& indexes,
         const std::string& boneName,
         std::map<Uuid, std::vector<Uuid>>& adjacency,
         std::set<Uuid>& allNodes);
 
     // Helper: Orient a chain so its end closest to refPoint comes first
-    void orientChainTowardPoint(const Snapshot* snapshot,
+    void orientChainTowardPoint(const Snapshot* snapshot, const RigSnapshotIndexes& indexes,
         std::vector<Uuid>& chain,
         float refX, float refY, float refZ);
 
     // Helper: Get position of a single node from the snapshot
-    bool getNodePosition(const Snapshot* snapshot, const Uuid& nodeId,
+    bool getNodePosition(const Snapshot* snapshot, const RigSnapshotIndexes& indexes, const Uuid& nodeId,
         float& x, float& y, float& z);
 
     // Internal helper that tracks visited node ids to prevent mirror loops
-    bool getNodePositionInternal(const Snapshot* snapshot, const Uuid& nodeId,
+    bool getNodePositionInternal(const Snapshot* snapshot, const RigSnapshotIndexes& indexes, const Uuid& nodeId,
         float& x, float& y, float& z, std::set<std::string>& visited);
 
     // Helper: Get all edges with a specific bone name
     std::vector<const std::map<std::string, std::string>*> getEdgesWithBoneName(
-        const Snapshot* snapshot,
+        const Snapshot* snapshot, const RigSnapshotIndexes& indexes,
         const std::string& boneName);
 
     // Helper: Check if node has edge with given boneName
-    bool nodeHasEdgeWithBoneName(const Snapshot* snapshot,
+    bool nodeHasEdgeWithBoneName(const Snapshot* snapshot, const RigSnapshotIndexes& indexes,
         const Uuid& nodeId,
         const std::string& boneName);
 
@@ -160,7 +170,7 @@ private:
     // Helper: Find truly isolated nodes (no edges at all) that are nearest
     // to the given bone's edge-connected nodes, and append them as single-node chains.
     // Also records the mapping in m_singleNodeBoneMap for use by computeNodeBoneInfluences.
-    void attachSingleNodesToBone(const Snapshot* snapshot,
+    void attachSingleNodesToBone(const Snapshot* snapshot, const RigSnapshotIndexes& indexes,
         const std::string& boneName,
         const std::set<Uuid>& boneEdgeNodes,
         const std::set<Uuid>& allEdgeNodes,

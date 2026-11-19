@@ -308,6 +308,9 @@ void MeshGenerator::recoverQuads(const std::vector<Vector3>& vertices, const std
 
 void MeshGenerator::collectParts()
 {
+    // Preprocessing has finished changing keys; the disabled-preview path also enters here.
+    m_nodeIdentityIndex = SnapshotIdentityIndex(m_snapshot->nodes);
+    m_componentIdentityIndex = SnapshotIdentityIndex(m_snapshot->components);
     for (const auto& node : m_snapshot->nodes) {
         std::string partId = String::valueOrEmpty(node.second, "partId");
         if (partId.empty())
@@ -364,10 +367,12 @@ bool MeshGenerator::checkIsComponentDirty(const std::string& componentIdString)
 
     const std::map<std::string, std::string>* component = &m_snapshot->rootComponent;
     if (componentIdString != to_string(Uuid())) {
-        auto findComponent = m_snapshot->components.find(componentIdString);
+        auto findComponent = m_componentIdentityIndex.find(m_snapshot->components, componentIdString).element;
         if (findComponent == m_snapshot->components.end()) {
             return isDirty;
         }
+        if (findComponent->first != componentIdString)
+            return checkIsComponentDirty(findComponent->first);
         component = &findComponent->second;
     }
 
@@ -688,7 +693,7 @@ std::unique_ptr<MeshState> MeshGenerator::combineStitchingMesh(const std::string
                 ObjectNode { meshNode.origin, color, smoothCutoffDegrees }));
         }
         Color splineColor = color;
-        auto findComponent = m_snapshot->components.find(componentIdStrings[partIndex]);
+        auto findComponent = m_componentIdentityIndex.find(m_snapshot->components, componentIdStrings[partIndex]).element;
         if (findComponent != m_snapshot->components.end()) {
             std::string componentColorString = String::valueOrEmpty(findComponent->second, "color");
             if (!componentColorString.empty())
@@ -852,7 +857,7 @@ std::unique_ptr<MeshState> MeshGenerator::combineStitchingLoopMesh(const std::st
                 ObjectNode { meshNode.origin, partColor, smoothCutoffDegrees }));
         }
         Color loopColor = color;
-        auto findComponent = m_snapshot->components.find(componentIdStrings[partIndex]);
+        auto findComponent = m_componentIdentityIndex.find(m_snapshot->components, componentIdStrings[partIndex]).element;
         if (findComponent != m_snapshot->components.end()) {
             std::string componentColorString = String::valueOrEmpty(findComponent->second, "color");
             if (!componentColorString.empty())
@@ -894,7 +899,7 @@ std::unique_ptr<MeshState> MeshGenerator::combineStitchingLoopMesh(const std::st
     //         (or its own colorImageId if configured), painted as a solid fill or textured tile.
     bool componentHasImage = false;
     {
-        auto findComp = m_snapshot->components.find(componentIdString);
+        auto findComp = m_componentIdentityIndex.find(m_snapshot->components, componentIdString).element;
         if (findComp != m_snapshot->components.end())
             componentHasImage = !String::valueOrEmpty(findComp->second, "colorImageId").empty();
     }
@@ -1356,7 +1361,7 @@ const std::map<std::string, std::string>* MeshGenerator::findComponent(const std
 {
     const std::map<std::string, std::string>* component = &m_snapshot->rootComponent;
     if (componentIdString != to_string(Uuid())) {
-        auto findComponent = m_snapshot->components.find(componentIdString);
+        auto findComponent = m_componentIdentityIndex.find(m_snapshot->components, componentIdString).element;
         if (findComponent == m_snapshot->components.end()) {
             return nullptr;
         }
@@ -1385,10 +1390,12 @@ std::unique_ptr<MeshState> MeshGenerator::combineComponentMesh(const std::string
     const std::map<std::string, std::string>* component = &m_snapshot->rootComponent;
     if (componentIdString != to_string(Uuid())) {
         componentId = Uuid(componentIdString);
-        auto findComponent = m_snapshot->components.find(componentIdString);
+        auto findComponent = m_componentIdentityIndex.find(m_snapshot->components, componentIdString).element;
         if (findComponent == m_snapshot->components.end()) {
             return nullptr;
         }
+        if (findComponent->first != componentIdString)
+            return combineComponentMesh(findComponent->first, combineMode);
         component = &findComponent->second;
     }
 
@@ -1409,14 +1416,15 @@ std::unique_ptr<MeshState> MeshGenerator::combineComponentMesh(const std::string
         targetSegments = 0;
 
     auto& componentCache = m_cacheContext->components[componentIdString];
+    auto snapshotComponent = m_componentIdentityIndex.find(m_snapshot->components, componentIdString).element;
 
     if (m_cacheEnabled) {
         if (m_dirtyComponentIds.find(componentIdString) == m_dirtyComponentIds.end()) {
             if (nullptr != componentCache.mesh) {
-                if (!componentCache.wrapColor.empty() && String::valueOrEmpty(*component, "color").empty())
-                    m_snapshot->components[componentIdString]["color"] = componentCache.wrapColor;
-                if (!componentCache.wrapFolds.empty())
-                    m_snapshot->components[componentIdString]["__wrapFolds"] = componentCache.wrapFolds;
+                if (snapshotComponent != m_snapshot->components.end() && !componentCache.wrapColor.empty() && String::valueOrEmpty(*component, "color").empty())
+                    snapshotComponent->second["color"] = componentCache.wrapColor;
+                if (snapshotComponent != m_snapshot->components.end() && !componentCache.wrapFolds.empty())
+                    snapshotComponent->second["__wrapFolds"] = componentCache.wrapFolds;
                 m_generatedComponentIds.insert(componentIdString);
                 ++m_generationMetrics.reusedComponents;
                 return std::make_unique<MeshState>(*componentCache.mesh);
@@ -1583,7 +1591,7 @@ bool MeshGenerator::seamReportEnabled()
 
 std::string MeshGenerator::componentDisplayName(const std::string& componentIdString)
 {
-    auto findComponent = m_snapshot->components.find(componentIdString);
+    auto findComponent = m_componentIdentityIndex.find(m_snapshot->components, componentIdString).element;
     if (findComponent == m_snapshot->components.end())
         return componentIdString;
     std::string name = String::valueOrEmpty(findComponent->second, "name");
@@ -1650,7 +1658,7 @@ bool MeshGenerator::isHardComponent(const std::string& componentIdString, int de
     // says so itself, or when every child in it is hard.
     if (depth > 64)
         return false;
-    auto findComponent = m_snapshot->components.find(componentIdString);
+    auto findComponent = m_componentIdentityIndex.find(m_snapshot->components, componentIdString).element;
     if (findComponent == m_snapshot->components.end())
         return false;
     const auto& component = findComponent->second;
@@ -2368,7 +2376,7 @@ std::unique_ptr<MeshState> MeshGenerator::buildWrapMesh(const std::string& compo
         std::set<std::string> nodeIdStrings;
         for (const auto& nodeId : builder.bindNodeIds()) {
             std::string nodeIdString = nodeId.toString();
-            auto findNode = m_snapshot->nodes.find(nodeIdString);
+            auto findNode = m_nodeIdentityIndex.find(m_snapshot->nodes, nodeIdString).element;
             if (findNode == m_snapshot->nodes.end())
                 continue;
             const auto& node = findNode->second;
@@ -2390,7 +2398,7 @@ std::unique_ptr<MeshState> MeshGenerator::buildWrapMesh(const std::string& compo
             bindNode.twinGroup = mirrorFrom.empty() ? partIdString : mirrorFrom;
             builder.addBindNode(bindNode);
             skeletonNodes.push_back(bindNode);
-            nodeIdStrings.insert(nodeIdString);
+            nodeIdStrings.insert(findNode->first);
         }
         for (const auto& edgeIt : m_snapshot->edges) {
             std::string from = String::valueOrEmpty(edgeIt.second, "from");
@@ -2439,8 +2447,9 @@ std::unique_ptr<MeshState> MeshGenerator::buildWrapMesh(const std::string& compo
             input.seed = SurfacePattern::seedFromString(componentIdString);
             foldText = ClothFolds::serialize(ClothFolds::place(input));
         }
-        if (componentIdString != to_string(Uuid()))
-            m_snapshot->components[componentIdString]["__wrapFolds"] = foldText;
+        auto snapshotComponent = m_componentIdentityIndex.find(m_snapshot->components, componentIdString).element;
+        if (componentIdString != to_string(Uuid()) && snapshotComponent != m_snapshot->components.end())
+            snapshotComponent->second["__wrapFolds"] = foldText;
         m_cacheContext->components[componentIdString].wrapFolds = foldText;
     }
 
@@ -2470,7 +2479,9 @@ std::unique_ptr<MeshState> MeshGenerator::buildWrapMesh(const std::string& compo
             }
         }
         if (best > 0 && componentIdString != to_string(Uuid())) {
-            m_snapshot->components[componentIdString]["color"] = wrapColor.toString();
+            auto snapshotComponent = m_componentIdentityIndex.find(m_snapshot->components, componentIdString).element;
+            if (snapshotComponent != m_snapshot->components.end())
+                snapshotComponent->second["color"] = wrapColor.toString();
             m_cacheContext->components[componentIdString].wrapColor = wrapColor.toString();
         }
     }
@@ -2939,7 +2950,7 @@ void MeshGenerator::collectComponentPreview(const std::string& componentIdString
                 auto findNode = source.nodeMap.find(findNodeId->second);
                 if (findNode != source.nodeMap.end())
                     vertexColor = findNode->second.color;
-                auto snapshotNode = m_snapshot->nodes.find(findNodeId->second.toString());
+                auto snapshotNode = m_nodeIdentityIndex.find(m_snapshot->nodes, findNodeId->second).element;
                 if (snapshotNode != m_snapshot->nodes.end()) {
                     auto part = m_cacheContext->parts.find(String::valueOrEmpty(snapshotNode->second, "partId"));
                     if (part != m_cacheContext->parts.end()) {

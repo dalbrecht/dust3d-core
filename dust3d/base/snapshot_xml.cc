@@ -20,6 +20,7 @@
  *  SOFTWARE.
  */
 
+#include <cstdint>
 #include <dust3d/base/debug.h>
 #include <dust3d/base/snapshot_xml.h>
 #include <dust3d/base/string.h>
@@ -27,6 +28,7 @@
 #include <iostream>
 #include <optional>
 #include <rapidxml.hpp>
+#include <set>
 #include <stack>
 
 namespace dust3d {
@@ -50,7 +52,29 @@ static std::string loadComponentReturnChildrenList(Snapshot* snapshot, rapidxml:
     return String::join(children, ",");
 }
 
+// Match the Editor's flat-list projection. Reserve UUID aliases in the graph
+// identity space so promotion to explicit components can retain these IDs.
+static std::string nextFlatComponentId(std::set<Uuid>& reserved, uint64_t& sequence)
+{
+    constexpr char digits[] = "0123456789abcdef";
+    for (;;) {
+        auto value = ++sequence;
+        std::string candidate = "{00000000-0000-8000-8000-000000000000}";
+        for (size_t index = candidate.size() - 2; value != 0 && index >= 25; --index) {
+            candidate[index] = digits[value & 0xf];
+            value >>= 4;
+        }
+        if (reserved.emplace(candidate).second)
+            return candidate;
+    }
+}
+
 void loadSnapshotFromXmlString(Snapshot* snapshot, char* xmlString)
+{
+    loadSnapshotFromXmlString(snapshot, xmlString, SnapshotXmlMode::Qt);
+}
+
+void loadSnapshotFromXmlString(Snapshot* snapshot, char* xmlString, SnapshotXmlMode mode)
 {
     if (nullptr == xmlString)
         return;
@@ -106,12 +130,25 @@ void loadSnapshotFromXmlString(Snapshot* snapshot, char* xmlString)
                 }
             }
 
+            const bool nativeExecution = SnapshotXmlMode::NativeExecution == mode;
+            rapidxml::xml_node<>* components = canvas->first_node("components");
             rapidxml::xml_node<>* partIdList = canvas->first_node("partIdList");
-            if (nullptr != partIdList) {
+            if (nullptr != partIdList && (!nativeExecution || nullptr == components)) {
+                std::set<Uuid> reserved;
+                uint64_t sequence = 0;
+                if (nativeExecution) {
+                    for (const auto* elements : { &snapshot->nodes, &snapshot->edges, &snapshot->parts, &snapshot->components }) {
+                        for (const auto& element : *elements) {
+                            const Uuid id(element.first);
+                            if (!id.isNull())
+                                reserved.insert(id);
+                        }
+                    }
+                }
                 for (rapidxml::xml_node<>* partId = partIdList->first_node(); nullptr != partId; partId = partId->next_sibling()) {
                     rapidxml::xml_attribute<>* idAttribute = partId->first_attribute("id");
                     if (nullptr != idAttribute) {
-                        std::string componentId = to_string(Uuid::createUuid());
+                        std::string componentId = nativeExecution ? nextFlatComponentId(reserved, sequence) : to_string(Uuid::createUuid());
                         auto& component = snapshot->components[componentId];
                         component["id"] = componentId;
                         component["linkData"] = idAttribute->value();
@@ -124,7 +161,6 @@ void loadSnapshotFromXmlString(Snapshot* snapshot, char* xmlString)
                 }
             }
 
-            rapidxml::xml_node<>* components = canvas->first_node("components");
             if (nullptr != components) {
                 snapshot->rootComponent["children"] = loadComponentReturnChildrenList(snapshot, components);
             }

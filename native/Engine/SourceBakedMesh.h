@@ -16,12 +16,13 @@ namespace native {
 
     class SourceBakedData {
     public:
-        SourceBakedData(const Dust3DSourceBakeOptions& options, ImportedModels& imports, size_t maximumMipLevels = 1);
+        SourceBakedData(const Dust3DSourceBakeOptions& options, ImportedModels& imports, size_t maximumMipLevels = 1, bool preserveVertexColors = false);
         DocumentAssetObserver* imageEncodingObserver() { return m_legacy.get(); }
         void validateVisuals(const Snapshot& snapshot) const;
         void appendTriangle(size_t index) { m_originalIndices.push_back(index); }
         void prepare(const Object& object, const Snapshot& snapshot, Dust3DMesh& geometry, const ImportedSurfaceData& sources);
         const Dust3DCancellationToken* cancellation() const { return m_options.legacy.cancellation; }
+        Dust3DTextureView texture(uint32_t map) const;
         size_t maximumOutputBytes() const { return m_maximumOutputBytes; }
         std::array<std::optional<TextureImage>, 5> maps;
         std::array<std::vector<TextureImage>, 5> mipLevels;
@@ -33,6 +34,7 @@ namespace native {
         Dust3DSourceBakeOptions m_options;
         size_t m_maximumOutputBytes;
         size_t m_maximumMipLevels;
+        bool m_preserveVertexColors;
         ImportedModels* m_imports;
         std::unique_ptr<BakedMeshData> m_legacy;
         std::map<std::string, TextureImageView> m_modelImages;

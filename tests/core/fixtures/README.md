@@ -89,6 +89,32 @@ archive offsets and lengths. No native writer, fault case or image decoder is
 used to create it. Metadata extraction asserts exact encoded PNG ownership; this
 is not rendered pixel evidence. SHA256: 93f13ca989621318a39dae7f87131c1d4d554526fa29b64eac01217134a568f5.
 
+## Synthetic FishIdle PCM input
+
+The unregistered private PCM owner contract uses a synthetic single Model chain
+derived from the MIT Goldfish body in `tools/agent_modeling/examples/goldfish.json`.
+The derivation starts at Core `2d88f9cd` and adds a distal TailEnd edge to the
+original five assigned edges. It leaves out the separate eye and stitched fins.
+The generated header carries the real DS3 container and source-order inputs
+from `application/resources/rig_fish.xml`. Nothing needs to be checked in as a
+binary fixture.
+
+From the Core checkout, generate and syntax-check the contract:
+
+```sh
+fixture_dir=$(mktemp -d)
+python3 -B tests/core/generate_fish_idle_pcm_fixture.py > "$fixture_dir/fish_idle_pcm_fixture.h"
+clang++ -std=c++17 -fsyntax-only -Inative/Engine -I"$fixture_dir" tests/core/fish_idle_pcm_owner_source_contract.cc
+```
+
+The Python generator verifies archive round-trip, exact Model linkage, the six
+ordered bone assignments, the bundled template hierarchy, and the authored
+FishIdle settings (one second, 32 requested frames, drift factor 3, and Water
+as the sound surface). The contract uses the surface read from the archive
+as the separate PCM request field. It expects a nonempty grounded draw
+mesh, 33 pose samples including the loop endpoint, and 44,100 mono PCM samples
+with at least one nonzero value. The geometry and sound expectations require a
+future authorized native run of the unregistered contract.
 `MirroredTexturedCapsule.ds3` is an MIT derivative of Capsule with asymmetric
 radii and a synthetic 32×32 four-quadrant color image. The chain is placed at
 X 0.38 around origin X 0.5 with X mirror enabled, then resaved by Qt at

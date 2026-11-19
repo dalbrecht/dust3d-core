@@ -42,6 +42,30 @@ namespace native {
         }
         return result;
     }
+    FbxEulerAngles continuousFbxEulerAngles(FbxEulerAngles current, FbxEulerAngles previous)
+    {
+        constexpr double radiansPerDegree = 3.14159265358979323846 / 180.0;
+        if (std::abs(std::sin(current.yaw * radiansPerDegree)) > 1.0 - 1e-12) {
+            // At the singularity, preserve the preceding roll and transfer the coupled angle into pitch.
+            const double rollChange = previous.roll - current.roll;
+            current.pitch += current.yaw >= 0 ? rollChange : -rollChange;
+            current.roll = previous.roll;
+        }
+        const FbxEulerAngles alternate { current.pitch + 180, 180 - current.yaw, current.roll + 180 };
+        const auto nearest = [&](FbxEulerAngles value) -> FbxEulerAngles {
+            return { unwrapFbxAngle(value.pitch, previous.pitch), unwrapFbxAngle(value.yaw, previous.yaw),
+                unwrapFbxAngle(value.roll, previous.roll) };
+        };
+        const auto score = [&](FbxEulerAngles value) {
+            const double pitch = value.pitch - previous.pitch;
+            const double yaw = value.yaw - previous.yaw;
+            const double roll = value.roll - previous.roll;
+            return pitch * pitch + yaw * yaw + roll * roll;
+        };
+        const auto direct = nearest(current);
+        const auto flipped = nearest(alternate);
+        return score(flipped) < score(direct) ? flipped : direct;
+    }
     double normalizeFbxAngle(double degrees)
     {
         validateAngle(degrees);
